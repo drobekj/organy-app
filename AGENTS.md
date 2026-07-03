@@ -1,28 +1,31 @@
 # AGENTS.md
 
 ## Purpose
-Guidance for AI assistants and human contributors working in this repository.
+Guidance for Codex and other AI assistants collaborating in this repository.
 
-## Repository Orientation
-- Summarize the project type, main goals, and important directories here.
-- Link to the documentation files in `docs/` that define product, technical, and planning context.
+## Scope
+- Keep this file focused on repository collaboration rules, working expectations, and review guidance for AI-assisted changes.
+- Do not use this file for product requirements, architecture decisions, roadmap planning, domain modeling, or implementation design.
+- Refer to `README.md` for the documentation map and to files in `docs/` for project context.
 
 ## Working Principles
-- Describe how assistants should approach changes, including preferred levels of autonomy, when to ask for clarification, and how to preserve existing behavior.
-- Record expectations for small, reviewable changes and clear rationale.
+- Prefer small, reviewable changes with clear rationale.
+- Preserve existing behavior unless the requested change explicitly requires otherwise.
+- Ask for clarification when requirements are ambiguous, risky, or likely to affect product direction.
+- Avoid adding application code, dependencies, or tooling unless explicitly requested.
+- Keep documentation changes aligned with the responsibility of the target document.
 
-## Documentation Expectations
-- Explain which documentation should be updated when product intent, requirements, architecture, workflows, decisions, roadmap, or backlog items change.
-- Keep documentation templates current as the project evolves.
-
-## Coding Guidelines
-- Add language, framework, formatting, testing, and naming conventions when the application stack is selected.
-- Do not add implementation-specific rules until the relevant technology choices are made.
+## Documentation Boundaries
+- Update `README.md` when the repository overview or documentation map changes.
+- Update files in `docs/` when their specific planning, product, technical, or workflow responsibility changes.
+- Keep `AGENTS.md` limited to collaboration guidance for Codex; move project intent, requirements, architecture, and planning content to the appropriate documentation file.
 
 ## Testing and Verification
-- Document the commands required to validate changes once tooling exists.
-- Note any environment setup or dependency requirements here.
+- Run relevant checks when project tooling exists.
+- For documentation-only changes, verify formatting and review the changed files for clarity and consistency.
+- Note any checks that could not be run because tooling has not been selected yet.
 
 ## Pull Request Guidance
-- Summarize the expected PR format, required checks, and review criteria.
-- Include links to related decisions, requirements, or backlog items when applicable.
+- Summarize the purpose of the change and the documents updated.
+- Include related decisions, requirements, or backlog references when applicable.
+- Call out whether the change is documentation-only or includes implementation work.

@@ -4,16 +4,16 @@ Administration and communication of the musical part of church masses SCEAV.
 
 ## Project Documentation
 
-This repository is prepared for long-term AI-assisted software development. The documentation files below provide structured places to capture product intent, requirements, architecture, domain knowledge, workflows, decisions, planning, and contributor guidance before application code is implemented.
+This repository is prepared for long-term AI-assisted software development. The documentation files below each have a distinct responsibility so that product intent, technical direction, planning, and collaboration rules stay easy to find as the project evolves.
 
-- `AGENTS.md` — guidance for AI assistants and human contributors working in this repository.
-- `docs/product-vision.md` — template for product goals, users, value, scope, assumptions, and open questions.
-- `docs/requirements.md` — template for functional requirements, non-functional requirements, acceptance criteria, constraints, and traceability.
-- `docs/architecture.md` — template for system context, components, technology choices, cross-cutting concerns, and operations.
-- `docs/domain-model.md` — template for domain vocabulary, entities, relationships, business rules, states, and events.
-- `docs/workflows.md` — template for user, administrative, system, and development workflows.
-- `docs/decisions.md` — template and index for product and technical decision records.
-- `docs/roadmap.md` — template for product direction, themes, milestones, dependencies, and roadmap changes.
-- `docs/backlog.md` — template for candidate work items, prioritization, ready criteria, technical debt, and parked ideas.
+- `AGENTS.md` — collaboration and working rules for Codex and other AI assistants. Keep repository workflow guidance here, not product, architecture, or implementation decisions.
+- `docs/product-vision.md` — product intent and direction, including goals, target users, value proposition, scope boundaries, assumptions, and open product questions.
+- `docs/requirements.md` — functional and non-functional requirements, acceptance criteria, constraints, and traceability once requirements are known.
+- `docs/architecture.md` — technical structure and rationale, including system context, components, technology choices, integration boundaries, data flow, operations, and known legacy constraints.
+- `docs/domain-model.md` — shared domain language, key concepts, relationships, business rules, states, and events without committing to a database design too early.
+- `docs/workflows.md` — user, administrative, system, and development workflows described at the process level.
+- `docs/decisions.md` — decision records for product and technical choices, including context, options considered, outcomes, and consequences.
+- `docs/roadmap.md` — high-level planning themes, milestones, dependencies, sequencing, and changes to product direction over time.
+- `docs/backlog.md` — candidate work items, prioritization notes, readiness criteria, technical debt, and parked ideas.
 
-These documents are intentionally templates only. Add project-specific content as decisions are made and requirements become clear.
+These documents are intentionally templates only. Add project-specific content as decisions are made and requirements become clear. Do not add detailed product requirements or database design until those topics are ready for deliberate discussion.

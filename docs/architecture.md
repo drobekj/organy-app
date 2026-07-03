@@ -15,6 +15,11 @@ Describe major application components, responsibilities, and interactions once d
 ## Data Flow
 Outline how information moves through the system at a conceptual level.
 
+## Legacy System and Database Constraints
+Capture known constraints from existing systems that the future application may need to integrate with, migrate from, or replace.
+
+High-level note: the future application may need to integrate with or migrate from an existing legacy database of approximately 10 tables. Do not design the new database here yet; record only confirmed constraints, risks, open questions, and migration considerations until architectural decisions are made.
+
 ## Technology Choices
 Record chosen languages, frameworks, services, storage systems, and infrastructure when selected.
 
