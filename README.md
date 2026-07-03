@@ -18,3 +18,4 @@ This repository is prepared for long-term AI-assisted software development. The 
 - `docs/backlog.md` — candidate work items, prioritization notes, readiness criteria, technical debt, and parked ideas.
 
 These documents are intentionally templates only. Add project-specific content as decisions are made and requirements become clear. After analytical discussion, record chronological discoveries in `docs/analysis-log.md` before promoting stable conclusions into requirements, decisions, architecture, roadmap, or backlog documents. Do not add detailed product requirements or database design until those topics are ready for deliberate discussion.
+- `docs/analysis-log.md` — chronological analytical discoveries captured after analytical discussion before they are refined into product vision, domain analysis, requirements, architecture, or implementation work.
