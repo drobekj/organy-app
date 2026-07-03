@@ -5,7 +5,7 @@ Guidance for Codex and other AI assistants collaborating in this repository.
 
 ## Scope
 - Keep this file focused on repository collaboration rules, working expectations, and review guidance for AI-assisted changes.
-- Do not use this file for product requirements, architecture decisions, roadmap planning, domain modeling, or implementation design.
+- Do not use this file for product requirements, domain analysis, architecture decisions, roadmap planning, domain modeling, or implementation design.
 - Refer to `README.md` for the documentation map and to files in `docs/` for project context.
 
 ## Working Principles
@@ -17,8 +17,10 @@ Guidance for Codex and other AI assistants collaborating in this repository.
 
 ## Documentation Boundaries
 - Update `README.md` when the repository overview or documentation map changes.
-- Update files in `docs/` when their specific planning, product, technical, or workflow responsibility changes.
-- Keep `AGENTS.md` limited to collaboration guidance for Codex; move project intent, requirements, architecture, and planning content to the appropriate documentation file.
+- Update files in `docs/` when their specific planning, product, domain, technical, or workflow responsibility changes.
+- Keep `AGENTS.md` limited to collaboration guidance for Codex; move project intent, domain analysis, requirements, architecture, and planning content to the appropriate documentation file.
+- Use `docs/domain-analysis.md` for exploratory domain knowledge: terminology, stakeholders, real-world roles, knowledge maintained by the system, business processes, decision making, business rules, constraints, and open questions.
+- Do not treat domain analysis as requirements or architecture: requirements define expected system behavior and acceptance criteria, while architecture defines technical structure and implementation rationale.
 
 ## Testing and Verification
 - Run relevant checks when project tooling exists.
