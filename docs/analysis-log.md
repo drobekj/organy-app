@@ -246,3 +246,48 @@ Implementation
 The repository should become the project's source of truth.
 
 Chat conversations are only the place where new knowledge is created.
+
+---
+
+# Session 2026-07-06
+
+This session records the analysis package prepared during the analytical session.
+
+---
+
+## Discovery 18 — Preferences are role-weighted scores on concrete songs
+
+Preferences belong to concrete songs identified by `(language, song number)`.
+
+Role-based own preference ranges are:
+
+- priest: 0–3
+- organist: 0–2
+- congregation member: 0–1
+- admin: no own preference score
+
+Preferences do not automatically transfer across a melody-equivalence class.
+
+The preference filter uses the total summed preference score of the concrete song `(language, song number)`.
+
+---
+
+## Discovery 19 — Candidate display must keep explicit repertoire visible
+
+Candidate records may show relevant songs from the same melody-equivalence class, filtered by service language.
+
+The explicitly repertory song is marked in bold.
+
+If the language-filtered melody-class display would hide all explicit repertoire songs, exactly one arbitrary opposite-language repertoire song from the class should be added and marked in bold.
+
+---
+
+## Discovery 23 — Service set and preference permissions need separate concepts
+
+The priest can create and edit working sets, save final sets, delete saved sets, and convert final sets to completed-service records. Final sets are not directly edited; if they must change, they are deleted and recreated.
+
+Preference permissions distinguish two different responsibilities:
+
+- manage own song preferences: priest, organist, congregation member
+- manage congregation preferences as an administrative dataset: admin only
+- admin has no own song preference
