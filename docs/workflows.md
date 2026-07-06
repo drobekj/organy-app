@@ -114,13 +114,16 @@ Each workflow uses:
 ### WF-006 — Complete a service from a final set
 
 - **Goal:** Convert the final selected plan into historical completed-service record used for future planning.
-- **Actors:** Priest, admin.
+- **Actors:** Priest, admin, system.
 - **Preconditions:** A final set exists for the service.
 - **Steps:**
-  1. After the service, the actor converts the final set to a completed-service record.
-  2. The completed-service record preserves the concrete songs and ordered service rows that represent what was finalized for the service.
-  3. The record becomes historical input for backward melody non-repetition checks.
+  1. After the service, a priest or admin may convert the final set to a completed-service record.
+  2. The system may also convert the final set to a completed-service record automatically after a default time.
+  3. The completed-service record preserves the concrete songs and ordered service rows that represent what was finalized for the service.
+  4. The record becomes historical input for backward melody non-repetition checks.
 - **Exceptions:**
+  - Automatic conversion is an allowed product direction but is not fully specified yet.
+  - The exact default time and automatic conversion behavior remain open workflow/product questions.
   - Completed-service records are not non-completed plans.
   - Completed-service records are not judged as conflicts with other completed-service records.
 - **Outputs:** A completed-service record for historical planning knowledge.
@@ -233,4 +236,5 @@ No development workflows are defined in this product workflow document.
 
 ## Open Workflow Questions
 
-No open workflow questions are recorded for the accepted 2026-07-06 analytical conclusions.
+- What exact default time should trigger automatic conversion of a final set to a completed-service record?
+- What exact automatic conversion behavior should apply around that default time?
