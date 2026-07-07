@@ -14,6 +14,8 @@ It does not define a migration strategy, target schema, import process, synchron
 
 Because no legacy database, schema dump, SQL files, CSV exports, spreadsheet files, or other legacy data files were found in the repository, this document is currently an assessment template/checklist for later manual completion.
 
+Clarified legacy table semantics and product/domain mapping implications from the externally inspected SQL Server database are tracked in `docs/legacy-to-domain-mapping.md`. This assessment remains focused on data-quality risks and assessment questions rather than becoming the mapping document.
+
 ## 1. Legacy Source Overview
 
 ### Found or Not Found
