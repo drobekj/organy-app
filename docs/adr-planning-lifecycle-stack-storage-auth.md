@@ -109,7 +109,9 @@ Medium-low. Useful for disposable exploration, but not ideal as the first implem
 
 Use a **lightweight full-stack TypeScript application direction** for the first implementation slice, with a small domain/application layer that owns planning lifecycle validation and permission checks. The exact framework and project setup remain undecided and should be chosen in a follow-up decision before coding.
 
-Use **simple durable relational storage direction** for the first slice. The storage technology should support local development, ordered service rows, lifecycle state, historical completed-service records, and later expansion toward candidate selection. This ADR does not select a database product, ORM, migration tool, or schema.
+Keep **storage direction unresolved and deferred**. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
+
+SQLite with Prisma may remain a possible future option for lightweight local development, but it is not accepted or preferred by this ADR. SQL Server-backed persistence may also remain a possible future option, especially because the legacy source is SQL Server. Another relational database may be justified later. Final storage selection depends on the accepted target-domain schema design, legacy-to-domain mapping, migration/refactoring strategy, local development needs, and deployment assumptions.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
@@ -119,11 +121,11 @@ This direction intentionally does not decide:
 - exact database, ORM/query layer, migration strategy, or schema;
 - exact auth provider, session strategy, user table shape, or login screens;
 - whether the first implementation runs as a single deployable app or later separates frontend and backend;
-- whether legacy data must be inspected before final persistence design.
+- final storage choice, which remains deferred pending legacy-to-domain mapping assessment and target-domain persistence design.
 
 ## Storage Boundary
 
-This ADR does not design a database schema.
+This ADR does not design a database schema and does not select final storage. Storage design remains blocked until the target-domain persistence model is designed from the accepted domain model and legacy-to-domain mapping rather than from the legacy SQL Server table shape.
 
 For the Planning Lifecycle First slice, storage must conceptually support:
 
@@ -164,13 +166,13 @@ This enables:
 
 - a conservative path from documentation to the first runnable planning lifecycle slice;
 - early enforcement of accepted lifecycle and permission rules;
-- durable persistence of services, service sets, rows, and historical completed-service records;
+- a clear list of persistence capabilities needed for services, service sets, rows, and historical completed-service records;
 - future expansion toward candidate selection, non-repetition, knowledge, and preferences without selecting those systems now.
 
 This postpones:
 
 - exact framework and project setup;
-- exact persistence technology and schema;
+- exact persistence technology and schema, including whether to use SQLite with Prisma, SQL Server-backed persistence, or another relational option;
 - exact authentication mechanism and account model;
 - full candidate selection, non-repetition, preference, knowledge-management, and legacy-migration implementation;
 - multi-congregation or enterprise tenancy design.
@@ -178,7 +180,7 @@ This postpones:
 Risks:
 
 - TypeScript/full-stack direction may still become too broad if framework selection pulls in unnecessary defaults.
-- Minimal storage choices could need rework if legacy data has unexpected structure.
+- Storage selection remains unresolved until target-domain persistence design reconciles accepted domain concepts with the legacy-to-domain mapping.
 - Role enforcement could drift into UI-only checks unless application/domain authorization is treated as mandatory.
 - Deferring exact auth may leave early implementation blocked until actor and role representation is clarified.
 
@@ -187,9 +189,9 @@ Follow-up decisions are needed before coding to turn this proposal into an accep
 ## Follow-Up Decisions Needed
 
 - Exact framework and project setup.
-- Exact persistence technology.
+- Exact persistence technology, after target-domain schema design, legacy-to-domain mapping, migration/refactoring strategy, local development needs, and deployment assumptions are clarified.
 - Exact auth mechanism.
 - User/person representation, including how priest and organist references relate to authenticated actors.
 - Minimal song reference validation for `(language, number)` before a full song catalog exists.
 - Test strategy for lifecycle transitions, validation, permissions, and storage behavior.
-- Whether legacy data must be inspected before persistence design.
+- Target-domain persistence design that avoids direct 1:1 migration from the legacy SQL Server / SSMS `VarhanniDoprovody` database.
