@@ -108,6 +108,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** Admin manages shared knowledge and congregation preferences; organist manages repertoire; priest and admin can save final sets; priest, organist, and congregation member can manage own song preferences within their role limits.
 - **Related:** `docs/analysis-log.md` session 2026-07-06, Discovery 23.
 
+### DEC-2026-07-07-01 — First implementation slice is Planning Lifecycle First
+
+- **Date:** 2026-07-07
+- **Status:** Accepted
+- **Context:** Implementation planning needs a first slice that validates the core planning artifact without prematurely designing the full candidate engine, legacy migration, or broader product generalization.
+- **Options considered:** knowledge foundation first; planning lifecycle first; candidate selection prototype first; legacy data inspection first.
+- **Decision:** The first implementation slice is Planning Lifecycle First. Initial implementation planning should focus on a concrete ordered service set for one service, flexible service rows, requiring a textual note for any row without a song, the lifecycle states `no set exists`, `working set`, `final set`, and `completed-service record`, deletion of saved working/final sets returning to `no set exists`, final sets not being directly edited, and priest/admin permissions for finalization and completion. Automatic final-set completion remains open and must not block the first manual lifecycle slice.
+- **Consequences:** The first slice creates the service-set lifecycle where knowledge, repertoire, preferences, and candidate selection can later attach. It avoids premature legacy migration and avoids designing the full candidate engine before the service-set lifecycle exists. The first slice does not include the full candidate selection engine, melody non-repetition engine, antiphon/liturgical-season highlighting, full preference system, legacy migration, multi-congregation support, automatic final-set completion details, or final database schema beyond what is needed for technical design.
+- **Related:** `docs/implementation-preparation.md` section 5.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.
