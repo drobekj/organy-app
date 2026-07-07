@@ -71,7 +71,7 @@ Each requirement uses:
 - **Rationale:** Opening planning for an upcoming service should provide practical defaults without deriving unavailable liturgical knowledge.
 - **Acceptance criteria:**
   - When no working or final set exists for the upcoming service, the service date is derived from the app opening date.
-  - The default priest and organist are copied from the chronologically latest service record.
+  - The default priest and organist are copied from the chronologically latest completed-service record.
   - The service language defaults to Polish when the service date is the second Sunday of the month.
   - The service language defaults to Czech otherwise.
   - The service time defaults to `10:00` and is informational only.
@@ -130,7 +130,7 @@ Each requirement uses:
   - The rule has no exceptions.
   - Backward checking uses completed-service records within the configured period before the planned service date.
   - Forward protection checks saved future working sets and final sets within the configured period after the planned service date.
-  - Saved future working sets and final sets can exclude candidate melodies from earlier planned services.
+  - Saved future working sets and final sets can exclude candidate melody-equivalence classes from earlier planned services.
   - Rows without concrete songs are ignored by non-repetition checks.
   - Forward antiphon protection is not part of non-repetition.
 - **Related decisions:** DEC-2026-07-06-08, DEC-2026-07-06-09
@@ -143,7 +143,7 @@ Each requirement uses:
   - Conflicts are defined only among non-completed plans.
   - Non-completed plans include the currently edited plan, saved future working sets, and saved future final sets.
   - Completed-service records affect backward non-repetition filtering.
-  - Completed-service records are not mutually judged as conflicting instances.
+  - Completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 - **Related decisions:** DEC-2026-07-06-09
 
 ### REQ-011 — Non-repetition period administration

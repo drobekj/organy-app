@@ -70,7 +70,7 @@ Knowledge entered once should remain reusable. Melody-equivalence classes may be
 When no working or final set exists for the upcoming service, opening the app creates planning defaults rather than deriving liturgical knowledge:
 
 - service date is derived from the app opening date;
-- priest and organist are copied from the chronologically latest service record;
+- priest and organist are copied from the chronologically latest completed-service record;
 - language defaults to Polish if the planned service date is the second Sunday of the month and Czech otherwise;
 - time defaults to `10:00` and is informational only;
 - antiphon number is empty;
@@ -117,7 +117,7 @@ Candidate records should expose relevant songs from the same melody-equivalence 
 
 ### Completing services and using history
 
-A completed-service record is historical. It is used as input for backward non-repetition filtering, but it is not treated as a non-completed plan and is not mutually judged as conflicting with other historical records.
+A completed-service record is historical. It is used as input for backward non-repetition filtering, but it is not treated as a non-completed plan. Completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 
 ## Decision Making
 

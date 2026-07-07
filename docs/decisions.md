@@ -95,7 +95,7 @@ For each decision, include an identifier, date, status, context, options conside
 - **Context:** Historical completed-service records should inform future planning but not be judged against each other as conflicts.
 - **Options considered:** define conflicts among all service records; define conflicts only among non-completed plans.
 - **Decision:** Conflicts exist only among the currently edited plan, saved future working sets, and saved future final sets.
-- **Consequences:** Completed-service records affect backward non-repetition filtering but are not mutually judged as conflicting instances. Non-repetition period changes are blocked only when they would create conflicts between currently saved non-completed plans.
+- **Consequences:** Completed-service records are not judged as conflicts; they only provide backward non-repetition input. Non-repetition period changes are blocked only when they would create conflicts between currently saved non-completed plans.
 - **Related:** `docs/analysis-log.md` session 2026-07-06, Discoveries 21–22.
 
 ### DEC-2026-07-06-10 — Permissions separate service sets, knowledge, repertoire, and preferences

@@ -209,7 +209,7 @@ Items should remain traceable to accepted source documents and should not be dec
 ### CS-004 — Apply melody non-repetition hard filter
 
 - **Type:** Product backlog item
-- **Goal:** Exclude melodies blocked by accepted backward historical checks and forward protection.
+- **Goal:** Exclude melody-equivalence classes blocked by accepted backward historical checks and forward protection.
 - **Source / traceability:** REQ-009; WF-011; DEC-2026-07-06-08; Roadmap Phase 5 and Phase 7; Non-repetition / conflict and Candidate selection modules.
 - **Acceptance direction:** Candidate filtering removes melody-equivalence classes blocked by completed-service history or saved future working/final sets within the configured period.
 - **Status:** Accepted
@@ -261,7 +261,7 @@ Items should remain traceable to accepted source documents and should not be dec
 ### NR-001 — Apply backward historical melody non-repetition
 
 - **Type:** Product backlog item
-- **Goal:** Prevent reuse of melodies found in completed-service records within the configured period before the planned service date.
+- **Goal:** Prevent reuse of melody-equivalence classes found in completed-service records within the configured period before the planned service date.
 - **Source / traceability:** REQ-009; WF-011; DEC-2026-07-06-08; Roadmap Phase 7; Non-repetition / conflict and History modules.
 - **Acceptance direction:** Completed-service records provide backward filtering input by melody-equivalence class, and rows without concrete songs are ignored.
 - **Status:** Accepted
@@ -279,7 +279,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Type:** Product backlog item
 - **Goal:** Keep conflict validation focused on current and future non-completed plans rather than historical records.
 - **Source / traceability:** REQ-010; DEC-2026-07-06-09; WF-010; WF-011; Roadmap Phase 7; Non-repetition / conflict module.
-- **Acceptance direction:** Conflicts are considered only among the currently edited plan and saved future working/final sets; completed-service records are not mutually judged as conflicts.
+- **Acceptance direction:** Conflicts are considered only among the currently edited plan and saved future working/final sets; Completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 - **Status:** Accepted
 
 ### NR-004 — Administer non-repetition period with conflict validation

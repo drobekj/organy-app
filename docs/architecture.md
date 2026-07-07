@@ -215,7 +215,7 @@ Responsibilities:
 - Keep completed-service records historical rather than treating them as editable non-completed plans.
 - Preserve concrete songs and ordered service rows that represent what was finalized for the service.
 - Provide completed-service records to the Non-repetition / conflict module for backward melody non-repetition filtering.
-- Ensure completed-service records are not mutually judged as conflicts with other completed-service records.
+- Ensure completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 
 Boundaries:
 

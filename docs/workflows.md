@@ -26,7 +26,7 @@ Each workflow uses:
 - **Steps:**
   1. The actor opens the app for planning.
   2. The service date is derived from the app opening date.
-  3. The priest and organist default to the priest and organist from the chronologically latest service record.
+  3. The priest and organist default to the priest and organist from the chronologically latest completed-service record.
   4. The language defaults to Polish when the service date is the second Sunday of the month; otherwise it defaults to Czech.
   5. The time defaults to `10:00` and remains informational only.
   6. The antiphon number starts empty.
@@ -63,9 +63,9 @@ Each workflow uses:
 - **Preconditions:** A service planning context exists with selected/default organist, language, non-repetition period, and preference threshold available. Antiphon number and liturgical season may be empty.
 - **Steps:**
   1. The candidate list starts from known concrete songs and their melody-equivalence classes.
-  2. The repertoire filter keeps melodies whose melody-equivalence class contains at least one song explicitly in the selected/default organist's repertoire.
+  2. The repertoire filter keeps melody-equivalence classes that contain at least one song explicitly in the selected/default organist's repertoire.
   3. The language filter limits displayed concrete songs to Czech for Czech service, Polish for Polish service, and Czech plus Polish for mixed service.
-  4. The melody non-repetition rule removes melodies blocked by completed-service history or saved future working/final sets within the configured period.
+  4. The melody non-repetition rule removes melody-equivalence classes blocked by completed-service history or saved future working/final sets within the configured period.
   5. The preference filter keeps concrete songs whose total summed preference score is at least threshold `x`, default `0`.
   6. Antiphon matches are highlighted when `(language, antiphon number)` maps to a candidate song that already passed hard filters.
   7. Liturgical-season matches are highlighted when `(language, liturgical season)` maps to candidate songs that already passed hard filters.
@@ -125,7 +125,7 @@ Each workflow uses:
   - Automatic conversion is an allowed product direction but is not fully specified yet.
   - The exact default time and automatic conversion behavior remain open workflow/product questions.
   - Completed-service records are not non-completed plans.
-  - Completed-service records are not judged as conflicts with other completed-service records.
+  - Completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 - **Outputs:** A completed-service record for historical planning knowledge.
 - **Related requirements:** REQ-004, REQ-009, REQ-010, REQ-012
 
@@ -209,9 +209,9 @@ Each workflow uses:
 - **Steps:**
   1. For each candidate song, identify its melody-equivalence class.
   2. Check completed-service records within the configured period before the planned service date.
-  3. Exclude candidate melodies found in those completed-service records.
+  3. Exclude candidate melody-equivalence classes found in those completed-service records.
   4. Check saved future working sets and final sets within the configured period after the planned service date.
-  5. Exclude candidate melodies found in those saved future non-completed plans.
+  5. Exclude candidate melody-equivalence classes found in those saved future non-completed plans.
   6. Ignore rows that do not contain concrete songs.
 - **Exceptions:**
   - The rule has no exceptions for song language, service type, antiphon, liturgical season, or role.

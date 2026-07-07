@@ -154,7 +154,7 @@ Conflicts are defined only among non-completed plans:
 - saved future working sets;
 - saved future final sets.
 
-Completed-service records affect backward filtering, but completed-service records are not mutually judged as conflicts.
+Completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 
 ### Non-repetition period changes
 
