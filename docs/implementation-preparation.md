@@ -21,6 +21,7 @@ This readiness summary is based on the accepted repository documentation:
 - `docs/roadmap.md`
 - `docs/backlog.md`
 - `docs/legacy-data-assessment.md`
+- `docs/legacy-to-domain-mapping.md`
 
 If this document appears to conflict with those sources, the underlying source document should be corrected or clarified before implementation planning proceeds.
 
@@ -105,7 +106,7 @@ The following must remain true while implementation planning and later technical
 
 The following areas are not ready to implement from the current product/domain baseline alone.
 
-- **Database schema.** The domain model is conceptual and must not be treated as a target schema.
+- **Database schema.** The domain model is conceptual and must not be treated as a target schema; storage selection is blocked by the accepted legacy-to-domain mapping and the future target-domain schema decision.
 - **API endpoints.** No API contracts, route structure, request/response shapes, or endpoint responsibilities have been selected.
 - **UI components.** Workflows are product-level processes, not component specifications or screen designs.
 - **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication and authorization mechanism has not been chosen.
@@ -121,7 +122,7 @@ The following areas are not ready to implement from the current product/domain b
 Before technical design begins, the following decisions or clarifications are needed.
 
 1. **Technology stack.** Decide the application framework, language/runtime, frontend approach if applicable, and supporting tooling.
-2. **Persistence approach.** Decide the storage technology and persistence style before translating conceptual domain concepts into technical structures.
+2. **Persistence approach.** Decide the storage technology and persistence style only after the legacy-to-domain mapping and target-domain schema design clarify what must be persisted.
 3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced.
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
 5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
@@ -224,8 +225,8 @@ Coding should not begin until the following readiness items are satisfied at the
 
 - [ ] Product baseline accepted.
 - [x] Implementation slice selected: Planning Lifecycle First.
-- [ ] Technical architecture decision made.
-- [ ] Storage approach selected.
+- [ ] Technical architecture decision accepted; the proposed ADR alone is not an accepted architecture baseline.
+- [ ] Storage approach selected after legacy-to-domain mapping and target schema decisions.
 - [ ] Authorization model mapped from accepted permissions.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
