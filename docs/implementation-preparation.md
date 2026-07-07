@@ -126,13 +126,13 @@ Before technical design begins, the following decisions or clarifications are ne
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
 5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
 6. **Automatic final-set completion timing and safeguards.** Decide when final sets become completed-service records, what confirmation or automation is allowed, and how exceptions are handled.
-7. **First implementation slice / MVP boundary.** Decide which product-level slice should be implemented first and what is intentionally excluded from that first slice.
+7. **First implementation slice / MVP boundary.** Selected as Planning Lifecycle First; keep excluded scope visible while technical design proceeds.
 
-## 5. Suggested First Implementation Slice Candidates
+## 5. First Implementation Slice
 
-The following are product-level slice candidates only. This document does not choose one as final and does not convert them into engineering tickets.
+Planning Lifecycle First is the selected first implementation slice. The other options remain useful sequencing context, but they are no longer equal candidates for the first slice. This section still does not convert the selected slice into engineering tickets.
 
-### Option A — Knowledge Foundation First
+### Context Option A — Knowledge Foundation First
 
 Build the initial slice around maintaining core knowledge: songs, melody-equivalence knowledge, organist repertoire, antiphon mappings, liturgical-season mappings, and preferences as product concepts.
 
@@ -148,9 +148,31 @@ Build the initial slice around maintaining core knowledge: songs, melody-equival
 - Scope can expand if every knowledge area is treated as equally necessary for the first slice.
 - Technical design may still be blocked if persistence and legacy-data decisions are unresolved.
 
-### Option B — Planning Lifecycle First
+### Selected — Planning Lifecycle First
 
-Build the initial slice around creating, editing, saving, finalizing, deleting, and completing service sets according to the accepted lifecycle.
+Build the initial slice around creating, editing, saving, finalizing, deleting, and manually completing service sets according to the accepted lifecycle.
+
+**First-slice focus**
+
+- Concrete ordered service set for one service.
+- Flexible service rows.
+- Row without song requires a textual note.
+- Lifecycle states: `no set exists`, `working set`, `final set`, and `completed-service record`.
+- Deleting a saved working or final set returns to `no set exists`.
+- Final set is not directly edited.
+- Priest/admin finalization and completion permissions.
+- Automatic final-set completion remains open and should not block the first manual lifecycle slice.
+
+**Not included in this first slice**
+
+- Full candidate selection engine.
+- Melody non-repetition engine.
+- Antiphon/liturgical-season highlighting.
+- Full preference system.
+- Legacy migration.
+- Multi-congregation support.
+- Automatic final-set completion details.
+- Final database schema beyond what is needed for technical design.
 
 **Pros**
 
@@ -164,7 +186,7 @@ Build the initial slice around creating, editing, saving, finalizing, deleting, 
 - Lifecycle implementation could accidentally force unresolved UI, permission, or persistence decisions too early.
 - Automatic final-set completion details remain unresolved and could block a complete lifecycle slice.
 
-### Option C — Candidate Selection Prototype First
+### Context Option C — Candidate Selection Prototype First
 
 Build the initial slice around candidate eligibility and display behavior using accepted hard filters and manual highlighting concepts.
 
@@ -180,7 +202,7 @@ Build the initial slice around candidate eligibility and display behavior using 
 - Can become implementation-heavy if treated as a full planning UI or full data model.
 - May depend on unresolved choices about storage, test strategy, and legacy data.
 
-### Option D — Legacy Data Inspection First
+### Context Option D — Legacy Data Inspection First
 
 Begin with read-only inspection of the legacy database, schema, export, or manual inventory before designing storage or migration.
 
@@ -201,7 +223,7 @@ Begin with read-only inspection of the legacy database, schema, export, or manua
 Coding should not begin until the following readiness items are satisfied at the appropriate level for the selected first slice.
 
 - [ ] Product baseline accepted.
-- [ ] Implementation slice selected.
+- [x] Implementation slice selected: Planning Lifecycle First.
 - [ ] Technical architecture decision made.
 - [ ] Storage approach selected.
 - [ ] Authorization model mapped from accepted permissions.
