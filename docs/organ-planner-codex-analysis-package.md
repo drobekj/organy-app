@@ -162,8 +162,8 @@ The app does not derive antiphon number or liturgical season from the service da
 Default values:
 
 - service date: derived from app opening date,
-- priest: copied from the chronologically latest service record,
-- organist: copied from the chronologically latest service record,
+- priest: copied from the chronologically latest completed-service record,
+- organist: copied from the chronologically latest completed-service record,
 - language:
   - Polish if the planned service date is the second Sunday of the month,
   - Czech otherwise,
@@ -421,7 +421,7 @@ Conflicts are defined only among non-completed plans:
 
 Conflicts are not defined among completed-service records.
 
-Completed-service records affect backward non-repetition filtering but are not mutually judged as conflicts.
+Completed-service records are not judged as conflicts; they only provide backward non-repetition input.
 
 ---
 
