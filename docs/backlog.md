@@ -358,23 +358,23 @@ Items should remain traceable to accepted source documents and should not be dec
 
 - **Type:** Product backlog item
 - **Goal:** Prepare future physical schema design for Planning Lifecycle First using the accepted PostgreSQL-like relational storage direction.
-- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/adr-first-slice-storage.md`; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/adr-first-slice-storage.md`; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
 - **Acceptance direction:** Future design reviews `docs/first-slice-physical-schema-draft.md`, applies/reviews accepted design-level schema resolutions before physical schema/tooling decisions, and derives physical schema concepts from the first-slice subset and accepted storage direction while keeping schema files, migrations, SQL, ORM models, and implementation tasks out of this backlog item.
 - **Status:** Proposed
 
-### IP-004 — Select ORM/query/migration tooling
+### IP-004 — Accept first-slice ORM/query/migration tooling ADR
 
 - **Type:** Product backlog item
-- **Goal:** Select future ORM, query-layer, and migration tooling compatible with the accepted PostgreSQL-like relational storage direction and first-slice physical schema draft without selecting those tools in this backlog.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`.
-- **Acceptance direction:** Future design compares tooling options against the draft table candidates and records a decision before schema files or migrations are created; this item does not select Prisma or any other ORM/query/migration tool.
+- **Goal:** Accept a future first-slice tooling ADR selecting ORM, query-layer, and migration tooling compatible with the accepted PostgreSQL-like relational storage direction and first-slice physical schema draft without selecting those tools in this backlog.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
+- **Acceptance direction:** Future design compares the prepared tooling directions against the draft table candidates, accepted schema-question resolutions, and explicit domain/application lifecycle validation boundaries, then records an ADR before schema files or migrations are created; this item does not select Prisma, Drizzle, Kysely, raw SQL, or any other ORM/query/migration tool.
 - **Status:** Proposed
 
 ### IP-005 — Define backup/export/restore design
 
 - **Type:** Product backlog item
 - **Goal:** Define backup, export, and restore expectations for PostgreSQL-like relational first-slice runtime storage before production use.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
 - **Acceptance direction:** Future design identifies backup ownership, export format, restore procedure, restore-test expectations, and acceptable data-loss window against the draft relational shape without creating implementation tasks.
 - **Status:** Proposed
 
@@ -382,8 +382,8 @@ Items should remain traceable to accepted source documents and should not be dec
 
 - **Type:** Product backlog item
 - **Goal:** Define how developers will work locally with the accepted PostgreSQL-like relational storage direction.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`.
-- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, and reset expectations against the draft table candidates as applicable, without creating scripts, migrations, schema files, or implementation tasks in this backlog item.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
+- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, and reset expectations against the draft table candidates as applicable, once tooling is selected, without creating scripts, migrations, schema files, or implementation tasks in this backlog item.
 - **Status:** Proposed
 
 ### IP-007 — Determine canonical song catalog sourcing
@@ -488,6 +488,14 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Goal:** Decide how minimal first-slice seed/setup data will be established for admin, priest, organist, and required role assignments.
 - **Source / traceability:** `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-physical-schema-draft.md`; `docs/auth-account-role-model.md`; `docs/deployment-assumptions.md`.
 - **Acceptance direction:** Future design identifies a seed/setup mechanism without requiring legacy SQL Server import and without creating scripts, migrations, schema files, SQL, or implementation tasks in this backlog item.
+- **Status:** Proposed
+
+### IP-020 — Verify first-slice tooling decision risks
+
+- **Type:** Product backlog item
+- **Goal:** Verify tooling-decision concerns before accepting any first-slice ORM/query/migration ADR.
+- **Source / traceability:** `docs/first-slice-tooling-decision-preparation.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/adr-first-slice-storage.md`; `docs/architecture.md`.
+- **Acceptance direction:** Future design verifies migration review workflow; domain/application validation boundaries versus generated/schema models; transaction support for save, finalize, delete, reorder, and complete lifecycle operations; and local development database workflow once tooling is selected, while keeping the work as design/ADR evaluation rather than implementation tasks.
 - **Status:** Proposed
 
 ## Not Backlog Yet

@@ -29,6 +29,7 @@ This readiness summary is based on the accepted repository documentation:
 - `docs/adr-first-slice-storage.md`
 - `docs/first-slice-physical-schema-draft.md`
 - `docs/first-slice-schema-open-questions-resolution.md`
+- `docs/first-slice-tooling-decision-preparation.md`
 - `docs/auth-account-role-model.md`
 
 If this document appears to conflict with those sources, the underlying source document should be corrected or clarified before implementation planning proceeds.
@@ -116,7 +117,7 @@ The following must remain true while implementation planning and later technical
 
 The following areas are not ready to implement from the current product/domain baseline alone.
 
-- **Database schema.** Coding readiness remains blocked. The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level, and `docs/first-slice-schema-open-questions-resolution.md` resolves key first-slice schema questions at design level. A documentation-only physical schema draft now exists in `docs/first-slice-physical-schema-draft.md`, but technical architecture remains unchecked and physical schema, provider, ORM/query layer, migration tooling, local development workflow, backup/export/restore design, and schema files remain unresolved until later ADR/design work is complete. These schema resolutions still do not authorize coding, schema files, migrations, SQL, Prisma, or application implementation.
+- **Database schema.** Coding readiness remains blocked. The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level, and `docs/first-slice-schema-open-questions-resolution.md` resolves key first-slice schema questions at design level. A documentation-only physical schema draft now exists in `docs/first-slice-physical-schema-draft.md`, but technical architecture remains unchecked and physical schema, provider, ORM/query layer, migration tooling, local development workflow, backup/export/restore design, and schema files remain unresolved until later ADR/design work is complete. Tooling decision preparation exists in `docs/first-slice-tooling-decision-preparation.md`, but ORM/query layer/migration tooling is still unresolved. These schema and tooling-preparation documents do not authorize coding, schema files, migrations, SQL, Prisma, Drizzle, Kysely, or application implementation.
 - **API endpoints.** No API contracts, route structure, request/response shapes, or endpoint responsibilities have been selected.
 - **UI components.** Workflows are product-level processes, not component specifications or screen designs.
 - **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication approach, auth provider, account model, and authorization mechanism have not been chosen.
@@ -132,7 +133,7 @@ The following areas are not ready to implement from the current product/domain b
 Before technical design begins, the following decisions or clarifications are needed.
 
 1. **Technology stack.** Decide the application framework, language/runtime, frontend approach if applicable, and supporting tooling.
-2. **Persistence approach.** Storage direction is selected as PostgreSQL-like relational storage for Planning Lifecycle First, and key schema questions have documentation/design-level resolutions, but physical schema, database provider, ORM/query layer, migration tooling, connection management, local development workflow, and backup/export/restore design still need decisions after target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
+2. **Persistence approach.** Storage direction is selected as PostgreSQL-like relational storage for Planning Lifecycle First, and key schema questions plus tooling decision preparation have documentation/design-level inputs, but physical schema files, database provider, ORM/query layer, migration tooling, connection management, local development workflow, and backup/export/restore design still need decisions after target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
 3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced, based on the logical auth/account/role model and evaluated against the accepted direct-access roles: priest, organist, admin, and congregation member. Authentication approach remains unresolved.
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
 5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
@@ -231,14 +232,14 @@ Begin with read-only inspection of the legacy database, schema, export, or manua
 
 ## 6. Readiness Checklist Before Coding
 
-A schema draft, first-slice schema subset, storage decision preparation document, or accepted storage direction does not make the product ready to code. Coding should not begin until the following readiness items are satisfied at the appropriate level for the selected first slice.
+A schema draft, first-slice schema subset, storage decision preparation document, tooling decision preparation document, or accepted storage direction does not make the product ready to code. Coding should not begin until the following readiness items are satisfied at the appropriate level for the selected first slice.
 
 - [ ] Product baseline accepted.
 - [x] Implementation slice selected: Planning Lifecycle First.
 - [x] First-slice deployment assumption selected: single hosted web app for one congregation with priest, organist, admin, and congregation member roles.
 - [ ] Technical architecture decision accepted; the proposed ADR alone is not an accepted architecture baseline.
 - [x] Storage approach selected at direction level: PostgreSQL-like relational storage for Planning Lifecycle First.
-- [ ] Physical schema, database provider, ORM/query layer, migration tooling, connection management, local development workflow, and backup/export/restore design resolved.
+- [ ] Physical schema files, database provider, ORM/query layer, migration tooling, connection management, local development workflow, and backup/export/restore design resolved.
 - [ ] Authorization model mapped from accepted permissions and `docs/auth-account-role-model.md`; authentication approach remains unresolved.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
