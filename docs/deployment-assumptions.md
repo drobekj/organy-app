@@ -6,7 +6,7 @@ This document records preliminary deployment assumptions that must be clarified 
 
 The app is currently understood as a small, domain-specific liturgical music knowledge-management and planning-support tool for one local congregation. The first implementation slice is Planning Lifecycle First. The legacy SQL Server / SSMS database `VarhanniDoprovody` is a source of domain knowledge, not the target runtime architecture.
 
-This document does not accept a deployment model. It frames candidate operating environments so later technical decisions can be made deliberately.
+This document accepts one first-slice production-oriented deployment assumption and keeps other scenarios as context. It still does not choose hosting, storage, authentication, or account technology.
 
 ## 2. Non-goals
 
@@ -40,19 +40,19 @@ Storage and authentication decisions should therefore depend on accepted deploym
 
 The app runs locally for one primary operator, likely an admin or organist, who maintains knowledge and planning data on behalf of the congregation.
 
-This may be operationally simple and inexpensive, but it may not support real priest/organist collaboration. Other roles might contribute information outside the app, or the operator might enter it manually.
+This may be operationally simple and inexpensive, but it may not support real priest/organist collaboration. Other roles might contribute information outside the app, or the operator might enter it manually. It remains useful for local development, demos, and data preparation only; it is not the accepted first production deployment assumption.
 
-### Scenario B — single hosted web app for one congregation
+### Scenario B — single hosted web app for one congregation — accepted first production-oriented assumption
 
-The app is hosted once for one congregation and is reachable by authorized users over the network. Priest, organist, admin, and possibly congregation members can use the same shared app instance.
+The app is hosted once for one congregation and is reachable by authorized users over the network. Priest, organist, admin, and congregation members can use the same shared app instance.
 
-This may fit the current one-congregation product scope while allowing actual collaboration. It would require clearer decisions about accounts, role assignment, backups, hosting operations, and remote access.
+This is the accepted first production-oriented deployment assumption. It fits the current one-congregation product scope while allowing actual collaboration, shared access, and direct congregation member access for entering their own preference votes. Congregation member access remains permission-limited and does not include planning permissions. It still requires later decisions about accounts, role assignment, backups, hosting operations, and remote access.
 
 ### Scenario C — hosted web app with multiple active roles
 
 The app is hosted for one congregation, but the first production assumption explicitly expects multiple roles to be active and potentially editing or contributing near the same time.
 
-This scenario emphasizes concurrent editing risk, permission enforcement, user attribution, conflict handling, and reliable shared storage. It may be more realistic once candidate selection, preferences, knowledge maintenance, and completed history are actively used by different roles.
+This scenario emphasizes concurrent editing risk, permission enforcement, user attribution, conflict handling, and reliable shared storage. It remains a possible later stronger collaboration/concurrency assumption once candidate selection, preferences, knowledge maintenance, and completed history are actively used by different roles.
 
 ### Scenario D — future multi-congregation deployment
 
@@ -84,15 +84,15 @@ Candidate scenarios should be evaluated against these criteria:
 | C — hosted web app with multiple active roles | Exercises accepted role model more fully; supports direct preferences and knowledge contributions; better preparation for real shared production use. | Higher concurrency, authorization, audit, and recovery expectations; may be too much for the first slice if not constrained. |
 | D — future multi-congregation deployment | Leaves a path for broader use if product scope expands. | Out of current scope; risks premature tenancy, administration, and data-isolation complexity. |
 
-## 7. First-slice deployment assumption candidates
+## 7. Accepted first-slice deployment assumption
 
-For Planning Lifecycle First, the most useful candidate assumptions appear to be:
+For Planning Lifecycle First, the accepted first production-oriented assumption is **Scenario B: a single hosted web app for one congregation**.
 
-1. **Local/admin-operated first-slice candidate:** useful for proving service-set lifecycle behavior with minimal operations, but insufficient to validate real priest/organist collaboration.
-2. **Single hosted one-congregation first-slice candidate:** plausibly closer to first production use because it allows shared access for priest, organist, and admin while staying within current scope.
-3. **Multiple-active-role hosted candidate:** useful if the first slice must immediately prove role-specific collaboration, but likely requires stricter decisions about accounts, concurrency, attribution, and recovery.
+This assumption includes shared access for priest, organist, admin, and congregation member roles. Congregation member direct access is needed for entering own preference votes, but congregation member capabilities remain limited to accepted congregation-member permissions and do not include planning permissions unless later decisions expand them.
 
-None of these candidates is accepted here. The project should explicitly choose the first-slice deployment assumptions before accepting stack, storage, or authentication decisions.
+Scenario A remains useful for local development, demos, and data preparation only. Scenario C remains a possible later stronger collaboration/concurrency assumption. Scenario D remains future and out of scope.
+
+This document now contains one accepted first-slice deployment assumption, but it still does not choose hosting, storage, authentication, ORM, database, framework, or account technology.
 
 ## 8. Impact on storage choice
 
@@ -167,20 +167,18 @@ Any import should transform legacy meaning into the target-domain model: canonic
 
 ## 14. Provisional conclusion
 
-No deployment model is accepted yet.
+Scenario B is accepted as the first production-oriented deployment assumption: a single hosted web app for one congregation with shared access for priest, organist, admin, and congregation member roles.
 
-Local-only operation may be operationally simple, but it may not support real priest/organist collaboration. A single hosted web app for one congregation may be a plausible first production direction because it fits the current scope while allowing shared planning, but this is only a candidate assumption, not an accepted decision.
+Local-only operation may be operationally simple and remains useful for development, demos, and data preparation, but it is insufficient as the production direction. Multi-congregation support remains future and out of scope for the first slice.
 
-Multi-congregation support remains future and out of scope for the first slice.
-
-Before accepting the stack/storage/auth ADR, the project should explicitly choose first-slice deployment assumptions. Storage and authentication decisions should then be evaluated against those accepted assumptions.
+Before accepting the stack/storage/auth ADR, storage and authentication decisions should be evaluated against the accepted single hosted one-congregation assumption.
 
 ## 15. Follow-up work before accepting stack/storage/auth ADR
 
 Before the ADR can be accepted, the project should:
 
-1. choose the first-slice deployment assumptions explicitly;
-2. define first-slice direct users and role expectations;
+1. evaluate stack, storage, and authentication choices against the accepted single hosted one-congregation deployment assumption;
+2. define first-slice direct users and role expectations in more detail;
 3. decide whether remote access is required for the first production direction;
 4. define minimum concurrency expectations for service-set planning;
 5. define account ownership and role-assignment responsibilities;

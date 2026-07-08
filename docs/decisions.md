@@ -118,6 +118,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** The first slice creates the service-set lifecycle where knowledge, repertoire, preferences, and candidate selection can later attach. It avoids premature legacy migration and avoids designing the full candidate engine before the service-set lifecycle exists. The first slice does not include the full candidate selection engine, melody non-repetition engine, antiphon/liturgical-season highlighting, full preference system, legacy migration, multi-congregation support, automatic final-set completion details, or final database schema beyond what is needed for technical design.
 - **Related:** `docs/implementation-preparation.md` section 5.
 
+### DEC-2026-07-08-01 — First-slice deployment assumption is single hosted one-congregation web app
+
+- **Date:** 2026-07-08
+- **Status:** Accepted
+- **Context:** Stack, storage, authentication, backup, and recovery decisions need a concrete production-oriented operating model before they can be evaluated responsibly.
+- **Options considered:** local single-user/admin-operated app; single hosted web app for one congregation; stronger hosted multi-role collaboration assumption; future multi-congregation deployment.
+- **Decision:** The first production-oriented deployment assumption is a single hosted web app for one congregation, with shared access for priest, organist, admin, and congregation member roles.
+- **Consequences:** Storage comparison should consider shared hosted access and backups; authentication design must support real role-bearing actors; congregation members need direct access for entering their own preference votes; congregation member access does not imply planning permissions; local-only assumptions are insufficient for the production direction; multi-congregation support remains future and out of scope; concrete storage, authentication, and hosting choices remain undecided.
+- **Related:** `docs/deployment-assumptions.md`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.

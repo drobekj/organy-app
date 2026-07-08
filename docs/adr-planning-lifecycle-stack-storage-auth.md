@@ -6,7 +6,7 @@ Proposed
 
 ## Context
 
-The first implementation slice is **Planning Lifecycle First**. It is limited to planning one concrete ordered service set for one service in the scope of one local congregation.
+The first implementation slice is **Planning Lifecycle First**. It is limited to planning one concrete ordered service set for one service in the scope of one local congregation. This ADR must now be evaluated against the accepted deployment assumption: a single hosted web app for one congregation.
 
 The repository is currently documentation-first. Repository inspection found no selected application framework, runtime, persistence technology, database schema, migration tooling, authentication mechanism, API setup, UI setup, or test framework. This ADR therefore proposes direction only; it does not create project files or implementation structure.
 
@@ -18,13 +18,14 @@ For this first slice:
 - there is no multi-congregation support yet;
 - final sets are not directly edited;
 - completed-service records are historical, not active non-completed plans;
-- role permissions must be enforced in application/domain behavior, not only hidden in UI.
+- role permissions must be enforced in application/domain behavior, not only hidden in UI;
+- the accepted deployment assumption includes direct access for priest, organist, admin, and congregation member roles.
 
 ## Decision Drivers
 
 - Keep the first implementation minimal and reviewable.
 - Preserve strong domain-rule enforcement at application/domain boundaries.
-- Support easy local development before larger operational decisions are needed.
+- Support easy local development while evaluating production-oriented choices against the accepted single hosted one-congregation assumption.
 - Maintain traceability to accepted requirements and decisions.
 - Persist service sets and ordered rows reliably enough for lifecycle behavior.
 - Represent roles and permissions for priest, organist, admin, and congregation member.
@@ -111,7 +112,7 @@ Use a **lightweight full-stack TypeScript application direction** for the first 
 
 Keep **storage direction unresolved and deferred**. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
 
-No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and deployment assumptions.
+No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
@@ -120,7 +121,7 @@ This direction intentionally does not decide:
 - exact framework, runtime version, package manager, or project layout;
 - exact database, ORM/query layer, migration strategy, or schema;
 - exact auth provider, session strategy, user table shape, or login screens;
-- whether the first implementation runs as a single deployable app or later separates frontend and backend;
+- hosting provider, deployment platform, or whether the first implementation later separates frontend and backend;
 - final storage choice, which remains deferred pending legacy-to-domain mapping assessment and target-domain persistence design.
 
 ## Storage Boundary
@@ -189,8 +190,8 @@ Follow-up decisions are needed before coding to turn this proposal into an accep
 ## Follow-Up Decisions Needed
 
 - Exact framework and project setup.
-- Exact persistence technology, after `docs/target-domain-persistence-model.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and deployment assumptions are clarified.
-- Exact auth mechanism.
+- Exact persistence technology, after `docs/target-domain-persistence-model.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
+- Exact auth mechanism and provider.
 - User/person representation, including how priest and organist references relate to authenticated actors.
 - Minimal song reference validation for `(language, number)` before a full song catalog exists.
 - Test strategy for lifecycle transitions, validation, permissions, and storage behavior.
