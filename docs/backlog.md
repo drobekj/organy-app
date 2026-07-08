@@ -362,12 +362,12 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design reviews `docs/first-slice-physical-schema-draft.md`, applies/reviews accepted design-level schema resolutions before physical schema/tooling decisions, and derives physical schema concepts from the first-slice subset and accepted storage direction while keeping schema files, migrations, SQL, ORM models, and implementation tasks out of this backlog item.
 - **Status:** Proposed
 
-### IP-004 — Accept first-slice ORM/query/migration tooling ADR
+### IP-004 — Define exact first-slice tooling package/version/configuration
 
 - **Type:** Product backlog item
-- **Goal:** Accept a future first-slice tooling ADR selecting ORM, query-layer, and migration tooling compatible with the accepted PostgreSQL-like relational storage direction and first-slice physical schema draft without selecting those tools in this backlog.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
-- **Acceptance direction:** Future design compares the prepared tooling directions against the draft table candidates, accepted schema-question resolutions, and explicit domain/application lifecycle validation boundaries, then records an ADR before schema files or migrations are created; this item does not select Prisma, Drizzle, Kysely, raw SQL, or any other ORM/query/migration tool.
+- **Goal:** Define exact package names, versions, and configuration for the accepted Drizzle-like typed SQL/schema toolkit plus migrations direction without starting implementation.
+- **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/adr-first-slice-storage.md`; `docs/first-slice-tooling-decision-preparation.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
+- **Acceptance direction:** Future design records exact package/version/configuration choices for the accepted tooling direction while keeping package installation, schema files, migrations, SQL, and application implementation out of this backlog item.
 - **Status:** Proposed
 
 ### IP-005 — Define backup/export/restore design
@@ -382,8 +382,8 @@ Items should remain traceable to accepted source documents and should not be dec
 
 - **Type:** Product backlog item
 - **Goal:** Define how developers will work locally with the accepted PostgreSQL-like relational storage direction.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
-- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, and reset expectations against the draft table candidates as applicable, once tooling is selected, without creating scripts, migrations, schema files, or implementation tasks in this backlog item.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/adr-first-slice-tooling.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-tooling-decision-preparation.md`.
+- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, reset, and migration expectations using the accepted tooling direction, without creating scripts, migrations, schema files, SQL, or implementation tasks in this backlog item.
 - **Status:** Proposed
 
 ### IP-007 — Determine canonical song catalog sourcing
@@ -490,12 +490,36 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design identifies a seed/setup mechanism without requiring legacy SQL Server import and without creating scripts, migrations, schema files, SQL, or implementation tasks in this backlog item.
 - **Status:** Proposed
 
-### IP-020 — Verify first-slice tooling decision risks
+### IP-020 — Define schema file layout for accepted tooling direction
 
 - **Type:** Product backlog item
-- **Goal:** Verify tooling-decision concerns before accepting any first-slice ORM/query/migration ADR.
-- **Source / traceability:** `docs/first-slice-tooling-decision-preparation.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/adr-first-slice-storage.md`; `docs/architecture.md`.
-- **Acceptance direction:** Future design verifies migration review workflow; domain/application validation boundaries versus generated/schema models; transaction support for save, finalize, delete, reorder, and complete lifecycle operations; and local development database workflow once tooling is selected, while keeping the work as design/ADR evaluation rather than implementation tasks.
+- **Goal:** Define where first-slice typed schema definitions would live for the accepted tooling direction without creating schema files.
+- **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/architecture.md`.
+- **Acceptance direction:** Future design identifies schema file layout and ownership while preserving the boundary that schema definitions are not the domain model and without creating schema files, migrations, SQL, or implementation tasks.
+- **Status:** Proposed
+
+### IP-021 — Define migration workflow and review process
+
+- **Type:** Product backlog item
+- **Goal:** Define how first-slice migrations will be generated or authored, reviewed before execution, and applied in local and hosted environments.
+- **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/adr-first-slice-storage.md`; `docs/deployment-assumptions.md`; `docs/first-slice-physical-schema-draft.md`.
+- **Acceptance direction:** Future design specifies migration review and execution expectations without creating migrations, SQL, scripts, package installation, or implementation tasks.
+- **Status:** Proposed
+
+### IP-022 — Define lifecycle transaction approach
+
+- **Type:** Product backlog item
+- **Goal:** Define transaction boundaries for save working set, finalize set, delete working/final set, reorder rows, and complete final set.
+- **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/first-slice-schema-open-questions-resolution.md`; Planning Lifecycle backlog items; Architecture Planning and History modules.
+- **Acceptance direction:** Future design keeps transaction reasoning at design/ADR level and preserves explicit application/domain lifecycle validation before any repository or database implementation work starts.
+- **Status:** Proposed
+
+### IP-023 — Preserve application/domain validation boundary during implementation design
+
+- **Type:** Product backlog item
+- **Goal:** Define review criteria that prevent typed schema definitions, generated models, database constraints, or repository helpers from replacing explicit domain/application lifecycle validation.
+- **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/architecture.md`; `docs/implementation-preparation.md`; `docs/first-slice-tooling-decision-preparation.md`.
+- **Acceptance direction:** Future design documents how lifecycle operations and planning permissions remain explicit in application/domain services without creating code, tests, schema files, migrations, or implementation tickets.
 - **Status:** Proposed
 
 ## Not Backlog Yet
