@@ -6,6 +6,8 @@ This document drafts a first-slice physical relational schema shape for **Planni
 
 It is a documentation-only draft. It uses relational table, field, constraint, and index language to clarify likely storage structure, but it is not SQL DDL, not Prisma syntax, not a migration, and not authorization or implementation design.
 
+This draft should now be read together with `docs/first-slice-schema-open-questions-resolution.md`, which clarifies several first-slice schema questions without creating SQL, Prisma, migrations, schema files, or implementation tasks.
+
 The draft focuses on the minimum schema candidates needed to distinguish:
 
 - no saved non-completed set;
@@ -27,6 +29,7 @@ This document does not:
 
 Primary inputs:
 
+- `docs/first-slice-schema-open-questions-resolution.md`
 - `docs/adr-first-slice-storage.md`
 - `docs/planning-lifecycle-first-schema-subset.md`
 - `docs/first-slice-storage-decision-preparation.md`
@@ -49,7 +52,7 @@ Primary inputs:
 
 The accepted first-slice runtime storage direction is PostgreSQL-like relational storage for a single hosted web app serving one congregation.
 
-This direction is accepted only at the storage-direction level. Physical schema, schema files, migration approach, ORM/query tooling, concrete database provider, hosting provider, auth provider, and account model remain unresolved.
+This direction is accepted only at the storage-direction level. IDs are accepted as opaque stable identifiers that do not encode business meaning and do not depend on legacy SQL Server IDs, but exact physical ID representation remains deferred. Timestamps are accepted as lifecycle event metadata rather than full audit history, but exact timezone, type, precision, and generation responsibility remain deferred. Physical schema, schema files, migration approach, ORM/query tooling, concrete database provider, hosting provider, auth provider, and account model remain unresolved.
 
 ## 5. First-slice schema scope
 
@@ -123,7 +126,7 @@ Multiple active or inactive role assignments may exist for one actor, and planni
 
 ## 10. Table draft: `service_contexts`
 
-Purpose: represents one planned service occurrence. A service context may exist without a saved non-completed set.
+Purpose: represents one planned service occurrence. The UI/application may derive an unsaved default service context when the app opens. A persisted `service_contexts` row is created explicitly when saving a working/final set or creating a completed-service record. Unsaved defaults are not historical data.
 
 | Field | Required? | Draft type category | Meaning | Notes / unresolved issues |
 | --- | --- | --- | --- | --- |
@@ -131,8 +134,8 @@ Purpose: represents one planned service occurrence. A service context may exist 
 | service_date | Yes | date | Date of the planned service occurrence. | Used for date-based lookup and lifecycle context. |
 | service_language | Yes | enum / controlled value | Service language context. | Must support Czech, Polish, and Mixed. |
 | informational_time | No | informational time | Optional service time shown as information. | Informational only; no scheduling logic is implied. |
-| priest_person_id | No | nullable reference | Optional priest person for the service. | Person may not have login/account. |
-| organist_person_id | No | nullable reference | Optional organist person for the service. | Person may not have login/account. |
+| priest_person_id | No | nullable reference | Optional priest person for the service. | Person may not have login/account; required at application/domain validation when persisted with saved working/final set or completed-service record. |
+| organist_person_id | No | nullable reference | Optional organist person for the service. | Person may not have login/account; required at application/domain validation when persisted with saved working/final set or completed-service record. |
 | antiphon_number | No | short text | Manually entered antiphon number. | Empty is allowed; no derivation from date. |
 | liturgical_season | No | enum / controlled value | Manually selected liturgical season. | Empty is allowed; no derivation from antiphon or date. |
 | note | No | text | Optional service-context note. | Does not replace ordered service rows. |
@@ -155,7 +158,7 @@ Purpose: represents the saved non-completed working/final plan for one service c
 | updated_at | Yes | timestamp | Records when the set was last updated. | Exact timestamp strategy is unresolved. |
 | finalized_at | No | timestamp | Records when the set became final. | Required only when status is `final`, subject to final constraint design. |
 
-Final sets are not directly edited. Deleting a saved working/final set removes the non-completed set and returns the service context to `no set exists`.
+Final sets are not directly edited. Deleting a saved working/final set removes the non-completed set and returns the service context to `no set exists`. A saved non-completed service set and completed-service record should not coexist as active planning states for the same service context.
 
 ## 12. Table draft: `service_set_rows`
 
@@ -181,13 +184,13 @@ Purpose: historical record created by manual conversion from a final set.
 | Field | Required? | Draft type category | Meaning | Notes / unresolved issues |
 | --- | --- | --- | --- | --- |
 | id | Yes | stable identifier | Identifies the completed-service record. | Exact id strategy is unresolved. |
-| service_context_id | Yes | required reference | References the completed service context. | Relationship to any remaining non-completed set needs clarification. |
-| source_service_set_id | No | nullable reference | References the final service set used as completion source. | Open question: should this remain after deleting or archiving the original service set? |
+| service_context_id | Yes | required reference | References the completed service context. | Completed record is authoritative historical state after completion; active non-completed set should not coexist for the same service context. |
+| source_service_set_id | No | nullable reference | Optional trace/reference to the final service set used as completion source. | Business behavior must not depend on dereferencing it; final schema may keep it nullable or omit it. |
 | completed_by_actor_id | Yes | required reference | Actor who manually completed the service. | Automatic completion is deferred for this schema draft. |
 | completed_at | Yes | timestamp | Records when completion occurred. | Exact timestamp strategy is unresolved. |
 | created_at | Yes | timestamp | Records when the historical record was created. | May be the same moment as `completed_at`; exact strategy is unresolved. |
 
-A completed-service record is historical, not a non-completed plan, and is not reopened through the first-slice planning lifecycle.
+A completed-service record is historical, not a non-completed plan, and is not reopened through the first-slice planning lifecycle. Completed-service records must be self-contained through copied completed rows; reopening or re-planning completed service remains deferred.
 
 ## 14. Table draft: `completed_service_rows`
 
@@ -213,8 +216,9 @@ Candidate rules:
 
 - number alone is not a valid song reference;
 - language alone is not a valid song reference;
-- `song_language` must support at least Czech and Polish song identity;
-- Mixed is a service language, not necessarily a valid concrete song language;
+- `song_language` must be a concrete song language, Czech or Polish;
+- Mixed is a service language only, not a valid concrete song language;
+- catalog existence validation is deferred;
 - title, source hymnal, melody class, repertoire state, preference data, imported source evidence, and catalog metadata are deferred.
 
 ## 16. Candidate enums / controlled values
@@ -233,6 +237,7 @@ These are draft value sets, not code constants or database enum selections.
 
 Candidate constraints and invariants:
 
+- Minimal attribution fields are accepted at design level; full audit log, restore history, diff history, and change review remain deferred.
 - A service context may have zero saved non-completed service sets.
 - A service context should have at most one saved non-completed service set.
 - Service set status is either `working` or `final`.
@@ -240,6 +245,7 @@ Candidate constraints and invariants:
 - A final service set is not edited directly.
 - Deleting a working/final set removes the saved non-completed set and returns the service context to `no set exists`.
 - A completed-service record is historical and not a non-completed plan.
+- A completed-service record and saved non-completed service set should not coexist as active planning states for the same service context.
 - Service rows and completed rows are ordered within their parent records.
 - The design must not use fixed four-song slots.
 - A service row or completed row contains at least one of a complete song reference or textual note.
@@ -272,7 +278,7 @@ Schema-level lifecycle implications:
 - Editing applies to working sets; final sets are not directly edited.
 - Finalizing changes the non-completed set to status `final` and records finalization attribution/timing.
 - Deleting a working or final set removes the saved non-completed set rather than marking it deleted.
-- Completing a final set creates a `completed_service_records` row and copied `completed_service_rows` for historical preservation.
+- Completing a final set creates a `completed_service_records` row and copied `completed_service_rows` for historical preservation; the completed record is authoritative historical state after completion.
 - Completed records are not reopened as working/final sets in the first-slice lifecycle.
 
 ## 20. Authorization data implications
@@ -309,23 +315,27 @@ Explicitly deferred tables include:
 - login account/provider tables;
 - multi-congregation tenancy tables.
 
-## 23. Open schema questions
+## 23. First-slice seed/setup note
+
+First-slice seed/setup data needs at least one admin actor, priest actor/person, organist actor/person, and required role assignments for manual testing and first real use. Legacy SQL Server import is not required for first-slice seed data. The exact seed/setup mechanism remains unresolved.
+
+## 24. Open schema questions
 
 Open questions:
 
-- What exact id strategy should be used?
-- What exact timestamp strategy should be used?
-- Are service contexts created lazily or explicitly?
-- Should saved service contexts require priest and organist references, or may incomplete service contexts with nullable `priest_person_id` and `organist_person_id` be saved during draft/preparation? Later workflow and schema validation must decide.
-- Should `source_service_set_id` remain after deleting or archiving the original service set?
-- May a completed record and non-completed set coexist for the same service context?
-- How much attribution is needed before full audit design?
-- Can minimal song references be validated before a full song catalog exists?
-- How will first-slice seed data be entered?
-- How will the local development database be set up?
-- How do backup, export, and restore expectations affect schema design?
+- What exact physical ID representation should be used?
+- What exact timestamp representation should be used?
+- Which concrete database provider should be used?
+- Which ORM/query layer should be used, if any?
+- Which migration tooling should be used?
+- How will the local development database workflow be set up?
+- How will backup/export/restore be implemented?
+- What auth provider/account model should be used?
+- Where exactly should the priest/organist requirement be enforced between database constraints and application validation?
+- Should `source_service_set_id` be kept or omitted in the final physical schema?
+- What exact first-slice seed/setup mechanism should be used?
 
-## 24. What this draft enables next
+## 25. What this draft enables next
 
 This draft enables review of the first-slice relational storage shape before implementation decisions. It can support later decisions about physical schema details, tooling, local development workflow, provider selection, backup/export/restore design, and authorization/account design.
 
