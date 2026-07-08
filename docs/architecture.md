@@ -29,7 +29,7 @@ The system is organized around these logical modules:
 - **Candidate selection module** — combines knowledge, repertoire, history, preferences, and planning context to produce eligible candidate displays.
 - **Non-repetition / conflict module** — applies melody-class non-repetition and validates conflicts among non-completed plans.
 - **Preferences module** — manages role-weighted preferences on concrete songs and exposes total scores.
-- **Roles and permissions module** — authorizes planning, knowledge, repertoire, preference, and administration actions.
+- **Roles and permissions module** — authorizes planning, knowledge, repertoire, preference, and administration actions, using `docs/auth-account-role-model.md` as the logical source for person/account/actor/role concepts.
 - **History module** — preserves completed-service records and provides backward non-repetition input.
 - **Legacy data boundary** — acknowledges legacy data as an input or constraint without deciding migration strategy.
 
@@ -182,7 +182,7 @@ Boundaries:
 
 ## Roles and Permissions Module
 
-The Roles and permissions module separates responsibilities for service planning, knowledge management, repertoire management, own preferences, and congregation preference administration.
+The Roles and permissions module separates responsibilities for service planning, knowledge management, repertoire management, own preferences, and congregation preference administration. `docs/auth-account-role-model.md` is the logical source for future person, account, actor, role, role assignment, and historical person reference concepts.
 
 Responsibilities:
 
@@ -202,8 +202,11 @@ Responsibilities:
 
 Boundaries:
 
-- Permissions must be enforced in the application/domain layer, not only by hiding UI controls.
-- This document does not choose authentication mechanisms, account models, or security infrastructure.
+- Person, account, actor, role, role assignment, and historical person reference are distinct concepts for later account modeling and schema design.
+- Legacy `Kazatele` and `Varhanici` records may inform historical person references or future people records, but they are not automatically authenticated users.
+- UI hiding is not sufficient authorization enforcement.
+- Permissions for state-changing actions must be enforced in application/domain behavior, not only by hiding UI controls.
+- This document does not choose an authentication provider, account technology, authentication mechanism, account model, or security infrastructure.
 
 ## History Module
 
