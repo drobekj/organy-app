@@ -8,6 +8,8 @@ Proposed
 
 The first implementation slice is **Planning Lifecycle First**. It is limited to planning one concrete ordered service set for one service in the scope of one local congregation. This ADR must now be evaluated against the accepted deployment assumption: a single hosted web app for one congregation.
 
+`docs/auth-account-role-model.md` is an input to any future authentication, account, actor, role-assignment, authorization, and schema decision. It keeps person, account, actor, role, role assignment, and historical person reference distinct without choosing an authentication provider or account technology.
+
 The repository is currently documentation-first. Repository inspection found no selected application framework, runtime, persistence technology, database schema, migration tooling, authentication mechanism, API setup, UI setup, or test framework. This ADR therefore proposes direction only; it does not create project files or implementation structure.
 
 For this first slice:
@@ -120,7 +122,7 @@ This direction intentionally does not decide:
 
 - exact framework, runtime version, package manager, or project layout;
 - exact database, ORM/query layer, migration strategy, or schema;
-- exact auth provider, session strategy, user table shape, or login screens;
+- exact auth provider, session strategy, account model, user table shape, or login screens;
 - hosting provider, deployment platform, or whether the first implementation later separates frontend and backend;
 - final storage choice, which remains deferred pending legacy-to-domain mapping assessment and target-domain persistence design.
 
@@ -143,7 +145,7 @@ The storage design should avoid introducing deleted or cancelled lifecycle state
 
 ## Authorization Boundary
 
-This ADR does not design login screens or user tables.
+This ADR does not design login screens, account model, user tables, or role-assignment storage. Future auth/account design must use `docs/auth-account-role-model.md` as input and keep legacy people references distinct from authenticated users.
 
 Implementation must support role-based permissions for:
 
@@ -174,7 +176,7 @@ This postpones:
 
 - exact framework and project setup;
 - exact persistence technology and schema;
-- exact authentication mechanism and account model;
+- exact authentication provider, mechanism, and account model;
 - full candidate selection, non-repetition, preference, knowledge-management, and legacy-migration implementation;
 - multi-congregation or enterprise tenancy design.
 
@@ -192,7 +194,7 @@ Follow-up decisions are needed before coding to turn this proposal into an accep
 - Exact framework and project setup.
 - Exact persistence technology, after `docs/target-domain-persistence-model.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
 - Exact auth mechanism and provider.
-- User/person representation, including how priest and organist references relate to authenticated actors.
+- Account model and user/person representation, including how priest and organist references relate to authenticated actors and role assignments, using `docs/auth-account-role-model.md` as input.
 - Minimal song reference validation for `(language, number)` before a full song catalog exists.
 - Test strategy for lifecycle transitions, validation, permissions, and storage behavior.
 - Target-domain persistence design that avoids direct 1:1 migration from the legacy SQL Server / SSMS `VarhanniDoprovody` database.

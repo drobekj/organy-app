@@ -23,6 +23,7 @@ This readiness summary is based on the accepted repository documentation:
 - `docs/legacy-data-assessment.md`
 - `docs/legacy-to-domain-mapping.md`
 - `docs/target-domain-persistence-model.md`
+- `docs/auth-account-role-model.md`
 
 If this document appears to conflict with those sources, the underlying source document should be corrected or clarified before implementation planning proceeds.
 
@@ -102,6 +103,8 @@ The following must remain true while implementation planning and later technical
 - **Conflicts are only among non-completed plans.** Working sets and final sets that have not become completed-service records can conflict; completed-service records are historical input, not active plan conflicts.
 - **Completed-service records only provide backward non-repetition input.** They are not non-completed plans and are not judged as conflicts.
 - **Final sets are not directly edited.** If a final set must change, it is deleted and recreated according to accepted lifecycle behavior.
+- **Authorization design follows the logical auth/account/role model.** Future account modeling, actor identification, role assignments, and permission checks must use `docs/auth-account-role-model.md` as input while authentication approach remains unresolved.
+- **First-slice implementation must not exclude congregation-member access.** Preference voting may be outside the first slice, but the first-slice design must leave room for direct congregation member access for own preference votes without granting planning permissions.
 
 ## 3. Not Ready for Implementation Yet
 
@@ -124,7 +127,7 @@ Before technical design begins, the following decisions or clarifications are ne
 
 1. **Technology stack.** Decide the application framework, language/runtime, frontend approach if applicable, and supporting tooling.
 2. **Persistence approach.** Decide the storage technology and persistence style only after the target-domain persistence model and legacy-to-domain mapping clarify what must be persisted through future target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
-3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced, evaluated against the accepted direct-access roles: priest, organist, admin, and congregation member.
+3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced, based on the logical auth/account/role model and evaluated against the accepted direct-access roles: priest, organist, admin, and congregation member. Authentication approach remains unresolved.
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
 5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
 6. **Automatic final-set completion timing and safeguards.** Decide when final sets become completed-service records, what confirmation or automation is allowed, and how exceptions are handled.
@@ -229,7 +232,7 @@ Coding should not begin until the following readiness items are satisfied at the
 - [x] First-slice deployment assumption selected: single hosted web app for one congregation with priest, organist, admin, and congregation member roles.
 - [ ] Technical architecture decision accepted; the proposed ADR alone is not an accepted architecture baseline.
 - [ ] Storage approach selected after target-domain persistence model, legacy-to-domain mapping, target schema decisions, and evaluation against the accepted deployment assumption.
-- [ ] Authorization model mapped from accepted permissions; authentication approach remains unresolved.
+- [ ] Authorization model mapped from accepted permissions and `docs/auth-account-role-model.md`; authentication approach remains unresolved.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
 

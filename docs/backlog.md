@@ -378,6 +378,47 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future multi-congregation needs may be explored and decided later, but current backlog and implementation preparation do not decompose multi-congregation implementation work.
 - **Status:** Open
 
+### IP-006 — Compare future authentication providers
+
+- **Type:** Product backlog item
+- **Goal:** Compare authentication provider options without selecting a concrete provider or login method.
+- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/deployment-assumptions.md`; Architecture Roles and Permissions module; ADR authorization boundary.
+- **Acceptance direction:** Future comparison evaluates how options support direct access for priest, organist, admin, and congregation member roles while keeping provider selection out of current implementation tasks.
+- **Status:** Proposed
+
+### IP-007 — Design future account/person/actor schema
+
+- **Type:** Product backlog item
+- **Goal:** Design the future logical-to-technical representation of people, accounts, actors, roles, role assignments, and historical person references.
+- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/target-domain-persistence-model.md`; `docs/legacy-to-domain-mapping.md`; Architecture Data and Persistence note.
+- **Acceptance direction:** Future schema design preserves the distinction between person, account, actor, role assignment, and historical person reference, and does not treat legacy people records as authenticated users by default.
+- **Status:** Proposed
+
+### IP-008 — Define future authorization test strategy
+
+- **Type:** Product backlog item
+- **Goal:** Define how future implementation will verify role-based permission enforcement for state-changing actions.
+- **Source / traceability:** `docs/auth-account-role-model.md`; REQ-012; Architecture Roles and Permissions module; ADR authorization boundary.
+- **Acceptance direction:** Future test strategy covers application/domain authorization behavior rather than relying on UI hiding as sufficient enforcement.
+- **Status:** Proposed
+
+### IP-009 — Design legacy people mapping from `Kazatele` and `Varhanici`
+
+- **Type:** Product backlog item
+- **Goal:** Decide how legacy preacher and organist records can inform future people, historical references, and role-assignment candidates.
+- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/legacy-to-domain-mapping.md`; `docs/domain-model.md`; Legacy data boundary in architecture.
+- **Acceptance direction:** Future mapping treats `Kazatele` and `Varhanici` as source knowledge only and does not automatically create login accounts, authenticated actors, or active role assignments.
+- **Status:** Proposed
+
+### IP-010 — Design congregation-member preference access
+
+- **Type:** Product backlog item
+- **Goal:** Design future direct congregation-member access for entering own preference votes without granting planning permissions.
+- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/deployment-assumptions.md`; REQ-013; Preferences and Roles and Permissions modules.
+- **Acceptance direction:** Future design supports congregation member own preference entry and preserves the boundary that congregation member access does not include planning, repertoire, or shared-knowledge administration.
+- **Status:** Proposed
+
+
 ## Not Backlog Yet
 
 The following areas must not be decomposed from this backlog yet:
