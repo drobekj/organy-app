@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Planning Lifecycle First is the accepted first implementation slice. The storage-neutral subset for that slice is described in `docs/planning-lifecycle-first-schema-subset.md`, and the storage tradeoffs for the slice are prepared in `docs/first-slice-storage-decision-preparation.md`.
+Planning Lifecycle First is the accepted first implementation slice. The storage-neutral subset for that slice is described in `docs/planning-lifecycle-first-schema-subset.md`, and the storage tradeoffs for the slice are prepared in `docs/first-slice-storage-decision-preparation.md`. `docs/first-slice-physical-schema-draft.md` is a follow-up documentation-only schema draft produced under the accepted PostgreSQL-like storage direction.
 
 The accepted first production-oriented deployment assumption is a single hosted web app for one congregation with shared access by priest, organist, admin, and congregation member roles. This deployment assumption creates a need for durable hosted persistence, safe lifecycle writes, ordered rows, completed history, and credible backup/export/restore expectations even though the first-slice subset is intentionally small.
 
@@ -16,7 +16,7 @@ The legacy SQL Server / SSMS database `VarhanniDoprovody` remains important sour
 
 Accept **PostgreSQL-like relational storage** as the runtime storage direction for the first production-oriented Planning Lifecycle First slice.
 
-This accepts the storage direction only. It does not accept a completed physical schema, database provider, hosting provider, connection management approach, migration tool, ORM/query layer, schema file, implementation plan, authentication provider, or account model.
+This accepts the storage direction only. The follow-up physical schema draft does not change this ADR scope: this ADR does not accept a completed physical schema, database provider, hosting provider, connection management approach, migration tool, ORM/query layer, SQL, Prisma, schema file, implementation plan, authentication provider, or account model.
 
 ## Scope of this decision
 

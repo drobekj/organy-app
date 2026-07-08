@@ -358,32 +358,32 @@ Items should remain traceable to accepted source documents and should not be dec
 
 - **Type:** Product backlog item
 - **Goal:** Prepare future physical schema design for Planning Lifecycle First using the accepted PostgreSQL-like relational storage direction.
-- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/adr-first-slice-storage.md`; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`.
-- **Acceptance direction:** Future design derives physical schema concepts from the first-slice subset and accepted storage direction while keeping schema files, migrations, SQL, ORM models, and implementation tasks out of this backlog item.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/adr-first-slice-storage.md`; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/first-slice-physical-schema-draft.md`.
+- **Acceptance direction:** Future design reviews `docs/first-slice-physical-schema-draft.md`, resolves its open physical schema questions, and derives physical schema concepts from the first-slice subset and accepted storage direction while keeping schema files, migrations, SQL, ORM models, and implementation tasks out of this backlog item.
 - **Status:** Proposed
 
 ### IP-004 — Select ORM/query/migration tooling
 
 - **Type:** Product backlog item
-- **Goal:** Select future ORM, query-layer, and migration tooling compatible with the accepted PostgreSQL-like relational storage direction without selecting those tools in this backlog.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
-- **Acceptance direction:** Future design compares tooling options and records a decision before schema files or migrations are created; this item does not select Prisma or any other ORM/query/migration tool.
+- **Goal:** Select future ORM, query-layer, and migration tooling compatible with the accepted PostgreSQL-like relational storage direction and first-slice physical schema draft without selecting those tools in this backlog.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/first-slice-physical-schema-draft.md`.
+- **Acceptance direction:** Future design compares tooling options against the draft table candidates and records a decision before schema files or migrations are created; this item does not select Prisma or any other ORM/query/migration tool.
 - **Status:** Proposed
 
 ### IP-005 — Define backup/export/restore design
 
 - **Type:** Product backlog item
 - **Goal:** Define backup, export, and restore expectations for PostgreSQL-like relational first-slice runtime storage before production use.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`.
-- **Acceptance direction:** Future design identifies backup ownership, export format, restore procedure, restore-test expectations, and acceptable data-loss window without creating implementation tasks.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/first-slice-physical-schema-draft.md`.
+- **Acceptance direction:** Future design identifies backup ownership, export format, restore procedure, restore-test expectations, and acceptable data-loss window against the draft relational shape without creating implementation tasks.
 - **Status:** Proposed
 
 ### IP-006 — Define local development database workflow
 
 - **Type:** Product backlog item
 - **Goal:** Define how developers will work locally with the accepted PostgreSQL-like relational storage direction.
-- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`.
-- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, and reset expectations as applicable, without creating scripts, migrations, schema files, or implementation tasks in this backlog item.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-physical-schema-draft.md`.
+- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, and reset expectations against the draft table candidates as applicable, without creating scripts, migrations, schema files, or implementation tasks in this backlog item.
 - **Status:** Proposed
 
 ### IP-007 — Determine canonical song catalog sourcing
@@ -450,7 +450,15 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design confirms the subset before physical schema design, without creating implementation tasks, database schema, migrations, SQL, or technology selections.
 - **Status:** Proposed
 
-### IP-015 — Keep legacy SQL Server import/reference boundary explicit
+### IP-015 — Review first-slice physical schema draft before tooling decisions
+
+- **Type:** Product backlog item
+- **Goal:** Review `docs/first-slice-physical-schema-draft.md` before schema, provider, ORM/query, migration, local development, and backup/export/restore decisions.
+- **Source / traceability:** `docs/first-slice-physical-schema-draft.md`; `docs/adr-first-slice-storage.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/implementation-preparation.md`; `docs/architecture.md`.
+- **Acceptance direction:** Future design treats the draft as documentation-only input, resolves its open physical schema questions, and keeps review outcomes in design/ADR work rather than current implementation tasks.
+- **Status:** Proposed
+
+### IP-016 — Keep legacy SQL Server import/reference boundary explicit
 
 - **Type:** Product backlog item
 - **Goal:** Preserve the boundary that legacy SQL Server remains source knowledge, import evidence, and reference material only, not the runtime app database.
