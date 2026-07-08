@@ -354,12 +354,12 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future schema design derives from target-domain concepts and the reviewed draft rather than copying the legacy SQL Server schema, and remains separate from current implementation tasks until storage and architecture decisions are accepted.
 - **Status:** Proposed
 
-### IP-003 — Compare future storage options against schema draft
+### IP-003 — Compare future storage options against first-slice schema subset
 
 - **Type:** Product backlog item
-- **Goal:** Compare storage options after target-domain persistence needs and the target technical schema draft are understood.
-- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/storage-options-comparison.md`.
-- **Acceptance direction:** Storage comparison evaluates options against the storage-neutral draft and documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
+- **Goal:** Compare storage options after target-domain persistence needs, the target technical schema draft, and the Planning Lifecycle First schema subset are understood.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/storage-options-comparison.md`.
+- **Acceptance direction:** Storage comparison evaluates options against the storage-neutral first-slice subset before physical schema design and documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
 - **Status:** Proposed
 
 ### IP-004 — Determine canonical song catalog sourcing
@@ -394,12 +394,12 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future schema design preserves the distinction between person, account, actor, role assignment, and historical person reference, and does not treat legacy people records as authenticated users by default.
 - **Status:** Proposed
 
-### IP-008 — Define future authorization test strategy
+### IP-008 — Map first-slice authorization checks to actor-role subset
 
 - **Type:** Product backlog item
-- **Goal:** Define how future implementation will verify role-based permission enforcement for state-changing actions.
-- **Source / traceability:** `docs/auth-account-role-model.md`; REQ-012; Architecture Roles and Permissions module; ADR authorization boundary.
-- **Acceptance direction:** Future test strategy covers application/domain authorization behavior rather than relying on UI hiding as sufficient enforcement.
+- **Goal:** Map Planning Lifecycle First authorization checks to the minimal Person / Actor / RoleAssignment or equivalent actor-role subset before implementation design.
+- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/planning-lifecycle-first-schema-subset.md`; REQ-012; Architecture Roles and Permissions module; ADR authorization boundary.
+- **Acceptance direction:** Future authorization design identifies how priest, organist, admin, and congregation member checks are resolved at state-changing boundaries without selecting an auth provider or treating UI hiding as sufficient enforcement.
 - **Status:** Proposed
 
 ### IP-009 — Design legacy people mapping from `Kazatele` and `Varhanici`
@@ -418,12 +418,12 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design supports congregation member own preference entry and preserves the boundary that congregation member access does not include planning, repertoire, or shared-knowledge administration.
 - **Status:** Proposed
 
-### IP-011 — Decide Planning Lifecycle First schema subset
+### IP-011 — Review Planning Lifecycle First schema subset before physical schema design
 
 - **Type:** Product backlog item
-- **Goal:** Decide which first-slice subset of the target technical schema draft is needed for Planning Lifecycle First.
-- **Source / traceability:** `docs/target-technical-schema-draft.md`; `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; Planning Lifecycle backlog items.
-- **Acceptance direction:** Future design identifies only the subset needed for the first planning lifecycle slice, without creating implementation tasks, database schema, migrations, SQL, or technology selections.
+- **Goal:** Review `docs/planning-lifecycle-first-schema-subset.md` as the storage-neutral subset of the target technical schema draft needed for Planning Lifecycle First.
+- **Source / traceability:** `docs/planning-lifecycle-first-schema-subset.md`; `docs/target-technical-schema-draft.md`; `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; Planning Lifecycle backlog items.
+- **Acceptance direction:** Future design confirms the subset before physical schema design, without creating implementation tasks, database schema, migrations, SQL, or technology selections.
 - **Status:** Proposed
 
 ## Not Backlog Yet
