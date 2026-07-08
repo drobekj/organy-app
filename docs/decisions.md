@@ -128,6 +128,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** Storage comparison should consider shared hosted access and backups; authentication design must support real role-bearing actors; congregation members need direct access for entering their own preference votes; congregation member access does not imply planning permissions; local-only assumptions are insufficient for the production direction; multi-congregation support remains future and out of scope; concrete storage, authentication, and hosting choices remain undecided.
 - **Related:** `docs/deployment-assumptions.md`.
 
+### DEC-2026-07-08-02 — First-slice runtime storage direction is PostgreSQL-like relational storage
+
+- **Date:** 2026-07-08
+- **Status:** Accepted
+- **Context:** Planning Lifecycle First needs a production-oriented storage direction before physical schema design and later implementation planning can proceed. The accepted deployment assumption is a single hosted web app for one congregation with shared access by priest, organist, admin, and congregation member roles.
+- **Options considered:** PostgreSQL-like relational storage; SQLite-like local relational storage; SQL Server-backed runtime persistence; legacy SQL Server as runtime database; deferring storage further.
+- **Decision:** PostgreSQL-like relational storage is accepted as runtime storage direction for Planning Lifecycle First.
+- **Consequences:** Storage approach is no longer unresolved at direction level; physical schema still unresolved; ORM/query/migration tooling still unresolved; hosting provider still unresolved; backup/export/restore design still required; legacy SQL Server remains source/reference/import only; SQLite-like and SQL Server-backed runtime directions are not accepted for first production runtime storage.
+- **Related:** `docs/adr-first-slice-storage.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/deployment-assumptions.md`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.

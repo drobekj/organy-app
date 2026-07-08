@@ -354,36 +354,36 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future schema design derives from target-domain concepts and the reviewed draft rather than copying the legacy SQL Server schema, and remains separate from current implementation tasks until storage and architecture decisions are accepted.
 - **Status:** Proposed
 
-### IP-003 — Compare future storage options against first-slice schema subset
+### IP-003 — Design first-slice physical schema directionally against PostgreSQL-like relational storage
 
 - **Type:** Product backlog item
-- **Goal:** Compare storage options after target-domain persistence needs, the target technical schema draft, and the Planning Lifecycle First schema subset are understood.
-- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`.
-- **Acceptance direction:** Storage comparison evaluates options against the storage-neutral first-slice subset and `docs/first-slice-storage-decision-preparation.md` before physical schema design and documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
+- **Goal:** Prepare future physical schema design for Planning Lifecycle First using the accepted PostgreSQL-like relational storage direction.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/adr-first-slice-storage.md`; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`.
+- **Acceptance direction:** Future design derives physical schema concepts from the first-slice subset and accepted storage direction while keeping schema files, migrations, SQL, ORM models, and implementation tasks out of this backlog item.
 - **Status:** Proposed
 
-### IP-004 — Prepare first-slice storage ADR
+### IP-004 — Select ORM/query/migration tooling
 
 - **Type:** Product backlog item
-- **Goal:** Prepare a future first-slice storage ADR from `docs/first-slice-storage-decision-preparation.md` without treating that preparation as an accepted storage decision.
-- **Source / traceability:** `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
-- **Acceptance direction:** A future ADR explicitly chooses storage and justifies it against the first-slice subset, accepted single hosted one-congregation deployment assumption, hosted shared access, backup/export/restore expectations, local development workflow, and legacy SQL Server as source knowledge rather than target runtime architecture.
+- **Goal:** Select future ORM, query-layer, and migration tooling compatible with the accepted PostgreSQL-like relational storage direction without selecting those tools in this backlog.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
+- **Acceptance direction:** Future design compares tooling options and records a decision before schema files or migrations are created; this item does not select Prisma or any other ORM/query/migration tool.
 - **Status:** Proposed
 
-### IP-005 — Verify backup/export/restore expectations before storage acceptance
+### IP-005 — Define backup/export/restore design
 
 - **Type:** Product backlog item
-- **Goal:** Verify backup, export, and restore expectations before any storage approach is accepted.
-- **Source / traceability:** `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`.
-- **Acceptance direction:** Future storage acceptance identifies backup ownership, export format, restore procedure, and restore-test expectations without creating implementation tasks or selecting storage prematurely.
+- **Goal:** Define backup, export, and restore expectations for PostgreSQL-like relational first-slice runtime storage before production use.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`.
+- **Acceptance direction:** Future design identifies backup ownership, export format, restore procedure, restore-test expectations, and acceptable data-loss window without creating implementation tasks.
 - **Status:** Proposed
 
-### IP-006 — Verify hosted shared-access and concurrency assumptions before storage acceptance
+### IP-006 — Define local development database workflow
 
 - **Type:** Product backlog item
-- **Goal:** Verify hosted shared-access and concurrency assumptions before any storage approach is accepted.
-- **Source / traceability:** `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`.
-- **Acceptance direction:** Future storage acceptance explains how the selected direction supports shared hosted access and safe first-slice lifecycle writes for the accepted one-congregation roles without creating implementation tasks.
+- **Goal:** Define how developers will work locally with the accepted PostgreSQL-like relational storage direction.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`.
+- **Acceptance direction:** Future design clarifies local database service, container, remote development database, fixture, seed, and reset expectations as applicable, without creating scripts, migrations, schema files, or implementation tasks in this backlog item.
 - **Status:** Proposed
 
 ### IP-007 — Determine canonical song catalog sourcing
@@ -448,6 +448,14 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Goal:** Review `docs/planning-lifecycle-first-schema-subset.md` as the storage-neutral subset of the target technical schema draft needed for Planning Lifecycle First.
 - **Source / traceability:** `docs/planning-lifecycle-first-schema-subset.md`; `docs/target-technical-schema-draft.md`; `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; Planning Lifecycle backlog items.
 - **Acceptance direction:** Future design confirms the subset before physical schema design, without creating implementation tasks, database schema, migrations, SQL, or technology selections.
+- **Status:** Proposed
+
+### IP-015 — Keep legacy SQL Server import/reference boundary explicit
+
+- **Type:** Product backlog item
+- **Goal:** Preserve the boundary that legacy SQL Server remains source knowledge, import evidence, and reference material only, not the runtime app database.
+- **Source / traceability:** `docs/adr-first-slice-storage.md`; `docs/legacy-to-domain-mapping.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/architecture.md`; Legacy data boundary in architecture.
+- **Acceptance direction:** Future storage, schema, and import design states how legacy meaning will be transformed into accepted target concepts and avoids copying the `VarhanniDoprovody` table shape into runtime architecture.
 - **Status:** Proposed
 
 ## Not Backlog Yet
