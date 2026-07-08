@@ -358,11 +358,35 @@ Items should remain traceable to accepted source documents and should not be dec
 
 - **Type:** Product backlog item
 - **Goal:** Compare storage options after target-domain persistence needs, the target technical schema draft, and the Planning Lifecycle First schema subset are understood.
-- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/storage-options-comparison.md`.
-- **Acceptance direction:** Storage comparison evaluates options against the storage-neutral first-slice subset before physical schema design and documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`.
+- **Acceptance direction:** Storage comparison evaluates options against the storage-neutral first-slice subset and `docs/first-slice-storage-decision-preparation.md` before physical schema design and documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
 - **Status:** Proposed
 
-### IP-004 — Determine canonical song catalog sourcing
+### IP-004 — Prepare first-slice storage ADR
+
+- **Type:** Product backlog item
+- **Goal:** Prepare a future first-slice storage ADR from `docs/first-slice-storage-decision-preparation.md` without treating that preparation as an accepted storage decision.
+- **Source / traceability:** `docs/first-slice-storage-decision-preparation.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/deployment-assumptions.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
+- **Acceptance direction:** A future ADR explicitly chooses storage and justifies it against the first-slice subset, accepted single hosted one-congregation deployment assumption, hosted shared access, backup/export/restore expectations, local development workflow, and legacy SQL Server as source knowledge rather than target runtime architecture.
+- **Status:** Proposed
+
+### IP-005 — Verify backup/export/restore expectations before storage acceptance
+
+- **Type:** Product backlog item
+- **Goal:** Verify backup, export, and restore expectations before any storage approach is accepted.
+- **Source / traceability:** `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`.
+- **Acceptance direction:** Future storage acceptance identifies backup ownership, export format, restore procedure, and restore-test expectations without creating implementation tasks or selecting storage prematurely.
+- **Status:** Proposed
+
+### IP-006 — Verify hosted shared-access and concurrency assumptions before storage acceptance
+
+- **Type:** Product backlog item
+- **Goal:** Verify hosted shared-access and concurrency assumptions before any storage approach is accepted.
+- **Source / traceability:** `docs/first-slice-storage-decision-preparation.md`; `docs/storage-options-comparison.md`; `docs/deployment-assumptions.md`; `docs/planning-lifecycle-first-schema-subset.md`.
+- **Acceptance direction:** Future storage acceptance explains how the selected direction supports shared hosted access and safe first-slice lifecycle writes for the accepted one-congregation roles without creating implementation tasks.
+- **Status:** Proposed
+
+### IP-007 — Determine canonical song catalog sourcing
 
 - **Type:** Product backlog item
 - **Goal:** Decide how the future canonical song catalog will be sourced for Czech and Polish songs.
@@ -370,7 +394,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future planning identifies authoritative catalog sources and data-quality expectations before implementation creates catalog storage or import behavior.
 - **Status:** Proposed
 
-### IP-005 — Defer future multi-congregation support
+### IP-008 — Defer future multi-congregation support
 
 - **Type:** Open question
 - **Goal:** Keep multi-congregation support as a future product question rather than current implementation scope.
@@ -378,7 +402,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future multi-congregation needs may be explored and decided later, but current backlog and implementation preparation do not decompose multi-congregation implementation work.
 - **Status:** Open
 
-### IP-006 — Compare future authentication providers
+### IP-009 — Compare future authentication providers
 
 - **Type:** Product backlog item
 - **Goal:** Compare authentication provider options without selecting a concrete provider or login method.
@@ -386,7 +410,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future comparison evaluates how options support direct access for priest, organist, admin, and congregation member roles while keeping provider selection out of current implementation tasks.
 - **Status:** Proposed
 
-### IP-007 — Design future account/person/actor schema
+### IP-010 — Design future account/person/actor schema
 
 - **Type:** Product backlog item
 - **Goal:** Design the future logical-to-technical representation of people, accounts, actors, roles, role assignments, and historical person references.
@@ -394,7 +418,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future schema design preserves the distinction between person, account, actor, role assignment, and historical person reference, and does not treat legacy people records as authenticated users by default.
 - **Status:** Proposed
 
-### IP-008 — Map first-slice authorization checks to actor-role subset
+### IP-011 — Map first-slice authorization checks to actor-role subset
 
 - **Type:** Product backlog item
 - **Goal:** Map Planning Lifecycle First authorization checks to the minimal Person / Actor / RoleAssignment or equivalent actor-role subset before implementation design.
@@ -402,7 +426,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future authorization design identifies how priest, organist, admin, and congregation member checks are resolved at state-changing boundaries without selecting an auth provider or treating UI hiding as sufficient enforcement.
 - **Status:** Proposed
 
-### IP-009 — Design legacy people mapping from `Kazatele` and `Varhanici`
+### IP-012 — Design legacy people mapping from `Kazatele` and `Varhanici`
 
 - **Type:** Product backlog item
 - **Goal:** Decide how legacy preacher and organist records can inform future people, historical references, and role-assignment candidates.
@@ -410,7 +434,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future mapping treats `Kazatele` and `Varhanici` as source knowledge only and does not automatically create login accounts, authenticated actors, or active role assignments.
 - **Status:** Proposed
 
-### IP-010 — Design congregation-member preference access
+### IP-013 — Design congregation-member preference access
 
 - **Type:** Product backlog item
 - **Goal:** Design future direct congregation-member access for entering own preference votes without granting planning permissions.
@@ -418,7 +442,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design supports congregation member own preference entry and preserves the boundary that congregation member access does not include planning, repertoire, or shared-knowledge administration.
 - **Status:** Proposed
 
-### IP-011 — Review Planning Lifecycle First schema subset before physical schema design
+### IP-014 — Review Planning Lifecycle First schema subset before physical schema design
 
 - **Type:** Product backlog item
 - **Goal:** Review `docs/planning-lifecycle-first-schema-subset.md` as the storage-neutral subset of the target technical schema draft needed for Planning Lifecycle First.

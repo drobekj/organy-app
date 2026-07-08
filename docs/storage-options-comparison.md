@@ -29,6 +29,7 @@ Primary inputs:
 - `docs/target-domain-persistence-model.md` — logical persistence areas and storage-neutral target concepts.
 - `docs/target-technical-schema-draft.md` — storage-neutral draft candidate schema concepts for later evaluation, not an accepted physical schema.
 - `docs/planning-lifecycle-first-schema-subset.md` — storage-neutral first-slice subset for future Planning Lifecycle First storage and schema evaluation.
+- `docs/first-slice-storage-decision-preparation.md` — preparation input for future first-slice storage ADR work; it does not select storage.
 - `docs/legacy-to-domain-mapping.md` — product/domain mapping from the legacy SQL Server database to accepted domain concepts.
 - `docs/adr-planning-lifecycle-stack-storage-auth.md` — proposed decision boundary for stack, storage, and authentication/authorization.
 - `docs/implementation-preparation.md` — readiness constraints and unresolved persistence decisions.
@@ -44,7 +45,7 @@ Important input assumptions:
 - Direct one-to-one migration is inappropriate.
 - The target-domain persistence model is logical only, not a physical schema.
 - The target technical schema draft is an input for future storage comparisons, not a storage selection or accepted physical schema.
-- Future storage comparisons should evaluate the first implementation slice against `docs/planning-lifecycle-first-schema-subset.md` without treating it as a physical schema or storage selection.
+- Future storage comparisons should evaluate the first implementation slice against `docs/planning-lifecycle-first-schema-subset.md` and prepare first-slice storage choice through `docs/first-slice-storage-decision-preparation.md` without treating either document as a physical schema or storage selection.
 - Storage technology remains unresolved.
 
 ## 4. Evaluation criteria
@@ -383,13 +384,13 @@ No storage option is selected yet.
 
 SQLite-like storage may be attractive for local simplicity, but it is not accepted. SQL Server has legacy continuity advantages, but it should not be chosen merely because the old DB used SQL Server. PostgreSQL-like storage may be attractive for standard web deployment patterns, but it is not accepted.
 
-The decisive next step is target technical schema design plus deployment assumptions. A future accepted ADR must explicitly choose storage and justify it.
+The decisive next step is target technical schema design plus deployment assumptions, with first-slice storage choice prepared through `docs/first-slice-storage-decision-preparation.md`. A future accepted ADR must explicitly choose storage and justify it.
 
 ## 14. Follow-up work before an ADR can be accepted
 
 Before accepting a storage ADR, the project should:
 
-1. Review `docs/planning-lifecycle-first-schema-subset.md` before physical schema design and evaluate first-slice storage needs against it, without creating migrations or implementation artifacts prematurely.
+1. Review `docs/planning-lifecycle-first-schema-subset.md` and `docs/first-slice-storage-decision-preparation.md` before physical schema design and evaluate first-slice storage needs against them, without creating migrations or implementation artifacts prematurely.
 2. Define deployment assumptions: local-only, single hosted instance, managed hosting, multi-instance, backup ownership, and restore expectations.
 3. Decide how melody-equivalence knowledge is represented for class-level queries and correction workflows.
 4. Decide how ordered service rows, lifecycle states, completed history, and saved future plans are represented.
