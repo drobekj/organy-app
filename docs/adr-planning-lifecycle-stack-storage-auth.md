@@ -8,6 +8,8 @@ Proposed
 
 The first implementation slice is **Planning Lifecycle First**. It is limited to planning one concrete ordered service set for one service in the scope of one local congregation. This ADR must now be evaluated against the accepted deployment assumption: a single hosted web app for one congregation.
 
+`docs/target-technical-schema-draft.md` is a storage-neutral draft input to future storage and schema decisions; it is not an accepted final schema, SQL, Prisma schema, storage choice, or implementation plan.
+
 `docs/auth-account-role-model.md` is an input to any future authentication, account, actor, role-assignment, authorization, and schema decision. It keeps person, account, actor, role, role assignment, and historical person reference distinct without choosing an authentication provider or account technology.
 
 The repository is currently documentation-first. Repository inspection found no selected application framework, runtime, persistence technology, database schema, migration tooling, authentication mechanism, API setup, UI setup, or test framework. This ADR therefore proposes direction only; it does not create project files or implementation structure.
@@ -114,7 +116,7 @@ Use a **lightweight full-stack TypeScript application direction** for the first 
 
 Keep **storage direction unresolved and deferred**. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
 
-No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption.
+No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
@@ -128,7 +130,7 @@ This direction intentionally does not decide:
 
 ## Storage Boundary
 
-This ADR does not design a database schema and does not select final storage. Storage design remains blocked until future schema design uses `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md` rather than the legacy SQL Server table shape.
+This ADR does not design a database schema and does not select final storage. Storage design remains blocked until future schema design uses `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, and `docs/legacy-to-domain-mapping.md` rather than the legacy SQL Server table shape.
 
 For the Planning Lifecycle First slice, storage must conceptually support:
 
@@ -192,7 +194,7 @@ Follow-up decisions are needed before coding to turn this proposal into an accep
 ## Follow-Up Decisions Needed
 
 - Exact framework and project setup.
-- Exact persistence technology, after `docs/target-domain-persistence-model.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
+- Exact persistence technology, after `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
 - Exact auth mechanism and provider.
 - Account model and user/person representation, including how priest and organist references relate to authenticated actors and role assignments, using `docs/auth-account-role-model.md` as input.
 - Minimal song reference validation for `(language, number)` before a full song catalog exists.
