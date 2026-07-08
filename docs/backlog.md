@@ -346,7 +346,31 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Implementation preparation can proceed only with clear traceability from chosen implementation scope back to accepted product backlog items and source documents.
 - **Status:** Proposed
 
-### IP-002 — Defer future multi-congregation support
+### IP-002 — Design future technical schema from target-domain persistence model
+
+- **Type:** Product backlog item
+- **Goal:** Prepare future technical schema design from the logical target-domain persistence model and legacy-to-domain mapping, without treating logical data areas as physical tables.
+- **Source / traceability:** `docs/target-domain-persistence-model.md`; `docs/legacy-to-domain-mapping.md`; architecture data and persistence note.
+- **Acceptance direction:** Future schema design derives from target-domain concepts rather than copying the legacy SQL Server schema, and remains separate from current implementation tasks until storage and architecture decisions are accepted.
+- **Status:** Proposed
+
+### IP-003 — Compare future storage options
+
+- **Type:** Product backlog item
+- **Goal:** Compare storage options after target-domain persistence needs are understood.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`.
+- **Acceptance direction:** Storage comparison documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
+- **Status:** Proposed
+
+### IP-004 — Determine canonical song catalog sourcing
+
+- **Type:** Product backlog item
+- **Goal:** Decide how the future canonical song catalog will be sourced for Czech and Polish songs.
+- **Source / traceability:** REQ-001; Knowledge module; `docs/target-domain-persistence-model.md`; `docs/legacy-to-domain-mapping.md`.
+- **Acceptance direction:** Future planning identifies authoritative catalog sources and data-quality expectations before implementation creates catalog storage or import behavior.
+- **Status:** Proposed
+
+### IP-005 — Defer future multi-congregation support
 
 - **Type:** Open question
 - **Goal:** Keep multi-congregation support as a future product question rather than current implementation scope.

@@ -252,6 +252,12 @@ Migration strategy remains unresolved unless specified by accepted product, doma
 
 Future implementation should evaluate legacy data against accepted domain concepts before deciding whether to migrate, transform, replace, or partially reuse it.
 
+## Data and Persistence Architecture Note
+
+Future persistence design must be derived from `docs/target-domain-persistence-model.md` and accepted domain sources, not copied from the legacy SQL Server schema. The target model identifies the logical data areas SongCatalog, MelodyEquivalence, Repertoire, PreferenceVotes, ServicePlanning, CompletedHistory, People/Roles, and KnowledgeMappings as concepts for future architecture and schema design.
+
+These areas are logical concepts, not physical tables. Storage technology remains unresolved.
+
 ## Technology Choices
 
 No languages, frameworks, storage systems, infrastructure services, or deployment platforms are selected in this document.

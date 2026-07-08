@@ -111,7 +111,7 @@ Use a **lightweight full-stack TypeScript application direction** for the first 
 
 Keep **storage direction unresolved and deferred**. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
 
-SQLite with Prisma may remain a possible future option for lightweight local development, but it is not accepted or preferred by this ADR. SQL Server-backed persistence may also remain a possible future option, especially because the legacy source is SQL Server. Another relational database may be justified later. Final storage selection depends on the accepted target-domain schema design, legacy-to-domain mapping, migration/refactoring strategy, local development needs, and deployment assumptions.
+No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and deployment assumptions.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
@@ -125,7 +125,7 @@ This direction intentionally does not decide:
 
 ## Storage Boundary
 
-This ADR does not design a database schema and does not select final storage. Storage design remains blocked until the target-domain persistence model is designed from the accepted domain model and legacy-to-domain mapping rather than from the legacy SQL Server table shape.
+This ADR does not design a database schema and does not select final storage. Storage design remains blocked until future schema design uses `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md` rather than the legacy SQL Server table shape.
 
 For the Planning Lifecycle First slice, storage must conceptually support:
 
@@ -172,7 +172,7 @@ This enables:
 This postpones:
 
 - exact framework and project setup;
-- exact persistence technology and schema, including whether to use SQLite with Prisma, SQL Server-backed persistence, or another relational option;
+- exact persistence technology and schema;
 - exact authentication mechanism and account model;
 - full candidate selection, non-repetition, preference, knowledge-management, and legacy-migration implementation;
 - multi-congregation or enterprise tenancy design.
@@ -189,7 +189,7 @@ Follow-up decisions are needed before coding to turn this proposal into an accep
 ## Follow-Up Decisions Needed
 
 - Exact framework and project setup.
-- Exact persistence technology, after target-domain schema design, legacy-to-domain mapping, migration/refactoring strategy, local development needs, and deployment assumptions are clarified.
+- Exact persistence technology, after `docs/target-domain-persistence-model.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and deployment assumptions are clarified.
 - Exact auth mechanism.
 - User/person representation, including how priest and organist references relate to authenticated actors.
 - Minimal song reference validation for `(language, number)` before a full song catalog exists.
