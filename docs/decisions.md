@@ -138,6 +138,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** Storage approach is no longer unresolved at direction level; physical schema still unresolved; ORM/query/migration tooling still unresolved; hosting provider still unresolved; backup/export/restore design still required; legacy SQL Server remains source/reference/import only; SQLite-like and SQL Server-backed runtime directions are not accepted for first production runtime storage.
 - **Related:** `docs/adr-first-slice-storage.md`; `docs/planning-lifecycle-first-schema-subset.md`; `docs/first-slice-storage-decision-preparation.md`; `docs/deployment-assumptions.md`.
 
+### DEC-2026-07-08-03 — First-slice schema open questions resolved at design level
+
+- **Date:** 2026-07-08
+- **Status:** Accepted
+- **Context:** The documentation-only first-slice physical schema draft raised several open schema questions that needed design-level resolution before later physical schema, tooling, provider, auth, and implementation decisions.
+- **Options considered:** leave all first-slice schema questions open; resolve main questions at documentation/design level while keeping physical implementation decisions deferred.
+- **Decision:** The main first-slice schema open questions are resolved at documentation/design level according to `docs/first-slice-schema-open-questions-resolution.md`.
+- **Consequences:** Opaque stable identifiers are accepted at design level; lifecycle timestamps are operational metadata, not full audit history; unsaved service defaults are not persisted historical data; persisted planning/completed contexts require priest and organist at application/domain validation level; completed record and saved non-completed set should not coexist as active states for same service context; completed records must be self-contained through copied rows; `source_service_set_id` is optional trace only; first-slice song validation is shape-only until catalog exists; minimal seed/setup data is needed but mechanism is unresolved; SQL/Prisma/migrations/provider/tooling/auth/implementation remain unresolved.
+- **Related:** `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-physical-schema-draft.md`; `docs/adr-first-slice-storage.md`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.
