@@ -8,7 +8,7 @@ Proposed
 
 The first implementation slice is **Planning Lifecycle First**. It is limited to planning one concrete ordered service set for one service in the scope of one local congregation. This ADR must now be evaluated against the accepted deployment assumption: a single hosted web app for one congregation.
 
-`docs/target-technical-schema-draft.md` is a storage-neutral draft input to future storage and schema decisions; it is not an accepted final schema, SQL, Prisma schema, storage choice, or implementation plan.
+`docs/target-technical-schema-draft.md` is a storage-neutral draft input to future storage and schema decisions; it is not an accepted final schema, SQL, Prisma schema, storage choice, or implementation plan. `docs/planning-lifecycle-first-schema-subset.md` narrows that draft as an input to future first-slice storage and schema decisions for Planning Lifecycle First.
 
 `docs/auth-account-role-model.md` is an input to any future authentication, account, actor, role-assignment, authorization, and schema decision. It keeps person, account, actor, role, role assignment, and historical person reference distinct without choosing an authentication provider or account technology.
 
@@ -116,7 +116,7 @@ Use a **lightweight full-stack TypeScript application direction** for the first 
 
 Keep **storage direction unresolved and deferred**. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
 
-No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption.
+No concrete storage technology is accepted or preferred by this ADR. Final storage selection depends on `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, `docs/planning-lifecycle-first-schema-subset.md`, the accepted legacy-to-domain mapping, future target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
@@ -130,7 +130,7 @@ This direction intentionally does not decide:
 
 ## Storage Boundary
 
-This ADR does not design a database schema and does not select final storage. Storage design remains blocked until future schema design uses `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, and `docs/legacy-to-domain-mapping.md` rather than the legacy SQL Server table shape.
+This ADR does not design a database schema and does not select final storage. Storage design remains blocked until future schema design uses `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, `docs/planning-lifecycle-first-schema-subset.md`, and `docs/legacy-to-domain-mapping.md` rather than the legacy SQL Server table shape. For Planning Lifecycle First, this ADR should evaluate the first implementation slice against the subset document rather than the full future schema.
 
 For the Planning Lifecycle First slice, storage must conceptually support:
 
