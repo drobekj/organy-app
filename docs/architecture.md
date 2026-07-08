@@ -257,9 +257,9 @@ Future implementation should evaluate legacy data against accepted domain concep
 
 ## Data and Persistence Architecture Note
 
-Future persistence design must be derived from `docs/target-domain-persistence-model.md` and accepted domain sources, not copied from the legacy SQL Server schema. The target model identifies the logical data areas SongCatalog, MelodyEquivalence, Repertoire, PreferenceVotes, ServicePlanning, CompletedHistory, People/Roles, and KnowledgeMappings as concepts for future architecture and schema design.
+Future persistence and technical schema design must be derived from `docs/target-domain-persistence-model.md`, `docs/auth-account-role-model.md`, `docs/target-technical-schema-draft.md`, and `docs/legacy-to-domain-mapping.md`, not copied from the legacy SQL Server schema. The target-domain persistence model identifies the logical data areas SongCatalog, MelodyEquivalence, Repertoire, PreferenceVotes, ServicePlanning, CompletedHistory, People/Roles, and KnowledgeMappings as concepts for future architecture and schema design.
 
-These areas are logical concepts, not physical tables. Storage technology remains unresolved.
+The technical schema draft adds storage-neutral candidate concepts for later evaluation: Song; MelodyClass / MelodyClassMembership / MelodyLinkEvidence; Person / Account / Actor / RoleAssignment; RepertoireEntry; PreferenceVote; ServiceContext / ServiceSet / ServiceSetRow; CompletedServiceRecord / CompletedServiceRow; AntiphonMapping / LiturgicalSeasonSongMapping; and SourceReference / ImportNote. These are candidate concepts, not accepted physical tables, SQL, Prisma schema, or implementation tasks. Storage technology remains unresolved.
 
 ## Technology Choices
 

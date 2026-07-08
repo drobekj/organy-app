@@ -27,6 +27,7 @@ Prisma, if mentioned in later work, should be evaluated only as a possible ORM/q
 Primary inputs:
 
 - `docs/target-domain-persistence-model.md` — logical persistence areas and storage-neutral target concepts.
+- `docs/target-technical-schema-draft.md` — storage-neutral draft candidate schema concepts for later evaluation, not an accepted physical schema.
 - `docs/legacy-to-domain-mapping.md` — product/domain mapping from the legacy SQL Server database to accepted domain concepts.
 - `docs/adr-planning-lifecycle-stack-storage-auth.md` — proposed decision boundary for stack, storage, and authentication/authorization.
 - `docs/implementation-preparation.md` — readiness constraints and unresolved persistence decisions.
@@ -41,6 +42,7 @@ Important input assumptions:
 - The legacy schema is small and domain-specific, but not the target architecture.
 - Direct one-to-one migration is inappropriate.
 - The target-domain persistence model is logical only, not a physical schema.
+- The target technical schema draft is an input for future storage comparisons, not a storage selection or accepted physical schema.
 - Storage technology remains unresolved.
 
 ## 4. Evaluation criteria
@@ -48,6 +50,7 @@ Important input assumptions:
 Each option is evaluated against these criteria:
 
 - Fit with the target-domain persistence model.
+- Fit with the storage-neutral target technical schema draft.
 - Fit with a small domain-specific dataset.
 - Local development simplicity.
 - Deployment implications.

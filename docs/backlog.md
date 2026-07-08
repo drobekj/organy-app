@@ -346,20 +346,20 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Implementation preparation can proceed only with clear traceability from chosen implementation scope back to accepted product backlog items and source documents.
 - **Status:** Proposed
 
-### IP-002 — Design future technical schema from target-domain persistence model
+### IP-002 — Review and refine future technical schema draft
 
 - **Type:** Product backlog item
-- **Goal:** Prepare future technical schema design from the logical target-domain persistence model and legacy-to-domain mapping, without treating logical data areas as physical tables.
-- **Source / traceability:** `docs/target-domain-persistence-model.md`; `docs/legacy-to-domain-mapping.md`; architecture data and persistence note.
-- **Acceptance direction:** Future schema design derives from target-domain concepts rather than copying the legacy SQL Server schema, and remains separate from current implementation tasks until storage and architecture decisions are accepted.
+- **Goal:** Review and refine `docs/target-technical-schema-draft.md` as a storage-neutral input to later schema design, without treating candidate concepts as accepted physical tables.
+- **Source / traceability:** `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/legacy-to-domain-mapping.md`; architecture data and persistence note.
+- **Acceptance direction:** Future schema design derives from target-domain concepts and the reviewed draft rather than copying the legacy SQL Server schema, and remains separate from current implementation tasks until storage and architecture decisions are accepted.
 - **Status:** Proposed
 
-### IP-003 — Compare future storage options
+### IP-003 — Compare future storage options against schema draft
 
 - **Type:** Product backlog item
-- **Goal:** Compare storage options after target-domain persistence needs are understood.
-- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`.
-- **Acceptance direction:** Storage comparison documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
+- **Goal:** Compare storage options after target-domain persistence needs and the target technical schema draft are understood.
+- **Source / traceability:** Architecture Technology Choices; ADR storage boundary; `docs/target-domain-persistence-model.md`; `docs/target-technical-schema-draft.md`; `docs/storage-options-comparison.md`.
+- **Acceptance direction:** Storage comparison evaluates options against the storage-neutral draft and documents tradeoffs without accepting or preferring a concrete storage technology until a later decision is made.
 - **Status:** Proposed
 
 ### IP-004 — Determine canonical song catalog sourcing
@@ -418,6 +418,13 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design supports congregation member own preference entry and preserves the boundary that congregation member access does not include planning, repertoire, or shared-knowledge administration.
 - **Status:** Proposed
 
+### IP-011 — Decide Planning Lifecycle First schema subset
+
+- **Type:** Product backlog item
+- **Goal:** Decide which first-slice subset of the target technical schema draft is needed for Planning Lifecycle First.
+- **Source / traceability:** `docs/target-technical-schema-draft.md`; `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; Planning Lifecycle backlog items.
+- **Acceptance direction:** Future design identifies only the subset needed for the first planning lifecycle slice, without creating implementation tasks, database schema, migrations, SQL, or technology selections.
+- **Status:** Proposed
 
 ## Not Backlog Yet
 
