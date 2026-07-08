@@ -148,6 +148,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** Opaque stable identifiers are accepted at design level; lifecycle timestamps are operational metadata, not full audit history; unsaved service defaults are not persisted historical data; persisted planning/completed contexts require priest and organist at application/domain validation level; completed record and saved non-completed set should not coexist as active states for same service context; completed records must be self-contained through copied rows; `source_service_set_id` is optional trace only; first-slice song validation is shape-only until catalog exists; minimal seed/setup data is needed but mechanism is unresolved; SQL/Prisma/migrations/provider/tooling/auth/implementation remain unresolved.
 - **Related:** `docs/first-slice-schema-open-questions-resolution.md`; `docs/first-slice-physical-schema-draft.md`; `docs/adr-first-slice-storage.md`.
 
+### DEC-2026-07-08-04 — First-slice tooling direction is Drizzle-like typed SQL/schema toolkit plus migrations
+
+- **Date:** 2026-07-08
+- **Status:** Accepted
+- **Context:** Planning Lifecycle First needs ORM/query/migration tooling direction before later physical schema files, migrations, local development workflow, and implementation planning can proceed. PostgreSQL-like relational storage is already accepted as the first-slice runtime storage direction, and the first-slice physical schema draft is small, relational, and lifecycle-oriented.
+- **Options considered:** Drizzle-like typed SQL/schema toolkit plus migrations; Prisma-like ORM plus migrations; Kysely-like query builder plus separate migration tooling; raw SQL migrations plus lightweight query layer; deferring tooling further.
+- **Decision:** Drizzle-like typed SQL/schema toolkit plus migrations is accepted as the ORM/query/migration tooling direction for Planning Lifecycle First.
+- **Consequences:** ORM/query/migration tooling is no longer unresolved at direction level; schema files remain unresolved; migrations remain uncreated; exact package/version/configuration remain unresolved; database provider remains unresolved; hosting remains unresolved; auth remains unresolved; domain/application lifecycle validation remains mandatory; Prisma-like, Kysely-like, raw SQL-only, and further deferral are not accepted for this first-slice tooling direction.
+- **Related:** `docs/adr-first-slice-tooling.md`; `docs/first-slice-tooling-decision-preparation.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/adr-first-slice-storage.md`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.
