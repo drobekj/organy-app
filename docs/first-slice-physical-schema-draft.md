@@ -172,7 +172,7 @@ Purpose: ordered flexible rows for a working/final service set.
 | created_at | Yes | timestamp | Records when the row was created. | Exact timestamp strategy is unresolved. |
 | updated_at | Yes | timestamp | Records when the row was last updated. | Exact timestamp strategy is unresolved. |
 
-Rows are not fixed to four song slots. Each row must contain either a full song reference or textual note.
+Rows are not fixed to four song slots. Each row must contain at least one content value: a complete song reference, textual note, or both. A row without a complete song reference requires a textual note; the rule is not exclusive either/or.
 
 ## 13. Table draft: `completed_service_records`
 
@@ -203,7 +203,7 @@ Purpose: ordered historical rows copied or preserved at completion time.
 | note | No | text | Preserved row note or standalone textual row content. | Required when no song reference is present. |
 | created_at | Yes | timestamp | Records when the historical row was created. | Exact timestamp strategy is unresolved. |
 
-Completed rows preserve historical row order, song reference, and note content. Later backward non-repetition can use completed history, but that behavior is deferred.
+Completed rows preserve historical row order, song reference, and note content. Each completed row must contain at least one content value: a complete song reference, textual note, or both. A completed row without a complete song reference requires a textual note; the rule is not exclusive either/or. Later backward non-repetition can use completed history, but that behavior is deferred.
 
 ## 15. Minimal song reference representation
 
@@ -242,8 +242,9 @@ Candidate constraints and invariants:
 - A completed-service record is historical and not a non-completed plan.
 - Service rows and completed rows are ordered within their parent records.
 - The design must not use fixed four-song slots.
-- A row has either a song reference or a note.
-- A row without a song reference requires a note.
+- A service row or completed row contains at least one of a complete song reference or textual note.
+- A service row or completed row may contain both a complete song reference and a note.
+- A service row or completed row without a complete song reference requires a note.
 - A song reference requires both language and number.
 - A congregation member has no planning permissions.
 - Active role assignments drive permission checks.
@@ -315,6 +316,7 @@ Open questions:
 - What exact id strategy should be used?
 - What exact timestamp strategy should be used?
 - Are service contexts created lazily or explicitly?
+- Should saved service contexts require priest and organist references, or may incomplete service contexts with nullable `priest_person_id` and `organist_person_id` be saved during draft/preparation? Later workflow and schema validation must decide.
 - Should `source_service_set_id` remain after deleting or archiving the original service set?
 - May a completed record and non-completed set coexist for the same service context?
 - How much attribution is needed before full audit design?

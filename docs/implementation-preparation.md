@@ -4,7 +4,7 @@
 
 This document is a pre-implementation readiness bridge between the accepted product backlog and later technical design. It summarizes what is already accepted as product/domain baseline, what must remain true during implementation planning, what is not ready for implementation yet, and which decisions are needed before coding begins.
 
-This document does not choose technologies, design a database schema, define API endpoints, create UI components, create engineering tickets, or implement behavior.
+This document does not choose technologies, design a database schema, define API endpoints, create UI components, create engineering tickets, or implement behavior. Technical architecture remains unchecked for coding readiness.
 
 ## Source-of-Truth Inputs
 
@@ -27,6 +27,7 @@ This readiness summary is based on the accepted repository documentation:
 - `docs/planning-lifecycle-first-schema-subset.md`
 - `docs/first-slice-storage-decision-preparation.md`
 - `docs/adr-first-slice-storage.md`
+- `docs/first-slice-physical-schema-draft.md`
 - `docs/auth-account-role-model.md`
 
 If this document appears to conflict with those sources, the underlying source document should be corrected or clarified before implementation planning proceeds.
@@ -114,12 +115,12 @@ The following must remain true while implementation planning and later technical
 
 The following areas are not ready to implement from the current product/domain baseline alone.
 
-- **Database schema.** The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, and `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level. Physical schema, provider, ORM/query layer, migration tooling, and schema files remain unresolved until later ADR/design work is complete.
+- **Database schema.** Coding readiness remains blocked. The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, and `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level. A documentation-only physical schema draft now exists in `docs/first-slice-physical-schema-draft.md`, but physical schema, provider, ORM/query layer, migration tooling, local development workflow, backup/export/restore design, and schema files remain unresolved until later ADR/design work is complete. The draft does not authorize coding, schema files, migrations, SQL, Prisma, or application implementation.
 - **API endpoints.** No API contracts, route structure, request/response shapes, or endpoint responsibilities have been selected.
 - **UI components.** Workflows are product-level processes, not component specifications or screen designs.
-- **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication and authorization mechanism has not been chosen.
+- **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication approach, auth provider, account model, and authorization mechanism have not been chosen.
 - **Deployment.** The first-slice production-oriented deployment assumption is selected, but hosting provider, runtime, environments, release process, and detailed operations remain undecided.
-- **Tests.** No test framework, test layers, or acceptance-test format has been selected.
+- **Tests.** No test strategy, test framework, test layers, or acceptance-test format has been selected.
 - **Migration scripts.** Legacy data has not been inspected in a form that supports migration design.
 - **Automatic final-set completion details.** Timing, triggering, safeguards, and exception handling for automatic conversion of final sets to completed-service records still need clarification.
 - **Multi-congregation support.** The current scope is one local congregation; multi-congregation behavior remains intentionally deferred.
