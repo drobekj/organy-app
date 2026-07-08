@@ -94,7 +94,7 @@ It does not define migration strategy, target schema, import process, synchroniz
 The following must remain true while implementation planning and later technical design proceed.
 
 - **Decisions remain human.** The system stores, filters, highlights, and presents knowledge; it does not automatically make the final liturgical selection.
-- **Current scope is one local congregation.** Multi-congregation generalization remains deferred and must not drive the first implementation design unless the accepted scope changes.
+- **Current scope is one local congregation.** The accepted first production-oriented deployment assumption is a single hosted web app for one congregation with priest, organist, admin, and congregation member roles. Multi-congregation generalization remains deferred and must not drive the first implementation design unless the accepted scope changes.
 - **Song identity is `(language, number)`.** A song number alone is insufficient because Czech and Polish hymn-book entries must remain distinct.
 - **Melody is an equivalence relation on songs.** Melody planning behavior must work over melody-equivalence classes, including singleton classes.
 - **The concrete ordered service set is the core planning artifact.** Planning centers on ordered service rows for one service, not on abstract recommendations alone.
@@ -111,7 +111,7 @@ The following areas are not ready to implement from the current product/domain b
 - **API endpoints.** No API contracts, route structure, request/response shapes, or endpoint responsibilities have been selected.
 - **UI components.** Workflows are product-level processes, not component specifications or screen designs.
 - **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication and authorization mechanism has not been chosen.
-- **Deployment.** Hosting, runtime, environments, release process, and operational model remain undecided.
+- **Deployment.** The first-slice production-oriented deployment assumption is selected, but hosting provider, runtime, environments, release process, and detailed operations remain undecided.
 - **Tests.** No test framework, test layers, or acceptance-test format has been selected.
 - **Migration scripts.** Legacy data has not been inspected in a form that supports migration design.
 - **Automatic final-set completion details.** Timing, triggering, safeguards, and exception handling for automatic conversion of final sets to completed-service records still need clarification.
@@ -123,8 +123,8 @@ The following areas are not ready to implement from the current product/domain b
 Before technical design begins, the following decisions or clarifications are needed.
 
 1. **Technology stack.** Decide the application framework, language/runtime, frontend approach if applicable, and supporting tooling.
-2. **Persistence approach.** Decide the storage technology and persistence style only after the target-domain persistence model and legacy-to-domain mapping clarify what must be persisted through future target-schema design.
-3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced.
+2. **Persistence approach.** Decide the storage technology and persistence style only after the target-domain persistence model and legacy-to-domain mapping clarify what must be persisted through future target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
+3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced, evaluated against the accepted direct-access roles: priest, organist, admin, and congregation member.
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
 5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
 6. **Automatic final-set completion timing and safeguards.** Decide when final sets become completed-service records, what confirmation or automation is allowed, and how exceptions are handled.
@@ -226,9 +226,10 @@ Coding should not begin until the following readiness items are satisfied at the
 
 - [ ] Product baseline accepted.
 - [x] Implementation slice selected: Planning Lifecycle First.
+- [x] First-slice deployment assumption selected: single hosted web app for one congregation with priest, organist, admin, and congregation member roles.
 - [ ] Technical architecture decision accepted; the proposed ADR alone is not an accepted architecture baseline.
-- [ ] Storage approach selected after target-domain persistence model, legacy-to-domain mapping, and target schema decisions.
-- [ ] Authorization model mapped from accepted permissions.
+- [ ] Storage approach selected after target-domain persistence model, legacy-to-domain mapping, target schema decisions, and evaluation against the accepted deployment assumption.
+- [ ] Authorization model mapped from accepted permissions; authentication approach remains unresolved.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
 
