@@ -1,0 +1,2 @@
+CREATE TYPE "public"."service_language" AS ENUM('czech', 'polish', 'mixed');--> statement-breakpoint
+ALTER TABLE "service_contexts" ADD COLUMN "service_language" "service_language" DEFAULT 'czech' NOT NULL;

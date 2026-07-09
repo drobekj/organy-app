@@ -21,7 +21,7 @@ export type {
 } from "./drizzle-repository-adapters";
 export {
   DrizzleCompletedServiceRecordRepositoryBase,
-  DrizzlePlanningSetRepositoryBase,
+  DrizzlePlanningSetRepository,
 } from "./drizzle-repository-adapters";
 export {
   PlanningLifecycleService,
