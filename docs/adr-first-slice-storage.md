@@ -14,21 +14,22 @@ The legacy SQL Server / SSMS database `VarhanniDoprovody` remains important sour
 
 ## Decision
 
-Accept **PostgreSQL-like relational storage** as the runtime storage direction for the first production-oriented Planning Lifecycle First slice.
+Accept **PostgreSQL-like relational storage** as the runtime storage direction for the first production-oriented Planning Lifecycle First slice. For the minimal Phase 6 implementation baseline only, accept **PostgreSQL** as the concrete local persistence target for the first schema/migration PR, with local connection configuration expected through `DATABASE_URL`.
 
-This accepts the storage direction only. The follow-up physical schema draft does not change this ADR scope: this ADR does not accept a completed physical schema, database provider, hosting provider, connection management approach, migration tool, ORM/query layer, SQL, Prisma, schema file, implementation plan, authentication provider, or account model.
+This accepts the storage direction and the minimal local implementation target only. The follow-up physical schema draft does not change this ADR scope: this ADR does not accept a completed physical schema, production database provider, hosting provider, production connection management approach, SQL content, schema file content, implementation plan, authentication provider, or account model.
 
 ## Scope of this decision
 
 This decision covers only the first-slice runtime storage direction for Planning Lifecycle First. It does not:
 
 - select a hosting provider;
-- select a concrete database provider;
-- select an ORM, query layer, migration tool, schema language, or Prisma;
+- select a production database provider;
+- select final production connection management beyond local `DATABASE_URL`;
 - create or accept a physical schema;
 - create database schema files, migrations, Prisma schema, SQL, application code, API endpoints, UI components, or tests;
 - select an authentication provider, authentication method, account model, app framework, or concrete authorization implementation;
-- begin implementation or create an implementation plan.
+- begin implementation or create an implementation plan;
+- install packages, create schema files, create migrations, create SQL, create DB config, or add runtime persistence.
 
 ## Accepted storage direction
 
@@ -113,9 +114,7 @@ These remain required follow-up design decisions before production operation.
 
 ## Local development implications
 
-Local development workflow must still be defined. The project has not yet decided whether development will use a local database service, container, remote development database, generated fixtures, seed data, or another workflow.
-
-The accepted direction means local development should be evaluated against PostgreSQL-like relational storage, but it does not select tooling, scripts, providers, schema files, migrations, or test infrastructure.
+Local development workflow beyond the minimum baseline must still be defined. The minimum Phase 6 baseline expects PostgreSQL locally and reads the local database connection from `DATABASE_URL`, but it does not choose a local database service mechanism, container workflow, reset workflow, generated fixtures, seed data, scripts, providers, schema files, migrations, or test infrastructure.
 
 ## Legacy SQL Server boundary
 
@@ -126,8 +125,9 @@ Any future import must transform legacy meaning into accepted domain concepts in
 ## Consequences
 
 - Storage approach is no longer unresolved at the direction level for Planning Lifecycle First.
-- Physical schema remains unresolved.
-- ORM/query/migration tooling remains unresolved.
+- PostgreSQL is accepted as the concrete local persistence target for the first schema/migration PR.
+- Local database access is expected through `DATABASE_URL`.
+- Physical schema remains unresolved and uncreated.
 - Hosting provider and database provider remain unresolved.
 - Authentication provider and account model remain unresolved.
 - Backup/export/restore design remains required before production use.
@@ -140,14 +140,14 @@ Any future import must transform legacy meaning into accepted domain concepts in
 
 The following remain unresolved:
 
-- exact database provider;
+- production database provider;
 - hosting provider;
 - connection management;
 - physical schema;
 - schema files;
 - migration tool;
 - ORM/query layer;
-- local development database workflow;
+- local development database workflow beyond PostgreSQL plus `DATABASE_URL`;
 - backup/export/restore design;
 - authentication provider;
 - account model;

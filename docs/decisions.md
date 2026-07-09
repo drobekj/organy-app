@@ -168,6 +168,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** This decision only unblocks the runnable scaffold PR. It does not change the accepted PostgreSQL-like runtime storage direction or Drizzle-like typed SQL/schema toolkit plus migrations direction, and it does not choose a database provider, hosting provider, auth provider, Drizzle package versions, schema layout, migration workflow, UI design, API contracts, or test strategy.
 - **Related:** `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/backlog.md`; `docs/adr-first-slice-storage.md`; `docs/adr-first-slice-tooling.md`.
 
+### DEC-2026-07-09-02 — Minimal Phase 6 persistence implementation baseline
+
+- **Date:** 2026-07-09
+- **Status:** Accepted
+- **Context:** Phase 6 needs the smallest concrete persistence baseline that can unblock the first Drizzle schema and migration PR without selecting production operations, auth, hosting, UI/API contracts, tests, seeds, or the complete target schema.
+- **Options considered:** keep persistence implementation details deferred; accept a minimal PostgreSQL + Drizzle implementation baseline for the first Planning Lifecycle persistence subset; treat the whole application as production-ready.
+- **Decision:** Phase 6 uses PostgreSQL as the concrete local persistence target for the first schema/migration PR, Drizzle ORM plus `drizzle-kit` as the concrete package direction for first implementation, schema files under `src/db/schema`, migrations under `drizzle`, Drizzle config in `drizzle.config.ts`, and local database access via `DATABASE_URL`. The first migration must be generated SQL that is reviewable before execution.
+- **Consequences:** The first schema/migration PR is unblocked at baseline level only. This documentation PR does not install packages, create schema files, migrations, SQL, DB config, or runtime persistence. Auth provider, hosting provider, production DB provider, backup/export/restore, final deployment, API contracts, UI changes, seed strategy, test strategy, and complete target schema remain out of scope. Domain/application validation remains mandatory and is not replaced by DB constraints or Drizzle schema. The application is not production-ready.
+- **Related:** `docs/implementation-preparation.md`; `docs/adr-first-slice-storage.md`; `docs/adr-first-slice-tooling.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/backlog.md`; `docs/planning-lifecycle-first-schema-subset.md`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.

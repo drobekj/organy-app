@@ -12,9 +12,9 @@ The first-slice schema draft is intentionally small, relational, and lifecycle-o
 
 ## Decision
 
-Accept a **Drizzle-like typed SQL/schema toolkit plus migrations** as the ORM/query/migration tooling direction for Planning Lifecycle First.
+Accept **Drizzle ORM plus `drizzle-kit`** as the concrete tooling package direction for the first Planning Lifecycle schema/migration implementation. Schema files will be placed under `src/db/schema`, migrations under `drizzle`, and Drizzle configuration in `drizzle.config.ts`. The first migration must be generated SQL that is reviewable before execution.
 
-This direction is accepted because the project already accepts PostgreSQL-like relational storage for the first slice, and Drizzle-like tooling stays close to relational tables while providing TypeScript-friendly schema and query ergonomics.
+This direction is accepted because the project already accepts PostgreSQL/PostgreSQL-like relational storage for the first slice, and Drizzle tooling stays close to relational tables while providing TypeScript-friendly schema and query ergonomics.
 
 ## Scope of this decision
 
@@ -24,7 +24,7 @@ This decision accepts the tooling direction only. It does not:
 - create migrations;
 - create SQL;
 - install Drizzle or any package;
-- select exact package names, versions, configuration, schema file layout, migration file layout, or command workflow;
+- select exact versions or command workflow;
 - select database provider, hosting provider, authentication provider, account model, or application framework;
 - begin implementation.
 
@@ -65,9 +65,9 @@ Not accepted for the first slice. It maximizes transparency, but may underinvest
 
 Rejected. Further deferral would keep physical schema files, migrations, local development workflow, and implementation planning blocked.
 
-### Package/config/version selection
+### Version/command selection
 
-Deferred. Exact package names, versions, configuration, schema file layout, migration file layout, and command workflow remain future implementation-preparation work.
+Deferred. Exact versions and command workflow remain future implementation-preparation work. Package direction, schema directory, migration directory, and config-file location are accepted only as the minimal Phase 6 baseline.
 
 ## Rationale against first-slice schema draft
 
@@ -90,7 +90,7 @@ The accepted tooling direction must not replace application/domain validation wi
 
 ## Migration and review implications
 
-Migrations must be reviewable before execution. Future workflow decisions must define how generated or authored migration output is inspected, approved, and run. This ADR does not create migrations or choose migration commands.
+Migrations must be reviewable before execution. The first migration must be generated SQL and inspected before it is run. Future workflow decisions must define exact commands and approval steps. This ADR does not create migrations, SQL, or choose migration commands.
 
 ## Local development implications
 
@@ -107,10 +107,12 @@ Legacy SQL Server remains source/reference/import only, not runtime storage. Too
 ## Consequences
 
 - ORM/query/migration tooling is no longer unresolved at the direction level.
-- Physical schema files remain unresolved and uncreated.
-- Migrations remain uncreated.
-- SQL remains uncreated.
-- Exact package/version/configuration remain unresolved.
+- Physical schema content remains unresolved and uncreated.
+- Schema files will live under `src/db/schema` when created.
+- Migrations will live under `drizzle` when created.
+- Drizzle config will live in `drizzle.config.ts` when created.
+- Migrations and SQL remain uncreated.
+- Package direction is Drizzle ORM plus `drizzle-kit`; exact versions remain unresolved.
 - Database provider remains unresolved.
 - Hosting remains unresolved.
 - Auth remains unresolved.
@@ -119,10 +121,8 @@ Legacy SQL Server remains source/reference/import only, not runtime storage. Too
 
 ## Still unresolved
 
-- Exact package names and versions.
-- Tool configuration.
-- Schema file layout.
-- Migration file layout.
+- Exact package versions.
+- Tool configuration content.
 - Migration generation, review, and execution workflow.
 - Local development database workflow.
 - Hosted deployment migration workflow.
@@ -135,8 +135,7 @@ Legacy SQL Server remains source/reference/import only, not runtime storage. Too
 
 ## Follow-up decisions
 
-- Define exact package/version/configuration.
-- Define schema file layout without creating schema files in this ADR.
+- Define exact package versions and configuration content.
 - Define migration workflow and review process.
 - Define local development database workflow.
 - Define hosted deployment migration workflow.
