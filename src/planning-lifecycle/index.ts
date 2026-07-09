@@ -12,6 +12,7 @@ export type { PlanningAction } from "./permissions";
 export {
   isConcreteSongLanguage,
   validatePlanningRow,
+  validatePlanningSet,
   validateSongReference,
 } from "./validation";
 export type { PlanningValidationIssue, PlanningValidationResult } from "./validation";
