@@ -24,4 +24,5 @@ export interface PlanningSetRepository {
 
 export interface CompletedServiceRecordRepository {
   createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord>;
+  deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
 }
