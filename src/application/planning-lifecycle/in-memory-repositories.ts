@@ -32,6 +32,10 @@ export class InMemoryPlanningSetRepository implements PlanningSetRepository {
 
   async deleteById(id: PlanningSetId): Promise<void> {
     this.sets.delete(id);
+
+    if (this.sets.size === 0) {
+      this.nextId = 1;
+    }
   }
 
   private saveSet(set: PlanningSet, existingId?: PlanningSetId): PersistedPlanningSet {
@@ -64,6 +68,18 @@ export class InMemoryCompletedServiceRecordRepository implements CompletedServic
 
     this.records.set(completedRecord.id, completedRecord);
     return cloneCompletedServiceRecord(completedRecord);
+  }
+
+  async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
+    for (const [id, record] of this.records.entries()) {
+      if (record.sourceFinalSetId === sourceFinalSetId) {
+        this.records.delete(id);
+      }
+    }
+
+    if (this.records.size === 0) {
+      this.nextId = 1;
+    }
   }
 
   private createId(): string {

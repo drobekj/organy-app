@@ -11,7 +11,7 @@ import {
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
-import { validatePlanningRow } from "../src/planning-lifecycle";
+import { canPerformPlanningAction, validatePlanningRow } from "../src/planning-lifecycle";
 
 type EditableRow = {
   id: number;
@@ -98,6 +98,17 @@ export default function Home() {
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
+  const hasServiceContext = Boolean(serviceDate && priest.trim() && organist.trim());
+  const canSaveWorkingSet = canPerformPlanningAction(
+    selectedRole,
+    persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
+  );
+  const canFinalizeSet = canPerformPlanningAction(selectedRole, "saveFinalSet");
+  const canCompleteSet = canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord");
+  const canDeleteCurrentSet = persistedSet
+    ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
+    : false;
+  const canEditRows = !persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false;
 
   function markUnsaved() {
     setSaveState("unsaved");
@@ -139,9 +150,28 @@ export default function Home() {
   }
 
   async function saveWorkingSet() {
+    if (!hasServiceContext) {
+      setServiceError({
+        code: "invalidInput",
+        message: "Service context is required before saving a working set.",
+        issues: [
+          ...(!serviceDate ? [{ path: "serviceDate", message: "Service date is required." }] : []),
+          ...(!priest.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
+          ...(!organist.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
+        ],
+      });
+      setSaveState("errors");
+      return;
+    }
+
     const result = await planningLifecycleService.saveWorkingSet({
       role: selectedRole,
       existingSetId: persistedSet?.status === "working" ? persistedSet.id : undefined,
+      serviceContext: {
+        serviceDate,
+        priest,
+        organist,
+      },
       set: {
         status: "working",
         language: serviceLanguage,
@@ -345,7 +375,7 @@ export default function Home() {
 
           <div className="rows-header">
             <h2>Rows</h2>
-            <button type="button" onClick={addRow}>
+            <button type="button" onClick={addRow} disabled={!canEditRows}>
               Add row
             </button>
           </div>
@@ -358,17 +388,17 @@ export default function Home() {
                 <fieldset className="row-card" key={row.id}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-actions">
-                    <button type="button" onClick={() => moveRow(index, -1)} disabled={index === 0}>
+                    <button type="button" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>
                       Move up
                     </button>
                     <button
                       type="button"
                       onClick={() => moveRow(index, 1)}
-                      disabled={index === rows.length - 1}
+                      disabled={!canEditRows || index === rows.length - 1}
                     >
                       Move down
                     </button>
-                    <button type="button" onClick={() => removeRow(row.id)} disabled={rows.length === 1}>
+                    <button type="button" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>
                       Remove
                     </button>
                   </div>
@@ -421,20 +451,29 @@ export default function Home() {
           </div>
 
           <div className="form-actions">
-            <button className="save-button" type="button" onClick={saveWorkingSet}>
+            <button
+              className="save-button"
+              type="button"
+              onClick={saveWorkingSet}
+              disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors}
+            >
               Save working set
             </button>
             <button
               type="button"
               onClick={finalizeWorkingSet}
-              disabled={!persistedSet || persistedSet.status !== "working" || hasValidationErrors}
+              disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors}
             >
               Finalize set
             </button>
-            <button type="button" onClick={completeFinalSet} disabled={!persistedSet || persistedSet.status !== "final"}>
+            <button
+              type="button"
+              onClick={completeFinalSet}
+              disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"}
+            >
               Complete service
             </button>
-            <button type="button" onClick={deletePersistedSet} disabled={!persistedSet}>
+            <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
               Delete saved set
             </button>
           </div>
@@ -449,8 +488,8 @@ export default function Home() {
 
         {persistedSet && (
           <p className="saved-summary">
-            Current in-memory set: {persistedSet.id} ({persistedSet.status}, {persistedSet.rows.length} row
-            {persistedSet.rows.length === 1 ? "" : "s"}).
+            Current in-memory set ID: {persistedSet.id}. Display order: current saved set 1 (
+            {persistedSet.status}, {persistedSet.rows.length} row{persistedSet.rows.length === 1 ? "" : "s"}).
           </p>
         )}
 

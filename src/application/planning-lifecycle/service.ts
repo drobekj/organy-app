@@ -20,9 +20,16 @@ export type PlanningLifecycleServiceDependencies = {
   now?: () => Date;
 };
 
+export type SaveWorkingSetServiceContext = {
+  serviceDate: string;
+  priest: string;
+  organist: string;
+};
+
 export type SaveWorkingSetInput = {
   role: PlanningRole;
   existingSetId?: PlanningSetId;
+  serviceContext: SaveWorkingSetServiceContext;
   set: PlanningSet & { status: "working" };
 };
 
@@ -62,6 +69,15 @@ export class PlanningLifecycleService {
   async saveWorkingSet(input: SaveWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
     if (!canPerformPlanningAction(input.role, input.existingSetId ? "editWorkingSet" : "createWorkingSet")) {
       return failure({ code: "permissionDenied", message: "Role cannot save a working planning set." });
+    }
+
+    const serviceContextIssues = validateSaveWorkingSetServiceContext(input.serviceContext);
+    if (serviceContextIssues.length > 0) {
+      return failure({
+        code: "invalidInput",
+        message: "Service context is required before saving a working set.",
+        issues: serviceContextIssues,
+      });
     }
 
     const validation = validatePlanningSet(input.set);
@@ -142,6 +158,7 @@ export class PlanningLifecycleService {
     }
 
     await this.planningSets.deleteById(input.setId);
+    await this.completedServiceRecords.deleteBySourceFinalSetId(input.setId);
     return success({ deletedSetId: input.setId });
   }
 
@@ -217,4 +234,14 @@ function reorderRowsByIndex(rows: PlanningRow[], rowOrder: number[]): PlanningRo
   }
 
   return reorderedRows;
+}
+
+function validateSaveWorkingSetServiceContext(
+  serviceContext: SaveWorkingSetServiceContext,
+): { path: string; message: string }[] {
+  return [
+    ...(!serviceContext.serviceDate.trim() ? [{ path: "serviceDate", message: "Service date is required." }] : []),
+    ...(!serviceContext.priest.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
+    ...(!serviceContext.organist.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
+  ];
 }

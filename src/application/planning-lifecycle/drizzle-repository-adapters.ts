@@ -45,4 +45,6 @@ export abstract class DrizzleCompletedServiceRecordRepositoryBase
   protected constructor(protected readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
 
   abstract createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord>;
+
+  abstract deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
 }
