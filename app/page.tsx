@@ -1,6 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  InMemoryCompletedServiceRecordRepository,
+  InMemoryPlanningSetRepository,
+  PlanningLifecycleService,
+  type CompletedServiceRecord,
+  type PersistedPlanningSet,
+  type PlanningSetId,
+  type PlanningServiceError,
+} from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { validatePlanningRow } from "../src/planning-lifecycle";
 
@@ -11,7 +20,7 @@ type EditableRow = {
   note: string;
 };
 
-type SaveState = "unsaved" | "saved" | "errors";
+type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
 
 type WorkingSetSnapshot = {
   serviceDate: string;
@@ -19,6 +28,11 @@ type WorkingSetSnapshot = {
   priest: string;
   organist: string;
   rows: PlanningRow[];
+};
+
+type PlanningRepositories = {
+  planningSets: InMemoryPlanningSetRepository;
+  completedServiceRecords: InMemoryCompletedServiceRecordRepository;
 };
 
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
@@ -51,6 +65,21 @@ function toPlanningRow(row: EditableRow): PlanningRow {
 }
 
 export default function Home() {
+  const repositories = useMemo<PlanningRepositories>(
+    () => ({
+      planningSets: new InMemoryPlanningSetRepository(),
+      completedServiceRecords: new InMemoryCompletedServiceRecordRepository(),
+    }),
+    [],
+  );
+  const planningLifecycleService = useMemo(
+    () =>
+      new PlanningLifecycleService({
+        planningSets: repositories.planningSets,
+        completedServiceRecords: repositories.completedServiceRecords,
+      }),
+    [repositories],
+  );
   const [serviceDate, setServiceDate] = useState("");
   const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>("czech");
   const [priest, setPriest] = useState("");
@@ -59,6 +88,9 @@ export default function Home() {
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
+  const [persistedSet, setPersistedSet] = useState<PersistedPlanningSet | null>(null);
+  const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
+  const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
@@ -66,6 +98,7 @@ export default function Home() {
 
   function markUnsaved() {
     setSaveState("unsaved");
+    setServiceError(null);
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
@@ -102,12 +135,26 @@ export default function Home() {
     markUnsaved();
   }
 
-  function saveWorkingSet() {
-    if (hasValidationErrors) {
+  async function saveWorkingSet() {
+    const result = await planningLifecycleService.saveWorkingSet({
+      role: "priest",
+      existingSetId: persistedSet?.status === "working" ? persistedSet.id : undefined,
+      set: {
+        status: "working",
+        language: serviceLanguage,
+        rows: planningRows,
+      },
+    });
+
+    if (!result.success) {
+      setServiceError(result.error);
       setSaveState("errors");
       return;
     }
 
+    setPersistedSet(result.value);
+    setCompletedRecord(null);
+    setServiceError(null);
     setSavedWorkingSet({
       serviceDate,
       serviceLanguage,
@@ -116,6 +163,74 @@ export default function Home() {
       rows: planningRows,
     });
     setSaveState("saved");
+  }
+
+  async function finalizeWorkingSet() {
+    if (!persistedSet || persistedSet.status !== "working") {
+      return;
+    }
+
+    const result = await planningLifecycleService.finalizeWorkingSet({
+      role: "priest",
+      workingSetId: persistedSet.id,
+    });
+
+    if (!result.success) {
+      setServiceError(result.error);
+      setSaveState("errors");
+      return;
+    }
+
+    setPersistedSet(result.value);
+    setCompletedRecord(null);
+    setServiceError(null);
+    setSaveState("finalized");
+  }
+
+  async function completeFinalSet() {
+    if (!persistedSet || persistedSet.status !== "final") {
+      return;
+    }
+
+    const result = await planningLifecycleService.completeFinalSet({
+      role: "priest",
+      finalSetId: persistedSet.id,
+    });
+
+    if (!result.success) {
+      setServiceError(result.error);
+      setSaveState("errors");
+      return;
+    }
+
+    setCompletedRecord(result.value);
+    setPersistedSet(null);
+    setServiceError(null);
+    setSaveState("completed");
+  }
+
+  async function deletePersistedSet() {
+    if (!persistedSet) {
+      return;
+    }
+
+    const deletedSetId: PlanningSetId = persistedSet.id;
+    const result = await planningLifecycleService.deletePlanningSet({
+      role: "priest",
+      setId: deletedSetId,
+    });
+
+    if (!result.success) {
+      setServiceError(result.error);
+      setSaveState("errors");
+      return;
+    }
+
+    setPersistedSet(null);
+    setCompletedRecord(null);
+    setSavedWorkingSet(null);
+    setServiceError(null);
+    setSaveState("deleted");
   }
 
   return (
@@ -128,6 +243,9 @@ export default function Home() {
         <div className={`status status-${saveState}`} role="status">
           {saveState === "unsaved" && "Unsaved"}
           {saveState === "saved" && "Saved in memory"}
+          {saveState === "finalized" && "Finalized in memory"}
+          {saveState === "completed" && "Completed in memory"}
+          {saveState === "deleted" && "Deleted from memory"}
           {saveState === "errors" && "Validation errors"}
         </div>
 
@@ -264,10 +382,45 @@ export default function Home() {
             })}
           </div>
 
-          <button className="save-button" type="button" onClick={saveWorkingSet}>
-            Save working set
-          </button>
+          <div className="form-actions">
+            <button className="save-button" type="button" onClick={saveWorkingSet}>
+              Save working set
+            </button>
+            <button
+              type="button"
+              onClick={finalizeWorkingSet}
+              disabled={!persistedSet || persistedSet.status !== "working" || hasValidationErrors}
+            >
+              Finalize set
+            </button>
+            <button type="button" onClick={completeFinalSet} disabled={!persistedSet || persistedSet.status !== "final"}>
+              Complete service
+            </button>
+            <button type="button" onClick={deletePersistedSet} disabled={!persistedSet}>
+              Delete saved set
+            </button>
+          </div>
         </form>
+
+        {serviceError && (
+          <p className="error-summary">
+            {serviceError.message}
+            {serviceError.issues?.length ? ` ${serviceError.issues.map((issue) => issue.message).join(" ")}` : ""}
+          </p>
+        )}
+
+        {persistedSet && (
+          <p className="saved-summary">
+            Current in-memory set: {persistedSet.id} ({persistedSet.status}, {persistedSet.rows.length} row
+            {persistedSet.rows.length === 1 ? "" : "s"}).
+          </p>
+        )}
+
+        {completedRecord && (
+          <p className="saved-summary">
+            Completed record: {completedRecord.id} from {completedRecord.sourceFinalSetId}.
+          </p>
+        )}
 
         {savedWorkingSet && saveState === "saved" && (
           <p className="saved-summary">

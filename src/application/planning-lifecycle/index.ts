@@ -12,6 +12,10 @@ export type {
   PlanningServiceResult,
 } from "./results";
 export {
+  InMemoryCompletedServiceRecordRepository,
+  InMemoryPlanningSetRepository,
+} from "./in-memory-repositories";
+export {
   PlanningLifecycleService,
   type CompleteFinalSetInput,
   type DeletePlanningSetInput,
