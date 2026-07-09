@@ -55,7 +55,44 @@ npm run db:generate
 
 The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation. Repository adapters may remain unused until a later phase deliberately switches runtime persistence from in-memory storage to the database.
 
-Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime. The ready implementation remains the in-memory repository; a separate Drizzle adapter baseline now documents the concrete schema tables expected by future database repositories. Real Drizzle queries are intentionally deferred until runtime database driver wiring is deliberately added in a later phase.
+Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime. The ready application implementation remains the in-memory repository; the Drizzle `PlanningSetRepository` adapter now performs real database create, read, update, and delete operations for planning sets, but the UI is intentionally not switched to DB runtime yet.
+
+### Local Drizzle Planning Set Adapter Verification
+
+The adapter expects a Drizzle database object supplied by the caller and does not create a runtime connection for the web app. To verify it locally without changing the UI runtime, use a throwaway script or Node REPL that creates your own Drizzle PostgreSQL connection, runs the committed migrations, then calls `DrizzlePlanningSetRepository` directly.
+
+Minimal verification flow:
+
+1. Start PostgreSQL and set `DATABASE_URL`, for example `postgres://postgres:postgres@localhost:5432/organy_app`.
+2. Apply the SQL migrations in `drizzle/` to the local database.
+3. In a local script, construct your Drizzle DB client, instantiate `new DrizzlePlanningSetRepository({ db })`, and run these repository calls:
+
+```ts
+const created = await repository.saveWorkingSet({
+  status: "working",
+  language: "mixed",
+  rows: [
+    { song: { language: "czech", number: "101" }, note: "Entrance" },
+    { note: "Psalm placeholder" },
+  ],
+});
+
+const loaded = await repository.findById(created.id);
+
+const updated = await repository.saveWorkingSet(
+  {
+    status: "working",
+    language: "czech",
+    rows: [{ song: { language: "czech", number: "202" }, note: "Updated entrance" }],
+  },
+  created.id,
+);
+
+await repository.deleteById(updated.id);
+const deleted = await repository.findById(updated.id);
+```
+
+Expected result: `created.id` is a numeric database-backed planning set id, `loaded` matches the inserted working set, `updated` reflects the replacement rows and language, and `deleted` is `undefined`. The rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service language in `service_contexts`.
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 
