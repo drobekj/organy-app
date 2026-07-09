@@ -1,4 +1,11 @@
-import type { ConcreteSongLanguage, PlanningRow, SongReference } from "./model";
+import type {
+  ConcreteSongLanguage,
+  PlanningRow,
+  PlanningSet,
+  ServiceLanguage,
+  ServiceSetStatus,
+  SongReference,
+} from "./model";
 
 export type PlanningValidationIssue = {
   path: string;
@@ -55,6 +62,40 @@ export function validatePlanningRow(row: PlanningRow): PlanningValidationResult 
     issues.push({
       path: "row",
       message: "Row must include either a complete song reference or a non-empty textual note.",
+    });
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
+const serviceLanguages: readonly ServiceLanguage[] = ["czech", "polish", "mixed"];
+const serviceSetStatuses: readonly ServiceSetStatus[] = ["working", "final"];
+
+export function validatePlanningSet(set: PlanningSet): PlanningValidationResult {
+  const issues: PlanningValidationIssue[] = [];
+
+  if (!serviceSetStatuses.includes(set.status)) {
+    issues.push({ path: "status", message: "Planning set status must be either working or final." });
+  }
+
+  if (!serviceLanguages.includes(set.language)) {
+    issues.push({ path: "language", message: "Planning set language must be czech, polish, or mixed." });
+  }
+
+  if (!Array.isArray(set.rows)) {
+    issues.push({ path: "rows", message: "Planning set rows must be an array." });
+  } else {
+    set.rows.forEach((row, index) => {
+      const rowValidation = validatePlanningRow(row);
+      rowValidation.issues.forEach((issue) => {
+        issues.push({
+          path: `rows.${index}.${issue.path}`,
+          message: issue.message,
+        });
+      });
     });
   }
 
