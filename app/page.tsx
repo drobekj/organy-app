@@ -95,6 +95,7 @@ export default function Home() {
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
+  const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
 
@@ -241,6 +242,24 @@ export default function Home() {
         <p className="eyebrow">Planning Lifecycle First</p>
         <h1 id="page-title">Working service set</h1>
         <p className="lede">Build a minimal in-memory set before persistence or final UX exists.</p>
+
+        <section className="release-guidance" aria-label="First local release guidance">
+          <div>
+            <span className="guidance-label">Runtime mode</span>
+            <strong>Local in-memory only</strong>
+            <p>Data is kept only in the current browser runtime and is not durable across refreshes or restarts.</p>
+          </div>
+          <div>
+            <span className="guidance-label">Selected role</span>
+            <strong>{selectedRole}</strong>
+            <p>Permission checks use this local selector; there is no auth, session, or account model yet.</p>
+          </div>
+          <div>
+            <span className="guidance-label">Lifecycle state</span>
+            <strong>{lifecycleState}</strong>
+            <p>Use Save, Finalize, Complete, and Delete to walk the first local smoke flow.</p>
+          </div>
+        </section>
 
         <div className={`status status-${saveState}`} role="status">
           {saveState === "unsaved" && "Unsaved"}

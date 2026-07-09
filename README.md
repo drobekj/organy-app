@@ -26,6 +26,27 @@ The development server starts the Organ Planner / Planning Lifecycle First page 
 The page includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the first in-memory version can exercise the permission matrix without authentication. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
 
 
+## First Local Release Acceptance Checklist
+
+Use this checklist for the first locally usable in-memory Planning Lifecycle First release:
+
+- [ ] App starts locally.
+- [ ] Working set can be created and saved.
+- [ ] Final set can be created.
+- [ ] Completed service record can be created.
+- [ ] Delete works for a saved non-completed set.
+- [ ] `congregationMember` cannot perform planning actions.
+- [ ] Data is not durable across refresh/session restart.
+
+## Known Limitations
+
+- No durable DB persistence.
+- No auth/session/account model.
+- No candidate selection.
+- No melody rules.
+- No antiphon/season highlighting.
+- No preference system.
+
 ## Local Smoke / Use-Flow Checklist
 
 Use this first manual checklist to smoke-test the current in-memory Planning Lifecycle version in a local browser session:
