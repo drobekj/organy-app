@@ -1,6 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import type * as planningLifecycleSchema from "../../db/schema";
 import {
+  completedServiceRows,
+  completedServices,
   serviceContexts,
   serviceSetRows,
   serviceSets,
@@ -12,6 +14,8 @@ import type {
   PlanningSetId,
   PlanningSetRepository,
 } from "./ports";
+import { PlanningLifecycleService } from "./service";
+import type { PlanningLifecycleServiceDependencies } from "./service";
 import type { PlanningRow, PlanningSet, ServiceLanguage } from "../../planning-lifecycle";
 
 export type PlanningLifecycleDrizzleSchema = Pick<
@@ -55,6 +59,12 @@ type ServiceSetRowRecord = {
   songLanguage: "czech" | "polish" | null;
   songNumber: string | null;
   note: string | null;
+};
+
+type CompletedServiceRecordRecord = {
+  id: number;
+  serviceSetId: number | null;
+  completedAt: Date;
 };
 
 export class DrizzlePlanningSetRepository implements PlanningSetRepository {
@@ -178,14 +188,87 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
   }
 }
 
-export abstract class DrizzleCompletedServiceRecordRepositoryBase
-  implements CompletedServiceRecordRepository
-{
-  protected constructor(protected readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
+export class DrizzleCompletedServiceRecordRepository implements CompletedServiceRecordRepository {
+  constructor(private readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
 
-  abstract createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord>;
+  async createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord> {
+    const sourceFinalSetNumericId = parsePlanningSetId(record.sourceFinalSetId);
+    if (sourceFinalSetNumericId === undefined) {
+      throw new Error(
+        `Source final set id '${record.sourceFinalSetId}' is not a valid database-backed planning set id.`,
+      );
+    }
 
-  abstract deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
+    return this.dependencies.db.transaction(async (tx) => {
+      const now = new Date();
+      const [sourceFinalSet] = (await selectAll(tx)
+        .from(serviceSets)
+        .where(eq(serviceSets.id, sourceFinalSetNumericId))
+        .limit(1)) as ServiceSetRecord[];
+
+      if (!sourceFinalSet) {
+        throw new Error(`Source final set '${record.sourceFinalSetId}' was not found.`);
+      }
+
+      if (sourceFinalSet.status !== "final") {
+        throw new Error(`Source planning set '${record.sourceFinalSetId}' is not final.`);
+      }
+
+      const [completedService] = (await insertInto(tx, completedServices)
+        .values({
+          serviceContextId: sourceFinalSet.serviceContextId,
+          serviceSetId: sourceFinalSetNumericId,
+          completedAt: record.completedAt,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning({
+          id: completedServices.id,
+          serviceSetId: completedServices.serviceSetId,
+          completedAt: completedServices.completedAt,
+        })) as CompletedServiceRecordRecord[];
+
+      if (record.set.rows.length > 0) {
+        await insertInto(tx, completedServiceRows).values(
+          record.set.rows.map((row, index) => ({
+            completedServiceId: completedService.id,
+            position: index + 1,
+            songLanguage: row.song?.language,
+            songNumber: row.song?.number,
+            note: row.note,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        );
+      }
+
+      return {
+        id: formatCompletedServiceRecordId(completedService.id),
+        sourceFinalSetId: record.sourceFinalSetId,
+        set: clonePlanningSet(record.set),
+        completedAt: new Date(completedService.completedAt),
+      };
+    });
+  }
+
+  async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
+    const numericId = parsePlanningSetId(sourceFinalSetId);
+    if (numericId === undefined) {
+      return;
+    }
+
+    await deleteFrom(this.dependencies.db, completedServices).where(eq(completedServices.serviceSetId, numericId));
+  }
+}
+
+export function createDbBackedPlanningLifecycleService(
+  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now">>,
+): PlanningLifecycleService {
+  return new PlanningLifecycleService({
+    planningSets: new DrizzlePlanningSetRepository(dependencies),
+    completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
+    now: dependencies.now,
+  });
 }
 
 async function insertNewSet(db: DrizzleExecutor, set: PlanningSet, now: Date): Promise<number> {
@@ -257,6 +340,20 @@ function formatPlanningSetId(id: number): PlanningSetId {
   return id.toString();
 }
 
+function formatCompletedServiceRecordId(id: number): string {
+  return id.toString();
+}
+
+function clonePlanningSet<T extends PlanningSet>(set: T): T {
+  return {
+    ...set,
+    rows: set.rows.map((row) => ({
+      ...(row.song ? { song: { ...row.song } } : {}),
+      ...(row.note ? { note: row.note } : {}),
+    })),
+  };
+}
+
 function selectAll(db: DrizzleExecutor) {
   return db.select() as ReturnType<typeof serviceSetsSelect>;
 }
@@ -276,6 +373,7 @@ function deleteFrom(db: DrizzleExecutor, table: unknown) {
 declare function serviceSetsSelect(): {
   from: (table: unknown) => {
     where: (condition: unknown) => { limit: (limit: number) => Promise<unknown[]>; orderBy: (order: unknown) => Promise<unknown[]> };
+    orderBy: (order: unknown) => Promise<unknown[]>;
   };
 };
 

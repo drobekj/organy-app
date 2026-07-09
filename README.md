@@ -59,13 +59,13 @@ Application-level Planning Lifecycle services and repository ports live under `s
 
 ### Local Drizzle Planning Set Adapter Verification
 
-The adapter expects a Drizzle database object supplied by the caller and does not create a runtime connection for the web app. To verify it locally without changing the UI runtime, use a throwaway script or Node REPL that creates your own Drizzle PostgreSQL connection, runs the committed migrations, then calls `DrizzlePlanningSetRepository` directly.
+The adapter expects a Drizzle database object supplied by the caller and does not create a runtime connection for the web app. Start PostgreSQL, set `DATABASE_URL`, apply the committed SQL migrations in `drizzle/`, then run the repository smoke check with `npm run db:smoke` or the end-to-end lifecycle smoke check with:
 
-Minimal verification flow:
+```bash
+npm run db:lifecycle-smoke
+```
 
-1. Start PostgreSQL and set `DATABASE_URL`, for example `postgres://postgres:postgres@localhost:5432/organy_app`.
-2. Apply the SQL migrations in `drizzle/` to the local database.
-3. In a local script, construct your Drizzle DB client, instantiate `new DrizzlePlanningSetRepository({ db })`, and run these repository calls:
+The lifecycle smoke check saves a working set, finalizes it, completes the final set, verifies cleanup state, and exits with a readable error if `DATABASE_URL` or the migrated database is unavailable. A minimal direct repository flow is:
 
 ```ts
 const created = await repository.saveWorkingSet({
