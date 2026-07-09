@@ -26,15 +26,36 @@ npm run typecheck
 `package-lock.json` is expected to be committed with dependency changes so a fresh checkout can install the same dependency graph. TypeScript is an explicit `devDependency`; `npm run typecheck` uses `tsc --noEmit` rather than relying on an implicit Next.js install.
 
 
-Drizzle schema generation is configured for PostgreSQL through `DATABASE_URL`:
+## Local Database Setup
+
+The application runtime remains intentionally **local in-memory only**. The database setup below prepares the Drizzle migration foundation for future persistence work; it does not wire the UI or application runtime to PostgreSQL yet.
+
+Recommended local database: PostgreSQL. A local database named `organy_app` with the default development credentials below is sufficient for migration generation and later local migration testing:
 
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run db:generate
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app
 ```
 
-The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation.
+Install dependencies from the committed lockfile before running Drizzle tooling:
 
-Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime. The ready implementation remains the in-memory repository; a separate Drizzle adapter baseline now documents the concrete schema tables expected by future database repositories. Real Drizzle queries are intentionally deferred until the lockfile, migrations, and runtime database driver wiring are available.
+```bash
+npm install
+```
+
+Generate Drizzle migration artifacts from the schema with:
+
+```bash
+npm run db:generate
+```
+
+`npm run db:generate` reads `drizzle.config.ts`, uses `src/db/schema/index.ts` as the schema source, and writes migration artifacts under `drizzle/`. After generation, the expected versioned outputs are:
+
+- SQL migration files such as `drizzle/0000_gigantic_wild_child.sql`.
+- Drizzle metadata snapshots under `drizzle/meta/`, including `_journal.json` and numbered snapshot files.
+
+The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation. Repository adapters may remain unused until a later phase deliberately switches runtime persistence from in-memory storage to the database.
+
+Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime. The ready implementation remains the in-memory repository; a separate Drizzle adapter baseline now documents the concrete schema tables expected by future database repositories. Real Drizzle queries are intentionally deferred until runtime database driver wiring is deliberately added in a later phase.
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 
