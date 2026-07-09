@@ -8,7 +8,8 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:smoke": "tsx scripts/db-smoke.ts"
+    "db:smoke": "tsx scripts/db-smoke.ts",
+    "db:lifecycle-smoke": "tsx scripts/db-lifecycle-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.10",

@@ -20,7 +20,8 @@ export type {
   PlanningLifecycleDrizzleSchema,
 } from "./drizzle-repository-adapters";
 export {
-  DrizzleCompletedServiceRecordRepositoryBase,
+  createDbBackedPlanningLifecycleService,
+  DrizzleCompletedServiceRecordRepository,
   DrizzlePlanningSetRepository,
 } from "./drizzle-repository-adapters";
 export {

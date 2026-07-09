@@ -157,8 +157,8 @@ export class PlanningLifecycleService {
       return failure({ code: "permissionDenied", message: "Role cannot delete this planning set." });
     }
 
-    await this.planningSets.deleteById(input.setId);
     await this.completedServiceRecords.deleteBySourceFinalSetId(input.setId);
+    await this.planningSets.deleteById(input.setId);
     return success({ deletedSetId: input.setId });
   }
 
