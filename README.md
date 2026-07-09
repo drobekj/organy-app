@@ -23,6 +23,8 @@ Application-level Planning Lifecycle services and repository ports live under `s
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 
+The page includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the first in-memory version can exercise the permission matrix without authentication. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
+
 
 ## Local Smoke / Use-Flow Checklist
 

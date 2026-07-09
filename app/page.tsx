@@ -10,7 +10,7 @@ import {
   type PlanningSetId,
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
-import type { ConcreteSongLanguage, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
+import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { validatePlanningRow } from "../src/planning-lifecycle";
 
 type EditableRow = {
@@ -37,6 +37,7 @@ type PlanningRepositories = {
 
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const songLanguageOptions: ConcreteSongLanguage[] = ["czech", "polish"];
+const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
 function createEmptyRow(id: number): EditableRow {
   return {
@@ -84,6 +85,7 @@ export default function Home() {
   const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>("czech");
   const [priest, setPriest] = useState("");
   const [organist, setOrganist] = useState("");
+  const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
   const [rows, setRows] = useState<EditableRow[]>([createEmptyRow(1)]);
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
@@ -137,7 +139,7 @@ export default function Home() {
 
   async function saveWorkingSet() {
     const result = await planningLifecycleService.saveWorkingSet({
-      role: "priest",
+      role: selectedRole,
       existingSetId: persistedSet?.status === "working" ? persistedSet.id : undefined,
       set: {
         status: "working",
@@ -171,7 +173,7 @@ export default function Home() {
     }
 
     const result = await planningLifecycleService.finalizeWorkingSet({
-      role: "priest",
+      role: selectedRole,
       workingSetId: persistedSet.id,
     });
 
@@ -193,7 +195,7 @@ export default function Home() {
     }
 
     const result = await planningLifecycleService.completeFinalSet({
-      role: "priest",
+      role: selectedRole,
       finalSetId: persistedSet.id,
     });
 
@@ -216,7 +218,7 @@ export default function Home() {
 
     const deletedSetId: PlanningSetId = persistedSet.id;
     const result = await planningLifecycleService.deletePlanningSet({
-      role: "priest",
+      role: selectedRole,
       setId: deletedSetId,
     });
 
@@ -246,7 +248,7 @@ export default function Home() {
           {saveState === "finalized" && "Finalized in memory"}
           {saveState === "completed" && "Completed in memory"}
           {saveState === "deleted" && "Deleted from memory"}
-          {saveState === "errors" && "Validation errors"}
+          {saveState === "errors" && "Service error"}
         </div>
 
         <form className="planning-form" onSubmit={(event) => event.preventDefault()}>
@@ -303,6 +305,23 @@ export default function Home() {
                 }}
               />
             </label>
+            <label>
+              Local role
+              <select
+                value={selectedRole}
+                onChange={(event) => setSelectedRole(event.target.value as PlanningRole)}
+                aria-describedby="local-role-help"
+              >
+                {localRoleOptions.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p id="local-role-help" className="field-help">
+              Local in-memory dev selector only; lifecycle actions use this role for permission checks.
+            </p>
           </fieldset>
 
           <div className="rows-header">

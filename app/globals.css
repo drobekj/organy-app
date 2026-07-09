@@ -149,6 +149,13 @@ label {
   font-weight: 700;
 }
 
+.field-help {
+  align-self: end;
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
 input,
 select {
   width: 100%;
