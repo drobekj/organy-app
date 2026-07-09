@@ -118,7 +118,16 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: "Final planning set is invalid.", issues: validation.issues });
     }
 
-    return success(await this.planningSets.saveFinalSet(finalSet, input.replaceFinalSetId));
+    const persistedFinalSet = await this.planningSets.saveFinalSet(
+      finalSet,
+      input.replaceFinalSetId ?? input.workingSetId,
+    );
+
+    if (persistedFinalSet.id !== input.workingSetId) {
+      await this.planningSets.deleteById(input.workingSetId);
+    }
+
+    return success(persistedFinalSet);
   }
 
   async deletePlanningSet(input: DeletePlanningSetInput): Promise<PlanningServiceResult<{ deletedSetId: PlanningSetId }>> {
