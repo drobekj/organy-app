@@ -1,0 +1,433 @@
+{
+  "id": "e0f7ff10-49e2-4510-9965-c036d918b34b",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.completed_service_rows": {
+      "name": "completed_service_rows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "completed_service_id": {
+          "name": "completed_service_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_language": {
+          "name": "song_language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_number": {
+          "name": "song_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "completed_service_rows_completed_service_id_position_idx": {
+          "name": "completed_service_rows_completed_service_id_position_idx",
+          "columns": [
+            {
+              "expression": "completed_service_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "completed_service_rows_completed_service_id_completed_services_id_fk": {
+          "name": "completed_service_rows_completed_service_id_completed_services_id_fk",
+          "tableFrom": "completed_service_rows",
+          "tableTo": "completed_services",
+          "columnsFrom": [
+            "completed_service_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "completed_service_rows_position_positive": {
+          "name": "completed_service_rows_position_positive",
+          "value": "\"completed_service_rows\".\"position\" > 0"
+        },
+        "completed_service_rows_complete_song_reference": {
+          "name": "completed_service_rows_complete_song_reference",
+          "value": "(\"completed_service_rows\".\"song_language\" is null and \"completed_service_rows\".\"song_number\" is null) or (\"completed_service_rows\".\"song_language\" is not null and \"completed_service_rows\".\"song_number\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.completed_services": {
+      "name": "completed_services",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_context_id": {
+          "name": "service_context_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_set_id": {
+          "name": "service_set_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "completed_services_service_context_id_service_contexts_id_fk": {
+          "name": "completed_services_service_context_id_service_contexts_id_fk",
+          "tableFrom": "completed_services",
+          "tableTo": "service_contexts",
+          "columnsFrom": [
+            "service_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "completed_services_service_set_id_service_sets_id_fk": {
+          "name": "completed_services_service_set_id_service_sets_id_fk",
+          "tableFrom": "completed_services",
+          "tableTo": "service_sets",
+          "columnsFrom": [
+            "service_set_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.service_contexts": {
+      "name": "service_contexts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.service_set_rows": {
+      "name": "service_set_rows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_set_id": {
+          "name": "service_set_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_language": {
+          "name": "song_language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_number": {
+          "name": "song_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "service_set_rows_service_set_id_position_idx": {
+          "name": "service_set_rows_service_set_id_position_idx",
+          "columns": [
+            {
+              "expression": "service_set_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "service_set_rows_service_set_id_service_sets_id_fk": {
+          "name": "service_set_rows_service_set_id_service_sets_id_fk",
+          "tableFrom": "service_set_rows",
+          "tableTo": "service_sets",
+          "columnsFrom": [
+            "service_set_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "service_set_rows_position_positive": {
+          "name": "service_set_rows_position_positive",
+          "value": "\"service_set_rows\".\"position\" > 0"
+        },
+        "service_set_rows_complete_song_reference": {
+          "name": "service_set_rows_complete_song_reference",
+          "value": "(\"service_set_rows\".\"song_language\" is null and \"service_set_rows\".\"song_number\" is null) or (\"service_set_rows\".\"song_language\" is not null and \"service_set_rows\".\"song_number\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.service_sets": {
+      "name": "service_sets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_context_id": {
+          "name": "service_context_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "service_set_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'working'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "service_sets_service_context_id_service_contexts_id_fk": {
+          "name": "service_sets_service_context_id_service_contexts_id_fk",
+          "tableFrom": "service_sets",
+          "tableTo": "service_contexts",
+          "columnsFrom": [
+            "service_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.service_set_status": {
+      "name": "service_set_status",
+      "schema": "public",
+      "values": [
+        "working",
+        "final"
+      ]
+    },
+    "public.song_language": {
+      "name": "song_language",
+      "schema": "public",
+      "values": [
+        "czech",
+        "polish"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
