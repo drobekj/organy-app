@@ -11,6 +11,12 @@ npm install
 npm run dev
 ```
 
+Local PostgreSQL-backed Drizzle tooling expects `DATABASE_URL` to be set when generating or applying migrations, for example:
+
+```bash
+DATABASE_URL=postgres://user:password@localhost:5432/organy_app
+```
+
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 
 ## Project Documentation
