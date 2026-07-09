@@ -11,6 +11,8 @@ npm install
 npm run dev
 ```
 
+Database-backed Planning Lifecycle work expects a local PostgreSQL connection string in `DATABASE_URL` when running Drizzle tooling.
+
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 
 ## Project Documentation
