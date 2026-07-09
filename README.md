@@ -4,12 +4,27 @@ Administration and communication of the musical part of church masses SCEAV.
 
 ## Local Development
 
-This repository contains a minimal Next.js App Router scaffold for the Organ Planner Phase 2 baseline, including a first in-memory Planning Lifecycle flow.
+This repository contains a minimal Next.js App Router scaffold for the Organ Planner local development baseline, including the current in-memory Planning Lifecycle flow. The runtime is intentionally **local in-memory only**: planned data is not durable yet and can be lost after refresh, browser/session restart, or app restart.
+
+### Setup
 
 ```bash
+git clone <repository-url>
+cd organy-app
 npm install
 npm run dev
 ```
+
+Open the local Next.js development server at <http://localhost:3000>. If port `3000` is already in use, use the localhost URL printed by `npm run dev`.
+
+Use the explicit TypeScript check before review when dependencies are installed:
+
+```bash
+npm run typecheck
+```
+
+`package-lock.json` is expected to be committed with dependency changes so a fresh checkout can install the same dependency graph. TypeScript is an explicit `devDependency`; `npm run typecheck` uses `tsc --noEmit` rather than relying on an implicit Next.js install.
+
 
 Drizzle schema generation is configured for PostgreSQL through `DATABASE_URL`:
 
@@ -65,21 +80,27 @@ DB persistence remains blocked by the current npm registry, lockfile, and migrat
 - No antiphon/season highlighting.
 - No preference system.
 
-## Local Smoke / Use-Flow Checklist
+## Manual Smoke-Test Checklist
 
-Use this first manual checklist to smoke-test the current in-memory Planning Lifecycle version in a local browser session:
+Use this short checklist to smoke-test the current local in-memory Planning Lifecycle version after starting the app with `npm run dev`:
 
-1. Start the application with `npm run dev` and open the local development URL printed by Next.js.
-2. On the Organ Planner / Planning Lifecycle page, create a new working set for the service being planned.
-3. Add service rows to the working set, then edit the row values to confirm row changes are reflected in the page.
-4. Save the working set and verify that the saved state remains available while the current browser session is active.
-5. Finalize the saved set and verify that the flow moves from editable working planning toward a final service set.
-6. Complete the service from the finalized set and verify that the completed state is shown.
-7. Delete the saved set and verify that it is removed from the current session view.
+- [ ] App loads at <http://localhost:3000> or the localhost URL printed by Next.js.
+- [ ] Role selection is visible for the development roles.
+- [ ] The working draft area is visible for the service being planned.
+- [ ] Basic lifecycle buttons respond in the browser flow, including saving a working draft, finalizing a saved set, completing a finalized set, and deleting a saved non-completed set.
 
-Current behavior is intentionally only in-memory within the browser session. Refreshing, closing the browser session, or restarting the app can discard the planned data because durable database persistence is not wired yet.
+Known limitations and observed issues for this in-memory baseline:
 
-Database persistence is still pending lockfile, migration, and database repository implementation work. Do not add code, a test framework, CI, database wiring, authentication, or new dependencies for this smoke checklist.
+- No durable persistence yet; data can be lost after refresh, browser/session restart, or app restart.
+- Delete does not clear the protocol/log.
+- Set numbering may keep increasing after delete.
+- Saving without service context is currently possible.
+- Only one set can be inserted.
+- Role-specific button enablement still needs tightening.
+
+## Phase 13 Closure
+
+Phase 13 — Local development baseline stabilization should be closed after this local setup, dependency baseline, and smoke-test documentation change is merged.
 
 ## Project Documentation
 
