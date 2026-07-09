@@ -1,5 +1,10 @@
 import { eq } from "drizzle-orm";
-import { createDbBackedPlanningLifecycleService } from "../src/application/planning-lifecycle/drizzle-repository-adapters";
+import {
+  createDbBackedPlanningLifecycleService,
+  DrizzleCompletedServiceRecordRepository,
+  DrizzlePlanningSetRepository,
+  type PlanningLifecycleDrizzleAdapterDependencies,
+} from "../src/application/planning-lifecycle/drizzle-repository-adapters";
 import * as schema from "../src/db/schema";
 import type { PlanningSet } from "../src/planning-lifecycle";
 
@@ -28,10 +33,13 @@ async function main() {
 
   try {
     const db = drizzle(pool, { schema });
-    const service = createDbBackedPlanningLifecycleService({
-      db: db as Parameters<typeof createDbBackedPlanningLifecycleService>[0]["db"],
+    const adapterDependencies = {
+      db: db as PlanningLifecycleDrizzleAdapterDependencies["db"],
       now: () => new Date("2026-07-09T00:00:00.000Z"),
-    });
+    };
+    const service = createDbBackedPlanningLifecycleService(adapterDependencies);
+    const completedRecords = new DrizzleCompletedServiceRecordRepository(adapterDependencies);
+    const planningSets = new DrizzlePlanningSetRepository(adapterDependencies);
 
     const saved = await service.saveWorkingSet({
       role: "admin",
@@ -51,12 +59,47 @@ async function main() {
     assert(completed.value.set.rows.length === workingSet.rows.length, "completed record keeps row count");
 
     const deletedAgain = await service.deletePlanningSet({ role: "admin", setId: finalized.value.id });
-    assert(deletedAgain.success === false && deletedAgain.error.code === "notFound", "completed final set is removed from planning sets");
+    assert(
+      deletedAgain.success === false && deletedAgain.error.code === "notFound",
+      "completed final set is removed from planning sets",
+    );
 
     await db.delete(schema.completedServices).where(eq(schema.completedServices.id, Number(completed.value.id)));
 
+    const cleanupWorking = await service.saveWorkingSet({
+      role: "admin",
+      serviceContext: { serviceDate: "2026-07-09", priest: "Smoke Priest", organist: "Smoke Organist" },
+      set: workingSet,
+    });
+    assert(cleanupWorking.success, "save cleanup working set succeeds");
+
+    const cleanupFinal = await service.finalizeWorkingSet({ role: "admin", workingSetId: cleanupWorking.value.id });
+    assert(cleanupFinal.success, "finalize cleanup working set succeeds");
+
+    const cleanupRecord = await completedRecords.createFromFinalSet({
+      sourceFinalSetId: cleanupFinal.value.id,
+      set: { status: "final", language: cleanupFinal.value.language, rows: cleanupFinal.value.rows },
+      completedAt: new Date("2026-07-09T00:05:00.000Z"),
+    });
+    assert(cleanupRecord.sourceFinalSetId === cleanupFinal.value.id, "cleanup record points to cleanup final set");
+    assert(
+      (await countCompletedServicesBySourceFinalSetId(db, cleanupFinal.value.id)) === 1,
+      "cleanup record exists before deleting its source final set",
+    );
+
+    const cleanupDelete = await service.deletePlanningSet({ role: "admin", setId: cleanupFinal.value.id });
+    assert(cleanupDelete.success, "delete final set with completed records succeeds");
+    assert(
+      (await countCompletedServicesBySourceFinalSetId(db, cleanupFinal.value.id)) === 0,
+      "deleteBySourceFinalSetId removed completed records before deleting the source final set",
+    );
+    assert(
+      (await planningSets.findById(cleanupFinal.value.id)) === undefined,
+      "source final set is deleted after completed record cleanup",
+    );
+
     console.log(
-      `DB lifecycle smoke verification passed for planning set ${finalized.value.id} and completed service ${completed.value.id}.`,
+      `DB lifecycle smoke verification passed for completed service ${completed.value.id} and cleanup set ${cleanupFinal.value.id}.`,
     );
   } catch (error) {
     console.error("DB lifecycle smoke verification failed.");
@@ -72,6 +115,22 @@ async function main() {
   } finally {
     await pool.end();
   }
+}
+
+async function countCompletedServicesBySourceFinalSetId(db: unknown, sourceFinalSetId: string): Promise<number> {
+  const typedDb = db as {
+    select: (fields: { id: typeof schema.completedServices.id }) => {
+      from: (table: typeof schema.completedServices) => {
+        where: (condition: unknown) => Promise<unknown[]>;
+      };
+    };
+  };
+  const rows = await typedDb
+    .select({ id: schema.completedServices.id })
+    .from(schema.completedServices)
+    .where(eq(schema.completedServices.serviceSetId, Number(sourceFinalSetId)));
+
+  return rows.length;
 }
 
 async function importDrizzleNodePostgres(): Promise<DrizzleNodePostgresModule> {
