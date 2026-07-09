@@ -341,10 +341,10 @@ Items should remain traceable to accepted source documents and should not be dec
 ### IP-001 — Confirm implementation baseline before technical decomposition
 
 - **Type:** Epic
-- **Goal:** Begin technical design and detailed implementation planning only after accepted product, domain, decision, requirement, workflow, architecture, roadmap, and backlog sources are stable.
-- **Source / traceability:** Roadmap Phase 9; architecture principles; roadmap “Not Yet Ready to Implement.”
-- **Acceptance direction:** Implementation preparation can proceed only with clear traceability from chosen implementation scope back to accepted product backlog items and source documents.
-- **Status:** Proposed
+- **Goal:** Keep technical design and detailed implementation planning anchored to accepted product, domain, decision, requirement, workflow, architecture, roadmap, and backlog sources.
+- **Source / traceability:** Roadmap Phase 9; architecture principles; roadmap “Not Yet Ready to Implement”; DEC-2026-07-09-01.
+- **Acceptance direction:** The Phase 2 baseline is accepted only for a first runnable scaffold using a lightweight full-stack TypeScript app direction, Next.js App Router, npm, and TypeScript strict baseline. This does not start product implementation and does not include database, Drizzle schema, migrations, auth provider, persistence, service-set UI, service-set API, or production-readiness claims.
+- **Status:** Accepted
 
 ### IP-002 — Review and refine future technical schema draft
 
@@ -521,6 +521,15 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/architecture.md`; `docs/implementation-preparation.md`; `docs/first-slice-tooling-decision-preparation.md`.
 - **Acceptance direction:** Future design documents how lifecycle operations and planning permissions remain explicit in application/domain services without creating code, tests, schema files, migrations, or implementation tickets.
 - **Status:** Proposed
+
+
+### IP-024 — Create minimal runnable scaffold PR
+
+- **Type:** Product backlog item
+- **Goal:** Establish the smallest runnable Phase 2 application scaffold so later implementation work has a concrete project baseline.
+- **Source / traceability:** DEC-2026-07-09-01; `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
+- **Acceptance direction:** The scaffold uses Next.js App Router, npm, and TypeScript strict baseline only. It must not add a database, Drizzle schema, migrations, auth provider, persistence, service-set UI, service-set API, UI design decisions, API contracts, hosting selection, or test strategy beyond what the scaffold requires.
+- **Status:** Accepted
 
 ## Not Backlog Yet
 

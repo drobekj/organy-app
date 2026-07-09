@@ -158,6 +158,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** ORM/query/migration tooling is no longer unresolved at direction level; schema files remain unresolved; migrations remain uncreated; exact package/version/configuration remain unresolved; database provider remains unresolved; hosting remains unresolved; auth remains unresolved; domain/application lifecycle validation remains mandatory; Prisma-like, Kysely-like, raw SQL-only, and further deferral are not accepted for this first-slice tooling direction.
 - **Related:** `docs/adr-first-slice-tooling.md`; `docs/first-slice-tooling-decision-preparation.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/adr-first-slice-storage.md`.
 
+### DEC-2026-07-09-01 — Minimal runnable scaffold baseline for Phase 2
+
+- **Date:** 2026-07-09
+- **Status:** Accepted
+- **Context:** Phase 2 needs the smallest implementation baseline that can create the first runnable scaffold PR without starting product implementation or widening scope into storage, auth, schema, UI, API, or test decisions.
+- **Options considered:** continue deferring framework/package-manager selection; accept a minimal scaffold-only baseline; accept the whole stack/storage/auth ADR as production-ready.
+- **Decision:** Phase 2 uses a lightweight full-stack TypeScript app direction with Next.js App Router as the framework for the first runnable scaffold, npm as the package manager, and a TypeScript strict baseline. The first scaffold must not include a database, Drizzle schema, migrations, auth provider, persistence, service-set UI, service-set API, product workflows, or production-readiness claims.
+- **Consequences:** This decision only unblocks the runnable scaffold PR. It does not change the accepted PostgreSQL-like runtime storage direction or Drizzle-like typed SQL/schema toolkit plus migrations direction, and it does not choose a database provider, hosting provider, auth provider, Drizzle package versions, schema layout, migration workflow, UI design, API contracts, or test strategy.
+- **Related:** `docs/implementation-preparation.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/backlog.md`; `docs/adr-first-slice-storage.md`; `docs/adr-first-slice-tooling.md`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.

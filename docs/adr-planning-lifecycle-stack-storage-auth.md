@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted for the minimal Phase 2 runnable scaffold baseline only. The broader stack, storage, authentication, persistence, UI/API, and production architecture decisions remain unresolved.
 
 ## Context
 
@@ -12,7 +12,7 @@ The first implementation slice is **Planning Lifecycle First**. It is limited to
 
 `docs/auth-account-role-model.md` is an input to any future authentication, account, actor, role-assignment, authorization, and schema decision. It keeps person, account, actor, role, role assignment, and historical person reference distinct without choosing an authentication provider or account technology.
 
-The repository is currently documentation-first. Repository inspection found no selected application framework, runtime, persistence technology, database schema, migration tooling, authentication mechanism, API setup, UI setup, or test framework. This ADR therefore proposes direction only; it does not create project files or implementation structure.
+The repository is currently documentation-first. A minimal scaffold-only baseline is now accepted for Phase 2: lightweight full-stack TypeScript direction, Next.js App Router for the first runnable scaffold, npm as package manager, and TypeScript strict baseline. This acceptance is intentionally narrow; it does not create project files in this documentation PR and does not select persistence technology beyond the already accepted direction-level storage/tooling decisions, database schema, migration workflow, authentication mechanism, API contracts, UI design, or test strategy.
 
 For this first slice:
 
@@ -66,7 +66,7 @@ Low. Useful if decisions are still too uncertain, but it does not move the selec
 
 **Risks**
 
-- The exact framework, routing style, validation libraries, and test tools still need selection.
+- Framework selection is now limited to Next.js App Router for the runnable scaffold, but routing conventions beyond scaffold defaults, validation libraries, and test tools still need selection.
 - A full-stack framework can blur domain-rule enforcement if rules are implemented only in UI handlers.
 - Early choices may need adjustment when candidate selection and knowledge management expand.
 
@@ -110,21 +110,22 @@ Medium. It protects boundaries well, but is likely heavier than needed for the f
 
 Medium-low. Useful for disposable exploration, but not ideal as the first implementation foundation unless explicitly time-boxed.
 
-## Proposed Direction
+## Decision
 
-Use a **lightweight full-stack TypeScript application direction** for the first implementation slice, with a small domain/application layer that owns planning lifecycle validation and permission checks. The exact framework and project setup remain undecided and should be chosen in a follow-up decision before coding.
+Use a **lightweight full-stack TypeScript application direction** for Phase 2, with **Next.js App Router** as the framework for the first runnable scaffold, **npm** as package manager, and a **TypeScript strict** baseline. This decision unblocks only a minimal runnable scaffold PR.
 
 The first-slice storage direction has been accepted separately in `docs/adr-first-slice-storage.md`: PostgreSQL-like relational storage for Planning Lifecycle First. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
 
-This ADR remains **Proposed**. The separate storage-direction ADR and the accepted first-slice tooling-direction ADR in `docs/adr-first-slice-tooling.md` do not accept this whole stack/storage/auth ADR. The overall stack/storage/auth ADR remains proposed because application framework, database provider, hosting, auth provider, account model, physical schema files, local development workflow, backup/export/restore design, and test strategy remain unresolved.
+This ADR is **accepted only for the minimal runnable scaffold baseline**. The separate storage-direction ADR and the accepted first-slice tooling-direction ADR in `docs/adr-first-slice-tooling.md` remain unchanged. The broader stack/storage/auth architecture is not accepted as production-ready because database provider, hosting, auth provider, account model, physical schema files, local development workflow, backup/export/restore design, UI/API contracts, and test strategy remain unresolved.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
 This direction intentionally does not decide:
 
-- exact framework, runtime version, package manager, or project layout;
-- exact database provider, exact ORM/query/migration package/version/configuration, migration workflow, or schema;
+- runtime version or project layout details beyond the minimal scaffold defaults;
+- exact database provider, exact Drizzle package/version/configuration, migration workflow, schema file layout, or schema;
 - exact auth provider, session strategy, account model, user table shape, or login screens;
+- persistence implementation, service-set UI, service-set API, product workflows, or production-readiness;
 - hosting provider, deployment platform, or whether the first implementation later separates frontend and backend;
 - final physical storage design and provider choice, which remain deferred pending legacy-to-domain mapping assessment and target-domain persistence design.
 
@@ -178,7 +179,7 @@ This enables:
 
 This postpones:
 
-- exact framework and project setup;
+- runtime version and project-layout details beyond the minimal Next.js App Router scaffold baseline;
 - exact persistence technology and schema;
 - exact authentication provider, mechanism, and account model;
 - full candidate selection, non-repetition, preference, knowledge-management, and legacy-migration implementation;
@@ -191,11 +192,11 @@ Risks:
 - Role enforcement could drift into UI-only checks unless application/domain authorization is treated as mandatory.
 - Deferring exact auth may leave early implementation blocked until actor and role representation is clarified.
 
-Follow-up decisions are needed before coding to turn this proposal into an accepted implementation baseline.
+Follow-up decisions are needed before product implementation; the current acceptance only permits a runnable scaffold baseline.
 
 ## Follow-Up Decisions Needed
 
-- Exact framework and project setup.
+- Runtime version and project-layout details beyond scaffold defaults, if scaffold defaults are insufficient.
 - Exact persistence package/version/configuration, schema file layout, and migration workflow, after `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, `docs/adr-first-slice-tooling.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
 - Exact auth mechanism and provider.
 - Account model and user/person representation, including how priest and organist references relate to authenticated actors and role assignments, using `docs/auth-account-role-model.md` as input.
