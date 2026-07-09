@@ -11,6 +11,14 @@ npm install
 npm run dev
 ```
 
+Drizzle schema generation is configured for PostgreSQL through `DATABASE_URL`:
+
+```bash
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run db:generate
+```
+
+The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation.
+
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 
 ## Project Documentation
