@@ -2,6 +2,17 @@
 
 Administration and communication of the musical part of church masses SCEAV.
 
+## Local Development
+
+This repository contains a minimal Next.js App Router scaffold for the Organ Planner Phase 2 baseline.
+
+```bash
+npm install
+npm run dev
+```
+
+The development server starts the placeholder Organ Planner / Planning Lifecycle First page.
+
 ## Project Documentation
 
 This repository is prepared for long-term AI-assisted software development. The documentation files below each have a distinct responsibility so that analytical discoveries, product intent, domain understanding, technical direction, planning, and collaboration rules stay easy to find as the project evolves.
