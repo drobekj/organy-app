@@ -38,6 +38,24 @@ Use this checklist for the first locally usable in-memory Planning Lifecycle Fir
 - [ ] `congregationMember` cannot perform planning actions.
 - [ ] Data is not durable across refresh/session restart.
 
+
+## Manual Local Acceptance Report
+
+Manual acceptance report for the current Planning Lifecycle First in-memory release:
+
+| Check | Result | Notes |
+| --- | --- | --- |
+| `npm install` / `npm run dev` status | Not verified | Not rerun for this documentation-only report to avoid changing dependency or lockfile state. |
+| App starts locally | Not verified | Local browser startup was not rechecked in this change. |
+| Save working set | Not verified | Manual browser flow was not rechecked in this change. |
+| Finalize set | Not verified | Manual browser flow was not rechecked in this change. |
+| Complete service | Not verified | Manual browser flow was not rechecked in this change. |
+| Delete saved non-completed set | Not verified | Manual browser flow was not rechecked in this change. |
+| `congregationMember` permission denial | Not verified | Manual role-based denial flow was not rechecked in this change. |
+| Data lost after refresh/session restart | Not verified | Persistence loss after refresh or session restart was not rechecked in this change. |
+
+DB persistence remains blocked by the current npm registry, lockfile, and migration state; this release report covers only the in-memory path and does not add application code or change runtime behavior.
+
 ## Known Limitations
 
 - No durable DB persistence.
