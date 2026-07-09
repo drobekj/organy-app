@@ -256,6 +256,14 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Admin can manage congregation preference knowledge, while own preference entry remains limited to priest, organist, and congregation member roles.
 - **Status:** Accepted
 
+### PR-003 — Prepare first Planning Lifecycle persistence implementation baseline
+
+- **Type:** Product backlog item
+- **Goal:** Unblock the first Drizzle schema and migration PR for the minimal Planning Lifecycle persistence subset without implementing runtime persistence or widening product scope.
+- **Source / traceability:** DEC-2026-07-09-02; `docs/implementation-preparation.md`; `docs/adr-first-slice-storage.md`; `docs/adr-first-slice-tooling.md`; `docs/planning-lifecycle-first-schema-subset.md`; Roadmap Phase 6.
+- **Acceptance direction:** Install Drizzle packages, create `drizzle.config.ts`, create the first schema subset under `src/db/schema`, and generate the first reviewable SQL migration under `drizzle` against local PostgreSQL via `DATABASE_URL`, while preserving domain/application validation outside DB constraints and Drizzle schema.
+- **Status:** Accepted
+
 ## 8. Melody Non-Repetition and Conflicts
 
 ### NR-001 — Apply backward historical melody non-repetition
@@ -362,12 +370,12 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future design reviews `docs/first-slice-physical-schema-draft.md`, applies/reviews accepted design-level schema resolutions before physical schema/tooling decisions, and derives physical schema concepts from the first-slice subset and accepted storage direction while keeping schema files, migrations, SQL, ORM models, and implementation tasks out of this backlog item.
 - **Status:** Proposed
 
-### IP-004 — Define exact first-slice tooling package/version/configuration
+### IP-004 — Define exact first-slice tooling versions and configuration content
 
 - **Type:** Product backlog item
-- **Goal:** Define exact package names, versions, and configuration for the accepted Drizzle-like typed SQL/schema toolkit plus migrations direction without starting implementation.
+- **Goal:** Define exact package versions and configuration content for the accepted Drizzle ORM plus `drizzle-kit` baseline without starting implementation.
 - **Source / traceability:** `docs/adr-first-slice-tooling.md`; `docs/adr-first-slice-storage.md`; `docs/first-slice-tooling-decision-preparation.md`; `docs/first-slice-physical-schema-draft.md`; `docs/first-slice-schema-open-questions-resolution.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`.
-- **Acceptance direction:** Future design records exact package/version/configuration choices for the accepted tooling direction while keeping package installation, schema files, migrations, SQL, and application implementation out of this backlog item.
+- **Acceptance direction:** Future design records exact package versions and configuration content for the accepted tooling baseline while keeping package installation, schema files, migrations, SQL, and application implementation out of this backlog item.
 - **Status:** Proposed
 
 ### IP-005 — Define backup/export/restore design

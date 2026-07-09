@@ -2,17 +2,17 @@
 
 ## Status
 
-Accepted for the minimal Phase 2 runnable scaffold baseline only. The broader stack, storage, authentication, persistence, UI/API, and production architecture decisions remain unresolved.
+Accepted for the minimal Phase 2 runnable scaffold baseline and minimal Phase 6 persistence implementation baseline only. The broader stack, authentication, runtime persistence implementation, UI/API, and production architecture decisions remain unresolved.
 
 ## Context
 
 The first implementation slice is **Planning Lifecycle First**. It is limited to planning one concrete ordered service set for one service in the scope of one local congregation. This ADR must now be evaluated against the accepted deployment assumption: a single hosted web app for one congregation.
 
-`docs/target-technical-schema-draft.md` is a storage-neutral draft input to future storage and schema decisions; it is not an accepted final schema, SQL, Prisma schema, storage choice, or implementation plan. `docs/planning-lifecycle-first-schema-subset.md` narrows that draft as an input to future first-slice storage and schema decisions for Planning Lifecycle First. `docs/first-slice-storage-decision-preparation.md` prepares first-slice storage ADR work, `docs/adr-first-slice-storage.md` now accepts PostgreSQL-like relational storage as the first-slice runtime storage direction only, `docs/first-slice-physical-schema-draft.md` is a downstream documentation-only input for future stack, schema, and tooling decisions, and `docs/first-slice-tooling-decision-preparation.md` is a downstream input for future ORM/query/migration tooling decisions without selecting a tooling option.
+`docs/target-technical-schema-draft.md` is a storage-neutral draft input to future storage and schema decisions; it is not an accepted final schema, SQL, Prisma schema, storage choice, or implementation plan. `docs/planning-lifecycle-first-schema-subset.md` narrows that draft as an input to future first-slice storage and schema decisions for Planning Lifecycle First. `docs/first-slice-storage-decision-preparation.md` prepares first-slice storage ADR work, `docs/adr-first-slice-storage.md` now accepts PostgreSQL-like relational storage as the first-slice runtime storage direction plus PostgreSQL as the minimal local target, `docs/first-slice-physical-schema-draft.md` is a downstream documentation-only input for future stack and schema decisions, and `docs/first-slice-tooling-decision-preparation.md` is a preparation input for the now-accepted Drizzle ORM plus `drizzle-kit` first implementation baseline.
 
 `docs/auth-account-role-model.md` is an input to any future authentication, account, actor, role-assignment, authorization, and schema decision. It keeps person, account, actor, role, role assignment, and historical person reference distinct without choosing an authentication provider or account technology.
 
-The repository is currently documentation-first. A minimal scaffold-only baseline is now accepted for Phase 2: lightweight full-stack TypeScript direction, Next.js App Router for the first runnable scaffold, npm as package manager, and TypeScript strict baseline. This acceptance is intentionally narrow; it does not create project files in this documentation PR and does not select persistence technology beyond the already accepted direction-level storage/tooling decisions, database schema, migration workflow, authentication mechanism, API contracts, UI design, or test strategy.
+The repository is currently documentation-first. A minimal scaffold-only baseline is accepted for Phase 2: lightweight full-stack TypeScript direction, Next.js App Router for the first runnable scaffold, npm as package manager, and TypeScript strict baseline. A minimal persistence implementation baseline is also accepted for Phase 6: PostgreSQL as the local persistence target, Drizzle ORM plus `drizzle-kit` as package direction, schema files under `src/db/schema`, migrations under `drizzle`, Drizzle config in `drizzle.config.ts`, local database access through `DATABASE_URL`, and reviewable generated SQL for the first migration. These acceptances are intentionally narrow; this documentation PR does not create project files, install packages, create schema files, create migrations, create SQL, create DB config, add runtime persistence, choose authentication, define API contracts, change UI, choose a seed strategy, choose a test strategy, or make the application production-ready.
 
 For this first slice:
 
@@ -116,16 +116,16 @@ Use a **lightweight full-stack TypeScript application direction** for Phase 2, w
 
 The first-slice storage direction has been accepted separately in `docs/adr-first-slice-storage.md`: PostgreSQL-like relational storage for Planning Lifecycle First. Future persistence must support the refactored target-domain model, not the legacy table shape. The legacy source is the SQL Server / SSMS database `VarhanniDoprovody`, and the accepted legacy-to-domain mapping makes direct 1:1 migration inappropriate.
 
-This ADR is **accepted only for the minimal runnable scaffold baseline**. The separate storage-direction ADR and the accepted first-slice tooling-direction ADR in `docs/adr-first-slice-tooling.md` remain unchanged. The broader stack/storage/auth architecture is not accepted as production-ready because database provider, hosting, auth provider, account model, physical schema files, local development workflow, backup/export/restore design, UI/API contracts, and test strategy remain unresolved.
+This ADR is **accepted only for the minimal runnable scaffold baseline and the minimal Phase 6 persistence implementation baseline**. The separate storage-direction ADR and the accepted first-slice tooling-direction ADR in `docs/adr-first-slice-tooling.md` remain aligned with that narrow baseline. The broader stack/storage/auth architecture is not accepted as production-ready because production database provider, hosting, auth provider, account model, physical schema content, local development workflow beyond `DATABASE_URL`, backup/export/restore design, UI/API contracts, seed strategy, and test strategy remain unresolved.
 
 Use **role-based authentication and authorization direction**. Authentication should identify an actor, and authorization must evaluate that actor's roles against accepted planning permissions in application/domain behavior. UI affordances may hide unavailable actions, but UI hiding is not sufficient enforcement.
 
 This direction intentionally does not decide:
 
 - runtime version or project layout details beyond the minimal scaffold defaults;
-- exact database provider, exact Drizzle package/version/configuration, migration workflow, schema file layout, or schema;
+- production database provider, exact Drizzle package versions/configuration content, migration command workflow, or schema content;
 - exact auth provider, session strategy, account model, user table shape, or login screens;
-- persistence implementation, service-set UI, service-set API, product workflows, or production-readiness;
+- runtime persistence implementation, service-set UI, service-set API, product workflows, seed strategy, test strategy, or production-readiness;
 - hosting provider, deployment platform, or whether the first implementation later separates frontend and backend;
 - final physical storage design and provider choice, which remain deferred pending legacy-to-domain mapping assessment and target-domain persistence design.
 
@@ -133,7 +133,7 @@ This direction intentionally does not decide:
 
 This ADR does not design a database schema and does not select final physical storage, provider, exact ORM/query/migration package/version/configuration, or migration workflow; the downstream physical schema draft is input only and does not accept the whole stack/storage/auth ADR. Storage design remains blocked until future schema design uses `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, `docs/planning-lifecycle-first-schema-subset.md`, and `docs/legacy-to-domain-mapping.md` rather than the legacy SQL Server table shape. For Planning Lifecycle First, this ADR should evaluate the first implementation slice against the subset document rather than the full future schema.
 
-`docs/adr-first-slice-storage.md` explicitly chooses the first-slice storage direction and justifies it against the first-slice schema subset; the accepted single hosted one-congregation deployment assumption; hosted shared access; backup/export/restore expectations; local development workflow; and legacy SQL Server as source knowledge, not target runtime architecture. `docs/adr-first-slice-tooling.md` accepts Drizzle-like typed SQL/schema toolkit plus migrations as the first-slice tooling direction only. Follow-up storage and tooling work must still define physical schema, provider, exact package/version/configuration, schema file layout, migration workflow, connection management, backup/export/restore design, and local development workflow.
+`docs/adr-first-slice-storage.md` explicitly chooses the first-slice storage direction and justifies it against the first-slice schema subset; the accepted single hosted one-congregation deployment assumption; hosted shared access; backup/export/restore expectations; local development workflow; and legacy SQL Server as source knowledge, not target runtime architecture. `docs/adr-first-slice-tooling.md` accepts Drizzle ORM plus `drizzle-kit`, `src/db/schema`, `drizzle`, `drizzle.config.ts`, and reviewable generated SQL as the minimal first schema/migration baseline. Follow-up storage and tooling work must still define physical schema content, production provider, exact package versions/configuration content, migration command workflow, connection management beyond local `DATABASE_URL`, backup/export/restore design, and local development workflow.
 
 For the Planning Lifecycle First slice, storage must conceptually support:
 
@@ -180,7 +180,7 @@ This enables:
 This postpones:
 
 - runtime version and project-layout details beyond the minimal Next.js App Router scaffold baseline;
-- exact persistence technology and schema;
+- production persistence provider and schema content beyond the minimal Phase 6 baseline;
 - exact authentication provider, mechanism, and account model;
 - full candidate selection, non-repetition, preference, knowledge-management, and legacy-migration implementation;
 - multi-congregation or enterprise tenancy design.
@@ -188,16 +188,16 @@ This postpones:
 Risks:
 
 - TypeScript/full-stack direction may still become too broad if framework selection pulls in unnecessary defaults.
-- Storage direction and tooling direction are accepted separately, but physical schema, provider, exact package/version/configuration, migration workflow, connection management, backup/export/restore design, and local development workflow remain unresolved until target-domain persistence design reconciles accepted domain concepts with the legacy-to-domain mapping.
+- Storage direction and minimal tooling baseline are accepted separately, but physical schema content, production provider, exact package versions/configuration content, migration command workflow, connection management beyond local `DATABASE_URL`, backup/export/restore design, and local development workflow remain unresolved until target-domain persistence design reconciles accepted domain concepts with the legacy-to-domain mapping.
 - Role enforcement could drift into UI-only checks unless application/domain authorization is treated as mandatory.
 - Deferring exact auth may leave early implementation blocked until actor and role representation is clarified.
 
-Follow-up decisions are needed before product implementation; the current acceptance only permits a runnable scaffold baseline.
+Follow-up decisions are needed before product implementation; the current acceptance only permits a runnable scaffold baseline and the minimal Phase 6 persistence implementation baseline.
 
 ## Follow-Up Decisions Needed
 
 - Runtime version and project-layout details beyond scaffold defaults, if scaffold defaults are insufficient.
-- Exact persistence package/version/configuration, schema file layout, and migration workflow, after `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, `docs/adr-first-slice-tooling.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
+- Exact persistence package versions/configuration content and migration command workflow, after `docs/target-domain-persistence-model.md`, `docs/target-technical-schema-draft.md`, `docs/adr-first-slice-tooling.md`, legacy-to-domain mapping, target-domain schema design, migration/refactoring strategy, local development needs, and the accepted single hosted one-congregation deployment assumption are evaluated.
 - Exact auth mechanism and provider.
 - Account model and user/person representation, including how priest and organist references relate to authenticated actors and role assignments, using `docs/auth-account-role-model.md` as input.
 - Minimal song reference validation for `(language, number)` before a full song catalog exists.

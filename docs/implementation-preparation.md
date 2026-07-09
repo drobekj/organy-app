@@ -118,7 +118,7 @@ The following must remain true while implementation planning and later technical
 
 The following areas are not ready to implement from the current product/domain baseline alone.
 
-- **Database schema.** Coding readiness remains blocked for persistence work. The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level, and `docs/first-slice-schema-open-questions-resolution.md` resolves key first-slice schema questions at design level. A documentation-only physical schema draft now exists in `docs/first-slice-physical-schema-draft.md`, and `docs/adr-first-slice-tooling.md` selects Drizzle-like typed SQL/schema toolkit plus migrations at the ORM/query/migration tooling direction level. Technical architecture remains unchecked for persistence; physical schema files, migrations, database provider, hosting, auth, local development workflow, backup/export/restore design, and test strategy remain unresolved until later ADR/design work is complete. Accepting tooling direction still does not authorize coding, schema files, migrations, SQL, Drizzle schema, persistence package installation, or application implementation beyond the minimal runnable scaffold baseline.
+- **Database schema.** Coding readiness remains blocked for persistence work. The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level, and `docs/first-slice-schema-open-questions-resolution.md` resolves key first-slice schema questions at design level. A documentation-only physical schema draft now exists in `docs/first-slice-physical-schema-draft.md`, and `docs/adr-first-slice-tooling.md` selects Drizzle ORM plus `drizzle-kit`, schema location, migration location, config-file location, and reviewable generated SQL as the minimal Phase 6 baseline. Technical architecture remains unchecked for runtime persistence; physical schema files, migrations, database provider, hosting, auth, local database setup workflow, backup/export/restore design, seed strategy, and test strategy remain unresolved until later ADR/design work is complete. Accepting the minimal baseline still does not authorize coding, schema files, migrations, SQL, Drizzle schema, persistence package installation, DB config, or application implementation beyond the accepted scaffold/persistence baselines.
 - **API endpoints.** No API contracts, route structure, request/response shapes, or endpoint responsibilities have been selected.
 - **UI components.** Workflows are product-level processes, not component specifications or screen designs.
 - **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication approach, auth provider, account model, and authorization mechanism have not been chosen.
@@ -134,7 +134,7 @@ The following areas are not ready to implement from the current product/domain b
 Before technical design begins, the following decisions or clarifications are needed.
 
 1. **Technology stack.** Minimal scaffold baseline is accepted only for the first runnable scaffold PR: lightweight full-stack TypeScript app direction, Next.js App Router, npm, and TypeScript strict baseline. Runtime version, project layout details beyond scaffold defaults, production architecture, UI/API patterns, and broader supporting tooling remain unresolved.
-2. **Persistence approach.** Storage direction is selected as PostgreSQL-like relational storage for Planning Lifecycle First, and ORM/query/migration tooling is selected at direction level as Drizzle-like typed SQL/schema toolkit plus migrations. Physical schema files, migrations, exact package/version/configuration, database provider, connection management, local development workflow, and backup/export/restore design still need decisions after target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
+2. **Persistence approach.** Storage direction is selected as PostgreSQL-like relational storage for Planning Lifecycle First, and the minimal Phase 6 baseline selects PostgreSQL locally, Drizzle ORM plus `drizzle-kit`, `src/db/schema`, `drizzle`, `drizzle.config.ts`, `DATABASE_URL`, and reviewable generated SQL for the first migration. Physical schema files, migrations, package installation, exact versions/configuration content, production database provider, connection management beyond local `DATABASE_URL`, local database setup workflow, backup/export/restore design, seed strategy, and test strategy still need decisions after target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
 3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced, based on the logical auth/account/role model and evaluated against the accepted direct-access roles: priest, organist, admin, and congregation member. Authentication approach remains unresolved.
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
 5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
@@ -240,8 +240,9 @@ A schema draft, first-slice schema subset, storage decision preparation document
 - [x] First-slice deployment assumption selected: single hosted web app for one congregation with priest, organist, admin, and congregation member roles.
 - [x] Minimal runnable scaffold baseline accepted for Phase 2 only: lightweight full-stack TypeScript app direction, Next.js App Router, npm, and TypeScript strict baseline.
 - [x] Storage approach selected at direction level: PostgreSQL-like relational storage for Planning Lifecycle First.
-- [ ] Technical architecture beyond scaffold accepted; the scaffold baseline is not a production-ready application baseline.
-- [ ] Physical schema files, migrations, exact persistence package/version/configuration, database provider, connection management, local development workflow, and backup/export/restore design resolved; ORM/query/migration tooling is selected only at direction level.
+- [x] Minimal Phase 6 persistence implementation baseline accepted: PostgreSQL local target, Drizzle ORM plus `drizzle-kit` package direction, `src/db/schema`, `drizzle`, `drizzle.config.ts`, `DATABASE_URL`, and reviewable generated SQL for the first migration.
+- [ ] Technical architecture beyond scaffold and minimal persistence baseline accepted; the application is not production-ready.
+- [ ] Physical schema files, migrations, package installation, database provider, connection management beyond local `DATABASE_URL`, local database setup workflow, and backup/export/restore design completed.
 - [ ] Authorization model mapped from accepted permissions and `docs/auth-account-role-model.md`; authentication approach remains unresolved.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
@@ -250,7 +251,7 @@ A schema draft, first-slice schema subset, storage decision preparation document
 
 This document intentionally does not:
 
-- select technologies beyond the minimal scaffold-only baseline of Next.js App Router, npm, and TypeScript strict;
+- select technologies beyond the minimal scaffold-only baseline of Next.js App Router, npm, TypeScript strict, and the minimal Phase 6 persistence implementation baseline;
 - design schema;
 - define APIs;
 - design UI components;
@@ -259,3 +260,21 @@ This document intentionally does not:
 - create engineering tickets;
 - change roadmap, backlog, requirements, workflows, or architecture;
 - implement application behavior.
+
+## Phase 6 Minimal Persistence Implementation Baseline
+
+Phase 6 accepts only the minimum persistence implementation baseline needed to unblock the first Drizzle schema and migration PR for the Planning Lifecycle persistence subset.
+
+Accepted baseline:
+
+- PostgreSQL is the concrete local persistence target for the first schema/migration PR.
+- Drizzle ORM plus `drizzle-kit` is the concrete tooling package direction for the first implementation.
+- Schema files will be placed under `src/db/schema`.
+- Migrations will be placed under `drizzle`.
+- Drizzle configuration will live in `drizzle.config.ts`.
+- The local database connection is expected through `DATABASE_URL`.
+- The first migration must be generated SQL that is reviewable before execution.
+
+This documentation PR does not install packages, create schema files, create migrations, create SQL, create DB configuration, or add runtime persistence. It also does not select an auth provider, hosting provider, production DB provider, backup/export/restore approach, final deployment model, API contracts, UI changes, seed strategy, test strategy, or complete target schema.
+
+DB constraints and Drizzle schema may support persistence consistency, but they do not replace domain/application validation for lifecycle rules, permissions, row validity, or Planning Lifecycle behavior.
