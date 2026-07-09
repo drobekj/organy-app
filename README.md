@@ -19,7 +19,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run db:g
 
 The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation.
 
-Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime.
+Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime. The ready implementation remains the in-memory repository; a separate Drizzle adapter baseline now documents the concrete schema tables expected by future database repositories. Real Drizzle queries are intentionally deferred until the lockfile, migrations, and runtime database driver wiring are available.
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
 

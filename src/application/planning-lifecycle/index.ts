@@ -15,6 +15,14 @@ export {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
 } from "./in-memory-repositories";
+export type {
+  PlanningLifecycleDrizzleAdapterDependencies,
+  PlanningLifecycleDrizzleSchema,
+} from "./drizzle-repository-adapters";
+export {
+  DrizzleCompletedServiceRecordRepositoryBase,
+  DrizzlePlanningSetRepositoryBase,
+} from "./drizzle-repository-adapters";
 export {
   PlanningLifecycleService,
   type CompleteFinalSetInput,
