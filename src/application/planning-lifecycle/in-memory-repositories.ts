@@ -5,11 +5,15 @@ import type {
   PlanningSetId,
   PlanningSetRepository,
 } from "./ports";
-import type { PlanningSet } from "../../planning-lifecycle";
+import type { PlanningSet, ServiceContext } from "../../planning-lifecycle";
 
 export class InMemoryPlanningSetRepository implements PlanningSetRepository {
   private readonly sets = new Map<PlanningSetId, PersistedPlanningSet>();
   private nextId = 1;
+
+  async list(): Promise<PersistedPlanningSet[]> {
+    return [...this.sets.values()].map(clonePersistedPlanningSet);
+  }
 
   async findById(id: PlanningSetId): Promise<PersistedPlanningSet | undefined> {
     const set = this.sets.get(id);
@@ -18,16 +22,18 @@ export class InMemoryPlanningSetRepository implements PlanningSetRepository {
 
   async saveWorkingSet(
     set: PlanningSet & { status: "working" },
+    serviceContext: ServiceContext,
     existingId?: PlanningSetId,
   ): Promise<PersistedPlanningSet> {
-    return this.saveSet(set, existingId);
+    return this.saveSet(set, serviceContext, existingId);
   }
 
   async saveFinalSet(
     set: PlanningSet & { status: "final" },
+    serviceContext: ServiceContext,
     existingId?: PlanningSetId,
   ): Promise<PersistedPlanningSet> {
-    return this.saveSet(set, existingId);
+    return this.saveSet(set, serviceContext, existingId);
   }
 
   async deleteById(id: PlanningSetId): Promise<void> {
@@ -38,11 +44,12 @@ export class InMemoryPlanningSetRepository implements PlanningSetRepository {
     }
   }
 
-  private saveSet(set: PlanningSet, existingId?: PlanningSetId): PersistedPlanningSet {
+  private saveSet(set: PlanningSet, serviceContext: ServiceContext, existingId?: PlanningSetId): PersistedPlanningSet {
     const id = existingId ?? this.createId("planning-set");
     const persistedSet: PersistedPlanningSet = {
       ...clonePlanningSet(set),
       id,
+      serviceContext: cloneServiceContext(serviceContext),
     };
 
     this.sets.set(id, persistedSet);
@@ -99,10 +106,20 @@ function clonePlanningSet<T extends PlanningSet>(set: T): T {
   };
 }
 
+function cloneServiceContext(context: ServiceContext): ServiceContext {
+  return {
+    serviceDate: context.serviceDate,
+    language: context.language,
+    priest: { ...context.priest },
+    organist: { ...context.organist },
+  };
+}
+
 function clonePersistedPlanningSet(set: PersistedPlanningSet): PersistedPlanningSet {
   return {
     ...clonePlanningSet(set),
     id: set.id,
+    serviceContext: cloneServiceContext(set.serviceContext),
     ...(set.completedAt ? { completedAt: new Date(set.completedAt) } : {}),
   };
 }

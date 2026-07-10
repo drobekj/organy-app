@@ -40,14 +40,14 @@ async function main() {
       db: db as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"],
     });
 
-    const saved = await repository.saveWorkingSet(initialWorkingSet);
+    const saved = await repository.saveWorkingSet(initialWorkingSet, { serviceDate: "2026-07-09", language: "czech", priest: { displayName: "Smoke Priest" }, organist: { displayName: "Smoke Organist" } });
     assert(saved.id, "save working set returned an id");
 
     const found = await repository.findById(saved.id);
     assert(found !== undefined, "find by id returned the saved set");
     assert(found.rows.length === initialWorkingSet.rows.length, "saved set row count matches initial input");
 
-    const updated = await repository.saveWorkingSet(updatedWorkingSet, saved.id);
+    const updated = await repository.saveWorkingSet(updatedWorkingSet, { ...{ serviceDate: "2026-07-09", language: "czech", priest: { displayName: "Smoke Priest" }, organist: { displayName: "Smoke Organist" } }, language: "mixed" }, saved.id);
     assert(updated.id === saved.id, "update preserved the existing planning set id");
     assert(updated.language === updatedWorkingSet.language, "update persisted the new service language");
     assert(updated.rows.length === updatedWorkingSet.rows.length, "update replaced rows");

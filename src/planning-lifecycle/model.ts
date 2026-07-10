@@ -16,6 +16,18 @@ export type PlanningRow = {
   note?: string;
 };
 
+export type ServicePersonReference = {
+  id?: string;
+  displayName: string;
+};
+
+export type ServiceContext = {
+  serviceDate: string;
+  language: ServiceLanguage;
+  priest: ServicePersonReference;
+  organist: ServicePersonReference;
+};
+
 export type PlanningSet = {
   status: ServiceSetStatus;
   language: ServiceLanguage;

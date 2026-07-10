@@ -4,6 +4,7 @@ import {
   type PlanningRole,
   type PlanningRow,
   type PlanningSet,
+  type ServiceContext,
 } from "../../planning-lifecycle";
 import type {
   CompletedServiceRecord,
@@ -20,11 +21,7 @@ export type PlanningLifecycleServiceDependencies = {
   now?: () => Date;
 };
 
-export type SaveWorkingSetServiceContext = {
-  serviceDate: string;
-  priest: string;
-  organist: string;
-};
+export type SaveWorkingSetServiceContext = ServiceContext;
 
 export type SaveWorkingSetInput = {
   role: PlanningRole;
@@ -96,7 +93,7 @@ export class PlanningLifecycleService {
       }
     }
 
-    return success(await this.planningSets.saveWorkingSet(input.set, input.existingSetId));
+    return success(await this.planningSets.saveWorkingSet(input.set, input.serviceContext, input.existingSetId));
   }
 
   async finalizeWorkingSet(input: FinalizeWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
@@ -136,6 +133,7 @@ export class PlanningLifecycleService {
 
     const persistedFinalSet = await this.planningSets.saveFinalSet(
       finalSet,
+      workingSet.serviceContext,
       input.replaceFinalSetId ?? input.workingSetId,
     );
 
@@ -187,7 +185,7 @@ export class PlanningLifecycleService {
       rows: reorderedRows,
     };
 
-    return success(await this.planningSets.saveWorkingSet(reorderedWorkingSet, input.workingSetId));
+    return success(await this.planningSets.saveWorkingSet(reorderedWorkingSet, workingSet.serviceContext, input.workingSetId));
   }
 
   async completeFinalSet(input: CompleteFinalSetInput): Promise<PlanningServiceResult<CompletedServiceRecord>> {
@@ -241,7 +239,7 @@ function validateSaveWorkingSetServiceContext(
 ): { path: string; message: string }[] {
   return [
     ...(!serviceContext.serviceDate.trim() ? [{ path: "serviceDate", message: "Service date is required." }] : []),
-    ...(!serviceContext.priest.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
-    ...(!serviceContext.organist.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
+    ...(!serviceContext.priest.displayName.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
+    ...(!serviceContext.organist.displayName.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
   ];
 }

@@ -3,7 +3,9 @@ export type {
   PlanningRole,
   PlanningRow,
   PlanningSet,
+  ServiceContext,
   ServiceLanguage,
+  ServicePersonReference,
   ServiceSetStatus,
   SongReference,
 } from "./model";

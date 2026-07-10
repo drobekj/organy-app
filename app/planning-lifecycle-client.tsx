@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -30,6 +30,8 @@ type WorkingSetSnapshot = {
   rows: PlanningRow[];
 };
 
+type PlanningLifecycleClientApi = PlanningLifecycleService | DbPlanningLifecycleClient;
+
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
   completedServiceRecords: InMemoryCompletedServiceRecordRepository;
@@ -45,6 +47,16 @@ function createEmptyRow(id: number): EditableRow {
     songLanguage: "",
     songNumber: "",
     note: "",
+  };
+}
+
+
+function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
+  return {
+    id,
+    songLanguage: row.song?.language ?? "",
+    songNumber: row.song?.number ?? "",
+    note: row.note ?? "",
   };
 }
 
@@ -72,6 +84,14 @@ type PlanningLifecycleClientProps = {
 };
 
 class DbPlanningLifecycleClient {
+  async listPlanningSets() {
+    return callPlanningLifecycleApi("listPlanningSets", {});
+  }
+
+  async loadPlanningSet(setId: PlanningSetId) {
+    return callPlanningLifecycleApi("loadPlanningSet", { setId });
+  }
+
   async saveWorkingSet(input: Parameters<PlanningLifecycleService["saveWorkingSet"]>[0]) {
     return callPlanningLifecycleApi("saveWorkingSet", input);
   }
@@ -140,7 +160,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
   const [persistedSet, setPersistedSet] = useState<PersistedPlanningSet | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
+  const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
+
+  useEffect(() => {
+    if (runtimeMode === "db") {
+      void refreshDbSets();
+    }
+  }, [runtimeMode]);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
@@ -157,6 +184,44 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
     : false;
   const canEditRows = !persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false;
+
+  async function refreshDbSets() {
+    if (!(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
+      return;
+    }
+    const result = await planningLifecycleService.listPlanningSets();
+    if (result.success) {
+      setSavedDbSets(result.value);
+    }
+  }
+
+  function openPersistedSet(set: PersistedPlanningSet) {
+    setPersistedSet(set);
+    setCompletedRecord(null);
+    setServiceDate(set.serviceContext.serviceDate);
+    setServiceLanguage(set.serviceContext.language);
+    setPriest(set.serviceContext.priest.displayName);
+    setOrganist(set.serviceContext.organist.displayName);
+    const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1)];
+    setRows(editableRows);
+    setNextRowId(editableRows.length + 1);
+    setSaveState(set.status === "working" ? "saved" : "finalized");
+    setServiceError(null);
+  }
+
+  async function loadDbSet(setId: PlanningSetId) {
+    if (!(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
+      return;
+    }
+    const result = await planningLifecycleService.loadPlanningSet(setId);
+    if (result.success) {
+      openPersistedSet(result.value);
+      await refreshDbSets();
+      return;
+    }
+    setServiceError(result.error);
+    setSaveState("errors");
+  }
 
   function markUnsaved() {
     setSaveState("unsaved");
@@ -217,8 +282,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       existingSetId: persistedSet?.status === "working" ? persistedSet.id : undefined,
       serviceContext: {
         serviceDate,
-        priest,
-        organist,
+        language: serviceLanguage,
+        priest: { displayName: priest },
+        organist: { displayName: organist },
       },
       set: {
         status: "working",
@@ -244,6 +310,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       rows: planningRows,
     });
     setSaveState("saved");
+    await refreshDbSets();
   }
 
   async function finalizeWorkingSet() {
@@ -266,6 +333,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCompletedRecord(null);
     setServiceError(null);
     setSaveState("finalized");
+    await refreshDbSets();
   }
 
   async function completeFinalSet() {
@@ -288,6 +356,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPersistedSet(null);
     setServiceError(null);
     setSaveState("completed");
+    await refreshDbSets();
   }
 
   async function deletePersistedSet() {
@@ -312,6 +381,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSavedWorkingSet(null);
     setServiceError(null);
     setSaveState("deleted");
+    await refreshDbSets();
   }
 
   return (
@@ -351,6 +421,28 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
           {saveState === "errors" && "Service error"}
         </div>
+
+        {runtimeMode === "db" && (
+          <section className="db-workspace" aria-label="Saved DB planning sets">
+            <div className="rows-header">
+              <h2>Saved DB sets</h2>
+              <button type="button" onClick={refreshDbSets}>Refresh list</button>
+            </div>
+            {savedDbSets.length === 0 ? (
+              <p className="field-help">No DB planning sets saved yet.</p>
+            ) : (
+              <ul className="saved-set-list">
+                {savedDbSets.map((set) => (
+                  <li key={set.id}>
+                    <button type="button" onClick={() => loadDbSet(set.id)}>
+                      Open #{set.id}: {set.status}, {set.serviceContext.serviceDate}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         <form className="planning-form" onSubmit={(event) => event.preventDefault()}>
           <fieldset className="field-group">
@@ -540,7 +632,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
         {persistedSet && (
           <p className="saved-summary">
-            Current in-memory set ID: {persistedSet.id}. Display order: current saved set 1 (
+            {runtimeMode === "db" ? "Current DB set ID" : "Current in-memory set ID"}: {persistedSet.id}. Display order: current saved set 1 (
             {persistedSet.status}, {persistedSet.rows.length} row{persistedSet.rows.length === 1 ? "" : "s"}).
           </p>
         )}

@@ -61,7 +61,7 @@ Application-level Planning Lifecycle services and repository ports live under `s
 ORGANY_RUNTIME=db DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run dev
 ```
 
-When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. If `DATABASE_URL` is missing, the app returns a readable error: `DATABASE_URL is required when ORGANY_RUNTIME=db.`
+When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The page also shows a simple saved-set list. Use **Refresh list** after another browser session writes data, then open any saved working or final set to reload its service date, service language, priest, organist, and rows. Saved DB sets remain available after browser refreshes and dev-server restarts as long as the same migrated database is used. If `DATABASE_URL` is missing, the app returns a readable error: `DATABASE_URL is required when ORGANY_RUNTIME=db.`
 
 ### Local Drizzle Planning Set Adapter Verification
 
@@ -71,17 +71,29 @@ Start PostgreSQL, set `DATABASE_URL`, apply the committed SQL migrations in `dri
 npm run db:lifecycle-smoke
 ```
 
-The lifecycle smoke check saves a working set, finalizes it, completes the final set, verifies cleanup state, and exits with a readable error if `DATABASE_URL` or the migrated database is unavailable. A minimal direct repository flow is:
+The lifecycle smoke check saves two working sets, lists and loads saved sets, updates one set, finalizes and completes it, verifies the second set remains available, and exits with a readable error if `DATABASE_URL` or the migrated database is unavailable. A minimal direct repository flow is:
 
 ```ts
-const created = await repository.saveWorkingSet({
-  status: "working",
+const serviceContext = {
+  serviceDate: "2026-07-10",
   language: "mixed",
-  rows: [
-    { song: { language: "czech", number: "101" }, note: "Entrance" },
-    { note: "Psalm placeholder" },
-  ],
-});
+  priest: { displayName: "Local Priest" },
+  organist: { displayName: "Local Organist" },
+};
+
+const created = await repository.saveWorkingSet(
+  {
+    status: "working",
+    language: "mixed",
+    rows: [
+      { song: { language: "czech", number: "101" }, note: "Entrance" },
+      { note: "Psalm placeholder" },
+    ],
+  },
+  serviceContext,
+);
+
+const savedSets = await repository.list();
 
 const loaded = await repository.findById(created.id);
 
@@ -91,6 +103,7 @@ const updated = await repository.saveWorkingSet(
     language: "czech",
     rows: [{ song: { language: "czech", number: "202" }, note: "Updated entrance" }],
   },
+  { ...serviceContext, language: "czech" },
   created.id,
 );
 
@@ -98,7 +111,7 @@ await repository.deleteById(updated.id);
 const deleted = await repository.findById(updated.id);
 ```
 
-Expected result: `created.id` is a numeric database-backed planning set id, `loaded` matches the inserted working set, `updated` reflects the replacement rows and language, and `deleted` is `undefined`. The rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service language in `service_contexts`.
+Expected result: `created.id` is a numeric database-backed planning set id, `savedSets` includes the saved set, `loaded` matches the inserted working set and service context, `updated` reflects the replacement rows and language, and `deleted` is `undefined`. The rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service date, service language, priest, and organist display data are persisted in `service_contexts`.
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow unless `ORGANY_RUNTIME=db` is explicitly set.
 
