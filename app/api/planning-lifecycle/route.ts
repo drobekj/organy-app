@@ -6,6 +6,8 @@ import {
 import * as schema from "../../../src/db/schema";
 
 type PlanningLifecycleAction =
+  | "listPlanningSets"
+  | "loadPlanningSet"
   | "saveWorkingSet"
   | "finalizeWorkingSet"
   | "completeFinalSet"
@@ -43,6 +45,19 @@ export async function POST(request: Request) {
       db: db as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"],
       schema,
     };
+    const planningSets = new (await import("../../../src/application/planning-lifecycle")).DrizzlePlanningSetRepository(adapterDependencies);
+    if (body.action === "listPlanningSets") {
+      return NextResponse.json({ success: true, value: await planningSets.list() });
+    }
+    if (body.action === "loadPlanningSet") {
+      const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;
+      if (!setId) {
+        return NextResponse.json({ error: "setId is required." }, { status: 400 });
+      }
+      const set = await planningSets.findById(setId);
+      return NextResponse.json(set ? { success: true, value: set } : { success: false, error: { code: "notFound", message: "Planning set was not found." } });
+    }
+
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
     const result = await service[body.action](body.input as never);
 
@@ -58,5 +73,9 @@ export async function POST(request: Request) {
 }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet"].includes(action);
+  return ["listPlanningSets", "loadPlanningSet", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet"].includes(action);
+}
+
+function isObjectWithSetId(input: unknown): input is { setId: string } {
+  return typeof input === "object" && input !== null && "setId" in input && typeof (input as { setId?: unknown }).setId === "string";
 }

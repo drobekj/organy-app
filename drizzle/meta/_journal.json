@@ -15,6 +15,13 @@
       "when": 1783621268993,
       "tag": "0001_service_context_language",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783657314344,
+      "tag": "0002_serious_magma",
+      "breakpoints": true
     }
   ]
 }

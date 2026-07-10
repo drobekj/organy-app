@@ -16,7 +16,7 @@ import type {
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
 import type { PlanningLifecycleServiceDependencies } from "./service";
-import type { PlanningRow, PlanningSet, ServiceLanguage } from "../../planning-lifecycle";
+import type { PlanningRow, PlanningSet, ServiceContext, ServiceLanguage } from "../../planning-lifecycle";
 
 export type PlanningLifecycleDrizzleSchema = Pick<
   typeof planningLifecycleSchema,
@@ -51,7 +51,12 @@ type ServiceSetRecord = {
 
 type ServiceContextRecord = {
   id: number;
+  serviceDate: string;
   serviceLanguage: ServiceLanguage;
+  priestId: string | null;
+  priestDisplayName: string;
+  organistId: string | null;
+  organistDisplayName: string;
 };
 
 type ServiceSetRowRecord = {
@@ -69,6 +74,12 @@ type CompletedServiceRecordRecord = {
 
 export class DrizzlePlanningSetRepository implements PlanningSetRepository {
   constructor(private readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
+
+  async list(): Promise<PersistedPlanningSet[]> {
+    const sets = (await selectAll(this.dependencies.db).from(serviceSets).orderBy(asc(serviceSets.id))) as ServiceSetRecord[];
+    const loaded = await Promise.all(sets.map((set) => this.findByIdWithExecutor(this.dependencies.db, set.id)));
+    return loaded.filter((set): set is PersistedPlanningSet => Boolean(set));
+  }
 
   async findById(id: PlanningSetId): Promise<PersistedPlanningSet | undefined> {
     const numericId = parsePlanningSetId(id);
@@ -104,22 +115,25 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       id: formatPlanningSetId(set.id),
       status: set.status,
       language: context.serviceLanguage,
+      serviceContext: mapContextRecordToServiceContext(context),
       rows: rows.map(mapRowRecordToPlanningRow),
     };
   }
 
   async saveWorkingSet(
     set: PlanningSet & { status: "working" },
+    serviceContext: ServiceContext,
     existingId?: PlanningSetId,
   ): Promise<PersistedPlanningSet> {
-    return this.saveSet(set, existingId);
+    return this.saveSet(set, serviceContext, existingId);
   }
 
   async saveFinalSet(
     set: PlanningSet & { status: "final" },
+    serviceContext: ServiceContext,
     existingId?: PlanningSetId,
   ): Promise<PersistedPlanningSet> {
-    return this.saveSet(set, existingId);
+    return this.saveSet(set, serviceContext, existingId);
   }
 
   async deleteById(id: PlanningSetId): Promise<void> {
@@ -131,7 +145,7 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
     await deleteFrom(this.dependencies.db, serviceSets).where(eq(serviceSets.id, numericId));
   }
 
-  private async saveSet<TSet extends PlanningSet>(set: TSet, existingId?: PlanningSetId): Promise<PersistedPlanningSet> {
+  private async saveSet<TSet extends PlanningSet>(set: TSet, serviceContext: ServiceContext, existingId?: PlanningSetId): Promise<PersistedPlanningSet> {
     return this.dependencies.db.transaction(async (tx) => {
       const now = new Date();
       const existingNumericId = existingId ? parsePlanningSetId(existingId) : undefined;
@@ -141,8 +155,8 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       }
 
       const serviceSetId = existingNumericId
-        ? await updateExistingSet(tx, existingNumericId, set, now)
-        : await insertNewSet(tx, set, now);
+        ? await updateExistingSet(tx, existingNumericId, set, serviceContext, now)
+        : await insertNewSet(tx, set, serviceContext, now);
 
       await replaceRows(tx, serviceSetId, set.rows, now);
 
@@ -183,6 +197,7 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       id: formatPlanningSetId(set.id),
       status: set.status,
       language: context.serviceLanguage,
+      serviceContext: mapContextRecordToServiceContext(context),
       rows: rows.map(mapRowRecordToPlanningRow),
     };
   }
@@ -271,9 +286,9 @@ export function createDbBackedPlanningLifecycleService(
   });
 }
 
-async function insertNewSet(db: DrizzleExecutor, set: PlanningSet, now: Date): Promise<number> {
+async function insertNewSet(db: DrizzleExecutor, set: PlanningSet, serviceContext: ServiceContext, now: Date): Promise<number> {
   const [context] = (await insertInto(db, serviceContexts)
-    .values({ serviceLanguage: set.language, createdAt: now, updatedAt: now })
+    .values({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, createdAt: now, updatedAt: now })
     .returning({ id: serviceContexts.id })) as { id: number }[];
 
   const [serviceSet] = (await insertInto(db, serviceSets)
@@ -283,7 +298,7 @@ async function insertNewSet(db: DrizzleExecutor, set: PlanningSet, now: Date): P
   return serviceSet.id;
 }
 
-async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningSet, now: Date): Promise<number> {
+async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningSet, serviceContext: ServiceContext, now: Date): Promise<number> {
   const [existing] = (await selectAll(db)
     .from(serviceSets)
     .where(eq(serviceSets.id, id))
@@ -294,7 +309,7 @@ async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningS
   }
 
   await updateTable(db, serviceContexts)
-    .set({ serviceLanguage: set.language, updatedAt: now })
+    .set({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, updatedAt: now })
     .where(eq(serviceContexts.id, existing.serviceContextId));
 
   await updateTable(db, serviceSets)
@@ -322,6 +337,25 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
       updatedAt: now,
     })),
   );
+}
+
+function mapContextRecordToServiceContext(context: ServiceContextRecord): ServiceContext {
+  return {
+    serviceDate: context.serviceDate,
+    language: context.serviceLanguage,
+    priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
+    organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
+  };
+}
+
+function mapServiceContextToContextValues(context: ServiceContext) {
+  return {
+    serviceDate: context.serviceDate,
+    priestId: context.priest.id,
+    priestDisplayName: context.priest.displayName,
+    organistId: context.organist.id,
+    organistDisplayName: context.organist.displayName,
+  };
 }
 
 function mapRowRecordToPlanningRow(row: ServiceSetRowRecord): PlanningRow {

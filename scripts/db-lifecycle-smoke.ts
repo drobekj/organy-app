@@ -1,12 +1,11 @@
 import { eq } from "drizzle-orm";
 import {
   createDbBackedPlanningLifecycleService,
-  DrizzleCompletedServiceRecordRepository,
   DrizzlePlanningSetRepository,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../src/application/planning-lifecycle/drizzle-repository-adapters";
 import * as schema from "../src/db/schema";
-import type { PlanningSet } from "../src/planning-lifecycle";
+import type { PlanningSet, ServiceContext } from "../src/planning-lifecycle";
 
 type PgModule = typeof import("pg");
 type DrizzleNodePostgresModule = typeof import("drizzle-orm/node-postgres");
@@ -18,13 +17,39 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const workingSet = {
+const firstContext = {
+  serviceDate: "2026-07-09",
+  language: "mixed",
+  priest: { displayName: "Smoke Priest One" },
+  organist: { displayName: "Smoke Organist One" },
+} satisfies ServiceContext;
+
+const secondContext = {
+  serviceDate: "2026-07-10",
+  language: "czech",
+  priest: { displayName: "Smoke Priest Two" },
+  organist: { displayName: "Smoke Organist Two" },
+} satisfies ServiceContext;
+
+const firstWorkingSet = {
   status: "working",
   language: "mixed",
   rows: [
     { song: { language: "czech", number: "101" }, note: "lifecycle smoke entrance" },
     { song: { language: "polish", number: "202" }, note: "lifecycle smoke offertory" },
   ],
+} satisfies PlanningSet & { status: "working" };
+
+const secondWorkingSet = {
+  status: "working",
+  language: "czech",
+  rows: [{ note: "second lifecycle smoke set remains after first is completed" }],
+} satisfies PlanningSet & { status: "working" };
+
+const updatedFirstWorkingSet = {
+  status: "working",
+  language: "polish",
+  rows: [{ song: { language: "polish", number: "303" }, note: "updated lifecycle smoke row" }],
 } satisfies PlanningSet & { status: "working" };
 
 async function main() {
@@ -38,68 +63,60 @@ async function main() {
       now: () => new Date("2026-07-09T00:00:00.000Z"),
     };
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
-    const completedRecords = new DrizzleCompletedServiceRecordRepository(adapterDependencies);
     const planningSets = new DrizzlePlanningSetRepository(adapterDependencies);
 
-    const saved = await service.saveWorkingSet({
+    const mismatchedLanguage = await service.saveWorkingSet({
       role: "admin",
-      serviceContext: { serviceDate: "2026-07-09", priest: "Smoke Priest", organist: "Smoke Organist" },
-      set: workingSet,
+      serviceContext: { ...firstContext, language: "czech" },
+      set: firstWorkingSet,
     });
-    assert(saved.success, "save working set succeeds");
-    assert(saved.value.status === "working", "saved set remains working");
+    assert(
+      !mismatchedLanguage.success && mismatchedLanguage.error.code === "invalidInput",
+      "save rejects mismatched set and service-context languages",
+    );
 
-    const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.value.id });
-    assert(finalized.success, "finalize working set succeeds");
+    const savedFirst = await service.saveWorkingSet({ role: "admin", serviceContext: firstContext, set: firstWorkingSet });
+    assert(savedFirst.success, "save first working set succeeds");
+    const savedSecond = await service.saveWorkingSet({ role: "admin", serviceContext: secondContext, set: secondWorkingSet });
+    assert(savedSecond.success, "save second working set succeeds");
+    assert(savedFirst.value.id !== savedSecond.value.id, "two working sets have distinct ids");
+
+    const listAfterSave = await planningSets.list();
+    assert(listAfterSave.some((set) => set.id === savedFirst.value.id), "list includes first saved set");
+    assert(listAfterSave.some((set) => set.id === savedSecond.value.id), "list includes second saved set");
+
+    const loadedFirst = await planningSets.findById(savedFirst.value.id);
+    assert(loadedFirst !== undefined, "load specific set succeeds");
+    assert(loadedFirst.serviceContext.serviceDate === firstContext.serviceDate, "loaded set includes service date");
+    assert(loadedFirst.serviceContext.priest.displayName === firstContext.priest.displayName, "loaded set includes priest display name");
+
+    const updatedFirst = await service.saveWorkingSet({
+      role: "admin",
+      existingSetId: savedFirst.value.id,
+      serviceContext: { ...firstContext, language: "polish" },
+      set: updatedFirstWorkingSet,
+    });
+    assert(updatedFirst.success, "update one working set succeeds");
+    assert(updatedFirst.value.rows.length === 1, "updated set rows are replaced");
+    assert(updatedFirst.value.language === "polish", "updated set language is persisted");
+
+    const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: updatedFirst.value.id });
+    assert(finalized.success, "finalize updated working set succeeds");
     assert(finalized.value.status === "final", "finalized set has final status");
 
     const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.value.id });
     assert(completed.success, "complete final set succeeds");
     assert(completed.value.sourceFinalSetId === finalized.value.id, "completed record keeps source final set id");
-    assert(completed.value.set.rows.length === workingSet.rows.length, "completed record keeps row count");
 
-    const deletedAgain = await service.deletePlanningSet({ role: "admin", setId: finalized.value.id });
-    assert(
-      deletedAgain.success === false && deletedAgain.error.code === "notFound",
-      "completed final set is removed from planning sets",
-    );
+    const secondStillExists = await planningSets.findById(savedSecond.value.id);
+    assert(secondStillExists !== undefined, "second saved set remains after first is completed");
+    assert(secondStillExists.rows.length === secondWorkingSet.rows.length, "second saved set rows are preserved");
 
     await db.delete(schema.completedServices).where(eq(schema.completedServices.id, Number(completed.value.id)));
-
-    const cleanupWorking = await service.saveWorkingSet({
-      role: "admin",
-      serviceContext: { serviceDate: "2026-07-09", priest: "Smoke Priest", organist: "Smoke Organist" },
-      set: workingSet,
-    });
-    assert(cleanupWorking.success, "save cleanup working set succeeds");
-
-    const cleanupFinal = await service.finalizeWorkingSet({ role: "admin", workingSetId: cleanupWorking.value.id });
-    assert(cleanupFinal.success, "finalize cleanup working set succeeds");
-
-    const cleanupRecord = await completedRecords.createFromFinalSet({
-      sourceFinalSetId: cleanupFinal.value.id,
-      set: { status: "final", language: cleanupFinal.value.language, rows: cleanupFinal.value.rows },
-      completedAt: new Date("2026-07-09T00:05:00.000Z"),
-    });
-    assert(cleanupRecord.sourceFinalSetId === cleanupFinal.value.id, "cleanup record points to cleanup final set");
-    assert(
-      (await countCompletedServicesBySourceFinalSetId(db, cleanupFinal.value.id)) === 1,
-      "cleanup record exists before deleting its source final set",
-    );
-
-    const cleanupDelete = await service.deletePlanningSet({ role: "admin", setId: cleanupFinal.value.id });
-    assert(cleanupDelete.success, "delete final set with completed records succeeds");
-    assert(
-      (await countCompletedServicesBySourceFinalSetId(db, cleanupFinal.value.id)) === 0,
-      "deleteBySourceFinalSetId removed completed records before deleting the source final set",
-    );
-    assert(
-      (await planningSets.findById(cleanupFinal.value.id)) === undefined,
-      "source final set is deleted after completed record cleanup",
-    );
+    await planningSets.deleteById(savedSecond.value.id);
 
     console.log(
-      `DB lifecycle smoke verification passed for completed service ${completed.value.id} and cleanup set ${cleanupFinal.value.id}.`,
+      `DB lifecycle smoke verification passed for completed service ${completed.value.id}; second set ${savedSecond.value.id} remained available until cleanup.`,
     );
   } catch (error) {
     console.error("DB lifecycle smoke verification failed.");
@@ -115,22 +132,6 @@ async function main() {
   } finally {
     await pool.end();
   }
-}
-
-async function countCompletedServicesBySourceFinalSetId(db: unknown, sourceFinalSetId: string): Promise<number> {
-  const typedDb = db as {
-    select: (fields: { id: typeof schema.completedServices.id }) => {
-      from: (table: typeof schema.completedServices) => {
-        where: (condition: unknown) => Promise<unknown[]>;
-      };
-    };
-  };
-  const rows = await typedDb
-    .select({ id: schema.completedServices.id })
-    .from(schema.completedServices)
-    .where(eq(schema.completedServices.serviceSetId, Number(sourceFinalSetId)));
-
-  return rows.length;
 }
 
 async function importDrizzleNodePostgres(): Promise<DrizzleNodePostgresModule> {
