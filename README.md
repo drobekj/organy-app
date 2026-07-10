@@ -4,7 +4,7 @@ Administration and communication of the musical part of church masses SCEAV.
 
 ## Local Development
 
-This repository contains a minimal Next.js App Router scaffold for the Organ Planner local development baseline, including the current in-memory Planning Lifecycle flow. The runtime is intentionally **local in-memory only**: planned data is not durable yet and can be lost after refresh, browser/session restart, or app restart.
+This repository contains a minimal Next.js App Router scaffold for the Organ Planner local development baseline, including the current in-memory Planning Lifecycle flow. The default runtime is intentionally **local in-memory only**: planned data is not durable yet and can be lost after refresh, browser/session restart, or app restart.
 
 ### Setup
 
@@ -28,7 +28,7 @@ npm run typecheck
 
 ## Local Database Setup
 
-The application runtime remains intentionally **local in-memory only**. The database setup below prepares the Drizzle migration foundation for future persistence work; it does not wire the UI or application runtime to PostgreSQL yet.
+The default application runtime remains intentionally **local in-memory only**. The database setup below prepares the Drizzle migration foundation and supports an explicit local DB runtime opt-in for Planning Lifecycle development.
 
 Recommended local database: PostgreSQL. A local database named `organy_app` with the default development credentials below is sufficient for migration generation and later local migration testing:
 
@@ -53,13 +53,19 @@ npm run db:generate
 - SQL migration files such as `drizzle/0000_gigantic_wild_child.sql`.
 - Drizzle metadata snapshots under `drizzle/meta/`, including `_journal.json` and numbered snapshot files.
 
-The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation. Repository adapters may remain unused until a later phase deliberately switches runtime persistence from in-memory storage to the database.
+The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation.
 
-Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets without wiring any database runtime. The ready application implementation remains the in-memory repository; the Drizzle `PlanningSetRepository` adapter now performs real database create, read, update, and delete operations for planning sets, but the UI is intentionally not switched to DB runtime yet.
+Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets. The normal `npm run dev` path remains in-memory. To opt in locally to the DB-backed Planning Lifecycle runtime, start PostgreSQL, apply the committed SQL migrations in `drizzle/`, provide `DATABASE_URL`, and run:
+
+```bash
+ORGANY_RUNTIME=db DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run dev
+```
+
+When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. If `DATABASE_URL` is missing, the app returns a readable error: `DATABASE_URL is required when ORGANY_RUNTIME=db.`
 
 ### Local Drizzle Planning Set Adapter Verification
 
-The adapter expects a Drizzle database object supplied by the caller and does not create a runtime connection for the web app. Start PostgreSQL, set `DATABASE_URL`, apply the committed SQL migrations in `drizzle/`, then run the repository smoke check with `npm run db:smoke` or the end-to-end lifecycle smoke check with:
+Start PostgreSQL, set `DATABASE_URL`, apply the committed SQL migrations in `drizzle/`, then run the repository smoke check with `npm run db:smoke` or the end-to-end lifecycle smoke check with:
 
 ```bash
 npm run db:lifecycle-smoke
@@ -94,7 +100,7 @@ const deleted = await repository.findById(updated.id);
 
 Expected result: `created.id` is a numeric database-backed planning set id, `loaded` matches the inserted working set, `updated` reflects the replacement rows and language, and `deleted` is `undefined`. The rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service language in `service_contexts`.
 
-The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow.
+The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow unless `ORGANY_RUNTIME=db` is explicitly set.
 
 The page includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the first in-memory version can exercise the permission matrix without authentication. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
 
