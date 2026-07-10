@@ -28,94 +28,78 @@ npm run typecheck
 
 ## Local Database Setup
 
-The default application runtime remains intentionally **local in-memory only**. The database setup below prepares the Drizzle migration foundation and supports an explicit local DB runtime opt-in for Planning Lifecycle development.
+The default application runtime remains intentionally **local in-memory only**. A plain `npm run dev` does not use PostgreSQL. Use the steps below only when you want the DB-backed Planning Lifecycle workspace.
 
-Recommended local database: PostgreSQL. A local database named `organy_app` with the default development credentials below is sufficient for migration generation and later local migration testing:
+### Reproducible DB-backed local workflow
+
+1. Install dependencies from the committed lockfile:
+
+   ```bash
+   npm install
+   ```
+
+2. Start the local PostgreSQL container:
+
+   ```bash
+   npm run db:start
+   ```
+
+   This uses `docker-compose.yml` to run one local PostgreSQL service with database `organy_app`, development-only credentials `organy_app` / `organy_app`, port `5432`, and a persistent Docker volume.
+
+3. Apply the committed Drizzle migrations:
+
+   ```bash
+   DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:migrate
+   ```
+
+   `npm run db:migrate` uses `DATABASE_URL` and applies the versioned SQL migrations already committed under `drizzle/`. It does not generate new migration files. Use `npm run db:generate` only when intentionally creating a new schema migration from `src/db/schema/index.ts`.
+
+4. Run the DB-backed Planning Lifecycle smoke test:
+
+   ```bash
+   DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:lifecycle-smoke
+   ```
+
+   The lifecycle smoke check saves two working sets, lists and loads saved sets, updates one set, finalizes and completes it, verifies the second set remains available, and cleans up its test records. It exits with readable errors when `DATABASE_URL` is missing, PostgreSQL is unavailable, or the committed migrations have not been applied.
+
+5. Start the application in DB runtime mode:
+
+   ```bash
+   ORGANY_RUNTIME=db DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run dev
+   ```
+
+   Open the local Next.js development server at <http://localhost:3000>, or use the localhost URL printed by `npm run dev` if port `3000` is already in use.
+
+For shell-based setup, copy `.env.example` to a local `.env` if useful, but keep real secrets out of committed files. The example file contains only local development placeholders:
 
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app
+ORGANY_RUNTIME=db
+DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app
 ```
 
-Install dependencies from the committed lockfile before running Drizzle tooling:
+### DB runtime behavior
 
-```bash
-npm install
-```
+When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The page also shows a simple saved-set list. Use **Refresh list** after another browser session writes data, **Start new set** to detach from the opened DB set without deleting it, then open any saved working or final set to reload its service date, service language, priest, organist, and rows. Saved DB sets remain available after browser refreshes and dev-server restarts as long as the same migrated database is used.
 
-Generate Drizzle migration artifacts from the schema with:
+Readable DB setup errors are intentionally surfaced for the local workflow:
 
-```bash
-npm run db:generate
-```
-
-`npm run db:generate` reads `drizzle.config.ts`, uses `src/db/schema/index.ts` as the schema source, and writes migration artifacts under `drizzle/`. After generation, the expected versioned outputs are:
-
-- SQL migration files such as `drizzle/0000_gigantic_wild_child.sql`.
-- Drizzle metadata snapshots under `drizzle/meta/`, including `_journal.json` and numbered snapshot files.
-
-The initial schema covers only the minimal Planning Lifecycle persistence subset. Database constraints provide basic consistency checks for persisted rows, but they do not replace domain or application validation.
-
-Application-level Planning Lifecycle services and repository ports live under `src/application/planning-lifecycle`. They define dependency-free TypeScript use cases for saving working sets, finalizing them, deleting working or final sets, reordering working rows, and completing final sets. The normal `npm run dev` path remains in-memory. To opt in locally to the DB-backed Planning Lifecycle runtime, start PostgreSQL, apply the committed SQL migrations in `drizzle/`, provide `DATABASE_URL`, and run:
-
-```bash
-ORGANY_RUNTIME=db DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run dev
-```
-
-When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The page also shows a simple saved-set list. Use **Refresh list** after another browser session writes data, **Start new set** to detach from the opened DB set without deleting it, then open any saved working or final set to reload its service date, service language, priest, organist, and rows. Saved DB sets remain available after browser refreshes and dev-server restarts as long as the same migrated database is used. If `DATABASE_URL` is missing, the app returns a readable error: `DATABASE_URL is required when ORGANY_RUNTIME=db.`
-
-### Local Drizzle Planning Set Adapter Verification
-
-Start PostgreSQL, set `DATABASE_URL`, apply the committed SQL migrations in `drizzle/`, then run the repository smoke check with `npm run db:smoke` or the end-to-end lifecycle smoke check with:
-
-```bash
-npm run db:lifecycle-smoke
-```
-
-The lifecycle smoke check saves two working sets, lists and loads saved sets, updates one set, finalizes and completes it, verifies the second set remains available, and exits with a readable error if `DATABASE_URL` or the migrated database is unavailable. A minimal direct repository flow is:
-
-```ts
-const serviceContext = {
-  serviceDate: "2026-07-10",
-  language: "mixed",
-  priest: { displayName: "Local Priest" },
-  organist: { displayName: "Local Organist" },
-};
-
-const created = await repository.saveWorkingSet(
-  {
-    status: "working",
-    language: "mixed",
-    rows: [
-      { song: { language: "czech", number: "101" }, note: "Entrance" },
-      { note: "Psalm placeholder" },
-    ],
-  },
-  serviceContext,
-);
-
-const savedSets = await repository.list();
-
-const loaded = await repository.findById(created.id);
-
-const updated = await repository.saveWorkingSet(
-  {
-    status: "working",
-    language: "czech",
-    rows: [{ song: { language: "czech", number: "202" }, note: "Updated entrance" }],
-  },
-  { ...serviceContext, language: "czech" },
-  created.id,
-);
-
-await repository.deleteById(updated.id);
-const deleted = await repository.findById(updated.id);
-```
-
-Expected result: `created.id` is a numeric database-backed planning set id, `savedSets` includes the saved set, `loaded` matches the inserted working set and service context, `updated` reflects the replacement rows and language, and `deleted` is `undefined`. The rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service date, service language, priest, and organist display data are persisted in `service_contexts`.
+- Missing `DATABASE_URL`: set `DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app` before running DB scripts or DB runtime.
+- Unavailable PostgreSQL: start the container with `npm run db:start` and verify Docker exposes port `5432`.
+- Unapplied migrations: run `DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:migrate` before smoke tests or DB runtime.
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow unless `ORGANY_RUNTIME=db` is explicitly set.
 
 The page includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the first in-memory version can exercise the permission matrix without authentication. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
+
+### Local Drizzle Planning Set Adapter Verification
+
+For a smaller direct repository check after migrations are applied, run:
+
+```bash
+DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:smoke
+```
+
+Expected result: the smoke checks create numeric database-backed planning set ids, verify saved sets can be listed and loaded, update persisted rows and language, and delete their test data. Rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service date, service language, priest, and organist display data in `service_contexts`.
 
 
 ## First Local Release Acceptance Checklist
@@ -178,6 +162,10 @@ Known limitations and observed issues for this in-memory baseline:
 ## Phase 13 Closure
 
 Phase 13 — Local development baseline stabilization should be closed after this local setup, dependency baseline, and smoke-test documentation change is merged.
+
+## Phase 21 Closure
+
+Phase 21 — Reproducible Local DB Release Setup should be closed after this reproducible local PostgreSQL setup, committed migration command, DB smoke workflow, and README update are merged.
 
 ## Project Documentation
 

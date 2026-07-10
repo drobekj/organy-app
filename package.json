@@ -9,7 +9,10 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:smoke": "tsx scripts/db-smoke.ts",
-    "db:lifecycle-smoke": "tsx scripts/db-lifecycle-smoke.ts"
+    "db:lifecycle-smoke": "tsx scripts/db-lifecycle-smoke.ts",
+    "db:start": "docker compose up -d postgres",
+    "db:stop": "docker compose down",
+    "db:migrate": "tsx scripts/db-migrate.ts"
   },
   "dependencies": {
     "next": "16.2.10",

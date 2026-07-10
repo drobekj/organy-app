@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: organy-app-postgres
+    environment:
+      POSTGRES_DB: organy_app
+      POSTGRES_USER: organy_app
+      POSTGRES_PASSWORD: organy_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - organy_app_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U organy_app -d organy_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  organy_app_postgres_data:
