@@ -41,10 +41,21 @@ const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const songLanguageOptions: ConcreteSongLanguage[] = ["czech", "polish"];
 const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
-function createEmptyRow(id: number): EditableRow {
+function getNextSunday(date = new Date()): string {
+  const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const daysUntilSunday = (7 - utcDate.getUTCDay()) % 7;
+  utcDate.setUTCDate(utcDate.getUTCDate() + daysUntilSunday);
+  return utcDate.toISOString().slice(0, 10);
+}
+
+function defaultRowLanguage(serviceLanguage: ServiceLanguage): "" | ConcreteSongLanguage {
+  return serviceLanguage === "mixed" ? "" : serviceLanguage;
+}
+
+function createEmptyRow(id: number, serviceLanguage: ServiceLanguage): EditableRow {
   return {
     id,
-    songLanguage: "",
+    songLanguage: defaultRowLanguage(serviceLanguage),
     songNumber: "",
     note: "",
   };
@@ -149,12 +160,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           }),
     [repositories, runtimeMode],
   );
-  const [serviceDate, setServiceDate] = useState("");
+  const [serviceDate, setServiceDate] = useState(() => getNextSunday());
   const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>("czech");
   const [priest, setPriest] = useState("");
   const [organist, setOrganist] = useState("");
   const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
-  const [rows, setRows] = useState<EditableRow[]>([createEmptyRow(1)]);
+  const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, "czech")]);
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
@@ -162,6 +173,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<{ label: string; action: () => void | Promise<void> } | null>(null);
 
   useEffect(() => {
     if (runtimeMode === "db") {
@@ -170,10 +182,23 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }, [runtimeMode]);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
-  const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
+  const lifecycleState = persistedSet?.completedAt || completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
-  const hasServiceContext = Boolean(serviceDate && priest.trim() && organist.trim());
+  const missingRequiredFields = useMemo(
+    () => [
+      ...(!serviceDate ? ["service date"] : []),
+      ...(!organist.trim() ? ["organist"] : []),
+      ...(!priest.trim() ? ["priest"] : []),
+    ],
+    [organist, priest, serviceDate],
+  );
+  const hasServiceContext = missingRequiredFields.length === 0;
+  const isDirty = saveState === "unsaved" || saveState === "errors";
+  const isCompletedSet = Boolean(persistedSet?.completedAt || completedRecord);
+  const today = new Date().toISOString().slice(0, 10);
+  const isServiceDateInPastOrToday = Boolean(serviceDate && serviceDate <= today);
+
   const canSaveWorkingSet = canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
@@ -183,7 +208,51 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const canDeleteCurrentSet = persistedSet
     ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
     : false;
-  const canEditRows = !persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false;
+  const canEditContext = (!persistedSet || persistedSet.status === "working") && !isCompletedSet && canSaveWorkingSet;
+  const canEditRows = canEditContext;
+
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  function runWithDirtyProtection(label: string, action: () => void | Promise<void>) {
+    if (isDirty) {
+      setPendingNavigation({ label, action });
+      return;
+    }
+
+    void action();
+  }
+
+  async function confirmPendingNavigation(choice: "save" | "discard" | "cancel") {
+    const pending = pendingNavigation;
+    setPendingNavigation(null);
+
+    if (!pending || choice === "cancel") {
+      return;
+    }
+
+    if (choice === "save") {
+      if (!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || isCompletedSet) {
+        setServiceError({ code: "invalidInput", message: "Current changes cannot be saved until validation is resolved." });
+        setSaveState("errors");
+        return;
+      }
+      await saveWorkingSet();
+    }
+
+    await pending.action();
+  }
 
   async function refreshDbSets() {
     if (!(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
@@ -202,10 +271,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setServiceLanguage(set.serviceContext.language);
     setPriest(set.serviceContext.priest.displayName);
     setOrganist(set.serviceContext.organist.displayName);
-    const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1)];
+    const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
     setRows(editableRows);
     setNextRowId(editableRows.length + 1);
-    setSaveState(set.status === "working" ? "saved" : "finalized");
+    setSaveState(set.completedAt ? "completed" : set.status === "working" ? "saved" : "finalized");
     setServiceError(null);
   }
 
@@ -231,11 +300,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPersistedSet(null);
     setCompletedRecord(null);
     setSavedWorkingSet(null);
-    setServiceDate("");
+    setServiceDate(getNextSunday());
     setServiceLanguage("czech");
     setPriest("");
     setOrganist("");
-    setRows([createEmptyRow(1)]);
+    setRows([createEmptyRow(1, "czech")]);
     setNextRowId(2);
     setServiceError(null);
     setSaveState("unsaved");
@@ -254,7 +323,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function addRow() {
-    setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId)]);
+    setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId, serviceLanguage)]);
     setNextRowId((currentId) => currentId + 1);
     markUnsaved();
   }
@@ -371,7 +440,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
 
     setCompletedRecord(result.value);
-    setPersistedSet(null);
+    setPersistedSet({ ...persistedSet, completedAt: result.value.completedAt });
     setServiceError(null);
     setSaveState("completed");
     await refreshDbSets();
@@ -445,21 +514,30 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <div className="rows-header">
               <h2>Saved DB sets</h2>
               <button type="button" onClick={refreshDbSets}>Refresh list</button>
-              <button type="button" onClick={startNewDbDraft}>Start new set</button>
+              <button type="button" onClick={() => runWithDirtyProtection("start a new set", startNewDbDraft)}>Start new set</button>
             </div>
-            {savedDbSets.length === 0 ? (
-              <p className="field-help">No DB planning sets saved yet.</p>
-            ) : (
-              <ul className="saved-set-list">
-                {savedDbSets.map((set) => (
-                  <li key={set.id}>
-                    <button type="button" onClick={() => loadDbSet(set.id)}>
-                      Open #{set.id}: {set.status}, {set.serviceContext.serviceDate}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <p className="field-help">Working: {savedDbSets.filter((set) => set.status === "working" && !set.completedAt).length} · Final: {savedDbSets.filter((set) => set.status === "final" && !set.completedAt).length} · Completed: {savedDbSets.filter((set) => set.completedAt).length}</p>
+            {(["working", "final", "completed"] as const).map((group) => {
+              const groupedSets = savedDbSets.filter((set) =>
+                group === "completed" ? set.completedAt : set.status === group && !set.completedAt,
+              );
+              return (
+                <section key={group} aria-label={`${group} sets`}>
+                  <h3>{group === "working" ? "Working" : group === "final" ? "Final" : "Completed"}</h3>
+                  {groupedSets.length === 0 ? <p className="field-help">No {group} sets.</p> : (
+                    <ul className="saved-set-list">
+                      {groupedSets.map((set) => (
+                        <li key={set.id}>
+                          <button type="button" onClick={() => runWithDirtyProtection(`open set #${set.id}`, () => loadDbSet(set.id))}>
+                            Open #{set.id}: {set.serviceContext.serviceDate}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              );
+            })}
           </section>
         )}
 
@@ -471,6 +549,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <input
                 type="date"
                 value={serviceDate}
+                disabled={!canEditContext}
                 onChange={(event) => {
                   setServiceDate(event.target.value);
                   markUnsaved();
@@ -481,8 +560,16 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Service language
               <select
                 value={serviceLanguage}
+                disabled={!canEditContext}
                 onChange={(event) => {
-                  setServiceLanguage(event.target.value as ServiceLanguage);
+                  const nextLanguage = event.target.value as ServiceLanguage;
+                  setServiceLanguage(nextLanguage);
+                  setRows((currentRows) =>
+                    currentRows.map((row) => ({
+                      ...row,
+                      songLanguage: row.songNumber.trim() || row.songLanguage ? row.songLanguage : defaultRowLanguage(nextLanguage),
+                    })),
+                  );
                   markUnsaved();
                 }}
               >
@@ -499,6 +586,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 type="text"
                 placeholder="Priest name or placeholder"
                 value={priest}
+                disabled={!canEditContext}
                 onChange={(event) => {
                   setPriest(event.target.value);
                   markUnsaved();
@@ -511,6 +599,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 type="text"
                 placeholder="Organist name or placeholder"
                 value={organist}
+                disabled={!canEditContext}
                 onChange={(event) => {
                   setOrganist(event.target.value);
                   markUnsaved();
@@ -570,11 +659,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       Song language
                       <select
                         value={row.songLanguage}
+                        disabled={!canEditRows}
                         onChange={(event) =>
                           updateRow(row.id, { songLanguage: event.target.value as EditableRow["songLanguage"] })
                         }
                       >
-                        <option value="">No song</option>
+                        <option value="">No language</option>
                         {songLanguageOptions.map((language) => (
                           <option key={language} value={language}>
                             {language}
@@ -587,6 +677,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       <input
                         type="text"
                         value={row.songNumber}
+                        disabled={!canEditRows}
                         onChange={(event) => updateRow(row.id, { songNumber: event.target.value })}
                         placeholder="e.g. 42"
                       />
@@ -596,6 +687,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       <input
                         type="text"
                         value={row.note}
+                        disabled={!canEditRows}
                         onChange={(event) => updateRow(row.id, { note: event.target.value })}
                         placeholder="Optional note without a song"
                       />
@@ -618,29 +710,55 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               className="save-button"
               type="button"
               onClick={saveWorkingSet}
-              disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors}
+              disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || isCompletedSet}
             >
               Save working set
             </button>
             <button
               type="button"
               onClick={finalizeWorkingSet}
-              disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors}
+              disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || isCompletedSet}
             >
               Finalize set
             </button>
             <button
               type="button"
               onClick={completeFinalSet}
-              disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"}
+              disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final" || !isServiceDateInPastOrToday || isCompletedSet}
             >
               Complete service
             </button>
-            <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+            <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet || isCompletedSet}>
               Delete saved set
             </button>
           </div>
         </form>
+
+        {(!hasServiceContext || hasValidationErrors) && (
+          <section className="error-summary" aria-live="polite">
+            <strong>Missing:</strong>
+            <ul>
+              {missingRequiredFields.map((field) => <li key={field}>{field}</li>)}
+              {hasValidationErrors && <li>valid rows</li>}
+            </ul>
+          </section>
+        )}
+
+        {persistedSet?.status === "final" && !isServiceDateInPastOrToday && !isCompletedSet && (
+          <p className="field-help">Complete Service is available on or after the service date.</p>
+        )}
+
+        {isCompletedSet && <p className="field-help">Completed sets are read-only and remain available for review.</p>}
+
+        {pendingNavigation && (
+          <section className="error-summary" role="dialog" aria-modal="true" aria-label="Unsaved changes">
+            <strong>Unsaved changes</strong>
+            <p>Save or discard changes before you {pendingNavigation.label}.</p>
+            <button type="button" onClick={() => confirmPendingNavigation("save")}>Save changes</button>
+            <button type="button" onClick={() => confirmPendingNavigation("discard")}>Discard changes</button>
+            <button type="button" onClick={() => confirmPendingNavigation("cancel")}>Cancel</button>
+          </section>
+        )}
 
         {serviceError && (
           <p className="error-summary">

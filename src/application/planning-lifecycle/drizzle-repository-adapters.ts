@@ -111,12 +111,15 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       .where(eq(serviceSetRows.serviceSetId, set.id))
       .orderBy(asc(serviceSetRows.position))) as ServiceSetRowRecord[];
 
+    const completedAt = await findCompletedAt(db, set.id);
+
     return {
       id: formatPlanningSetId(set.id),
       status: set.status,
       language: context.serviceLanguage,
       serviceContext: mapContextRecordToServiceContext(context),
       rows: rows.map(mapRowRecordToPlanningRow),
+      ...(completedAt ? { completedAt } : {}),
     };
   }
 
@@ -193,12 +196,15 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       .where(eq(serviceSetRows.serviceSetId, set.id))
       .orderBy(asc(serviceSetRows.position))) as ServiceSetRowRecord[];
 
+    const completedAt = await findCompletedAt(db, set.id);
+
     return {
       id: formatPlanningSetId(set.id),
       status: set.status,
       language: context.serviceLanguage,
       serviceContext: mapContextRecordToServiceContext(context),
       rows: rows.map(mapRowRecordToPlanningRow),
+      ...(completedAt ? { completedAt } : {}),
     };
   }
 }
@@ -337,6 +343,15 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
       updatedAt: now,
     })),
   );
+}
+
+async function findCompletedAt(db: DrizzleExecutor, serviceSetId: number): Promise<Date | undefined> {
+  const [completed] = (await selectAll(db)
+    .from(completedServices)
+    .where(eq(completedServices.serviceSetId, serviceSetId))
+    .limit(1)) as CompletedServiceRecordRecord[];
+
+  return completed ? new Date(completed.completedAt) : undefined;
 }
 
 function mapContextRecordToServiceContext(context: ServiceContextRecord): ServiceContext {
