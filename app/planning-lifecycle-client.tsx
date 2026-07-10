@@ -243,12 +243,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
 
     if (choice === "save") {
-      if (!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || isCompletedSet) {
-        setServiceError({ code: "invalidInput", message: "Current changes cannot be saved until validation is resolved." });
-        setSaveState("errors");
+      const saved = await saveWorkingSet();
+      if (!saved) {
         return;
       }
-      await saveWorkingSet();
+
+      await pending.action();
+      return;
     }
 
     await pending.action();
@@ -349,7 +350,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     markUnsaved();
   }
 
-  async function saveWorkingSet() {
+  async function saveWorkingSet(): Promise<boolean> {
+    if (!canSaveWorkingSet || hasValidationErrors || isCompletedSet) {
+      setServiceError({ code: "invalidInput", message: "Current changes cannot be saved until validation is resolved." });
+      setSaveState("errors");
+      return false;
+    }
+
     if (!hasServiceContext) {
       setServiceError({
         code: "invalidInput",
@@ -361,7 +368,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         ],
       });
       setSaveState("errors");
-      return;
+      return false;
     }
 
     const result = await planningLifecycleService.saveWorkingSet({
@@ -383,7 +390,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (!result.success) {
       setServiceError(result.error);
       setSaveState("errors");
-      return;
+      return false;
     }
 
     setPersistedSet(result.value);
@@ -398,6 +405,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     });
     setSaveState("saved");
     await refreshDbSets();
+    return true;
   }
 
   async function finalizeWorkingSet() {
