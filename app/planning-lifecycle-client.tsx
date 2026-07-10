@@ -223,6 +223,24 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("errors");
   }
 
+  function startNewDbDraft() {
+    if (runtimeMode !== "db") {
+      return;
+    }
+
+    setPersistedSet(null);
+    setCompletedRecord(null);
+    setSavedWorkingSet(null);
+    setServiceDate("");
+    setServiceLanguage("czech");
+    setPriest("");
+    setOrganist("");
+    setRows([createEmptyRow(1)]);
+    setNextRowId(2);
+    setServiceError(null);
+    setSaveState("unsaved");
+  }
+
   function markUnsaved() {
     setSaveState("unsaved");
     setServiceError(null);
@@ -427,6 +445,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <div className="rows-header">
               <h2>Saved DB sets</h2>
               <button type="button" onClick={refreshDbSets}>Refresh list</button>
+              <button type="button" onClick={startNewDbDraft}>Start new set</button>
             </div>
             {savedDbSets.length === 0 ? (
               <p className="field-help">No DB planning sets saved yet.</p>

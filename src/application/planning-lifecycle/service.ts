@@ -68,7 +68,7 @@ export class PlanningLifecycleService {
       return failure({ code: "permissionDenied", message: "Role cannot save a working planning set." });
     }
 
-    const serviceContextIssues = validateSaveWorkingSetServiceContext(input.serviceContext);
+    const serviceContextIssues = validateSaveWorkingSetServiceContext(input.serviceContext, input.set);
     if (serviceContextIssues.length > 0) {
       return failure({
         code: "invalidInput",
@@ -236,8 +236,12 @@ function reorderRowsByIndex(rows: PlanningRow[], rowOrder: number[]): PlanningRo
 
 function validateSaveWorkingSetServiceContext(
   serviceContext: SaveWorkingSetServiceContext,
+  set: PlanningSet,
 ): { path: string; message: string }[] {
   return [
+    ...(serviceContext.language !== set.language
+      ? [{ path: "serviceContext.language", message: "Service context language must match the planning set language." }]
+      : []),
     ...(!serviceContext.serviceDate.trim() ? [{ path: "serviceDate", message: "Service date is required." }] : []),
     ...(!serviceContext.priest.displayName.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
     ...(!serviceContext.organist.displayName.trim() ? [{ path: "organist", message: "Organist is required." }] : []),

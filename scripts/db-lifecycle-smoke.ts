@@ -65,6 +65,16 @@ async function main() {
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
     const planningSets = new DrizzlePlanningSetRepository(adapterDependencies);
 
+    const mismatchedLanguage = await service.saveWorkingSet({
+      role: "admin",
+      serviceContext: { ...firstContext, language: "czech" },
+      set: firstWorkingSet,
+    });
+    assert(
+      !mismatchedLanguage.success && mismatchedLanguage.error.code === "invalidInput",
+      "save rejects mismatched set and service-context languages",
+    );
+
     const savedFirst = await service.saveWorkingSet({ role: "admin", serviceContext: firstContext, set: firstWorkingSet });
     assert(savedFirst.success, "save first working set succeeds");
     const savedSecond = await service.saveWorkingSet({ role: "admin", serviceContext: secondContext, set: secondWorkingSet });

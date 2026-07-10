@@ -61,7 +61,7 @@ Application-level Planning Lifecycle services and repository ports live under `s
 ORGANY_RUNTIME=db DATABASE_URL=postgres://postgres:postgres@localhost:5432/organy_app npm run dev
 ```
 
-When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The page also shows a simple saved-set list. Use **Refresh list** after another browser session writes data, then open any saved working or final set to reload its service date, service language, priest, organist, and rows. Saved DB sets remain available after browser refreshes and dev-server restarts as long as the same migrated database is used. If `DATABASE_URL` is missing, the app returns a readable error: `DATABASE_URL is required when ORGANY_RUNTIME=db.`
+When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The page also shows a simple saved-set list. Use **Refresh list** after another browser session writes data, **Start new set** to detach from the opened DB set without deleting it, then open any saved working or final set to reload its service date, service language, priest, organist, and rows. Saved DB sets remain available after browser refreshes and dev-server restarts as long as the same migrated database is used. If `DATABASE_URL` is missing, the app returns a readable error: `DATABASE_URL is required when ORGANY_RUNTIME=db.`
 
 ### Local Drizzle Planning Set Adapter Verification
 
