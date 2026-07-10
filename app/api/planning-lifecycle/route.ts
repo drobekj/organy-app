@@ -63,8 +63,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
+    const message = formatDbRuntimeError(error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Planning Lifecycle DB runtime failed." },
+      { error: message },
       { status: 500 },
     );
   } finally {
@@ -78,4 +79,24 @@ function isPlanningLifecycleAction(action: string): action is PlanningLifecycleA
 
 function isObjectWithSetId(input: unknown): input is { setId: string } {
   return typeof input === "object" && input !== null && "setId" in input && typeof (input as { setId?: unknown }).setId === "string";
+}
+
+function formatDbRuntimeError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    return "Planning Lifecycle DB runtime failed.";
+  }
+
+  if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT|connect/i.test(error.message)) {
+    return `Planning Lifecycle DB runtime could not reach PostgreSQL. Start the local database with npm run db:start and verify DATABASE_URL. Details: ${error.message}`;
+  }
+
+  if (/relation .* does not exist|type .* does not exist/i.test(error.message)) {
+    return `Planning Lifecycle DB runtime database schema is not migrated. Run npm run db:migrate with DATABASE_URL before using ORGANY_RUNTIME=db. Details: ${error.message}`;
+  }
+
+  if (/database .* does not exist/i.test(error.message)) {
+    return `Planning Lifecycle DB runtime database does not exist. Start the provided local PostgreSQL setup with npm run db:start or fix DATABASE_URL. Details: ${error.message}`;
+  }
+
+  return error.message;
 }
