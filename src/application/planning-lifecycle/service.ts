@@ -203,13 +203,21 @@ export class PlanningLifecycleService {
     }
 
     const completedAt = this.now();
+    const today = completedAt.toISOString().slice(0, 10);
+    if (finalSet.serviceContext.serviceDate > today) {
+      return failure({
+        code: "invalidInput",
+        message: "Final planning sets can only be completed on or after the service date.",
+        issues: [{ path: "serviceDate", message: "Service date must be today or in the past." }],
+      });
+    }
+
     const completedRecord = await this.completedServiceRecords.createFromFinalSet({
       sourceFinalSetId: input.finalSetId,
       set: { status: "final", language: finalSet.language, rows: finalSet.rows },
       completedAt,
     });
 
-    await this.planningSets.deleteById(input.finalSetId);
     return success(completedRecord);
   }
 }
