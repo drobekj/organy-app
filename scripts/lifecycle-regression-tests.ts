@@ -70,6 +70,8 @@ const tests: TestCase[] = [
       const { service } = createService();
       const missingTime = await service.saveWorkingSet({ role: "admin", serviceContext: { ...mixedContext, serviceTime: "" }, set: workingSet });
       assert.equal(missingTime.success, false);
+      const invalidTime = await service.saveWorkingSet({ role: "admin", serviceContext: { ...mixedContext, serviceTime: "24:00" }, set: workingSet });
+      assert.equal(invalidTime.success, false);
 
       const first = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
       assert.equal(first.success, true);
@@ -84,6 +86,19 @@ const tests: TestCase[] = [
         set: updatedWorkingSet,
       });
       assert.equal(ownEdit.success, true);
+    },
+  },
+
+  {
+    name: "deleting an active set frees its service identity",
+    async run() {
+      const { service } = createService();
+      const saved = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(saved.success, true);
+      const deleted = await service.deletePlanningSet({ role: "admin", setId: saved.success ? saved.value.id : "missing" });
+      assert.equal(deleted.success, true);
+      const recreated = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(recreated.success, true);
     },
   },
   {
@@ -124,6 +139,7 @@ const tests: TestCase[] = [
       assert.equal(active.success && active.value.some((set) => set.id === (saved.success ? saved.value.id : "")), false);
       assert.equal(records.success && records.value.length, 1);
       assert.equal(records.success ? records.value[0]?.serviceContext.serviceTime : undefined, "09:00");
+      assert.equal(records.success ? records.value[0]?.serviceContext.priest.displayName : undefined, mixedContext.priest.displayName);
     },
   },  {
     name: "repository saves, loads, lists, updates, preserves row order and service context, deletes, and isolates multiple sets",

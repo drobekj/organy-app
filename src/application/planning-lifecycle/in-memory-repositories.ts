@@ -5,7 +5,7 @@ import type {
   PlanningSetId,
   PlanningSetRepository,
 } from "./ports";
-import type { PlanningSet, ServiceContext } from "../../planning-lifecycle";
+import { normalizeServiceTime, type PlanningSet, type ServiceContext } from "../../planning-lifecycle";
 
 export class InMemoryPlanningSetRepository implements PlanningSetRepository {
   private readonly sets = new Map<PlanningSetId, PersistedPlanningSet>();
@@ -118,7 +118,7 @@ function clonePlanningSet<T extends PlanningSet>(set: T): T {
 function cloneServiceContext(context: ServiceContext): ServiceContext {
   return {
     serviceDate: context.serviceDate,
-    serviceTime: context.serviceTime,
+    serviceTime: normalizeServiceTime(context.serviceTime),
     language: context.language,
     priest: { ...context.priest },
     organist: { ...context.organist },

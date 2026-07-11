@@ -16,7 +16,7 @@ import type {
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
 import type { PlanningLifecycleServiceDependencies } from "./service";
-import type { PlanningRow, PlanningSet, ServiceContext, ServiceLanguage } from "../../planning-lifecycle";
+import { normalizeServiceTime, type PlanningRow, type PlanningSet, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
 
 export type PlanningLifecycleDrizzleSchema = Pick<
   typeof planningLifecycleSchema,
@@ -144,7 +144,28 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       return;
     }
 
-    await deleteFrom(this.dependencies.db, serviceSets).where(eq(serviceSets.id, numericId));
+    await this.dependencies.db.transaction(async (tx) => {
+      const [set] = (await selectAll(tx)
+        .from(serviceSets)
+        .where(eq(serviceSets.id, numericId))
+        .limit(1)) as ServiceSetRecord[];
+
+      if (!set) {
+        return;
+      }
+
+      const serviceContextId = set.serviceContextId;
+      await deleteFrom(tx, serviceSets).where(eq(serviceSets.id, numericId));
+
+      const completedReferencingContext = (await selectAll(tx)
+        .from(completedServices)
+        .where(eq(completedServices.serviceContextId, serviceContextId))
+        .limit(1)) as CompletedServiceRecordRecord[];
+
+      if (completedReferencingContext.length === 0) {
+        await deleteFrom(tx, serviceContexts).where(eq(serviceContexts.id, serviceContextId));
+      }
+    });
   }
 
   private async saveSet<TSet extends PlanningSet>(set: TSet, serviceContext: ServiceContext, existingId?: PlanningSetId): Promise<PersistedPlanningSet> {
@@ -364,7 +385,7 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
 function mapContextRecordToServiceContext(context: ServiceContextRecord): ServiceContext {
   return {
     serviceDate: context.serviceDate,
-    serviceTime: context.serviceTime ?? "",
+    serviceTime: context.serviceTime ? normalizeServiceTime(context.serviceTime) : "",
     language: context.serviceLanguage,
     priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
     organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
@@ -374,7 +395,7 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
 function mapServiceContextToContextValues(context: ServiceContext) {
   return {
     serviceDate: context.serviceDate,
-    serviceTime: context.serviceTime,
+    serviceTime: normalizeServiceTime(context.serviceTime),
     priestId: context.priest.id,
     priestDisplayName: context.priest.displayName,
     organistId: context.organist.id,
