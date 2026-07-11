@@ -12,12 +12,21 @@ import {
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, validatePlanningRow } from "../src/planning-lifecycle";
+import {
+  formatDateInputValue,
+  getDefaultRowLanguage,
+  getDefaultServiceLanguage,
+  getLanguageDeviationRowNumbers,
+  getNearestSunday,
+  propagateServiceLanguageToRows,
+} from "../src/planning-lifecycle/service-context-defaults";
 
 type EditableRow = {
   id: number;
   songLanguage: "" | ConcreteSongLanguage;
   songNumber: string;
   note: string;
+  languageTouched: boolean;
 };
 
 type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
@@ -41,12 +50,13 @@ const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const songLanguageOptions: ConcreteSongLanguage[] = ["czech", "polish"];
 const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
-function createEmptyRow(id: number): EditableRow {
+function createEmptyRow(id: number, serviceLanguage: ServiceLanguage): EditableRow {
   return {
     id,
-    songLanguage: "",
+    songLanguage: getDefaultRowLanguage(serviceLanguage),
     songNumber: "",
     note: "",
+    languageTouched: false,
   };
 }
 
@@ -57,6 +67,7 @@ function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
     songLanguage: row.song?.language ?? "",
     songNumber: row.song?.number ?? "",
     note: row.note ?? "",
+    languageTouched: Boolean(row.song?.language),
   };
 }
 
@@ -65,7 +76,7 @@ function toPlanningRow(row: EditableRow): PlanningRow {
   const note = row.note.trim();
 
   return {
-    ...(row.songLanguage || songNumber
+    ...(songNumber
       ? {
           song: {
             language: row.songLanguage as ConcreteSongLanguage,
@@ -149,12 +160,15 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           }),
     [repositories, runtimeMode],
   );
-  const [serviceDate, setServiceDate] = useState("");
-  const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>("czech");
+  const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
+  const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
+  const initialServiceLanguage = useMemo(() => getDefaultServiceLanguage(initialServiceSunday), [initialServiceSunday]);
+  const [serviceDate, setServiceDate] = useState(initialServiceDate);
+  const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>(initialServiceLanguage);
   const [priest, setPriest] = useState("");
   const [organist, setOrganist] = useState("");
   const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
-  const [rows, setRows] = useState<EditableRow[]>([createEmptyRow(1)]);
+  const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
@@ -202,7 +216,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setServiceLanguage(set.serviceContext.language);
     setPriest(set.serviceContext.priest.displayName);
     setOrganist(set.serviceContext.organist.displayName);
-    const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1)];
+    const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
     setRows(editableRows);
     setNextRowId(editableRows.length + 1);
     setSaveState(set.status === "working" ? "saved" : "finalized");
@@ -231,11 +245,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPersistedSet(null);
     setCompletedRecord(null);
     setSavedWorkingSet(null);
-    setServiceDate("");
-    setServiceLanguage("czech");
+    setServiceDate(initialServiceDate);
+    setServiceLanguage(initialServiceLanguage);
     setPriest("");
     setOrganist("");
-    setRows([createEmptyRow(1)]);
+    setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
     setServiceError(null);
     setSaveState("unsaved");
@@ -254,7 +268,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function addRow() {
-    setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId)]);
+    setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId, serviceLanguage)]);
     setNextRowId((currentId) => currentId + 1);
     markUnsaved();
   }
@@ -280,6 +294,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     markUnsaved();
   }
 
+  function updateServiceLanguage(nextServiceLanguage: ServiceLanguage) {
+    setServiceLanguage(nextServiceLanguage);
+    setRows((currentRows) => propagateServiceLanguageToRows(currentRows, nextServiceLanguage));
+    markUnsaved();
+  }
+
   async function saveWorkingSet() {
     if (!hasServiceContext) {
       setServiceError({
@@ -293,6 +313,21 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       });
       setSaveState("errors");
       return;
+    }
+
+    const languageDeviationRows = getLanguageDeviationRowNumbers(rows, serviceLanguage);
+    if (languageDeviationRows.length > 0) {
+      const confirmed = window.confirm(
+        `Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language. Save this combination?`,
+      );
+      if (!confirmed) {
+        setServiceError({
+          code: "invalidInput",
+          message: `Save cancelled. Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language.`,
+        });
+        setSaveState("errors");
+        return;
+      }
     }
 
     const result = await planningLifecycleService.saveWorkingSet({
@@ -482,8 +517,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <select
                 value={serviceLanguage}
                 onChange={(event) => {
-                  setServiceLanguage(event.target.value as ServiceLanguage);
-                  markUnsaved();
+                  updateServiceLanguage(event.target.value as ServiceLanguage);
                 }}
               >
                 {serviceLanguageOptions.map((language) => (
@@ -571,10 +605,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       <select
                         value={row.songLanguage}
                         onChange={(event) =>
-                          updateRow(row.id, { songLanguage: event.target.value as EditableRow["songLanguage"] })
+                          updateRow(row.id, {
+                            songLanguage: event.target.value as EditableRow["songLanguage"],
+                            languageTouched: true,
+                          })
                         }
                       >
-                        <option value="">No song</option>
+                        <option value="">No language</option>
                         {songLanguageOptions.map((language) => (
                           <option key={language} value={language}>
                             {language}
