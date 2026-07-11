@@ -13,7 +13,8 @@
     "db:start": "docker compose up -d postgres",
     "db:stop": "docker compose down",
     "db:migrate": "tsx scripts/db-migrate.ts",
-    "test:lifecycle": "tsx scripts/lifecycle-regression-tests.ts"
+    "test:lifecycle": "tsx scripts/lifecycle-regression-tests.ts",
+    "test": "tsx scripts/lifecycle-regression-tests.ts && tsx scripts/service-context-defaults-tests.ts"
   },
   "dependencies": {
     "next": "16.2.10",
