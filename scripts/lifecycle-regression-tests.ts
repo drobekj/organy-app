@@ -17,7 +17,8 @@ type TestCase = {
 const fixedNow = new Date("2026-07-11T09:30:00.000Z");
 
 const mixedContext = {
-  serviceDate: "2026-07-12",
+  serviceDate: "2026-07-11",
+  serviceTime: "09:00",
   language: "mixed",
   priest: { id: "priest-1", displayName: "Confirmed Priest" },
   organist: { id: "organist-1", displayName: "Confirmed Organist" },
@@ -25,6 +26,7 @@ const mixedContext = {
 
 const czechContext = {
   serviceDate: "2026-07-13",
+  serviceTime: "10:00",
   language: "czech",
   priest: { id: "priest-2", displayName: "Second Priest" },
   organist: { id: "organist-2", displayName: "Second Organist" },
@@ -61,7 +63,69 @@ const finalSet = {
 } satisfies PlanningSet & { status: "final" };
 
 const tests: TestCase[] = [
+
   {
+    name: "service identity requires service time, rejects duplicate date/time, and allows editing the same set",
+    async run() {
+      const { service } = createService();
+      const missingTime = await service.saveWorkingSet({ role: "admin", serviceContext: { ...mixedContext, serviceTime: "" }, set: workingSet });
+      assert.equal(missingTime.success, false);
+
+      const first = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(first.success, true);
+      const duplicate = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(duplicate.success, false);
+      assert.match(duplicate.success ? "" : duplicate.error.message, /2026-07-11 at 09:00/);
+
+      const ownEdit = await service.saveWorkingSet({
+        role: "admin",
+        existingSetId: first.success ? first.value.id : "missing",
+        serviceContext: mixedContext,
+        set: updatedWorkingSet,
+      });
+      assert.equal(ownEdit.success, true);
+    },
+  },
+  {
+    name: "complete rejects future services and allows today and past in Europe/Prague",
+    async run() {
+      const { service } = createService();
+      const futureSaved = await service.saveWorkingSet({ role: "admin", serviceContext: { ...mixedContext, serviceDate: "2026-07-12" }, set: workingSet });
+      assert.equal(futureSaved.success, true);
+      const futureFinal = await service.finalizeWorkingSet({ role: "admin", workingSetId: futureSaved.success ? futureSaved.value.id : "missing" });
+      assert.equal(futureFinal.success, true);
+      const futureComplete = await service.completeFinalSet({ role: "admin", finalSetId: futureFinal.success ? futureFinal.value.id : "missing" });
+      assert.equal(futureComplete.success, false);
+
+      const todayContext = { ...mixedContext, serviceDate: "2026-07-11", serviceTime: "11:00" } satisfies ServiceContext;
+      const pastContext = { ...mixedContext, serviceDate: "2026-07-10", serviceTime: "12:00" } satisfies ServiceContext;
+      for (const context of [todayContext, pastContext]) {
+        const saved = await service.saveWorkingSet({ role: "admin", serviceContext: context, set: workingSet });
+        assert.equal(saved.success, true);
+        const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.success ? saved.value.id : "missing" });
+        assert.equal(finalized.success, true);
+        const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+        assert.equal(completed.success, true);
+      }
+    },
+  },
+  {
+    name: "completed records remain separate from active sets and keep service context",
+    async run() {
+      const { service } = createService();
+      const saved = await service.saveWorkingSet({ role: "admin", serviceContext: { ...mixedContext, serviceDate: "2026-07-10" }, set: workingSet });
+      assert.equal(saved.success, true);
+      const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.success ? saved.value.id : "missing" });
+      assert.equal(finalized.success, true);
+      const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+      assert.equal(completed.success, true);
+      const active = await service.listPlanningSets();
+      const records = await service.listCompletedRecords();
+      assert.equal(active.success && active.value.some((set) => set.id === (saved.success ? saved.value.id : "")), false);
+      assert.equal(records.success && records.value.length, 1);
+      assert.equal(records.success ? records.value[0]?.serviceContext.serviceTime : undefined, "09:00");
+    },
+  },  {
     name: "repository saves, loads, lists, updates, preserves row order and service context, deletes, and isolates multiple sets",
     async run() {
       const repository = new InMemoryPlanningSetRepository();
@@ -144,7 +208,7 @@ const tests: TestCase[] = [
       assert.notEqual(await planningSets.findById(savedSecond.success ? savedSecond.value.id : "missing"), undefined);
 
       const finalForDelete = await planningSets.saveFinalSet(finalSet, mixedContext);
-      await completedRecords.createFromFinalSet({ sourceFinalSetId: finalForDelete.id, set: finalSet, completedAt: fixedNow });
+      await completedRecords.createFromFinalSet({ sourceFinalSetId: finalForDelete.id, set: finalSet, serviceContext: mixedContext, completedAt: fixedNow });
       assert.equal(completedRecords.countBySourceFinalSetId(finalForDelete.id), 1);
 
       const deleted = await service.deletePlanningSet({ role: "admin", setId: finalForDelete.id });
@@ -205,6 +269,14 @@ class InspectableCompletedServiceRecordRepository implements CompletedServiceRec
     const created = await this.delegate.createFromFinalSet(record);
     this.records.set(created.id, created);
     return created;
+  }
+
+  async list(): Promise<CompletedServiceRecord[]> {
+    return [...this.records.values()];
+  }
+
+  async findById(id: string): Promise<CompletedServiceRecord | undefined> {
+    return this.records.get(id);
   }
 
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {

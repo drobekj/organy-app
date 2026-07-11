@@ -23,6 +23,7 @@ export type ServicePersonReference = {
 
 export type ServiceContext = {
   serviceDate: string;
+  serviceTime: string;
   language: ServiceLanguage;
   priest: ServicePersonReference;
   organist: ServicePersonReference;

@@ -52,6 +52,7 @@ type ServiceSetRecord = {
 type ServiceContextRecord = {
   id: number;
   serviceDate: string;
+  serviceTime: string | null;
   serviceLanguage: ServiceLanguage;
   priestId: string | null;
   priestDisplayName: string;
@@ -69,6 +70,7 @@ type ServiceSetRowRecord = {
 type CompletedServiceRecordRecord = {
   id: number;
   serviceSetId: number | null;
+  serviceContextId: number;
   completedAt: Date;
 };
 
@@ -240,6 +242,7 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
         .returning({
           id: completedServices.id,
           serviceSetId: completedServices.serviceSetId,
+          serviceContextId: completedServices.serviceContextId,
           completedAt: completedServices.completedAt,
         })) as CompletedServiceRecordRecord[];
 
@@ -261,9 +264,28 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
         id: formatCompletedServiceRecordId(completedService.id),
         sourceFinalSetId: record.sourceFinalSetId,
         set: clonePlanningSet(record.set),
+        serviceContext: record.serviceContext,
         completedAt: new Date(completedService.completedAt),
       };
     });
+  }
+
+  async list(): Promise<CompletedServiceRecord[]> {
+    const rows = (await selectAll(this.dependencies.db).from(completedServices).orderBy(asc(completedServices.id))) as CompletedServiceRecordRecord[];
+    return Promise.all(rows.map((row) => this.hydrate(row)));
+  }
+
+  async findById(id: string): Promise<CompletedServiceRecord | undefined> {
+    const numericId = parsePlanningSetId(id);
+    if (numericId === undefined) return undefined;
+    const [row] = (await selectAll(this.dependencies.db).from(completedServices).where(eq(completedServices.id, numericId)).limit(1)) as CompletedServiceRecordRecord[];
+    return row ? this.hydrate(row) : undefined;
+  }
+
+  private async hydrate(row: CompletedServiceRecordRecord): Promise<CompletedServiceRecord> {
+    const [context] = (await selectAll(this.dependencies.db).from(serviceContexts).where(eq(serviceContexts.id, row.serviceContextId)).limit(1)) as ServiceContextRecord[];
+    const rows = (await selectAll(this.dependencies.db).from(completedServiceRows).where(eq(completedServiceRows.completedServiceId, row.id)).orderBy(asc(completedServiceRows.position))) as ServiceSetRowRecord[];
+    return { id: formatCompletedServiceRecordId(row.id), sourceFinalSetId: row.serviceSetId ? formatPlanningSetId(row.serviceSetId) : "", set: { status: "final", language: context.serviceLanguage, rows: rows.map(mapRowRecordToPlanningRow) }, serviceContext: mapContextRecordToServiceContext(context), completedAt: new Date(row.completedAt) };
   }
 
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
@@ -342,6 +364,7 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
 function mapContextRecordToServiceContext(context: ServiceContextRecord): ServiceContext {
   return {
     serviceDate: context.serviceDate,
+    serviceTime: context.serviceTime ?? "",
     language: context.serviceLanguage,
     priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
     organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
@@ -351,6 +374,7 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
 function mapServiceContextToContextValues(context: ServiceContext) {
   return {
     serviceDate: context.serviceDate,
+    serviceTime: context.serviceTime,
     priestId: context.priest.id,
     priestDisplayName: context.priest.displayName,
     organistId: context.organist.id,

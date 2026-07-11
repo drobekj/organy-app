@@ -77,6 +77,15 @@ export class InMemoryCompletedServiceRecordRepository implements CompletedServic
     return cloneCompletedServiceRecord(completedRecord);
   }
 
+  async list(): Promise<CompletedServiceRecord[]> {
+    return [...this.records.values()].map(cloneCompletedServiceRecord);
+  }
+
+  async findById(id: string): Promise<CompletedServiceRecord | undefined> {
+    const record = this.records.get(id);
+    return record ? cloneCompletedServiceRecord(record) : undefined;
+  }
+
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
     for (const [id, record] of this.records.entries()) {
       if (record.sourceFinalSetId === sourceFinalSetId) {
@@ -109,6 +118,7 @@ function clonePlanningSet<T extends PlanningSet>(set: T): T {
 function cloneServiceContext(context: ServiceContext): ServiceContext {
   return {
     serviceDate: context.serviceDate,
+    serviceTime: context.serviceTime,
     language: context.language,
     priest: { ...context.priest },
     organist: { ...context.organist },
@@ -130,6 +140,7 @@ function cloneCompletedServiceRecordInput(
   return {
     sourceFinalSetId: record.sourceFinalSetId,
     set: clonePlanningSet(record.set),
+    serviceContext: cloneServiceContext(record.serviceContext),
     completedAt: new Date(record.completedAt),
   };
 }

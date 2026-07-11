@@ -19,6 +19,7 @@ if (!databaseUrl) {
 
 const firstContext = {
   serviceDate: "2026-07-09",
+  serviceTime: "09:00",
   language: "mixed",
   priest: { displayName: "Smoke Priest One" },
   organist: { displayName: "Smoke Organist One" },
@@ -26,6 +27,7 @@ const firstContext = {
 
 const secondContext = {
   serviceDate: "2026-07-10",
+  serviceTime: "10:00",
   language: "czech",
   priest: { displayName: "Smoke Priest Two" },
   organist: { displayName: "Smoke Organist Two" },

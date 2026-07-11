@@ -3,6 +3,7 @@ import {
   check,
   date,
   integer,
+  time,
   pgEnum,
   pgTable,
   serial,
@@ -16,18 +17,25 @@ export const serviceSetStatus = pgEnum("service_set_status", ["working", "final"
 export const serviceLanguage = pgEnum("service_language", ["czech", "polish", "mixed"]);
 export const songLanguage = pgEnum("song_language", ["czech", "polish"]);
 
-export const serviceContexts = pgTable("service_contexts", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 255 }),
-  serviceDate: date("service_date").notNull().default(sql`CURRENT_DATE`),
-  serviceLanguage: serviceLanguage("service_language").notNull().default("czech"),
-  priestId: text("priest_id"),
-  priestDisplayName: text("priest_display_name").notNull().default(""),
-  organistId: text("organist_id"),
-  organistDisplayName: text("organist_display_name").notNull().default(""),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const serviceContexts = pgTable(
+  "service_contexts",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 255 }),
+    serviceDate: date("service_date").notNull().default(sql`CURRENT_DATE`),
+    serviceTime: time("service_time"),
+    serviceLanguage: serviceLanguage("service_language").notNull().default("czech"),
+    priestId: text("priest_id"),
+    priestDisplayName: text("priest_display_name").notNull().default(""),
+    organistId: text("organist_id"),
+    organistDisplayName: text("organist_display_name").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    serviceDateTime: uniqueIndex("service_contexts_service_date_time_idx").on(table.serviceDate, table.serviceTime),
+  }),
+);
 
 export const serviceSets = pgTable("service_sets", {
   id: serial("id").primaryKey(),
