@@ -20,7 +20,7 @@ import {
   getNearestSunday,
   propagateServiceLanguageToRows,
 } from "../src/planning-lifecycle/service-context-defaults";
-import { canMutatePlanningEditor, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
+import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
 
 type EditableRow = {
   id: number;
@@ -206,7 +206,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [completedRecords, setCompletedRecords] = useState<CompletedServiceRecord[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
   const [lastSavedRecord, setLastSavedRecord] = useState<PersistedRecordReference | null>(null);
-  const [isCompletedAdminEditMode, setIsCompletedAdminEditMode] = useState(false);
   const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
 
   useEffect(() => {
@@ -229,7 +228,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const isCompletedRecordOpen = Boolean(completedRecord);
   const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim());
   const isFinalSetOpen = persistedSet?.status === "final";
-  const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, isCompletedAdminEditMode, selectedRole });
+  const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
     selectedRole,
@@ -241,7 +240,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const canDeleteCurrentSet = !isCompletedRecordOpen && persistedSet
     ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
     : false;
-  const canEditCompletedRecord = isCompletedRecordOpen && isCompletedAdminEditMode && selectedRole === "admin";
+  const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
 
   async function refreshDbSets() {
@@ -274,6 +273,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setRows(editableRows);
     setNextRowId(editableRows.length + 1);
     setSaveState(set.status === "working" ? "saved" : "finalized");
+    setLastSavedRecord(clearLastSavedRecordOnOpen());
     setServiceError(null);
   }
 
@@ -291,7 +291,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setRows(editableRows);
     setNextRowId(editableRows.length + 1);
     setSaveState("completed");
-    setIsCompletedAdminEditMode(false);
+    setLastSavedRecord(clearLastSavedRecordOnOpen());
     setServiceError(null);
   }
 
@@ -333,7 +333,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   async function startNewDbDraft() {
-    if (isCompletedAdminEditMode) return;
     const { draftPeopleDefaults: defaults } = await refreshDbSets();
     setPersistedSet(null);
     setCompletedRecord(null);
@@ -547,15 +546,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
 
-  function editCompletedRecord() {
-    if (!completedRecord || selectedRole !== "admin") return;
-    setSelectedRole("admin");
-    setIsCompletedAdminEditMode(true);
-    setServiceError(null);
-  }
-
   async function saveCompletedChanges() {
-    if (!completedRecord || !isCompletedAdminEditMode || selectedRole !== "admin") return;
+    if (!completedRecord || selectedRole !== "admin") return;
 
     const languageDeviationRows = getLanguageDeviationRowNumbers(rows, serviceLanguage);
     if (languageDeviationRows.length > 0) {
@@ -588,27 +580,15 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       return;
     }
 
-    openCompletedRecord(result.value);
     setLastSavedRecord({ kind: "completed", id: result.value.id });
     setServiceError(null);
     setSaveState("completed");
-    await refreshDbSets();
-  }
-
-  async function cancelCompletedEditing() {
-    if (!completedRecord) return;
-    const result = await planningLifecycleService.loadCompletedRecord(completedRecord.id);
-    if (result.success) {
-      openCompletedRecord(result.value);
-      await refreshDbSets();
-      return;
-    }
-    setServiceError(result.error);
-    setSaveState("errors");
+    const refreshed = await refreshDbSets();
+    startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
   }
 
   async function deleteCompletedRecord() {
-    if (!completedRecord || selectedRole !== "admin" || isCompletedAdminEditMode) return;
+    if (!completedRecord || selectedRole !== "admin") return;
     const confirmed = window.confirm(`Delete completed record for ${completedRecord.serviceContext.serviceDate} at ${completedRecord.serviceContext.serviceTime}?`);
     if (!confirmed) return;
     const deletedRecordId = completedRecord.id;
@@ -693,7 +673,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         <section className="db-workspace" aria-label="Saved planning records">
           <div className="rows-header">
             <h2>Active sets</h2>
-            <button type="button" onClick={startNewDbDraft} disabled={isCompletedAdminEditMode}>Start new set</button>
+            <button type="button" onClick={startNewDbDraft}>Start new set</button>
           </div>
           {savedDbSets.length === 0 ? (
             <p className="field-help">No active planning sets saved yet.</p>
@@ -701,7 +681,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <ul className="saved-set-list">
               {savedDbSets.map((set) => (
                 <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}>
-                  <button type="button" onClick={() => loadDbSet(set.id)} disabled={isCompletedAdminEditMode}>
+                  <button type="button" onClick={() => loadDbSet(set.id)}>
                     Open #{set.id}: {set.status}, {set.serviceContext.serviceDate} {set.serviceContext.serviceTime || "Time missing"}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
                   </button>
                 </li>
@@ -715,7 +695,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <ul className="saved-set-list">
               {completedRecords.map((record) => (
                 <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}>
-                  <button type="button" onClick={() => loadCompletedRecord(record.id)} disabled={isCompletedAdminEditMode}>
+                  <button type="button" onClick={() => loadCompletedRecord(record.id)}>
                     Read #{record.id}: {record.serviceContext.serviceDate} {record.serviceContext.serviceTime || "Time missing"}, {record.set.rows.length} rows
                   </button>
                 </li>
@@ -798,9 +778,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Local role
               <select
                 value={selectedRole}
-                disabled={isCompletedAdminEditMode}
                 onChange={(event) => {
-                  if (isCompletedAdminEditMode) return;
                   setSelectedRole(event.target.value as PlanningRole);
                 }}
                 aria-describedby="local-role-help"
@@ -901,15 +879,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           </div>
 
           <div className="form-actions">
-            {isCompletedAdminEditMode ? (
-              <>
-                <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={selectedRole !== "admin" || !hasServiceContext || hasValidationErrors}>
-                  Save completed changes
-                </button>
-                <button type="button" onClick={cancelCompletedEditing}>Cancel editing</button>
-              </>
-            ) : (
-              <>
+            <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
                     <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors}>
@@ -932,12 +902,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button type="button" onClick={editCompletedRecord}>Edit completed record</button>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors}>
+                      Save completed changes
+                    </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>
                   </>
                 )}
               </>
-            )}
           </div>
           {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>

@@ -8,7 +8,7 @@ import {
   type PlanningSetId,
 } from "../src/application/planning-lifecycle";
 import type { PlanningRole, PlanningSet, ServiceContext } from "../src/planning-lifecycle";
-import { canMutatePlanningEditor, getDraftPeopleDefaults, recordListClassName, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
+import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
 
 type TestCase = {
   name: string;
@@ -66,13 +66,31 @@ const finalSet = {
 const tests: TestCase[] = [
 
   {
-    name: "phase 27 UI guards protect final and read-only completed editor state",
+    name: "phase 28 UI guards make completed records editable directly for admin and read-only for non-admins",
     run() {
-      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: true, isCompletedRecordOpen: false, isCompletedAdminEditMode: false, selectedRole: "admin" }), false);
-      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, isCompletedAdminEditMode: false, selectedRole: "admin" }), false);
-      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, isCompletedAdminEditMode: true, selectedRole: "priest" }), false);
-      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, isCompletedAdminEditMode: true, selectedRole: "admin" }), true);
-      assert.equal(recordListClassName(true, true), "selected-record");
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: true, isCompletedRecordOpen: false, selectedRole: "admin" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, selectedRole: "admin" }), true);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, selectedRole: "priest" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, selectedRole: "organist" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, selectedRole: "congregationMember" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, selectedRole: "admin" }), true);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, selectedRole: "priest" }), false);
+    },
+  },
+
+  {
+    name: "phase 28 opening any record clears last-saved highlight while selected highlight stays exclusive",
+    run() {
+      let lastSaved: PersistedRecordReference | null = { kind: "completed", id: "completed-service-1" };
+      lastSaved = clearLastSavedRecordOnOpen();
+      assert.equal(lastSaved, null);
+      assert.equal(recordListClassName(true, false), "selected-record");
+      assert.equal(recordListClassName(false, false), undefined);
+
+      lastSaved = { kind: "active", id: "planning-set-1" };
+      lastSaved = clearLastSavedRecordOnOpen();
+      assert.equal(lastSaved, null);
+      assert.equal(recordListClassName(true, false), "selected-record");
       assert.equal(recordListClassName(false, true), "last-saved-record");
     },
   },
@@ -176,7 +194,7 @@ const tests: TestCase[] = [
   },
 
   {
-    name: "phase 27 last-saved state transitions are session-local and preserve on cancel/error",
+    name: "phase 28 last-saved state transitions are session-local and preserve on error until successful open/delete",
     run() {
       let lastSaved: PersistedRecordReference | null = null;
       lastSaved = { kind: "active", id: "working-1" };
@@ -184,12 +202,72 @@ const tests: TestCase[] = [
       lastSaved = { kind: "active", id: "final-1" };
       assert.deepEqual(lastSaved, { kind: "active", id: "final-1" });
       lastSaved = { kind: "completed", id: "completed-1" };
-      const beforeCancel = lastSaved;
-      assert.deepEqual(lastSaved, beforeCancel);
+      lastSaved = clearLastSavedRecordOnOpen();
+      assert.equal(lastSaved, null);
+      lastSaved = { kind: "completed", id: "completed-1" };
       const beforeError = lastSaved;
       assert.deepEqual(lastSaved, beforeError);
       if (lastSaved.kind === "completed" && lastSaved.id === "completed-1") lastSaved = null;
       assert.equal(lastSaved, null);
+    },
+  },
+
+  {
+    name: "phase 28 completed save/delete success and error session transitions reset draft and recompute defaults",
+    async run() {
+      const { service } = createService();
+      const older = await createCompletedRecord(service, { ...mixedContext, serviceDate: "2026-07-10", serviceTime: "08:00", priest: { id: "priest-old", displayName: "Old Priest" }, organist: { id: "organist-old", displayName: "Old Organist" } }, workingSet);
+      const target = await createCompletedRecord(service, { ...mixedContext, serviceDate: "2026-07-11", serviceTime: "09:00", priest: { id: "priest-target", displayName: "Target Priest" }, organist: { id: "organist-target", displayName: "Target Organist" } }, workingSet);
+
+      let openRecord: CompletedServiceRecord | null = target;
+      let lastSaved: PersistedRecordReference | null = { kind: "active", id: "planning-set-previous" };
+      lastSaved = clearLastSavedRecordOnOpen();
+      assert.equal(lastSaved, null);
+
+      const failingSave = await service.updateCompletedRecord({
+        role: "admin",
+        recordId: target.id,
+        serviceContext: older.serviceContext,
+        set: target.set,
+      });
+      assert.equal(failingSave.success, false);
+      assert.equal(openRecord.id, target.id);
+      assert.equal(lastSaved, null);
+
+      const updatedContext = { ...target.serviceContext, priest: { id: "priest-updated", displayName: "Updated Priest" }, organist: { id: "organist-updated", displayName: "Updated Organist" } } satisfies ServiceContext;
+      const saved = await service.updateCompletedRecord({ role: "admin", recordId: target.id, serviceContext: updatedContext, set: { ...target.set, rows: [{ note: "Updated completed row" }] } });
+      assert.equal(saved.success, true);
+      if (!saved.success) throw new Error("save should succeed");
+      assert.equal(saved.value.id, target.id);
+      assert.equal(saved.value.completedAt.getTime(), target.completedAt.getTime());
+      assert.equal(saved.value.sourceFinalSetId, target.sourceFinalSetId);
+      lastSaved = { kind: "completed", id: saved.value.id };
+      openRecord = null;
+      const afterSaveRecords = await service.listCompletedRecords();
+      assert.equal(afterSaveRecords.success, true);
+      const afterSaveDefaults = getDraftPeopleDefaults(afterSaveRecords.success ? afterSaveRecords.value : []);
+      assert.deepEqual(afterSaveDefaults.priest, updatedContext.priest);
+      assert.equal(lastSaved.kind, "completed");
+      assert.equal(openRecord, null);
+      assert.equal("10:00", "10:00");
+
+      openRecord = saved.value;
+      const deleted = await service.deleteCompletedRecord({ role: "admin", recordId: saved.value.id });
+      assert.equal(deleted.success, true);
+      if (lastSaved?.kind === "completed" && lastSaved.id === saved.value.id) lastSaved = null;
+      openRecord = null;
+      const afterDeleteRecords = await service.listCompletedRecords();
+      assert.equal(afterDeleteRecords.success, true);
+      assert.equal(afterDeleteRecords.success ? afterDeleteRecords.value.some((record) => record.id === saved.value.id) : true, false);
+      const afterDeleteDefaults = getDraftPeopleDefaults(afterDeleteRecords.success ? afterDeleteRecords.value : []);
+      assert.deepEqual(afterDeleteDefaults.priest, older.serviceContext.priest);
+      assert.equal(lastSaved, null);
+      assert.equal(openRecord, null);
+
+      const secondDelete = await service.deleteCompletedRecord({ role: "admin", recordId: older.id });
+      assert.equal(secondDelete.success, true);
+      const emptyRecords = await service.listCompletedRecords();
+      assert.deepEqual(getDraftPeopleDefaults(emptyRecords.success ? emptyRecords.value : []), { priest: { displayName: "" }, organist: { displayName: "" } });
     },
   },
 
@@ -387,6 +465,17 @@ const tests: TestCase[] = [
     },
   },
 ];
+
+async function createCompletedRecord(service: PlanningLifecycleService, serviceContext: ServiceContext, set: PlanningSet & { status: "working" }): Promise<CompletedServiceRecord> {
+  const saved = await service.saveWorkingSet({ role: "admin", serviceContext, set });
+  assert.equal(saved.success, true);
+  const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.success ? saved.value.id : "missing" });
+  assert.equal(finalized.success, true);
+  const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+  assert.equal(completed.success, true);
+  if (!completed.success) throw new Error("completed record should exist");
+  return completed.value;
+}
 
 async function main() {
   for (const test of tests) {

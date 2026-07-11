@@ -31,12 +31,15 @@ export function getDraftPeopleDefaults(records: CompletedServiceRecord[]): Draft
 export function canMutatePlanningEditor(input: {
   isFinalSetOpen: boolean;
   isCompletedRecordOpen: boolean;
-  isCompletedAdminEditMode: boolean;
   selectedRole: PlanningRole;
 }): boolean {
   if (input.isFinalSetOpen) return false;
   if (!input.isCompletedRecordOpen) return true;
-  return input.isCompletedAdminEditMode && input.selectedRole === "admin";
+  return input.selectedRole === "admin";
+}
+
+export function clearLastSavedRecordOnOpen(): null {
+  return null;
 }
 
 export function recordListClassName(isOpen: boolean, isLastSaved: boolean): string | undefined {
