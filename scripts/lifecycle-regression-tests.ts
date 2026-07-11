@@ -295,6 +295,17 @@ class InspectableCompletedServiceRecordRepository implements CompletedServiceRec
     return this.records.get(id);
   }
 
+  async update(id: string, serviceContext: CompletedServiceRecord["serviceContext"], set: CompletedServiceRecord["set"]): Promise<CompletedServiceRecord> {
+    const updated = await this.delegate.update(id, serviceContext, set);
+    this.records.set(id, updated);
+    return updated;
+  }
+
+  async deleteById(id: string): Promise<void> {
+    await this.delegate.deleteById(id);
+    this.records.delete(id);
+  }
+
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
     await this.delegate.deleteBySourceFinalSetId(sourceFinalSetId);
 

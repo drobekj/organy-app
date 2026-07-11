@@ -13,7 +13,9 @@ type PlanningLifecycleAction =
   | "saveWorkingSet"
   | "finalizeWorkingSet"
   | "completeFinalSet"
-  | "deletePlanningSet";
+  | "deletePlanningSet"
+  | "updateCompletedRecord"
+  | "deleteCompletedRecord";
 
 type PlanningLifecycleRequest = {
   action?: PlanningLifecycleAction;
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
 }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet"].includes(action);
+  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
 function isObjectWithRecordId(input: unknown): input is { recordId: string } {

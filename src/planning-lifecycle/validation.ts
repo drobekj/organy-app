@@ -88,6 +88,10 @@ export function validatePlanningSet(set: PlanningSet): PlanningValidationResult 
   if (!Array.isArray(set.rows)) {
     issues.push({ path: "rows", message: "Planning set rows must be an array." });
   } else {
+    if (set.rows.length > 10) {
+      issues.push({ path: "rows", message: "Planning set cannot contain more than 10 rows." });
+    }
+
     set.rows.forEach((row, index) => {
       const rowValidation = validatePlanningRow(row);
       rowValidation.issues.forEach((issue) => {
