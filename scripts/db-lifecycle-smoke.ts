@@ -56,6 +56,8 @@ async function main() {
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
     const planningSets = new DrizzlePlanningSetRepository(adapterDependencies);
 
+    await cleanupLegacySmokeData(db);
+    assert((await countLegacySmokeContexts(db)) === 0, "legacy smoke cleanup removes exact old service contexts");
     await cleanupSmokeData(db);
 
     const identities = await findUnusedServiceIdentities(db, 3);
@@ -175,6 +177,7 @@ async function main() {
   } finally {
     const db = drizzle(pool, { schema });
     try {
+      await cleanupLegacySmokeData(db);
       await cleanupSmokeData(db);
     } finally {
       await pool.end();
@@ -186,6 +189,32 @@ type SmokeIdentity = {
   serviceDate: string;
   serviceTime: string;
 };
+
+type LegacySmokeIdentity = SmokeIdentity & {
+  priestDisplayName: string;
+  organistDisplayName: string;
+};
+
+const legacySmokeIdentities = [
+  {
+    serviceDate: "2026-07-09",
+    serviceTime: "09:00",
+    priestDisplayName: "Smoke Priest One",
+    organistDisplayName: "Smoke Organist One",
+  },
+  {
+    serviceDate: "2026-07-10",
+    serviceTime: "10:00",
+    priestDisplayName: "Smoke Priest Two",
+    organistDisplayName: "Smoke Organist Two",
+  },
+  {
+    serviceDate: "2026-07-08",
+    serviceTime: "08:15",
+    priestDisplayName: "Smoke Priest Updated",
+    organistDisplayName: "Smoke Organist Updated",
+  },
+] satisfies LegacySmokeIdentity[];
 
 function buildSmokeContext(
   identity: SmokeIdentity,
@@ -280,6 +309,96 @@ async function cleanupSmokeData(db: { execute: (query: ReturnType<typeof sql>) =
       or organist_display_name like ${markerPattern}
     )
   `);
+}
+
+async function cleanupLegacySmokeData(db: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }) {
+  await db.execute(sql`
+    delete from completed_service_rows
+    using completed_services, service_contexts
+    where completed_service_rows.completed_service_id = completed_services.id
+      and completed_services.service_context_id = service_contexts.id
+      and ${legacySmokeContextSqlCondition()}
+  `);
+  await db.execute(sql`
+    delete from completed_services
+    using service_contexts
+    where completed_services.service_context_id = service_contexts.id
+      and ${legacySmokeContextSqlCondition()}
+  `);
+  await db.execute(sql`
+    delete from service_set_rows
+    using service_sets, service_contexts
+    where service_set_rows.service_set_id = service_sets.id
+      and service_sets.service_context_id = service_contexts.id
+      and ${legacySmokeContextSqlCondition()}
+  `);
+  await db.execute(sql`
+    delete from service_sets
+    using service_contexts
+    where service_sets.service_context_id = service_contexts.id
+      and ${legacySmokeContextSqlCondition()}
+  `);
+  await db.execute(sql`
+    delete from service_contexts
+    where ${legacySmokeContextSqlCondition()}
+      and not exists (
+        select 1
+        from completed_services
+        where completed_services.service_context_id = service_contexts.id
+      )
+      and not exists (
+        select 1
+        from service_sets
+        where service_sets.service_context_id = service_contexts.id
+      )
+  `);
+}
+
+async function countLegacySmokeContexts(db: Pick<SmokeDb, "select">): Promise<number> {
+  const contexts = await db
+    .select({ id: schema.serviceContexts.id })
+    .from(schema.serviceContexts)
+    .where(legacySmokeContextDrizzleCondition());
+
+  return contexts.length;
+}
+
+function legacySmokeContextDrizzleCondition() {
+  return or(
+    ...legacySmokeIdentities.map((identity) =>
+      and(
+        eq(schema.serviceContexts.serviceDate, identity.serviceDate),
+        eq(schema.serviceContexts.serviceTime, identity.serviceTime),
+        eq(schema.serviceContexts.priestDisplayName, identity.priestDisplayName),
+        eq(schema.serviceContexts.organistDisplayName, identity.organistDisplayName),
+      ),
+    ),
+  );
+}
+
+function legacySmokeContextSqlCondition() {
+  return sql`
+    (
+      (
+        service_contexts.service_date = ${legacySmokeIdentities[0].serviceDate}
+        and service_contexts.service_time = ${legacySmokeIdentities[0].serviceTime}
+        and service_contexts.priest_display_name = ${legacySmokeIdentities[0].priestDisplayName}
+        and service_contexts.organist_display_name = ${legacySmokeIdentities[0].organistDisplayName}
+      )
+      or (
+        service_contexts.service_date = ${legacySmokeIdentities[1].serviceDate}
+        and service_contexts.service_time = ${legacySmokeIdentities[1].serviceTime}
+        and service_contexts.priest_display_name = ${legacySmokeIdentities[1].priestDisplayName}
+        and service_contexts.organist_display_name = ${legacySmokeIdentities[1].organistDisplayName}
+      )
+      or (
+        service_contexts.service_date = ${legacySmokeIdentities[2].serviceDate}
+        and service_contexts.service_time = ${legacySmokeIdentities[2].serviceTime}
+        and service_contexts.priest_display_name = ${legacySmokeIdentities[2].priestDisplayName}
+        and service_contexts.organist_display_name = ${legacySmokeIdentities[2].organistDisplayName}
+      )
+    )
+  `;
 }
 
 async function countCurrentSmokeData(db: Pick<SmokeDb, "select">): Promise<number> {
