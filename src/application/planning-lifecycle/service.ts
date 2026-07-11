@@ -54,6 +54,18 @@ export type CompleteFinalSetInput = {
   finalSetId: PlanningSetId;
 };
 
+export type UpdateCompletedRecordInput = {
+  role: PlanningRole;
+  recordId: string;
+  serviceContext: ServiceContext;
+  set: PlanningSet & { status: "final" };
+};
+
+export type DeleteCompletedRecordInput = {
+  role: PlanningRole;
+  recordId: string;
+};
+
 export class PlanningLifecycleService {
   private readonly now: () => Date;
   private readonly planningSets: PlanningSetRepository;
@@ -215,6 +227,53 @@ export class PlanningLifecycleService {
     return success(await this.planningSets.saveWorkingSet(reorderedWorkingSet, workingSet.serviceContext, input.workingSetId));
   }
 
+  async updateCompletedRecord(input: UpdateCompletedRecordInput): Promise<PlanningServiceResult<CompletedServiceRecord>> {
+    if (!canPerformPlanningAction(input.role, "editCompletedServiceRecord")) {
+      return failure({ code: "permissionDenied", message: "Only admin can edit completed service records." });
+    }
+
+    const existing = await this.completedServiceRecords.findById(input.recordId);
+    if (!existing) {
+      return failure({ code: "notFound", message: "Completed record was not found." });
+    }
+
+    const serviceContext: ServiceContext = { ...input.serviceContext, serviceTime: normalizeServiceTime(input.serviceContext.serviceTime) };
+    const serviceContextIssues = validateSaveWorkingSetServiceContext(serviceContext, input.set);
+    if (serviceContextIssues.length > 0) {
+      return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
+    }
+
+    const validation = validatePlanningSet(input.set);
+    if (!validation.valid) {
+      return failure({ code: "invalidInput", message: "Completed record rows are invalid.", issues: validation.issues });
+    }
+
+    const duplicate = await this.findDuplicateService(serviceContext, undefined, input.recordId);
+    if (duplicate) {
+      return failure({ code: "invalidInput", message: `A service already exists for ${serviceContext.serviceDate} at ${serviceContext.serviceTime}.` });
+    }
+
+    try {
+      return success(await this.completedServiceRecords.update(input.recordId, serviceContext, { status: "final", language: serviceContext.language, rows: input.set.rows }));
+    } catch {
+      return failure({ code: "notFound", message: "Completed record was not found." });
+    }
+  }
+
+  async deleteCompletedRecord(input: DeleteCompletedRecordInput): Promise<PlanningServiceResult<{ deletedRecordId: string }>> {
+    if (!canPerformPlanningAction(input.role, "deleteCompletedServiceRecord")) {
+      return failure({ code: "permissionDenied", message: "Only admin can delete completed service records." });
+    }
+
+    const existing = await this.completedServiceRecords.findById(input.recordId);
+    if (!existing) {
+      return failure({ code: "notFound", message: "Completed record was not found." });
+    }
+
+    await this.completedServiceRecords.deleteById(input.recordId);
+    return success({ deletedRecordId: input.recordId });
+  }
+
   async completeFinalSet(input: CompleteFinalSetInput): Promise<PlanningServiceResult<CompletedServiceRecord>> {
     if (!canPerformPlanningAction(input.role, "convertFinalSetToCompletedServiceRecord")) {
       return failure({ code: "permissionDenied", message: "Role cannot complete a final planning set." });
@@ -245,12 +304,12 @@ export class PlanningLifecycleService {
     return success(completedRecord);
   }
 
-  private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {
+  private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId, currentCompletedRecordId?: string): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {
     const sets = await this.planningSets.list();
     const activeDuplicate = sets.find((set) => set.id !== currentSetId && set.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(set.serviceContext.serviceTime) === serviceContext.serviceTime);
     if (activeDuplicate) return activeDuplicate;
     const completed = await this.completedServiceRecords.list();
-    return completed.find((record) => record.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(record.serviceContext.serviceTime) === serviceContext.serviceTime);
+    return completed.find((record) => record.id !== currentCompletedRecordId && record.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(record.serviceContext.serviceTime) === serviceContext.serviceTime);
   }
 }
 

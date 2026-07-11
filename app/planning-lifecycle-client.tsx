@@ -20,6 +20,7 @@ import {
   getNearestSunday,
   propagateServiceLanguageToRows,
 } from "../src/planning-lifecycle/service-context-defaults";
+import { canMutatePlanningEditor, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
 
 type EditableRow = {
   id: number;
@@ -49,6 +50,8 @@ type PlanningRepositories = {
 
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const songLanguageOptions: ConcreteSongLanguage[] = ["czech", "polish"];
+const defaultServiceTime = "10:00";
+
 const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
 function createEmptyRow(id: number, serviceLanguage: ServiceLanguage): EditableRow {
@@ -132,6 +135,14 @@ class DbPlanningLifecycleClient {
   async deletePlanningSet(input: Parameters<PlanningLifecycleService["deletePlanningSet"]>[0]) {
     return callPlanningLifecycleApi("deletePlanningSet", input);
   }
+
+  async updateCompletedRecord(input: Parameters<PlanningLifecycleService["updateCompletedRecord"]>[0]) {
+    return callPlanningLifecycleApi("updateCompletedRecord", input);
+  }
+
+  async deleteCompletedRecord(input: Parameters<PlanningLifecycleService["deleteCompletedRecord"]>[0]) {
+    return callPlanningLifecycleApi("deleteCompletedRecord", input);
+  }
 }
 
 async function callPlanningLifecycleApi(action: string, input: unknown) {
@@ -178,10 +189,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
   const initialServiceLanguage = useMemo(() => getDefaultServiceLanguage(initialServiceSunday), [initialServiceSunday]);
   const [serviceDate, setServiceDate] = useState(initialServiceDate);
-  const [serviceTime, setServiceTime] = useState("09:00");
+  const [serviceTime, setServiceTime] = useState(defaultServiceTime);
   const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>(initialServiceLanguage);
   const [priest, setPriest] = useState("");
+  const [priestId, setPriestId] = useState<string | undefined>(undefined);
   const [organist, setOrganist] = useState("");
+  const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
   const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
   const [nextRowId, setNextRowId] = useState(2);
@@ -192,10 +205,22 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
   const [completedRecords, setCompletedRecords] = useState<CompletedServiceRecord[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
+  const [lastSavedRecord, setLastSavedRecord] = useState<PersistedRecordReference | null>(null);
+  const [isCompletedAdminEditMode, setIsCompletedAdminEditMode] = useState(false);
+  const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
 
   useEffect(() => {
     void refreshDbSets();
   }, [runtimeMode]);
+
+  useEffect(() => {
+    if (!persistedSet && !completedRecord && saveState === "unsaved") {
+      setPriest(draftPeopleDefaults.priest.displayName);
+      setPriestId(draftPeopleDefaults.priest.id);
+      setOrganist(draftPeopleDefaults.organist.displayName);
+      setOrganistId(draftPeopleDefaults.organist.id);
+    }
+  }, [draftPeopleDefaults]);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
@@ -203,27 +228,36 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const hasValidationErrors = validationResults.some((result) => !result.valid);
   const isCompletedRecordOpen = Boolean(completedRecord);
   const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim());
-  const canSaveWorkingSet = !isCompletedRecordOpen && canPerformPlanningAction(
+  const isFinalSetOpen = persistedSet?.status === "final";
+  const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, isCompletedAdminEditMode, selectedRole });
+  const isEditorLocked = !canMutateEditor;
+  const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
   );
-  const canFinalizeSet = !isCompletedRecordOpen && canPerformPlanningAction(selectedRole, "saveFinalSet");
+  const canFinalizeSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(selectedRole, "saveFinalSet");
   const completeDateReason = persistedSet?.status === "final" && isFuturePragueDate(persistedSet.serviceContext.serviceDate) ? "Future service cannot be completed before its date in Europe/Prague." : "";
   const canCompleteSet = !isCompletedRecordOpen && canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord") && !completeDateReason;
   const canDeleteCurrentSet = !isCompletedRecordOpen && persistedSet
     ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
     : false;
-  const canEditRows = !isCompletedRecordOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false);
+  const canEditCompletedRecord = isCompletedRecordOpen && isCompletedAdminEditMode && selectedRole === "admin";
+  const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
 
   async function refreshDbSets() {
     const result = await planningLifecycleService.listPlanningSets();
-    if (result.success) {
-      setSavedDbSets(result.value);
-    }
     const completedResult = await planningLifecycleService.listCompletedRecords();
+    const activeSets = result.success ? result.value : savedDbSets;
+    const completed = completedResult.success ? completedResult.value : completedRecords;
+    const defaults = getDraftPeopleDefaults(completed);
+
+    if (result.success) setSavedDbSets(activeSets);
     if (completedResult.success) {
-      setCompletedRecords(completedResult.value);
+      setCompletedRecords(completed);
+      setDraftPeopleDefaults(defaults);
     }
+
+    return { activeSets, completedRecords: completed, draftPeopleDefaults: defaults };
   }
 
   function openPersistedSet(set: PersistedPlanningSet) {
@@ -233,7 +267,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setServiceTime(set.serviceContext.serviceTime);
     setServiceLanguage(set.serviceContext.language);
     setPriest(set.serviceContext.priest.displayName);
+    setPriestId(set.serviceContext.priest.id);
     setOrganist(set.serviceContext.organist.displayName);
+    setOrganistId(set.serviceContext.organist.id);
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
     setRows(editableRows);
     setNextRowId(editableRows.length + 1);
@@ -248,11 +284,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setServiceTime(record.serviceContext.serviceTime);
     setServiceLanguage(record.serviceContext.language);
     setPriest(record.serviceContext.priest.displayName);
+    setPriestId(record.serviceContext.priest.id);
     setOrganist(record.serviceContext.organist.displayName);
+    setOrganistId(record.serviceContext.organist.id);
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
     setRows(editableRows);
     setNextRowId(editableRows.length + 1);
     setSaveState("completed");
+    setIsCompletedAdminEditMode(false);
     setServiceError(null);
   }
 
@@ -278,62 +317,94 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("errors");
   }
 
-  function startNewDraftAfterSuccess() {
+  function startNewDraftAfterSuccess(defaults: DraftPeopleDefaults = draftPeopleDefaults) {
     setPersistedSet(null);
     setCompletedRecord(null);
     setSavedWorkingSet(null);
     setServiceDate(initialServiceDate);
-    setServiceTime("09:00");
+    setServiceTime(defaultServiceTime);
     setServiceLanguage(initialServiceLanguage);
-    setPriest("");
-    setOrganist("");
+    setPriest(defaults.priest.displayName);
+    setPriestId(defaults.priest.id);
+    setOrganist(defaults.organist.displayName);
+    setOrganistId(defaults.organist.id);
     setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
   }
 
-  function startNewDbDraft() {
+  async function startNewDbDraft() {
+    if (isCompletedAdminEditMode) return;
+    const { draftPeopleDefaults: defaults } = await refreshDbSets();
     setPersistedSet(null);
     setCompletedRecord(null);
     setSavedWorkingSet(null);
     setServiceDate(initialServiceDate);
-    setServiceTime("09:00");
+    setServiceTime(defaultServiceTime);
     setServiceLanguage(initialServiceLanguage);
-    setPriest("");
-    setOrganist("");
+    setPriest(defaults.priest.displayName);
+    setPriestId(defaults.priest.id);
+    setOrganist(defaults.organist.displayName);
+    setOrganistId(defaults.organist.id);
     setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
     setServiceError(null);
     setSaveState("unsaved");
   }
 
+  function guardedEditorUpdate(update: () => void) {
+    if (!canMutateEditor) return;
+    update();
+    setSaveState("unsaved");
+    setServiceError(null);
+  }
+
+  function updateServiceDateValue(value: string) {
+    guardedEditorUpdate(() => setServiceDate(value));
+  }
+
+  function updateServiceTimeValue(value: string) {
+    guardedEditorUpdate(() => setServiceTime(value));
+  }
+
+  function updatePriestValue(value: string) {
+    guardedEditorUpdate(() => {
+      setPriest(value);
+      setPriestId(undefined);
+    });
+  }
+
+  function updateOrganistValue(value: string) {
+    guardedEditorUpdate(() => {
+      setOrganist(value);
+      setOrganistId(undefined);
+    });
+  }
+
   function markUnsaved() {
+    if (isEditorLocked) return;
     setSaveState("unsaved");
     setServiceError(null);
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
-    if (isCompletedRecordOpen) return;
-    setRows((currentRows) =>
+    guardedEditorUpdate(() => setRows((currentRows) =>
       currentRows.map((row) => (row.id === id ? { ...row, ...changes } : row)),
-    );
-    markUnsaved();
+    ));
   }
 
   function addRow() {
-    if (isCompletedRecordOpen) return;
-    setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId, serviceLanguage)]);
-    setNextRowId((currentId) => currentId + 1);
-    markUnsaved();
+    guardedEditorUpdate(() => {
+      setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId, serviceLanguage)]);
+      setNextRowId((currentId) => currentId + 1);
+    });
   }
 
   function removeRow(id: number) {
-    if (isCompletedRecordOpen) return;
-    setRows((currentRows) => currentRows.filter((row) => row.id !== id));
-    markUnsaved();
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.filter((row) => row.id !== id)));
   }
 
   function moveRow(index: number, direction: -1 | 1) {
-    if (isCompletedRecordOpen) return;
+    if (!canMutateEditor) return;
     const targetIndex = index + direction;
 
     if (targetIndex < 0 || targetIndex >= rows.length) {
@@ -346,18 +417,19 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       nextRows.splice(targetIndex, 0, movedRow);
       return nextRows;
     });
-    markUnsaved();
+    setSaveState("unsaved");
+    setServiceError(null);
   }
 
   function updateServiceLanguage(nextServiceLanguage: ServiceLanguage) {
-    if (isCompletedRecordOpen) return;
-    setServiceLanguage(nextServiceLanguage);
-    setRows((currentRows) => propagateServiceLanguageToRows(currentRows, nextServiceLanguage));
-    markUnsaved();
+    guardedEditorUpdate(() => {
+      setServiceLanguage(nextServiceLanguage);
+      setRows((currentRows) => propagateServiceLanguageToRows(currentRows, nextServiceLanguage));
+    });
   }
 
   async function saveWorkingSet() {
-    if (isCompletedRecordOpen) return;
+    if (isCompletedRecordOpen || isFinalSetOpen) return;
     if (!hasServiceContext) {
       setServiceError({
         code: "invalidInput",
@@ -395,8 +467,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         serviceDate,
         serviceTime: normalizeServiceTime(serviceTime),
         language: serviceLanguage,
-        priest: { displayName: priest },
-        organist: { displayName: organist },
+        priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
+        organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
       },
       set: {
         status: "working",
@@ -420,9 +492,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       organist,
       rows: planningRows,
     });
+    setLastSavedRecord({ kind: "active", id: result.value.id });
     setSaveState("saved");
-    await refreshDbSets();
-    startNewDraftAfterSuccess();
+    const refreshed = await refreshDbSets();
+    startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
   }
 
   async function finalizeWorkingSet() {
@@ -442,9 +515,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
 
     setServiceError(null);
+    setLastSavedRecord({ kind: "active", id: result.value.id });
     setSaveState("finalized");
-    await refreshDbSets();
-    startNewDraftAfterSuccess();
+    const refreshed = await refreshDbSets();
+    startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
   }
 
   async function completeFinalSet() {
@@ -466,9 +540,89 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCompletedRecord(null);
     setPersistedSet(null);
     setServiceError(null);
+    setLastSavedRecord({ kind: "completed", id: result.value.id });
+    setSaveState("completed");
+    const refreshed = await refreshDbSets();
+    startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+  }
+
+
+  function editCompletedRecord() {
+    if (!completedRecord || selectedRole !== "admin") return;
+    setSelectedRole("admin");
+    setIsCompletedAdminEditMode(true);
+    setServiceError(null);
+  }
+
+  async function saveCompletedChanges() {
+    if (!completedRecord || !isCompletedAdminEditMode || selectedRole !== "admin") return;
+
+    const languageDeviationRows = getLanguageDeviationRowNumbers(rows, serviceLanguage);
+    if (languageDeviationRows.length > 0) {
+      const confirmed = window.confirm(
+        `Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language. Save this combination?`,
+      );
+      if (!confirmed) {
+        setServiceError({ code: "invalidInput", message: `Save cancelled. Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language.` });
+        setSaveState("errors");
+        return;
+      }
+    }
+
+    const result = await planningLifecycleService.updateCompletedRecord({
+      role: selectedRole,
+      recordId: completedRecord.id,
+      serviceContext: {
+        serviceDate,
+        serviceTime: normalizeServiceTime(serviceTime),
+        language: serviceLanguage,
+        priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
+        organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+      },
+      set: { status: "final", language: serviceLanguage, rows: planningRows },
+    });
+
+    if (!result.success) {
+      setServiceError(result.error);
+      setSaveState("errors");
+      return;
+    }
+
+    openCompletedRecord(result.value);
+    setLastSavedRecord({ kind: "completed", id: result.value.id });
+    setServiceError(null);
     setSaveState("completed");
     await refreshDbSets();
-    startNewDraftAfterSuccess();
+  }
+
+  async function cancelCompletedEditing() {
+    if (!completedRecord) return;
+    const result = await planningLifecycleService.loadCompletedRecord(completedRecord.id);
+    if (result.success) {
+      openCompletedRecord(result.value);
+      await refreshDbSets();
+      return;
+    }
+    setServiceError(result.error);
+    setSaveState("errors");
+  }
+
+  async function deleteCompletedRecord() {
+    if (!completedRecord || selectedRole !== "admin" || isCompletedAdminEditMode) return;
+    const confirmed = window.confirm(`Delete completed record for ${completedRecord.serviceContext.serviceDate} at ${completedRecord.serviceContext.serviceTime}?`);
+    if (!confirmed) return;
+    const deletedRecordId = completedRecord.id;
+    const result = await planningLifecycleService.deleteCompletedRecord({ role: selectedRole, recordId: deletedRecordId });
+    if (!result.success) {
+      setServiceError(result.error);
+      setSaveState("errors");
+      return;
+    }
+    if (lastSavedRecord?.kind === "completed" && lastSavedRecord.id === deletedRecordId) setLastSavedRecord(null);
+    setServiceError(null);
+    const refreshed = await refreshDbSets();
+    startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setSaveState("deleted");
   }
 
   async function deletePersistedSet() {
@@ -492,8 +646,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCompletedRecord(null);
     setSavedWorkingSet(null);
     setServiceError(null);
+    if (lastSavedRecord?.kind === "active" && lastSavedRecord.id === deletedSetId) setLastSavedRecord(null);
+    const refreshed = await refreshDbSets();
+    startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
     setSaveState("deleted");
-    await refreshDbSets();
   }
 
   return (
@@ -537,15 +693,15 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         <section className="db-workspace" aria-label="Saved planning records">
           <div className="rows-header">
             <h2>Active sets</h2>
-            <button type="button" onClick={startNewDbDraft}>Start new set</button>
+            <button type="button" onClick={startNewDbDraft} disabled={isCompletedAdminEditMode}>Start new set</button>
           </div>
           {savedDbSets.length === 0 ? (
             <p className="field-help">No active planning sets saved yet.</p>
           ) : (
             <ul className="saved-set-list">
               {savedDbSets.map((set) => (
-                <li key={set.id} className={persistedSet?.id === set.id ? "selected-record" : undefined}>
-                  <button type="button" onClick={() => loadDbSet(set.id)}>
+                <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}>
+                  <button type="button" onClick={() => loadDbSet(set.id)} disabled={isCompletedAdminEditMode}>
                     Open #{set.id}: {set.status}, {set.serviceContext.serviceDate} {set.serviceContext.serviceTime || "Time missing"}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
                   </button>
                 </li>
@@ -558,8 +714,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           ) : (
             <ul className="saved-set-list">
               {completedRecords.map((record) => (
-                <li key={record.id} className={completedRecord?.id === record.id ? "selected-record" : undefined}>
-                  <button type="button" onClick={() => loadCompletedRecord(record.id)}>
+                <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}>
+                  <button type="button" onClick={() => loadCompletedRecord(record.id)} disabled={isCompletedAdminEditMode}>
                     Read #{record.id}: {record.serviceContext.serviceDate} {record.serviceContext.serviceTime || "Time missing"}, {record.set.rows.length} rows
                   </button>
                 </li>
@@ -575,11 +731,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Service date
               <input
                 type="date"
-                disabled={Boolean(completedRecord)}
+                disabled={isEditorLocked}
                 value={serviceDate}
                 onChange={(event) => {
-                  setServiceDate(event.target.value);
-                  markUnsaved();
+                  updateServiceDateValue(event.target.value);
                 }}
               />
             </label>
@@ -587,11 +742,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Service time
               <input
                 type="time"
-                disabled={Boolean(completedRecord)}
+                disabled={isEditorLocked}
                 value={serviceTime}
                 onChange={(event) => {
-                  setServiceTime(event.target.value);
-                  markUnsaved();
+                  updateServiceTimeValue(event.target.value);
                 }}
               />
               {!serviceTime && <span className="field-help">Time missing</span>}
@@ -599,7 +753,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <label>
               Service language
               <select
-                disabled={Boolean(completedRecord)}
+                disabled={isEditorLocked}
                 value={serviceLanguage}
                 onChange={(event) => {
                   updateServiceLanguage(event.target.value as ServiceLanguage);
@@ -617,11 +771,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <input
                 type="text"
                 placeholder="Priest name or placeholder"
-                disabled={Boolean(completedRecord)}
+                disabled={isEditorLocked}
                 value={priest}
                 onChange={(event) => {
-                  setPriest(event.target.value);
-                  markUnsaved();
+                  updatePriestValue(event.target.value);
                 }}
               />
             </label>
@@ -630,11 +783,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <input
                 type="text"
                 placeholder="Organist name or placeholder"
-                disabled={Boolean(completedRecord)}
+                disabled={isEditorLocked}
                 value={organist}
                 onChange={(event) => {
-                  setOrganist(event.target.value);
-                  markUnsaved();
+                  updateOrganistValue(event.target.value);
                 }}
               />
             </label>
@@ -646,7 +798,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Local role
               <select
                 value={selectedRole}
-                onChange={(event) => setSelectedRole(event.target.value as PlanningRole)}
+                disabled={isCompletedAdminEditMode}
+                onChange={(event) => {
+                  if (isCompletedAdminEditMode) return;
+                  setSelectedRole(event.target.value as PlanningRole);
+                }}
                 aria-describedby="local-role-help"
               >
                 {localRoleOptions.map((role) => (
@@ -745,32 +901,43 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           </div>
 
           <div className="form-actions">
-            <button
-              className="save-button"
-              type="button"
-              onClick={saveWorkingSet}
-              disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors}
-            >
-              Save working set
-            </button>
-            <button
-              type="button"
-              onClick={finalizeWorkingSet}
-              disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors}
-            >
-              Finalize set
-            </button>
-            <button
-              type="button"
-              onClick={completeFinalSet}
-              disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"}
-              title={completeDateReason || undefined}
-            >
-              Complete service
-            </button>
-            <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
-              Delete saved set
-            </button>
+            {isCompletedAdminEditMode ? (
+              <>
+                <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={selectedRole !== "admin" || !hasServiceContext || hasValidationErrors}>
+                  Save completed changes
+                </button>
+                <button type="button" onClick={cancelCompletedEditing}>Cancel editing</button>
+              </>
+            ) : (
+              <>
+                {!isCompletedRecordOpen && !isFinalSetOpen && (
+                  <>
+                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors}>
+                      Save working set
+                    </button>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors}>
+                      Finalize set
+                    </button>
+                  </>
+                )}
+                {!isCompletedRecordOpen && (
+                  <>
+                    <button type="button" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"} title={completeDateReason || undefined}>
+                      Complete service
+                    </button>
+                    <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                      Delete saved set
+                    </button>
+                  </>
+                )}
+                {isCompletedRecordOpen && selectedRole === "admin" && (
+                  <>
+                    <button type="button" onClick={editCompletedRecord}>Edit completed record</button>
+                    <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>
+                  </>
+                )}
+              </>
+            )}
           </div>
           {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>

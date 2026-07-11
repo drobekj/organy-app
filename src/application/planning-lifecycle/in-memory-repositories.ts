@@ -86,6 +86,32 @@ export class InMemoryCompletedServiceRecordRepository implements CompletedServic
     return record ? cloneCompletedServiceRecord(record) : undefined;
   }
 
+  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }): Promise<CompletedServiceRecord> {
+    const existing = this.records.get(id);
+    if (!existing) {
+      throw new Error(`Completed service record '${id}' was not found.`);
+    }
+
+    const updated: CompletedServiceRecord = {
+      id: existing.id,
+      sourceFinalSetId: existing.sourceFinalSetId,
+      completedAt: new Date(existing.completedAt),
+      serviceContext: cloneServiceContext(serviceContext),
+      set: clonePlanningSet(set),
+    };
+
+    this.records.set(id, updated);
+    return cloneCompletedServiceRecord(updated);
+  }
+
+  async deleteById(id: string): Promise<void> {
+    this.records.delete(id);
+
+    if (this.records.size === 0) {
+      this.nextId = 1;
+    }
+  }
+
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
     for (const [id, record] of this.records.entries()) {
       if (record.sourceFinalSetId === sourceFinalSetId) {

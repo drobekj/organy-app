@@ -27,9 +27,11 @@ export {
 export {
   PlanningLifecycleService,
   type CompleteFinalSetInput,
+  type DeleteCompletedRecordInput,
   type DeletePlanningSetInput,
   type FinalizeWorkingSetInput,
   type PlanningLifecycleServiceDependencies,
   type ReorderRowsInput,
   type SaveWorkingSetInput,
+  type UpdateCompletedRecordInput,
 } from "./service";

@@ -287,3 +287,8 @@ button:disabled {
 .local-role-block {
   border-color: #7c3aed;
 }
+
+.last-saved-record button {
+  background: #f3f4f6;
+  outline: 2px solid #d1d5db;
+}

@@ -120,11 +120,34 @@ async function main() {
     const completedBeforeFinalDelete = await service.listCompletedRecords();
     assert(completedBeforeFinalDelete.success && completedBeforeFinalDelete.value.some((record) => record.id === completed.value.id && record.serviceContext.serviceTime === "09:00"), "completed context survives source final-set removal");
 
-    await db.delete(schema.completedServices).where(eq(schema.completedServices.id, Number(completed.value.id)));
+    const originalCompletedAt = completed.value.completedAt;
+    const updatedCompletedContext = { ...firstContext, serviceDate: "2026-07-08", serviceTime: "08:15", language: "mixed", priest: { id: "smoke-priest-updated", displayName: "Smoke Priest Updated" }, organist: { id: "smoke-organist-updated", displayName: "Smoke Organist Updated" } } satisfies ServiceContext;
+    const updatedCompletedSet = { status: "final", language: "mixed", rows: [{ note: "DB smoke admin completed update" }, { song: { language: "czech", number: "815" } }] } satisfies PlanningSet & { status: "final" };
+    const adminUpdated = await service.updateCompletedRecord({ role: "admin", recordId: completed.value.id, serviceContext: updatedCompletedContext, set: updatedCompletedSet });
+    assert(adminUpdated.success, "admin update completed record succeeds");
+    assert(adminUpdated.value.completedAt.getTime() === originalCompletedAt.getTime(), "admin update preserves completedAt");
+
+    const reloadedUpdated = await service.loadCompletedRecord(completed.value.id);
+    assert(reloadedUpdated.success, "updated completed record reloads from DB");
+    assert(reloadedUpdated.value.serviceContext.serviceDate === "2026-07-08", "updated completed service date reloads");
+    assert(reloadedUpdated.value.serviceContext.serviceTime === "08:15", "updated completed service time reloads");
+    assert(reloadedUpdated.value.set.rows.length === 2 && reloadedUpdated.value.set.rows[0]?.note === "DB smoke admin completed update", "updated completed rows reload");
+
+    const completedContextId = await findCompletedServiceContextId(db, completed.value.id);
+    assert(completedContextId !== undefined, "completed service context id can be inspected before delete");
+    const adminDeleted = await service.deleteCompletedRecord({ role: "admin", recordId: completed.value.id });
+    assert(adminDeleted.success, "admin delete completed record succeeds");
+    const completedRowsAfterDelete = await db.select().from(schema.completedServiceRows).where(eq(schema.completedServiceRows.completedServiceId, Number(completed.value.id)));
+    assert(completedRowsAfterDelete.length === 0, "admin delete removes completed rows");
+    if (completedContextId !== undefined) {
+      const orphanContext = await db.select().from(schema.serviceContexts).where(eq(schema.serviceContexts.id, completedContextId));
+      assert(orphanContext.length === 0, "admin delete removes orphan service context");
+    }
+
     await planningSets.deleteById(savedSecond.value.id);
 
-    const recreateAfterDelete = await service.saveWorkingSet({ role: "admin", serviceContext: secondContext, set: secondWorkingSet });
-    assert(recreateAfterDelete.success, "delete frees service date/time identity for a new save");
+    const recreateAfterDelete = await service.saveWorkingSet({ role: "admin", serviceContext: updatedCompletedContext, set: { status: "working", language: "mixed", rows: [{ note: "reuse completed date/time after delete" }] } });
+    assert(recreateAfterDelete.success, "completed delete frees service date/time identity for a new save");
     if (recreateAfterDelete.success) await planningSets.deleteById(recreateAfterDelete.value.id);
 
     console.log(
@@ -144,6 +167,11 @@ async function main() {
   } finally {
     await pool.end();
   }
+}
+
+async function findCompletedServiceContextId(db: { select: () => { from: (table: unknown) => { where: (condition: unknown) => { limit: (limit: number) => Promise<Array<{ serviceContextId: number }>> } } } }, completedRecordId: string): Promise<number | undefined> {
+  const rows = await db.select().from(schema.completedServices).where(eq(schema.completedServices.id, Number(completedRecordId))).limit(1);
+  return rows[0]?.serviceContextId;
 }
 
 async function cleanupSmokeData(db: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }) {

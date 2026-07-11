@@ -29,5 +29,7 @@ export interface CompletedServiceRecordRepository {
   createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord>;
   list(): Promise<CompletedServiceRecord[]>;
   findById(id: CompletedServiceRecordId): Promise<CompletedServiceRecord | undefined>;
+  update(id: CompletedServiceRecordId, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }): Promise<CompletedServiceRecord>;
+  deleteById(id: CompletedServiceRecordId): Promise<void>;
   deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
 }

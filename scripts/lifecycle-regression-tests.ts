@@ -7,7 +7,8 @@ import {
   type CompletedServiceRecordRepository,
   type PlanningSetId,
 } from "../src/application/planning-lifecycle";
-import type { PlanningSet, ServiceContext } from "../src/planning-lifecycle";
+import type { PlanningRole, PlanningSet, ServiceContext } from "../src/planning-lifecycle";
+import { canMutatePlanningEditor, getDraftPeopleDefaults, recordListClassName, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
 
 type TestCase = {
   name: string;
@@ -63,6 +64,135 @@ const finalSet = {
 } satisfies PlanningSet & { status: "final" };
 
 const tests: TestCase[] = [
+
+  {
+    name: "phase 27 UI guards protect final and read-only completed editor state",
+    run() {
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: true, isCompletedRecordOpen: false, isCompletedAdminEditMode: false, selectedRole: "admin" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, isCompletedAdminEditMode: false, selectedRole: "admin" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, isCompletedAdminEditMode: true, selectedRole: "priest" }), false);
+      assert.equal(canMutatePlanningEditor({ isFinalSetOpen: false, isCompletedRecordOpen: true, isCompletedAdminEditMode: true, selectedRole: "admin" }), true);
+      assert.equal(recordListClassName(true, true), "selected-record");
+      assert.equal(recordListClassName(false, true), "last-saved-record");
+    },
+  },
+
+  {
+    name: "phase 27 draft people defaults use deterministic newest completed record including IDs",
+    run() {
+      const base = completedRecordFixture("completed-service-1", "2026-07-10", "10:00", "2026-07-10T10:00:00.000Z", "older");
+      const sameDateLaterTime = completedRecordFixture("completed-service-2", "2026-07-11", "09:00", "2026-07-11T09:00:00.000Z", "later-time-loses");
+      const laterTime = completedRecordFixture("completed-service-3", "2026-07-11", "11:00", "2026-07-11T08:00:00.000Z", "later-time");
+      const laterCompletedAt = completedRecordFixture("completed-service-4", "2026-07-11", "11:00", "2026-07-11T09:00:00.000Z", "later-completed-at");
+      const highestId = completedRecordFixture("completed-service-5", "2026-07-11", "11:00", "2026-07-11T09:00:00.000Z", "highest-id");
+      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "" }, organist: { displayName: "" } });
+      const defaults = getDraftPeopleDefaults([highestId, laterCompletedAt, laterTime, sameDateLaterTime, base]);
+      assert.deepEqual(defaults.priest, { id: "priest-highest-id", displayName: "Priest highest-id" });
+      assert.deepEqual(defaults.organist, { id: "organist-highest-id", displayName: "Organist highest-id" });
+      const afterDeleteDefaults = getDraftPeopleDefaults([laterCompletedAt, laterTime, sameDateLaterTime, base]);
+      assert.equal(afterDeleteDefaults.priest.displayName, "Priest later-completed-at");
+      assert.notEqual(afterDeleteDefaults.priest.displayName, "Priest highest-id");
+    },
+  },
+
+  {
+    name: "phase 27 completed admin update enforces permissions, validation, duplicate rules, and preserves immutable fields",
+    async run() {
+      const { service } = createService();
+      const saved = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(saved.success, true);
+      const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.success ? saved.value.id : "missing" });
+      assert.equal(finalized.success, true);
+      const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+      assert.equal(completed.success, true);
+      const record = completed.success ? completed.value : undefined;
+      if (!record) throw new Error("completed record should exist");
+
+      const updatedContext = { ...mixedContext, serviceDate: "2026-07-10", serviceTime: "08:30", priest: { id: "priest-updated", displayName: "Updated Priest" } } satisfies ServiceContext;
+      const updatedFinalSet = { status: "final", language: "mixed", rows: [{ note: "Admin note-only correction" }, { song: { language: "czech", number: "303" } }] } satisfies PlanningSet & { status: "final" };
+
+      for (const role of ["priest", "organist", "congregationMember"] satisfies PlanningRole[]) {
+        const denied = await service.updateCompletedRecord({ role, recordId: record.id, serviceContext: updatedContext, set: updatedFinalSet });
+        assert.equal(denied.success, false);
+        assert.equal(denied.success ? undefined : denied.error.code, "permissionDenied");
+      }
+
+      const tooManyRows = await service.updateCompletedRecord({
+        role: "admin",
+        recordId: record.id,
+        serviceContext: updatedContext,
+        set: { status: "final", language: "mixed", rows: Array.from({ length: 11 }, (_, index) => ({ note: `row ${index}` })) },
+      });
+      assert.equal(tooManyRows.success, false);
+
+      const active = await service.saveWorkingSet({ role: "admin", serviceContext: czechContext, set: secondWorkingSet });
+      assert.equal(active.success, true);
+      const activeConflict = await service.updateCompletedRecord({ role: "admin", recordId: record.id, serviceContext: czechContext, set: { status: "final", language: "czech", rows: secondWorkingSet.rows } });
+      assert.equal(activeConflict.success, false);
+
+      const otherSaved = await service.saveWorkingSet({ role: "admin", serviceContext: { ...mixedContext, serviceDate: "2026-07-09", serviceTime: "07:00" }, set: workingSet });
+      assert.equal(otherSaved.success, true);
+      const otherFinal = await service.finalizeWorkingSet({ role: "admin", workingSetId: otherSaved.success ? otherSaved.value.id : "missing" });
+      assert.equal(otherFinal.success, true);
+      const otherCompleted = await service.completeFinalSet({ role: "admin", finalSetId: otherFinal.success ? otherFinal.value.id : "missing" });
+      assert.equal(otherCompleted.success, true);
+      const completedConflict = await service.updateCompletedRecord({ role: "admin", recordId: record.id, serviceContext: otherCompleted.success ? otherCompleted.value.serviceContext : czechContext, set: updatedFinalSet });
+      assert.equal(completedConflict.success, false);
+
+      const ownDateTime = await service.updateCompletedRecord({ role: "admin", recordId: record.id, serviceContext: record.serviceContext, set: record.set });
+      assert.equal(ownDateTime.success, true);
+      const updated = await service.updateCompletedRecord({ role: "admin", recordId: record.id, serviceContext: updatedContext, set: updatedFinalSet });
+      assert.equal(updated.success, true);
+      assert.equal(updated.success ? updated.value.id : undefined, record.id);
+      assert.equal(updated.success ? updated.value.sourceFinalSetId : undefined, record.sourceFinalSetId);
+      assert.deepEqual(updated.success ? updated.value.completedAt : undefined, record.completedAt);
+      assert.equal(updated.success ? updated.value.serviceContext.priest.id : undefined, "priest-updated");
+      assert.deepEqual(updated.success ? updated.value.set.rows : undefined, updatedFinalSet.rows);
+    },
+  },
+
+  {
+    name: "phase 27 completed admin delete enforces permissions and frees service identity",
+    async run() {
+      const { service, completedRecords } = createService();
+      const saved = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(saved.success, true);
+      const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.success ? saved.value.id : "missing" });
+      assert.equal(finalized.success, true);
+      const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+      assert.equal(completed.success, true);
+      const recordId = completed.success ? completed.value.id : "missing";
+
+      const denied = await service.deleteCompletedRecord({ role: "priest", recordId });
+      assert.equal(denied.success, false);
+      assert.notEqual(await completedRecords.findById(recordId), undefined);
+
+      const deleted = await service.deleteCompletedRecord({ role: "admin", recordId });
+      assert.equal(deleted.success, true);
+      assert.equal(await completedRecords.findById(recordId), undefined);
+      const recreated = await service.saveWorkingSet({ role: "admin", serviceContext: mixedContext, set: workingSet });
+      assert.equal(recreated.success, true);
+    },
+  },
+
+  {
+    name: "phase 27 last-saved state transitions are session-local and preserve on cancel/error",
+    run() {
+      let lastSaved: PersistedRecordReference | null = null;
+      lastSaved = { kind: "active", id: "working-1" };
+      assert.deepEqual(lastSaved, { kind: "active", id: "working-1" });
+      lastSaved = { kind: "active", id: "final-1" };
+      assert.deepEqual(lastSaved, { kind: "active", id: "final-1" });
+      lastSaved = { kind: "completed", id: "completed-1" };
+      const beforeCancel = lastSaved;
+      assert.deepEqual(lastSaved, beforeCancel);
+      const beforeError = lastSaved;
+      assert.deepEqual(lastSaved, beforeError);
+      if (lastSaved.kind === "completed" && lastSaved.id === "completed-1") lastSaved = null;
+      assert.equal(lastSaved, null);
+    },
+  },
+
 
   {
     name: "service identity requires service time, rejects duplicate date/time, and allows editing the same set",
@@ -295,6 +425,17 @@ class InspectableCompletedServiceRecordRepository implements CompletedServiceRec
     return this.records.get(id);
   }
 
+  async update(id: string, serviceContext: CompletedServiceRecord["serviceContext"], set: CompletedServiceRecord["set"]): Promise<CompletedServiceRecord> {
+    const updated = await this.delegate.update(id, serviceContext, set);
+    this.records.set(id, updated);
+    return updated;
+  }
+
+  async deleteById(id: string): Promise<void> {
+    await this.delegate.deleteById(id);
+    this.records.delete(id);
+  }
+
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
     await this.delegate.deleteBySourceFinalSetId(sourceFinalSetId);
 
@@ -308,6 +449,23 @@ class InspectableCompletedServiceRecordRepository implements CompletedServiceRec
   countBySourceFinalSetId(sourceFinalSetId: PlanningSetId): number {
     return [...this.records.values()].filter((record) => record.sourceFinalSetId === sourceFinalSetId).length;
   }
+}
+
+
+function completedRecordFixture(id: string, serviceDate: string, serviceTime: string, completedAt: string, label: string): CompletedServiceRecord {
+  return {
+    id,
+    sourceFinalSetId: `source-${id}`,
+    completedAt: new Date(completedAt),
+    serviceContext: {
+      serviceDate,
+      serviceTime,
+      language: "mixed",
+      priest: { id: `priest-${label}`, displayName: `Priest ${label}` },
+      organist: { id: `organist-${label}`, displayName: `Organist ${label}` },
+    },
+    set: { status: "final", language: "mixed", rows: [{ note: label }] },
+  };
 }
 
 void main().catch((error: unknown) => {

@@ -304,9 +304,54 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
   }
 
   private async hydrate(row: CompletedServiceRecordRecord): Promise<CompletedServiceRecord> {
-    const [context] = (await selectAll(this.dependencies.db).from(serviceContexts).where(eq(serviceContexts.id, row.serviceContextId)).limit(1)) as ServiceContextRecord[];
-    const rows = (await selectAll(this.dependencies.db).from(completedServiceRows).where(eq(completedServiceRows.completedServiceId, row.id)).orderBy(asc(completedServiceRows.position))) as ServiceSetRowRecord[];
+    return this.hydrateWithExecutor(this.dependencies.db, row);
+  }
+
+  private async hydrateWithExecutor(db: DrizzleExecutor, row: CompletedServiceRecordRecord): Promise<CompletedServiceRecord> {
+    const [context] = (await selectAll(db).from(serviceContexts).where(eq(serviceContexts.id, row.serviceContextId)).limit(1)) as ServiceContextRecord[];
+    const rows = (await selectAll(db).from(completedServiceRows).where(eq(completedServiceRows.completedServiceId, row.id)).orderBy(asc(completedServiceRows.position))) as ServiceSetRowRecord[];
     return { id: formatCompletedServiceRecordId(row.id), sourceFinalSetId: row.serviceSetId ? formatPlanningSetId(row.serviceSetId) : "", set: { status: "final", language: context.serviceLanguage, rows: rows.map(mapRowRecordToPlanningRow) }, serviceContext: mapContextRecordToServiceContext(context), completedAt: new Date(row.completedAt) };
+  }
+
+  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }): Promise<CompletedServiceRecord> {
+    const numericId = parsePlanningSetId(id);
+    if (numericId === undefined) {
+      throw new Error(`Completed service record id '${id}' is not valid.`);
+    }
+
+    return this.dependencies.db.transaction(async (tx) => {
+      const now = new Date();
+      const [existing] = (await selectAll(tx).from(completedServices).where(eq(completedServices.id, numericId)).limit(1)) as CompletedServiceRecordRecord[];
+      if (!existing) {
+        throw new Error(`Completed service record '${id}' was not found.`);
+      }
+
+      await updateTable(tx, serviceContexts)
+        .set({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, updatedAt: now })
+        .where(eq(serviceContexts.id, existing.serviceContextId));
+      await updateTable(tx, completedServices).set({ updatedAt: now }).where(eq(completedServices.id, numericId));
+      await replaceCompletedRows(tx, numericId, set.rows, now);
+      const [updated] = (await selectAll(tx).from(completedServices).where(eq(completedServices.id, numericId)).limit(1)) as CompletedServiceRecordRecord[];
+      return this.hydrateWithExecutor(tx, updated);
+    });
+  }
+
+  async deleteById(id: string): Promise<void> {
+    const numericId = parsePlanningSetId(id);
+    if (numericId === undefined) return;
+
+    await this.dependencies.db.transaction(async (tx) => {
+      const [existing] = (await selectAll(tx).from(completedServices).where(eq(completedServices.id, numericId)).limit(1)) as CompletedServiceRecordRecord[];
+      if (!existing) return;
+      const serviceContextId = existing.serviceContextId;
+      await deleteFrom(tx, completedServices).where(eq(completedServices.id, numericId));
+
+      const activeReferencingContext = (await selectAll(tx).from(serviceSets).where(eq(serviceSets.serviceContextId, serviceContextId)).limit(1)) as ServiceSetRecord[];
+      const completedReferencingContext = (await selectAll(tx).from(completedServices).where(eq(completedServices.serviceContextId, serviceContextId)).limit(1)) as CompletedServiceRecordRecord[];
+      if (activeReferencingContext.length === 0 && completedReferencingContext.length === 0) {
+        await deleteFrom(tx, serviceContexts).where(eq(serviceContexts.id, serviceContextId));
+      }
+    });
   }
 
   async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
@@ -372,6 +417,26 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
   await insertInto(db, serviceSetRows).values(
     rows.map((row, index) => ({
       serviceSetId,
+      position: index + 1,
+      songLanguage: row.song?.language,
+      songNumber: row.song?.number,
+      note: row.note,
+      createdAt: now,
+      updatedAt: now,
+    })),
+  );
+}
+
+async function replaceCompletedRows(db: DrizzleExecutor, completedServiceId: number, rows: PlanningRow[], now: Date): Promise<void> {
+  await deleteFrom(db, completedServiceRows).where(eq(completedServiceRows.completedServiceId, completedServiceId));
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  await insertInto(db, completedServiceRows).values(
+    rows.map((row, index) => ({
+      completedServiceId,
       position: index + 1,
       songLanguage: row.song?.language,
       songNumber: row.song?.number,

@@ -6,7 +6,9 @@ export type PlanningAction =
   | "deleteWorkingSet"
   | "saveFinalSet"
   | "deleteFinalSet"
-  | "convertFinalSetToCompletedServiceRecord";
+  | "convertFinalSetToCompletedServiceRecord"
+  | "editCompletedServiceRecord"
+  | "deleteCompletedServiceRecord";
 
 const workingSetRoles: readonly PlanningRole[] = ["priest", "organist", "admin"];
 const finalSetRoles: readonly PlanningRole[] = ["priest", "admin"];
@@ -21,5 +23,8 @@ export function canPerformPlanningAction(role: PlanningRole, action: PlanningAct
     case "deleteFinalSet":
     case "convertFinalSetToCompletedServiceRecord":
       return finalSetRoles.includes(role);
+    case "editCompletedServiceRecord":
+    case "deleteCompletedServiceRecord":
+      return role === "admin";
   }
 }
