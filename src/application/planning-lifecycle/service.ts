@@ -1,5 +1,7 @@
 import {
   canPerformPlanningAction,
+  isValidServiceTime,
+  normalizeServiceTime,
   validatePlanningSet,
   type PlanningRole,
   type PlanningRow,
@@ -63,12 +65,32 @@ export class PlanningLifecycleService {
     this.now = dependencies.now ?? (() => new Date());
   }
 
+
+  async listPlanningSets(): Promise<PlanningServiceResult<PersistedPlanningSet[]>> {
+    return success(await this.planningSets.list());
+  }
+
+  async listCompletedRecords(): Promise<PlanningServiceResult<CompletedServiceRecord[]>> {
+    return success(await this.completedServiceRecords.list());
+  }
+
+  async loadPlanningSet(setId: PlanningSetId): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+    const set = await this.planningSets.findById(setId);
+    return set ? success(set) : failure({ code: "notFound", message: "Planning set was not found." });
+  }
+
+  async loadCompletedRecord(recordId: string): Promise<PlanningServiceResult<CompletedServiceRecord>> {
+    const record = await this.completedServiceRecords.findById(recordId);
+    return record ? success(record) : failure({ code: "notFound", message: "Completed record was not found." });
+  }
+
   async saveWorkingSet(input: SaveWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
     if (!canPerformPlanningAction(input.role, input.existingSetId ? "editWorkingSet" : "createWorkingSet")) {
       return failure({ code: "permissionDenied", message: "Role cannot save a working planning set." });
     }
 
-    const serviceContextIssues = validateSaveWorkingSetServiceContext(input.serviceContext, input.set);
+    const serviceContext: SaveWorkingSetServiceContext = { ...input.serviceContext, serviceTime: normalizeServiceTime(input.serviceContext.serviceTime) };
+    const serviceContextIssues = validateSaveWorkingSetServiceContext(serviceContext, input.set);
     if (serviceContextIssues.length > 0) {
       return failure({
         code: "invalidInput",
@@ -93,7 +115,12 @@ export class PlanningLifecycleService {
       }
     }
 
-    return success(await this.planningSets.saveWorkingSet(input.set, input.serviceContext, input.existingSetId));
+    const duplicate = await this.findDuplicateService(serviceContext, input.existingSetId);
+    if (duplicate) {
+      return failure({ code: "invalidInput", message: `A service already exists for ${serviceContext.serviceDate} at ${serviceContext.serviceTime}.` });
+    }
+
+    return success(await this.planningSets.saveWorkingSet(input.set, serviceContext, input.existingSetId));
   }
 
   async finalizeWorkingSet(input: FinalizeWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
@@ -202,16 +229,34 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidStatus", message: "Only final planning sets can be completed." });
     }
 
+    if (isFuturePragueDate(finalSet.serviceContext.serviceDate, this.now())) {
+      return failure({ code: "invalidInput", message: `Future service ${finalSet.serviceContext.serviceDate} at ${finalSet.serviceContext.serviceTime || "Time missing"} cannot be completed.` });
+    }
+
     const completedAt = this.now();
     const completedRecord = await this.completedServiceRecords.createFromFinalSet({
       sourceFinalSetId: input.finalSetId,
       set: { status: "final", language: finalSet.language, rows: finalSet.rows },
+      serviceContext: finalSet.serviceContext,
       completedAt,
     });
 
     await this.planningSets.deleteById(input.finalSetId);
     return success(completedRecord);
   }
+
+  private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {
+    const sets = await this.planningSets.list();
+    const activeDuplicate = sets.find((set) => set.id !== currentSetId && set.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(set.serviceContext.serviceTime) === serviceContext.serviceTime);
+    if (activeDuplicate) return activeDuplicate;
+    const completed = await this.completedServiceRecords.list();
+    return completed.find((record) => record.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(record.serviceContext.serviceTime) === serviceContext.serviceTime);
+  }
+}
+
+function isFuturePragueDate(serviceDate: string, now: Date): boolean {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  return serviceDate > today;
 }
 
 function reorderRowsByIndex(rows: PlanningRow[], rowOrder: number[]): PlanningRow[] | undefined {
@@ -243,6 +288,7 @@ function validateSaveWorkingSetServiceContext(
       ? [{ path: "serviceContext.language", message: "Service context language must match the planning set language." }]
       : []),
     ...(!serviceContext.serviceDate.trim() ? [{ path: "serviceDate", message: "Service date is required." }] : []),
+    ...(!isValidServiceTime(serviceContext.serviceTime) ? [{ path: "serviceTime", message: "Service time is required in HH:mm format between 00:00 and 23:59." }] : []),
     ...(!serviceContext.priest.displayName.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
     ...(!serviceContext.organist.displayName.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
   ];

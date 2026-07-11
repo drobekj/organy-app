@@ -11,7 +11,7 @@ import {
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
-import { canPerformPlanningAction, validatePlanningRow } from "../src/planning-lifecycle";
+import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import {
   formatDateInputValue,
   getDefaultRowLanguage,
@@ -33,6 +33,7 @@ type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "
 
 type WorkingSetSnapshot = {
   serviceDate: string;
+  serviceTime: string;
   serviceLanguage: ServiceLanguage;
   priest: string;
   organist: string;
@@ -88,6 +89,11 @@ function toPlanningRow(row: EditableRow): PlanningRow {
   };
 }
 
+function isFuturePragueDate(serviceDate: string): boolean {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return serviceDate > today;
+}
+
 export type RuntimeMode = "memory" | "db";
 
 type PlanningLifecycleClientProps = {
@@ -97,6 +103,14 @@ type PlanningLifecycleClientProps = {
 class DbPlanningLifecycleClient {
   async listPlanningSets() {
     return callPlanningLifecycleApi("listPlanningSets", {});
+  }
+
+  async listCompletedRecords() {
+    return callPlanningLifecycleApi("listCompletedRecords", {});
+  }
+
+  async loadCompletedRecord(recordId: string) {
+    return callPlanningLifecycleApi("loadCompletedRecord", { recordId });
   }
 
   async loadPlanningSet(setId: PlanningSetId) {
@@ -164,6 +178,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
   const initialServiceLanguage = useMemo(() => getDefaultServiceLanguage(initialServiceSunday), [initialServiceSunday]);
   const [serviceDate, setServiceDate] = useState(initialServiceDate);
+  const [serviceTime, setServiceTime] = useState("09:00");
   const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>(initialServiceLanguage);
   const [priest, setPriest] = useState("");
   const [organist, setOrganist] = useState("");
@@ -175,37 +190,39 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [persistedSet, setPersistedSet] = useState<PersistedPlanningSet | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
+  const [completedRecords, setCompletedRecords] = useState<CompletedServiceRecord[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
 
   useEffect(() => {
-    if (runtimeMode === "db") {
-      void refreshDbSets();
-    }
+    void refreshDbSets();
   }, [runtimeMode]);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
-  const hasServiceContext = Boolean(serviceDate && priest.trim() && organist.trim());
-  const canSaveWorkingSet = canPerformPlanningAction(
+  const isCompletedRecordOpen = Boolean(completedRecord);
+  const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim());
+  const canSaveWorkingSet = !isCompletedRecordOpen && canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
   );
-  const canFinalizeSet = canPerformPlanningAction(selectedRole, "saveFinalSet");
-  const canCompleteSet = canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord");
-  const canDeleteCurrentSet = persistedSet
+  const canFinalizeSet = !isCompletedRecordOpen && canPerformPlanningAction(selectedRole, "saveFinalSet");
+  const completeDateReason = persistedSet?.status === "final" && isFuturePragueDate(persistedSet.serviceContext.serviceDate) ? "Future service cannot be completed before its date in Europe/Prague." : "";
+  const canCompleteSet = !isCompletedRecordOpen && canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord") && !completeDateReason;
+  const canDeleteCurrentSet = !isCompletedRecordOpen && persistedSet
     ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
     : false;
-  const canEditRows = !persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false;
+  const canEditRows = !isCompletedRecordOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false);
 
   async function refreshDbSets() {
-    if (!(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
-      return;
-    }
     const result = await planningLifecycleService.listPlanningSets();
     if (result.success) {
       setSavedDbSets(result.value);
+    }
+    const completedResult = await planningLifecycleService.listCompletedRecords();
+    if (completedResult.success) {
+      setCompletedRecords(completedResult.value);
     }
   }
 
@@ -213,6 +230,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPersistedSet(set);
     setCompletedRecord(null);
     setServiceDate(set.serviceContext.serviceDate);
+    setServiceTime(set.serviceContext.serviceTime);
     setServiceLanguage(set.serviceContext.language);
     setPriest(set.serviceContext.priest.displayName);
     setOrganist(set.serviceContext.organist.displayName);
@@ -223,10 +241,33 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setServiceError(null);
   }
 
-  async function loadDbSet(setId: PlanningSetId) {
-    if (!(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
+  function openCompletedRecord(record: CompletedServiceRecord) {
+    setCompletedRecord(record);
+    setPersistedSet(null);
+    setServiceDate(record.serviceContext.serviceDate);
+    setServiceTime(record.serviceContext.serviceTime);
+    setServiceLanguage(record.serviceContext.language);
+    setPriest(record.serviceContext.priest.displayName);
+    setOrganist(record.serviceContext.organist.displayName);
+    const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
+    setRows(editableRows);
+    setNextRowId(editableRows.length + 1);
+    setSaveState("completed");
+    setServiceError(null);
+  }
+
+  async function loadCompletedRecord(recordId: string) {
+    const result = await planningLifecycleService.loadCompletedRecord(recordId);
+    if (result.success) {
+      openCompletedRecord(result.value);
+      await refreshDbSets();
       return;
     }
+    setServiceError(result.error);
+    setSaveState("errors");
+  }
+
+  async function loadDbSet(setId: PlanningSetId) {
     const result = await planningLifecycleService.loadPlanningSet(setId);
     if (result.success) {
       openPersistedSet(result.value);
@@ -237,15 +278,25 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("errors");
   }
 
-  function startNewDbDraft() {
-    if (runtimeMode !== "db") {
-      return;
-    }
-
+  function startNewDraftAfterSuccess() {
     setPersistedSet(null);
     setCompletedRecord(null);
     setSavedWorkingSet(null);
     setServiceDate(initialServiceDate);
+    setServiceTime("09:00");
+    setServiceLanguage(initialServiceLanguage);
+    setPriest("");
+    setOrganist("");
+    setRows([createEmptyRow(1, initialServiceLanguage)]);
+    setNextRowId(2);
+  }
+
+  function startNewDbDraft() {
+    setPersistedSet(null);
+    setCompletedRecord(null);
+    setSavedWorkingSet(null);
+    setServiceDate(initialServiceDate);
+    setServiceTime("09:00");
     setServiceLanguage(initialServiceLanguage);
     setPriest("");
     setOrganist("");
@@ -261,6 +312,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
+    if (isCompletedRecordOpen) return;
     setRows((currentRows) =>
       currentRows.map((row) => (row.id === id ? { ...row, ...changes } : row)),
     );
@@ -268,17 +320,20 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function addRow() {
+    if (isCompletedRecordOpen) return;
     setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId, serviceLanguage)]);
     setNextRowId((currentId) => currentId + 1);
     markUnsaved();
   }
 
   function removeRow(id: number) {
+    if (isCompletedRecordOpen) return;
     setRows((currentRows) => currentRows.filter((row) => row.id !== id));
     markUnsaved();
   }
 
   function moveRow(index: number, direction: -1 | 1) {
+    if (isCompletedRecordOpen) return;
     const targetIndex = index + direction;
 
     if (targetIndex < 0 || targetIndex >= rows.length) {
@@ -295,18 +350,21 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function updateServiceLanguage(nextServiceLanguage: ServiceLanguage) {
+    if (isCompletedRecordOpen) return;
     setServiceLanguage(nextServiceLanguage);
     setRows((currentRows) => propagateServiceLanguageToRows(currentRows, nextServiceLanguage));
     markUnsaved();
   }
 
   async function saveWorkingSet() {
+    if (isCompletedRecordOpen) return;
     if (!hasServiceContext) {
       setServiceError({
         code: "invalidInput",
         message: "Service context is required before saving a working set.",
         issues: [
           ...(!serviceDate ? [{ path: "serviceDate", message: "Service date is required." }] : []),
+          ...(!isValidServiceTime(serviceTime) ? [{ path: "serviceTime", message: "Service time is required in HH:mm format between 00:00 and 23:59." }] : []),
           ...(!priest.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
           ...(!organist.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
         ],
@@ -335,6 +393,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       existingSetId: persistedSet?.status === "working" ? persistedSet.id : undefined,
       serviceContext: {
         serviceDate,
+        serviceTime: normalizeServiceTime(serviceTime),
         language: serviceLanguage,
         priest: { displayName: priest },
         organist: { displayName: organist },
@@ -352,11 +411,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       return;
     }
 
-    setPersistedSet(result.value);
-    setCompletedRecord(null);
     setServiceError(null);
     setSavedWorkingSet({
       serviceDate,
+      serviceTime,
       serviceLanguage,
       priest,
       organist,
@@ -364,10 +422,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     });
     setSaveState("saved");
     await refreshDbSets();
+    startNewDraftAfterSuccess();
   }
 
   async function finalizeWorkingSet() {
-    if (!persistedSet || persistedSet.status !== "working") {
+    if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") {
       return;
     }
 
@@ -382,15 +441,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       return;
     }
 
-    setPersistedSet(result.value);
-    setCompletedRecord(null);
     setServiceError(null);
     setSaveState("finalized");
     await refreshDbSets();
+    startNewDraftAfterSuccess();
   }
 
   async function completeFinalSet() {
-    if (!persistedSet || persistedSet.status !== "final") {
+    if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "final") {
       return;
     }
 
@@ -405,15 +463,16 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       return;
     }
 
-    setCompletedRecord(result.value);
+    setCompletedRecord(null);
     setPersistedSet(null);
     setServiceError(null);
     setSaveState("completed");
     await refreshDbSets();
+    startNewDraftAfterSuccess();
   }
 
   async function deletePersistedSet() {
-    if (!persistedSet) {
+    if (isCompletedRecordOpen || !persistedSet) {
       return;
     }
 
@@ -475,28 +534,39 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           {saveState === "errors" && "Service error"}
         </div>
 
-        {runtimeMode === "db" && (
-          <section className="db-workspace" aria-label="Saved DB planning sets">
-            <div className="rows-header">
-              <h2>Saved DB sets</h2>
-              <button type="button" onClick={refreshDbSets}>Refresh list</button>
-              <button type="button" onClick={startNewDbDraft}>Start new set</button>
-            </div>
-            {savedDbSets.length === 0 ? (
-              <p className="field-help">No DB planning sets saved yet.</p>
-            ) : (
-              <ul className="saved-set-list">
-                {savedDbSets.map((set) => (
-                  <li key={set.id}>
-                    <button type="button" onClick={() => loadDbSet(set.id)}>
-                      Open #{set.id}: {set.status}, {set.serviceContext.serviceDate}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
+        <section className="db-workspace" aria-label="Saved planning records">
+          <div className="rows-header">
+            <h2>Active sets</h2>
+            <button type="button" onClick={startNewDbDraft}>Start new set</button>
+          </div>
+          {savedDbSets.length === 0 ? (
+            <p className="field-help">No active planning sets saved yet.</p>
+          ) : (
+            <ul className="saved-set-list">
+              {savedDbSets.map((set) => (
+                <li key={set.id} className={persistedSet?.id === set.id ? "selected-record" : undefined}>
+                  <button type="button" onClick={() => loadDbSet(set.id)}>
+                    Open #{set.id}: {set.status}, {set.serviceContext.serviceDate} {set.serviceContext.serviceTime || "Time missing"}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h2>Completed records</h2>
+          {completedRecords.length === 0 ? (
+            <p className="field-help">No completed service records saved yet.</p>
+          ) : (
+            <ul className="saved-set-list">
+              {completedRecords.map((record) => (
+                <li key={record.id} className={completedRecord?.id === record.id ? "selected-record" : undefined}>
+                  <button type="button" onClick={() => loadCompletedRecord(record.id)}>
+                    Read #{record.id}: {record.serviceContext.serviceDate} {record.serviceContext.serviceTime || "Time missing"}, {record.set.rows.length} rows
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         <form className="planning-form" onSubmit={(event) => event.preventDefault()}>
           <fieldset className="field-group">
@@ -505,6 +575,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Service date
               <input
                 type="date"
+                disabled={Boolean(completedRecord)}
                 value={serviceDate}
                 onChange={(event) => {
                   setServiceDate(event.target.value);
@@ -513,8 +584,22 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               />
             </label>
             <label>
+              Service time
+              <input
+                type="time"
+                disabled={Boolean(completedRecord)}
+                value={serviceTime}
+                onChange={(event) => {
+                  setServiceTime(event.target.value);
+                  markUnsaved();
+                }}
+              />
+              {!serviceTime && <span className="field-help">Time missing</span>}
+            </label>
+            <label>
               Service language
               <select
+                disabled={Boolean(completedRecord)}
                 value={serviceLanguage}
                 onChange={(event) => {
                   updateServiceLanguage(event.target.value as ServiceLanguage);
@@ -532,6 +617,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <input
                 type="text"
                 placeholder="Priest name or placeholder"
+                disabled={Boolean(completedRecord)}
                 value={priest}
                 onChange={(event) => {
                   setPriest(event.target.value);
@@ -544,6 +630,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <input
                 type="text"
                 placeholder="Organist name or placeholder"
+                disabled={Boolean(completedRecord)}
                 value={organist}
                 onChange={(event) => {
                   setOrganist(event.target.value);
@@ -551,6 +638,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 }}
               />
             </label>
+          </fieldset>
+
+          <fieldset className="field-group local-role-block">
+            <legend>Local role simulation</legend>
             <label>
               Local role
               <select
@@ -566,7 +657,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               </select>
             </label>
             <p id="local-role-help" className="field-help">
-              Local in-memory dev selector only; lifecycle actions use this role for permission checks.
+              Local in-memory dev selector only; lifecycle actions use this role for permission checks. It is not part of ServiceContext.
             </p>
           </fieldset>
 
@@ -603,6 +694,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <label>
                       Song language
                       <select
+                        disabled={!canEditRows}
                         value={row.songLanguage}
                         onChange={(event) =>
                           updateRow(row.id, {
@@ -626,6 +718,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                         value={row.songNumber}
                         onChange={(event) => updateRow(row.id, { songNumber: event.target.value })}
                         placeholder="e.g. 42"
+                        disabled={!canEditRows}
                       />
                     </label>
                     <label className="note-field">
@@ -635,6 +728,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                         value={row.note}
                         onChange={(event) => updateRow(row.id, { note: event.target.value })}
                         placeholder="Optional note without a song"
+                        disabled={!canEditRows}
                       />
                     </label>
                   </div>
@@ -670,6 +764,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               type="button"
               onClick={completeFinalSet}
               disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"}
+              title={completeDateReason || undefined}
             >
               Complete service
             </button>
@@ -677,6 +772,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Delete saved set
             </button>
           </div>
+          {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>
 
         {serviceError && (

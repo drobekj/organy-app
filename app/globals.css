@@ -278,3 +278,12 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.selected-record button {
+  outline: 3px solid #7c3aed;
+  background: #f5f3ff;
+}
+
+.local-role-block {
+  border-color: #7c3aed;
+}

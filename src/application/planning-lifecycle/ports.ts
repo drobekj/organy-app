@@ -13,6 +13,7 @@ export type CompletedServiceRecord = {
   id: CompletedServiceRecordId;
   sourceFinalSetId: PlanningSetId;
   set: PlanningSet & { status: "final" };
+  serviceContext: ServiceContext;
   completedAt: Date;
 };
 
@@ -26,5 +27,7 @@ export interface PlanningSetRepository {
 
 export interface CompletedServiceRecordRepository {
   createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord>;
+  list(): Promise<CompletedServiceRecord[]>;
+  findById(id: CompletedServiceRecordId): Promise<CompletedServiceRecord | undefined>;
   deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
 }

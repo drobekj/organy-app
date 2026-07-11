@@ -18,3 +18,5 @@ export {
   validateSongReference,
 } from "./validation";
 export type { PlanningValidationIssue, PlanningValidationResult } from "./validation";
+
+export { isValidServiceTime, normalizeServiceTime } from "./service-time";

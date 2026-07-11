@@ -7,7 +7,9 @@ import * as schema from "../../../src/db/schema";
 
 type PlanningLifecycleAction =
   | "listPlanningSets"
+  | "listCompletedRecords"
   | "loadPlanningSet"
+  | "loadCompletedRecord"
   | "saveWorkingSet"
   | "finalizeWorkingSet"
   | "completeFinalSet"
@@ -49,6 +51,17 @@ export async function POST(request: Request) {
     if (body.action === "listPlanningSets") {
       return NextResponse.json({ success: true, value: await planningSets.list() });
     }
+    if (body.action === "listCompletedRecords") {
+      const records = new (await import("../../../src/application/planning-lifecycle")).DrizzleCompletedServiceRecordRepository(adapterDependencies);
+      return NextResponse.json({ success: true, value: await records.list() });
+    }
+    if (body.action === "loadCompletedRecord") {
+      const recordId = isObjectWithRecordId(body.input) ? body.input.recordId : undefined;
+      if (!recordId) return NextResponse.json({ error: "recordId is required." }, { status: 400 });
+      const records = new (await import("../../../src/application/planning-lifecycle")).DrizzleCompletedServiceRecordRepository(adapterDependencies);
+      const record = await records.findById(recordId);
+      return NextResponse.json(record ? { success: true, value: record } : { success: false, error: { code: "notFound", message: "Completed record was not found." } });
+    }
     if (body.action === "loadPlanningSet") {
       const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;
       if (!setId) {
@@ -74,7 +87,11 @@ export async function POST(request: Request) {
 }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["listPlanningSets", "loadPlanningSet", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet"].includes(action);
+  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet"].includes(action);
+}
+
+function isObjectWithRecordId(input: unknown): input is { recordId: string } {
+  return typeof input === "object" && input !== null && "recordId" in input && typeof (input as { recordId?: unknown }).recordId === "string";
 }
 
 function isObjectWithSetId(input: unknown): input is { setId: string } {
