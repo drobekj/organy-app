@@ -47,7 +47,7 @@ export function confirmLanguageDeviationSave(rows: PlanningRow[], serviceLanguag
 }
 
 export function preserveRowsOnServiceLanguageChange<TRow extends CatalogEditableRow>(rows: TRow[], _serviceLanguage: ServiceLanguage): TRow[] {
-  return rows.map((row) => ({ ...row, selectedSong: row.selectedSong ? { ...row.selectedSong } : undefined }));
+  return rows.map((row) => row.selectedSong ? { ...row, selectedSong: { ...row.selectedSong } } : { ...row });
 }
 
 export function clearSongLookupResultsOnServiceLanguageChange(): Record<number, CatalogSong[]> {
