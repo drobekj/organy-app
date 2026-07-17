@@ -238,3 +238,11 @@ There is no separate deleted or cancelled state.
 - Whether melody-equivalence classes need named melody objects later.
 - How legacy data maps to `(language, number)` songs and melody-equivalence classes.
 - How future support for multiple congregations would affect role boundaries, repertoires, and preferences.
+
+## Phase 29 catalog lookup foundation
+
+The person catalog is a lightweight operational catalog, not an authentication or account model. A person has a stable internal ID, display name, active flag, and independent priest/organist role membership; a single person may hold both roles. Priest and organist selections in saved service contexts keep the catalog ID and the display-name snapshot that was valid when saved.
+
+The song catalog stores concrete songs with stable `songId`, language, number, title, active flag, and at most one optional sheet-music URL. The conceptual song identity remains `(language, number)`, so equal numbers are valid across Czech and Polish catalogs. Planning rows keep `songId` plus language, number, and title snapshots; the sheet-music URL remains current catalog metadata.
+
+Catalog deactivation is soft. Inactive people/songs and removed person roles are not offered for new lookup choices, but already saved Working, Final, Completed, and legacy snapshot-only rows remain readable. New or changed people/song selections must use an eligible catalog record; Phase 29 intentionally does not add a free-text fallback.

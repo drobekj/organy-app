@@ -189,3 +189,11 @@ No formal decisions are superseded. The 2026-07-06 antiphon and liturgical-seaso
 ## Review Cadence
 
 Review decisions when domain analysis changes, when requirements are drafted from these decisions, or when implementation exposes a mismatch with the documented domain model.
+
+### DEC-2026-07-17-01 — Phase 29 catalog lookup stores IDs plus snapshots
+
+- **Date:** 2026-07-17
+- **Status:** Accepted
+- **Context:** Planning Lifecycle needs lookup-backed people and songs without retroactively mutating historical records.
+- **Decision:** Person catalog records are not user accounts; one person may be priest, organist, or both, and active/role membership determines lookup availability. Planning service contexts store a person ID plus display-name snapshot. Concrete song catalog records use conceptual identity `(language, number)`, a stable `songId`, title, active state, and one optional sheet-music URL. Planning rows store `songId` plus language, number, and title snapshots.
+- **Consequences:** Soft-deactivated or role-removed catalog records disappear from new lookup but remain readable from snapshots. Legacy rows without catalog IDs remain hydrated. Catalog lookup is not candidate filtering, and song active state is not a new candidate-selection hard filter.

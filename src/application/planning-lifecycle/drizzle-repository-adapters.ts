@@ -15,6 +15,7 @@ import type {
   PlanningSetRepository,
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
+import { DrizzleCatalogRepository } from "../catalog";
 import type { PlanningLifecycleServiceDependencies } from "./service";
 import { normalizeServiceTime, type PlanningRow, type PlanningSet, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
 
@@ -63,7 +64,9 @@ type ServiceContextRecord = {
 type ServiceSetRowRecord = {
   position: number;
   songLanguage: "czech" | "polish" | null;
+  songId: string | null;
   songNumber: string | null;
+  songTitle: string | null;
   note: string | null;
 };
 
@@ -272,8 +275,10 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
           record.set.rows.map((row, index) => ({
             completedServiceId: completedService.id,
             position: index + 1,
+            songId: row.song?.songId,
             songLanguage: row.song?.language,
             songNumber: row.song?.number,
+            songTitle: row.song?.title,
             note: row.note,
             createdAt: now,
             updatedAt: now,
@@ -370,6 +375,7 @@ export function createDbBackedPlanningLifecycleService(
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
+    catalog: new DrizzleCatalogRepository(dependencies.db),
     now: dependencies.now,
   });
 }
@@ -418,8 +424,10 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
     rows.map((row, index) => ({
       serviceSetId,
       position: index + 1,
+      songId: row.song?.songId,
       songLanguage: row.song?.language,
       songNumber: row.song?.number,
+      songTitle: row.song?.title,
       note: row.note,
       createdAt: now,
       updatedAt: now,
@@ -438,8 +446,10 @@ async function replaceCompletedRows(db: DrizzleExecutor, completedServiceId: num
     rows.map((row, index) => ({
       completedServiceId,
       position: index + 1,
+      songId: row.song?.songId,
       songLanguage: row.song?.language,
       songNumber: row.song?.number,
+      songTitle: row.song?.title,
       note: row.note,
       createdAt: now,
       updatedAt: now,
@@ -470,7 +480,7 @@ function mapServiceContextToContextValues(context: ServiceContext) {
 
 function mapRowRecordToPlanningRow(row: ServiceSetRowRecord): PlanningRow {
   return {
-    ...(row.songLanguage && row.songNumber ? { song: { language: row.songLanguage, number: row.songNumber } } : {}),
+    ...(row.songLanguage && row.songNumber ? { song: { ...(row.songId ? { songId: row.songId } : {}), language: row.songLanguage, number: row.songNumber, ...(row.songTitle ? { title: row.songTitle } : {}) } } : {}),
     ...(row.note ? { note: row.note } : {}),
   };
 }

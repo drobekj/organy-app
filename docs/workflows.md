@@ -238,3 +238,9 @@ No development workflows are defined in this product workflow document.
 
 - What exact default time should trigger automatic conversion of a final set to a completed-service record?
 - What exact automatic conversion behavior should apply around that default time?
+
+## Phase 29 catalog lookup workflow
+
+Planning users search for a priest, organist, or song and then choose a concrete catalog result. The visible search text is only a search aid; save validation requires the chosen catalog ID for new or changed selections. Existing saved references that later become inactive or role-ineligible may be re-saved unchanged, preserving their snapshots, but they cannot be chosen again until made eligible.
+
+Local admins use the minimal catalog administration surface to maintain people and to activate/deactivate songs. Development/demo catalog data is loaded explicitly with `npm run db:seed:catalog` after `npm run db:migrate` when using `ORGANY_RUNTIME=db`.

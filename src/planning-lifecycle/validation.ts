@@ -39,6 +39,14 @@ export function validateSongReference(song: Partial<SongReference> | undefined):
     issues.push({ path: "song.number", message: "Song number must be a non-empty string." });
   }
 
+  if (song.songId !== undefined && !isNonEmptyString(song.songId)) {
+    issues.push({ path: "song.songId", message: "Song catalog ID must be a non-empty string when present." });
+  }
+
+  if (song.title !== undefined && !isNonEmptyString(song.title)) {
+    issues.push({ path: "song.title", message: "Song title snapshot must be a non-empty string when present." });
+  }
+
   if (!isConcreteSongLanguage(song.language)) {
     issues.push({
       path: "song.language",

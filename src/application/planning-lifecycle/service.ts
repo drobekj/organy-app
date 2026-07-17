@@ -8,6 +8,8 @@ import {
   type PlanningSet,
   type ServiceContext,
 } from "../../planning-lifecycle";
+import type { CatalogRepository } from "../catalog";
+import { isEligiblePerson, isEligibleSong } from "../catalog";
 import type {
   CompletedServiceRecord,
   CompletedServiceRecordRepository,
@@ -21,6 +23,7 @@ export type PlanningLifecycleServiceDependencies = {
   planningSets: PlanningSetRepository;
   completedServiceRecords: CompletedServiceRecordRepository;
   now?: () => Date;
+  catalog?: CatalogRepository;
 };
 
 export type SaveWorkingSetServiceContext = ServiceContext;
@@ -70,10 +73,12 @@ export class PlanningLifecycleService {
   private readonly now: () => Date;
   private readonly planningSets: PlanningSetRepository;
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
+  private readonly catalog?: CatalogRepository;
 
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
     this.planningSets = dependencies.planningSets;
     this.completedServiceRecords = dependencies.completedServiceRecords;
+    this.catalog = dependencies.catalog;
     this.now = dependencies.now ?? (() => new Date());
   }
 
@@ -109,6 +114,12 @@ export class PlanningLifecycleService {
         message: "Service context is required before saving a working set.",
         issues: serviceContextIssues,
       });
+    }
+
+    const existingSet = input.existingSetId ? await this.planningSets.findById(input.existingSetId) : undefined;
+    const catalogValidation = await this.validateCatalogReferences(serviceContext, input.set, existingSet);
+    if (catalogValidation.length > 0) {
+      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: catalogValidation });
     }
 
     const validation = validatePlanningSet(input.set);
@@ -243,6 +254,11 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
     }
 
+    const catalogValidation = await this.validateCatalogReferences(serviceContext, input.set, existing);
+    if (catalogValidation.length > 0) {
+      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: catalogValidation });
+    }
+
     const validation = validatePlanningSet(input.set);
     if (!validation.valid) {
       return failure({ code: "invalidInput", message: "Completed record rows are invalid.", issues: validation.issues });
@@ -302,6 +318,29 @@ export class PlanningLifecycleService {
 
     await this.planningSets.deleteById(input.finalSetId);
     return success(completedRecord);
+  }
+
+  private async validateCatalogReferences(serviceContext: ServiceContext, set: PlanningSet, existing?: PersistedPlanningSet | CompletedServiceRecord): Promise<{ path: string; message: string }[]> {
+    if (!this.catalog) return [];
+    const issues: { path: string; message: string }[] = [];
+    for (const [role, ref] of [["priest", serviceContext.priest], ["organist", serviceContext.organist]] as const) {
+      const previous = existing?.serviceContext[role];
+      if (!ref.id) { issues.push({ path: role, message: `${role} must be selected from the person catalog.` }); continue; }
+      if (previous?.id === ref.id && previous.displayName === ref.displayName) continue;
+      const person = await this.catalog.findPersonById(ref.id);
+      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });
+      else ref.displayName = person!.displayName;
+    }
+    for (const [index, row] of set.rows.entries()) {
+      if (!row.song) continue;
+      const previous = existing && "set" in existing ? existing.set.rows[index]?.song : existing?.rows[index]?.song;
+      if (!row.song.songId) { issues.push({ path: `rows.${index}.song`, message: "Song must be selected from the song catalog." }); continue; }
+      if (previous?.songId === row.song.songId && previous.language === row.song.language && previous.number === row.song.number && previous.title === row.song.title) continue;
+      const song = await this.catalog.findSongById(row.song.songId);
+      if (!isEligibleSong(song, serviceContext.language)) issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
+      else { row.song.language = song!.language; row.song.number = song!.number; row.song.title = song!.title; }
+    }
+    return issues;
   }
 
   private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId, currentCompletedRecordId?: string): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {
