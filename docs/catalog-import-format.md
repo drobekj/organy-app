@@ -25,3 +25,7 @@ Valid fields:
 - `sheetMusicUrl` — optional HTTP(S) URL string. Empty or missing means no sheet-music link.
 
 Validation rejects unsupported language values, empty number/title values, non-string or non-HTTP(S) sheet-music URLs, non-boolean `active`, and duplicate `(language, number)` pairs within one input. The same `number` is valid in different languages.
+
+## Development seed reservation
+
+The explicit Phase 29 development seed uses reserved non-production song numbers such as `PH29-DEMO-101`, `PH29-DEMO-202`, and `PH29-DEMO-999`. These values are intentionally not real chorale numbers, so ordinary Czech or Polish catalog records such as number `101` can coexist with the demo seed without being overwritten.

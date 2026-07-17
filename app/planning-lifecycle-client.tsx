@@ -13,7 +13,7 @@ import {
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
-import { enrichRowsWithCurrentSheetMusic, getCatalogLanguageDeviationRowNumbers, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { clearSongLookupResultsOnServiceLanguageChange, enrichRowsWithCurrentSheetMusic, getCatalogLanguageDeviationRowNumbers, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -507,6 +507,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     guardedEditorUpdate(() => {
       setServiceLanguage(nextServiceLanguage);
       setRows((currentRows) => preserveRowsOnServiceLanguageChange(currentRows, nextServiceLanguage));
+      setSongResults(clearSongLookupResultsOnServiceLanguageChange());
     });
   }
 

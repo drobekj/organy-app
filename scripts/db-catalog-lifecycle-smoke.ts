@@ -12,7 +12,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const db = drizzle(pool, { schema });
 const catalogRepo = new DrizzleCatalogRepository(db);
 const catalog = new CatalogService(catalogRepo);
-const service = createDbBackedPlanningLifecycleService({ db: db as never, schema, now: () => new Date("2026-01-01T00:00:00Z") });
+const service = createDbBackedPlanningLifecycleService({ db, schema, now: () => new Date("2026-01-01T00:00:00Z") });
 
 async function main() {
   try {

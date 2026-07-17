@@ -16,7 +16,8 @@
     "test:lifecycle": "tsx scripts/lifecycle-regression-tests.ts",
     "test": "tsx scripts/lifecycle-regression-tests.ts && tsx scripts/service-context-defaults-tests.ts && tsx scripts/catalog-tests.ts",
     "db:seed:catalog": "tsx scripts/db-seed-catalog.ts",
-    "db:catalog-lifecycle-smoke": "tsx scripts/db-catalog-lifecycle-smoke.ts"
+    "db:catalog-lifecycle-smoke": "tsx scripts/db-catalog-lifecycle-smoke.ts",
+    "db:catalog-seed-smoke": "tsx scripts/db-catalog-seed-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.10",

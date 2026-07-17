@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { CatalogService, InMemoryCatalogRepository, getEligiblePersonDefaultById, validateCatalogSongImport } from "../src/application/catalog";
-import { enrichSongSnapshotWithSheetMusic, getCatalogLanguageDeviationRowNumbers, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
-import { phase29DemoPeople, phase29DemoSongs, seedCatalog } from "./db-seed-catalog";
+import { clearSongLookupResultsOnServiceLanguageChange, enrichSongSnapshotWithSheetMusic, getCatalogLanguageDeviationRowNumbers, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { phase29DemoPeople, phase29DemoSongs, seedCatalog } from "../src/application/catalog-seed";
 import { InMemoryCompletedServiceRecordRepository, InMemoryPlanningSetRepository, PlanningLifecycleService } from "../src/application/planning-lifecycle";
 import type { ServiceContext, PlanningSet } from "../src/planning-lifecycle";
 
@@ -37,7 +37,9 @@ async function main() {
   assert.deepEqual(preserveRowsOnServiceLanguageChange([polishSong], "mixed")[0].selectedSong, polishSong.selectedSong);
   assert.deepEqual(preserveRowsOnServiceLanguageChange([noteOnly], "czech")[0], noteOnly);
   assert.deepEqual(getCatalogLanguageDeviationRowNumbers([{ song: polishSong.selectedSong }], "czech"), [1]);
-  assert((await must(catalog.searchSongs({ language: "polish", query: "101" }))).every((s) => s.language === "polish"));
+  assert.deepEqual(clearSongLookupResultsOnServiceLanguageChange(), {});
+  assert((await must(catalog.searchSongs({ language: "mixed", query: "101" }))).some((s) => s.language === "polish"));
+  assert((await must(catalog.searchSongs({ language: "czech", query: "101" }))).every((s) => s.language === "czech"));
   const enriched = await enrichSongSnapshotWithSheetMusic(czechSong.selectedSong, repo) as typeof czechSong.selectedSong & { sheetMusicUrl?: string };
   assert.equal(enriched.sheetMusicUrl, "https://example.com/cz-101.pdf");
   await repo.upsertPerson({ id: "default-priest", displayName: "Default Priest", active: true, priest: true, organist: false });
@@ -50,10 +52,24 @@ async function main() {
   assert.equal(await getEligiblePersonDefaultById(repo, "default-priest", "priest"), undefined);
 
   const seedRepo = new InMemoryCatalogRepository([], []);
+  const foreignPerson = { id: "foreign-person", displayName: "Foreign Person", active: true, priest: true, organist: false };
+  const foreignCzechSong = { songId: "foreign-cz-101", language: "czech" as const, number: "101", title: "Real Czech 101", active: true };
+  const foreignPolishSong = { songId: "foreign-pl-101", language: "polish" as const, number: "101", title: "Real Polish 101", active: true };
+  await seedRepo.upsertPerson(foreignPerson);
+  await seedRepo.upsertSong(foreignCzechSong);
+  await seedRepo.upsertSong(foreignPolishSong);
   await seedCatalog(seedRepo);
   await seedCatalog(seedRepo);
-  assert.equal((await seedRepo.listPeople()).filter((person) => person.id.startsWith("phase29-demo-")).length, phase29DemoPeople.length);
-  assert.equal((await seedRepo.listSongs()).filter((song) => song.songId.startsWith("phase29-demo-")).length, phase29DemoSongs.length);
+  const seedPeople = await seedRepo.listPeople();
+  const seedSongs = await seedRepo.listSongs();
+  assert.deepEqual(seedPeople.find((person) => person.id === foreignPerson.id), foreignPerson);
+  assert.deepEqual(seedSongs.find((song) => song.songId === foreignCzechSong.songId), foreignCzechSong);
+  assert.deepEqual(seedSongs.find((song) => song.songId === foreignPolishSong.songId), foreignPolishSong);
+  assert.equal(seedPeople.filter((person) => person.id.startsWith("phase29-demo-")).length, phase29DemoPeople.length);
+  assert.equal(seedSongs.filter((song) => song.songId.startsWith("phase29-demo-")).length, phase29DemoSongs.length);
+  assert(seedSongs.some((song) => song.number === "PH29-DEMO-101"));
+  assert(seedSongs.some((song) => song.language === "czech" && song.number === "101"));
+  assert(seedSongs.some((song) => song.language === "polish" && song.number === "101"));
 
   const service = new PlanningLifecycleService({ planningSets: new InMemoryPlanningSetRepository(), completedServiceRecords: new InMemoryCompletedServiceRecordRepository(), catalog: repo, now: () => new Date("2026-01-01T00:00:00Z") });
   const ctx: ServiceContext = { serviceDate: "2025-01-01", serviceTime: "10:00", language: "mixed", priest: { id: "demo-priest", displayName: "Typed ignored" }, organist: { id: "demo-organist", displayName: "Typed ignored" } };

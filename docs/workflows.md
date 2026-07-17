@@ -252,3 +252,7 @@ The Planning Lifecycle editor now uses catalog lookup controls for priest, organ
 Admin catalog controls are intentionally minimal: people can be added, renamed, assigned priest/organist roles, activated, and deactivated; songs can only be listed and activated/deactivated. Song creation and metadata editing remain import-only future work.
 
 Language changes preserve already selected song snapshots. The editor keeps existing song selections visible, limits only subsequent lookup results to the new service language, and relies on the existing save confirmation for language-deviation rows.
+
+### Phase 29 development seed smoke
+
+Run `npm run db:catalog-seed-smoke` against a disposable or development PostgreSQL database after migration to verify that the explicit Phase 29 catalog seed is idempotent against the real Drizzle/PostgreSQL repository. The smoke uses a transaction rollback and marker-scoped foreign records; it must not reset the database or broadly delete catalog data.

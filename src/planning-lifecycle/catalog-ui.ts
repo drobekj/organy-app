@@ -8,6 +8,10 @@ export function preserveRowsOnServiceLanguageChange<TRow extends CatalogEditable
   return rows.map((row) => ({ ...row, selectedSong: row.selectedSong ? { ...row.selectedSong } : undefined }));
 }
 
+export function clearSongLookupResultsOnServiceLanguageChange(): Record<number, CatalogSong[]> {
+  return {};
+}
+
 export function getCatalogLanguageDeviationRowNumbers(rows: PlanningRow[], serviceLanguage: ServiceLanguage): number[] {
   if (serviceLanguage === "mixed") return [];
   return rows.flatMap((row, index) => row.song && row.song.language !== serviceLanguage ? [index + 1] : []);

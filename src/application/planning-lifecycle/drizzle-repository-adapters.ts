@@ -15,7 +15,7 @@ import type {
   PlanningSetRepository,
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
-import { DrizzleCatalogRepository } from "../catalog";
+import { DrizzleCatalogRepository, type CatalogDrizzleExecutor } from "../catalog";
 import type { PlanningLifecycleServiceDependencies } from "./service";
 import { normalizeServiceTime, type PlanningRow, type PlanningSet, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
 
@@ -35,7 +35,7 @@ type DrizzleExecutor = {
   delete: (table: unknown) => unknown;
 };
 
-type TransactionalDrizzleExecutor = DrizzleExecutor & {
+type TransactionalDrizzleExecutor = DrizzleExecutor & CatalogDrizzleExecutor & {
   transaction: <T>(callback: (tx: DrizzleExecutor) => Promise<T>) => Promise<T>;
 };
 
@@ -375,7 +375,7 @@ export function createDbBackedPlanningLifecycleService(
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
-    catalog: new DrizzleCatalogRepository(dependencies.db as never),
+    catalog: new DrizzleCatalogRepository(dependencies.db),
     now: dependencies.now,
   });
 }
