@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as planningLifecycleSchema from "../../db/schema";
 import {
   completedServiceRows,
@@ -15,7 +16,7 @@ import type {
   PlanningSetRepository,
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
-import { DrizzleCatalogRepository, type CatalogDrizzleExecutor } from "../catalog";
+import { DrizzleCatalogRepository } from "../catalog";
 import type { PlanningLifecycleServiceDependencies } from "./service";
 import { normalizeServiceTime, type PlanningRow, type PlanningSet, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
 
@@ -28,19 +29,12 @@ export type PlanningLifecycleDrizzleSchema = Pick<
   | "completedServiceRows"
 >;
 
-type DrizzleExecutor = {
-  select: () => unknown;
-  insert: (table: unknown) => unknown;
-  update: (table: unknown) => unknown;
-  delete: (table: unknown) => unknown;
-};
-
-type TransactionalDrizzleExecutor = DrizzleExecutor & CatalogDrizzleExecutor & {
-  transaction: <T>(callback: (tx: DrizzleExecutor) => Promise<T>) => Promise<T>;
-};
+type PlanningLifecycleDrizzleDatabase = NodePgDatabase<typeof planningLifecycleSchema>;
+type DrizzleExecutor = Pick<PlanningLifecycleDrizzleDatabase, "select" | "insert" | "update" | "delete">;
+type DrizzleTable = Parameters<PlanningLifecycleDrizzleDatabase["insert"]>[0];
 
 export type PlanningLifecycleDrizzleAdapterDependencies = {
-  db: TransactionalDrizzleExecutor;
+  db: PlanningLifecycleDrizzleDatabase;
   schema?: PlanningLifecycleDrizzleSchema;
 };
 
@@ -512,15 +506,15 @@ function selectAll(db: DrizzleExecutor) {
   return db.select() as ReturnType<typeof serviceSetsSelect>;
 }
 
-function insertInto(db: DrizzleExecutor, table: unknown) {
+function insertInto(db: DrizzleExecutor, table: DrizzleTable) {
   return db.insert(table) as ReturnType<typeof serviceSetsInsert>;
 }
 
-function updateTable(db: DrizzleExecutor, table: unknown) {
+function updateTable(db: DrizzleExecutor, table: DrizzleTable) {
   return db.update(table) as ReturnType<typeof serviceSetsUpdate>;
 }
 
-function deleteFrom(db: DrizzleExecutor, table: unknown) {
+function deleteFrom(db: DrizzleExecutor, table: DrizzleTable) {
   return db.delete(table) as ReturnType<typeof serviceSetsDelete>;
 }
 
