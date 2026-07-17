@@ -7,7 +7,14 @@ export type PersonRole = "priest" | "organist";
 export type CatalogPerson = { id: string; displayName: string; active: boolean; priest: boolean; organist: boolean };
 export type CatalogSong = { songId: string; language: ConcreteSongLanguage; number: string; title: string; active: boolean; sheetMusicUrl?: string };
 export type CatalogSongImportRecord = { language: unknown; number: unknown; title: unknown; active?: unknown; sheetMusicUrl?: unknown };
-type CatalogDrizzleExecutor = { select: () => any; insert: (table: unknown) => any; update: (table: unknown) => any };
+type CatalogSelectWhereResult<TResult> = { limit: (limit: number) => Promise<TResult[]>; orderBy: (...order: unknown[]) => Promise<TResult[]> };
+type CatalogSelectWhereBuilder<TResult> = { where: (condition: unknown) => CatalogSelectWhereResult<TResult>; orderBy: (...order: unknown[]) => Promise<TResult[]> };
+type CatalogSelectBuilder = { from: (table: unknown) => CatalogSelectWhereBuilder<CatalogPersonRecord | CatalogSongRecord> };
+type CatalogInsertBuilder = { values: (value: unknown) => { onConflictDoUpdate: (config: unknown) => { returning: () => Promise<(CatalogPersonRecord | CatalogSongRecord)[]> } } };
+type CatalogUpdateBuilder = { set: (value: unknown) => { where: (condition: unknown) => { returning: () => Promise<(CatalogPersonRecord | CatalogSongRecord)[]> } } };
+export type CatalogDrizzleExecutor = { select: () => CatalogSelectBuilder; insert: (table: unknown) => CatalogInsertBuilder; update: (table: unknown) => CatalogUpdateBuilder };
+type CatalogPersonRecord = { id: string; displayName: string; active: boolean; priest: boolean; organist: boolean };
+type CatalogSongRecord = { songId: string; language: ConcreteSongLanguage; number: string; title: string; active: boolean; sheetMusicUrl: string | null };
 export type CatalogImportValidationIssue = { path: string; message: string };
 
 export interface CatalogRepository {
@@ -24,6 +31,8 @@ export interface CatalogRepository {
 
 export class CatalogService {
   constructor(private readonly repo: CatalogRepository) {}
+  async getPerson(input: { id: string }) { const person = await this.repo.findPersonById(input.id); return person ? success(person) : failure({ code: "notFound", message: "Person was not found." }); }
+  async getSong(input: { songId: string }) { const song = await this.repo.findSongById(input.songId); return song ? success(song) : failure({ code: "notFound", message: "Song was not found." }); }
   async searchPeople(input: { role: PersonRole; query?: string }) { return success(await this.repo.searchPeople(input.role, input.query ?? "")); }
   async listPeople() { return success(await this.repo.listPeople()); }
   async savePerson(input: { role: PlanningRole; person: Omit<CatalogPerson, "id"> & { id?: string } }): Promise<PlanningServiceResult<CatalogPerson>> {
@@ -56,22 +65,27 @@ export class InMemoryCatalogRepository implements CatalogRepository {
 
 export class DrizzleCatalogRepository implements CatalogRepository {
   constructor(private readonly db: CatalogDrizzleExecutor) {}
-  async findPersonById(id: string) { const [r] = await this.db.select().from(catalogPersons).where(eq(catalogPersons.id, id)).limit(1); return r && mapPerson(r); }
-  async searchPeople(role: PersonRole, query: string) { const roleCol = role === "priest" ? catalogPersons.priest : catalogPersons.organist; const rows = await this.db.select().from(catalogPersons).where(and(eq(catalogPersons.active, true), eq(roleCol, true), ilike(catalogPersons.displayName, `%${query}%`))).orderBy(asc(catalogPersons.displayName)); return rows.map(mapPerson); }
-  async listPeople() { return (await this.db.select().from(catalogPersons).orderBy(asc(catalogPersons.displayName))).map(mapPerson); }
-  async upsertPerson(person: CatalogPerson) { const now = new Date(); const [r] = await this.db.insert(catalogPersons).values({ ...person, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: catalogPersons.id, set: { displayName: person.displayName, active: person.active, priest: person.priest, organist: person.organist, updatedAt: now } }).returning(); return mapPerson(r); }
-  async findSongById(id: string) { const [r] = await this.db.select().from(catalogSongs).where(eq(catalogSongs.songId, id)).limit(1); return r && mapSong(r); }
-  async searchSongs(languages: ConcreteSongLanguage[], query: string) { const rows = await this.db.select().from(catalogSongs).where(and(eq(catalogSongs.active, true), or(...languages.map((l) => eq(catalogSongs.language, l))), or(ilike(catalogSongs.number, `%${query}%`), ilike(catalogSongs.title, `%${query}%`)))).orderBy(asc(catalogSongs.language), asc(catalogSongs.number)); return rows.map(mapSong); }
-  async listSongs() { return (await this.db.select().from(catalogSongs).orderBy(asc(catalogSongs.language), asc(catalogSongs.number))).map(mapSong); }
-  async upsertSong(song: CatalogSong) { const now = new Date(); const [r] = await this.db.insert(catalogSongs).values({ ...song, sheetMusicUrl: song.sheetMusicUrl ?? null, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: catalogSongs.songId, set: { title: song.title, active: song.active, sheetMusicUrl: song.sheetMusicUrl ?? null, updatedAt: now } }).returning(); return mapSong(r); }
-  async setSongActive(songId: string, active: boolean) { const [r] = await this.db.update(catalogSongs).set({ active, updatedAt: new Date() }).where(eq(catalogSongs.songId, songId)).returning(); return r && mapSong(r); }
+  async findPersonById(id: string) { const [r] = await this.db.select().from(catalogPersons).where(eq(catalogPersons.id, id)).limit(1); return r && mapPerson(r as CatalogPersonRecord); }
+  async searchPeople(role: PersonRole, query: string) { const roleCol = role === "priest" ? catalogPersons.priest : catalogPersons.organist; const rows = await this.db.select().from(catalogPersons).where(and(eq(catalogPersons.active, true), eq(roleCol, true), ilike(catalogPersons.displayName, `%${query}%`))).orderBy(asc(catalogPersons.displayName)); return (rows as CatalogPersonRecord[]).map(mapPerson); }
+  async listPeople() { return ((await this.db.select().from(catalogPersons).orderBy(asc(catalogPersons.displayName))) as CatalogPersonRecord[]).map(mapPerson); }
+  async upsertPerson(person: CatalogPerson) { const now = new Date(); const [r] = await this.db.insert(catalogPersons).values({ ...person, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: catalogPersons.id, set: { displayName: person.displayName, active: person.active, priest: person.priest, organist: person.organist, updatedAt: now } }).returning(); return mapPerson(r as CatalogPersonRecord); }
+  async findSongById(id: string) { const [r] = await this.db.select().from(catalogSongs).where(eq(catalogSongs.songId, id)).limit(1); return r && mapSong(r as CatalogSongRecord); }
+  async searchSongs(languages: ConcreteSongLanguage[], query: string) { const rows = await this.db.select().from(catalogSongs).where(and(eq(catalogSongs.active, true), or(...languages.map((l) => eq(catalogSongs.language, l))), or(ilike(catalogSongs.number, `%${query}%`), ilike(catalogSongs.title, `%${query}%`)))).orderBy(asc(catalogSongs.language), asc(catalogSongs.number)); return (rows as CatalogSongRecord[]).map(mapSong); }
+  async listSongs() { return ((await this.db.select().from(catalogSongs).orderBy(asc(catalogSongs.language), asc(catalogSongs.number))) as CatalogSongRecord[]).map(mapSong); }
+  async upsertSong(song: CatalogSong) { const now = new Date(); const [r] = await this.db.insert(catalogSongs).values({ ...song, sheetMusicUrl: song.sheetMusicUrl ?? null, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: catalogSongs.songId, set: { title: song.title, active: song.active, sheetMusicUrl: song.sheetMusicUrl ?? null, updatedAt: now } }).returning(); return mapSong(r as CatalogSongRecord); }
+  async setSongActive(songId: string, active: boolean) { const [r] = await this.db.update(catalogSongs).set({ active, updatedAt: new Date() }).where(eq(catalogSongs.songId, songId)).returning(); return r && mapSong(r as CatalogSongRecord); }
 }
 
 export function languagesForService(language: ServiceLanguage): ConcreteSongLanguage[] { return language === "mixed" ? ["czech", "polish"] : [language]; }
 export function isEligiblePerson(person: CatalogPerson | undefined, role: PersonRole) { return Boolean(person?.active && person[role]); }
+export async function getEligiblePersonDefaultById(repo: Pick<CatalogRepository, "findPersonById">, id: string | undefined, role: PersonRole): Promise<{ id: string; displayName: string } | undefined> {
+  if (!id) return undefined;
+  const person = await repo.findPersonById(id);
+  return isEligiblePerson(person, role) ? { id: person!.id, displayName: person!.displayName } : undefined;
+}
 export function isEligibleSong(song: CatalogSong | undefined, serviceLanguage: ServiceLanguage) { return Boolean(song?.active && languagesForService(serviceLanguage).includes(song.language)); }
 export function validateCatalogSongImport(input: CatalogSongImportRecord[]): CatalogImportValidationIssue[] { const issues: CatalogImportValidationIssue[] = []; const seen = new Set<string>(); input.forEach((r, i) => { if (r.language !== "czech" && r.language !== "polish") issues.push({ path: `${i}.language`, message: "Unsupported language." }); if (typeof r.number !== "string" || !r.number.trim()) issues.push({ path: `${i}.number`, message: "Number is required." }); if (typeof r.title !== "string" || !r.title.trim()) issues.push({ path: `${i}.title`, message: "Title is required." }); if (r.active !== undefined && typeof r.active !== "boolean") issues.push({ path: `${i}.active`, message: "Active must be a boolean when provided." }); if (r.sheetMusicUrl !== undefined && r.sheetMusicUrl !== null && typeof r.sheetMusicUrl !== "string") issues.push({ path: `${i}.sheetMusicUrl`, message: "Sheet music URL must be a string." }); if (typeof r.sheetMusicUrl === "string" && r.sheetMusicUrl && !/^https?:\/\//.test(r.sheetMusicUrl)) issues.push({ path: `${i}.sheetMusicUrl`, message: "Sheet music URL must be http(s)." }); const key = `${r.language}:${r.number}`; if (seen.has(key)) issues.push({ path: `${i}`, message: "Duplicate language/number in import." }); seen.add(key); }); return issues; }
-function mapPerson(r: any): CatalogPerson { return { id: r.id, displayName: r.displayName, active: r.active, priest: r.priest, organist: r.organist }; }
-function mapSong(r: any): CatalogSong { return { songId: r.songId, language: r.language, number: r.number, title: r.title, active: r.active, ...(r.sheetMusicUrl ? { sheetMusicUrl: r.sheetMusicUrl } : {}) }; }
+function mapPerson(r: CatalogPersonRecord): CatalogPerson { return { id: r.id, displayName: r.displayName, active: r.active, priest: r.priest, organist: r.organist }; }
+function mapSong(r: CatalogSongRecord): CatalogSong { return { songId: r.songId, language: r.language, number: r.number, title: r.title, active: r.active, ...(r.sheetMusicUrl ? { sheetMusicUrl: r.sheetMusicUrl } : {}) }; }
 function seedPeople(): CatalogPerson[] { return [{ id: "demo-priest", displayName: "Demo Priest", active: true, priest: true, organist: false }, { id: "demo-organist", displayName: "Demo Organist", active: true, priest: false, organist: true }, { id: "demo-both", displayName: "Demo Priest Organist", active: true, priest: true, organist: true }, { id: "demo-inactive-priest", displayName: "Demo Inactive Priest", active: false, priest: true, organist: false }]; }
 function seedSongs(): CatalogSong[] { return [{ songId: "demo-cz-101", language: "czech", number: "101", title: "Demo Czech Song", active: true, sheetMusicUrl: "https://example.com/cz-101.pdf" }, { songId: "demo-pl-101", language: "polish", number: "101", title: "Demo Polish Song", active: true }, { songId: "demo-cz-inactive", language: "czech", number: "999", title: "Demo Inactive Song", active: false }]; }

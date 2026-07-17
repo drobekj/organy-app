@@ -250,3 +250,5 @@ Local admins use the minimal catalog administration surface to maintain people a
 The Planning Lifecycle editor now uses catalog lookup controls for priest, organist, and song rows. Typing in a lookup box is search text only; changing the text clears the selected catalog ID until the user chooses a result. Legacy snapshots without IDs are shown as saved snapshots and remain readable, but a new or changed save must select an eligible active catalog record. The same in-memory catalog instance backs both lookup/admin UI and the in-memory Planning Lifecycle service, so local runtime no longer bypasses catalog validation.
 
 Admin catalog controls are intentionally minimal: people can be added, renamed, assigned priest/organist roles, activated, and deactivated; songs can only be listed and activated/deactivated. Song creation and metadata editing remain import-only future work.
+
+Language changes preserve already selected song snapshots. The editor keeps existing song selections visible, limits only subsequent lookup results to the new service language, and relies on the existing save confirmation for language-deviation rows.

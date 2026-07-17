@@ -13,6 +13,7 @@ import {
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
+import { enrichRowsWithCurrentSheetMusic, getCatalogLanguageDeviationRowNumbers, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -90,10 +91,6 @@ function formatSongLabel(song: { language: ConcreteSongLanguage; number: string;
 }
 
 
-function getCatalogLanguageDeviationRowNumbers(rows: PlanningRow[], serviceLanguage: ServiceLanguage): number[] {
-  if (serviceLanguage === "mixed") return [];
-  return rows.flatMap((row, index) => row.song && row.song.language !== serviceLanguage ? [index + 1] : []);
-}
 
 function isFuturePragueDate(serviceDate: string): boolean {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -150,6 +147,8 @@ class DbPlanningLifecycleClient {
 
 
 class DbCatalogClient {
+  async getPerson(input: { id: string }) { return callCatalogApi("getPerson", input); }
+  async getSong(input: { songId: string }) { return callCatalogApi("getSong", input); }
   async searchPeople(input: { role: PersonRole; query?: string }) { return callCatalogApi("searchPeople", input); }
   async listPeople() { return callCatalogApi("listPeople", {}); }
   async savePerson(input: { role: PlanningRole; person: Omit<CatalogPerson, "id"> & { id?: string } }) { return callCatalogApi("savePerson", input); }
@@ -279,14 +278,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function getEligibleDraftPeopleDefaults(records: CompletedServiceRecord[]): Promise<DraftPeopleDefaults> {
     const defaults = getDraftPeopleDefaults(records);
-    const [priestOk, organistOk] = await Promise.all([
-      defaults.priest.id ? catalogClient.searchPeople({ role: "priest", query: defaults.priest.displayName }) : Promise.resolve({ success: true as const, value: [] as CatalogPerson[] }),
-      defaults.organist.id ? catalogClient.searchPeople({ role: "organist", query: defaults.organist.displayName }) : Promise.resolve({ success: true as const, value: [] as CatalogPerson[] }),
+    const [priestResult, organistResult] = await Promise.all([
+      defaults.priest.id ? catalogClient.getPerson({ id: defaults.priest.id }) : Promise.resolve({ success: false as const, error: { code: "notFound" as const, message: "No default priest." } }),
+      defaults.organist.id ? catalogClient.getPerson({ id: defaults.organist.id }) : Promise.resolve({ success: false as const, error: { code: "notFound" as const, message: "No default organist." } }),
     ]);
-    return {
-      priest: priestOk.success && priestOk.value.some((p) => p.id === defaults.priest.id) ? defaults.priest : { displayName: "" },
-      organist: organistOk.success && organistOk.value.some((p) => p.id === defaults.organist.id) ? defaults.organist : { displayName: "" },
-    };
+    const priest = priestResult.success && priestResult.value.active && priestResult.value.priest ? { id: priestResult.value.id, displayName: priestResult.value.displayName } : { displayName: "" };
+    const organist = organistResult.success && organistResult.value.active && organistResult.value.organist ? { id: organistResult.value.id, displayName: organistResult.value.displayName } : { displayName: "" };
+    return { priest, organist };
   }
 
   async function refreshDbSets() {
@@ -313,7 +311,27 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (songs.success) setSongsAdmin(songs.value);
   }
 
-  function openPersistedSet(set: PersistedPlanningSet) {
+
+  async function applyAdminCatalogResult<T>(result: { success: true; value: T } | { success: false; error: PlanningServiceError }) {
+    if (!result.success) {
+      setServiceError(result.error);
+      setSaveState("errors");
+      return false;
+    }
+    setServiceError(null);
+    await refreshCatalogAdmin();
+    return true;
+  }
+
+  async function saveAdminPerson(person: Omit<CatalogPerson, "id"> & { id?: string }) {
+    return applyAdminCatalogResult(await catalogClient.savePerson({ role: selectedRole, person }));
+  }
+
+  async function toggleAdminSong(song: CatalogSong) {
+    return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, songId: song.songId, active: !song.active }));
+  }
+
+  async function openPersistedSet(set: PersistedPlanningSet) {
     setPersistedSet(set);
     setCompletedRecord(null);
     setServiceDate(set.serviceContext.serviceDate);
@@ -324,14 +342,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(set.serviceContext.organist.displayName);
     setOrganistId(set.serviceContext.organist.id);
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
-    setRows(editableRows);
+    setRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }));
     setNextRowId(editableRows.length + 1);
     setSaveState(set.status === "working" ? "saved" : "finalized");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
     setServiceError(null);
   }
 
-  function openCompletedRecord(record: CompletedServiceRecord) {
+  async function openCompletedRecord(record: CompletedServiceRecord) {
     setCompletedRecord(record);
     setPersistedSet(null);
     setServiceDate(record.serviceContext.serviceDate);
@@ -342,7 +360,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(record.serviceContext.organist.displayName);
     setOrganistId(record.serviceContext.organist.id);
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
-    setRows(editableRows);
+    setRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }));
     setNextRowId(editableRows.length + 1);
     setSaveState("completed");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -352,7 +370,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function loadCompletedRecord(recordId: string) {
     const result = await planningLifecycleService.loadCompletedRecord(recordId);
     if (result.success) {
-      openCompletedRecord(result.value);
+      await openCompletedRecord(result.value);
       await refreshDbSets();
       return;
     }
@@ -363,7 +381,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function loadDbSet(setId: PlanningSetId) {
     const result = await planningLifecycleService.loadPlanningSet(setId);
     if (result.success) {
-      openPersistedSet(result.value);
+      await openPersistedSet(result.value);
       await refreshDbSets();
       return;
     }
@@ -488,7 +506,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function updateServiceLanguage(nextServiceLanguage: ServiceLanguage) {
     guardedEditorUpdate(() => {
       setServiceLanguage(nextServiceLanguage);
-      setRows((currentRows) => currentRows.map((row) => ({ ...row, selectedSong: undefined, songSearch: "" })));
+      setRows((currentRows) => preserveRowsOnServiceLanguageChange(currentRows, nextServiceLanguage));
     });
   }
 
@@ -993,14 +1011,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <label><input type="checkbox" checked={personForm.priest} onChange={(event) => setPersonForm({ ...personForm, priest: event.target.checked })} /> Priest role</label>
               <label><input type="checkbox" checked={personForm.organist} onChange={(event) => setPersonForm({ ...personForm, organist: event.target.checked })} /> Organist role</label>
               <label><input type="checkbox" checked={personForm.active} onChange={(event) => setPersonForm({ ...personForm, active: event.target.checked })} /> Active</label>
-              <button type="button" onClick={async () => { const result = await catalogClient.savePerson({ role: selectedRole, person: personForm }); if (result.success) { setPersonForm({ displayName: "", priest: true, organist: false, active: true }); await refreshCatalogAdmin(); } }}>Add person</button>
+              <button type="button" onClick={async () => { if (await saveAdminPerson(personForm)) setPersonForm({ displayName: "", priest: true, organist: false, active: true }); }}>Add person</button>
               <ul className="saved-set-list">
                 {peopleAdmin.map((person) => (
                   <li key={person.id}>{person.displayName} ({person.active ? "active" : "inactive"}; {person.priest ? "priest" : ""} {person.organist ? "organist" : ""})
-                    <button type="button" onClick={async () => { await catalogClient.savePerson({ role: selectedRole, person: { ...person, active: !person.active } }); await refreshCatalogAdmin(); }}>{person.active ? "Deactivate" : "Activate"}</button>
-                    <button type="button" onClick={async () => { const displayName = window.prompt("Display name", person.displayName); if (displayName) { await catalogClient.savePerson({ role: selectedRole, person: { ...person, displayName } }); await refreshCatalogAdmin(); } }}>Rename</button>
-                    <button type="button" onClick={async () => { await catalogClient.savePerson({ role: selectedRole, person: { ...person, priest: !person.priest } }); await refreshCatalogAdmin(); }}>Toggle priest</button>
-                    <button type="button" onClick={async () => { await catalogClient.savePerson({ role: selectedRole, person: { ...person, organist: !person.organist } }); await refreshCatalogAdmin(); }}>Toggle organist</button>
+                    <button type="button" onClick={async () => { await saveAdminPerson({ ...person, active: !person.active }); }}>{person.active ? "Deactivate" : "Activate"}</button>
+                    <button type="button" onClick={async () => { const displayName = window.prompt("Display name", person.displayName); if (displayName) await saveAdminPerson({ ...person, displayName }); }}>Rename</button>
+                    <button type="button" onClick={async () => { await saveAdminPerson({ ...person, priest: !person.priest }); }}>Toggle priest</button>
+                    <button type="button" onClick={async () => { await saveAdminPerson({ ...person, organist: !person.organist }); }}>Toggle organist</button>
                   </li>
                 ))}
               </ul>
@@ -1008,7 +1026,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <fieldset className="field-group">
               <legend>Songs</legend>
               <ul className="saved-set-list">
-                {songsAdmin.map((song) => <li key={song.songId}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"}) {song.sheetMusicUrl ? <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a> : null} <button type="button" onClick={async () => { await catalogClient.setSongActive({ role: selectedRole, songId: song.songId, active: !song.active }); await refreshCatalogAdmin(); }}>{song.active ? "Deactivate" : "Activate"}</button></li>)}
+                {songsAdmin.map((song) => <li key={song.songId}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"}) {song.sheetMusicUrl ? <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a> : null} <button type="button" onClick={async () => { await toggleAdminSong(song); }}>{song.active ? "Deactivate" : "Activate"}</button></li>)}
               </ul>
             </fieldset>
           </section>

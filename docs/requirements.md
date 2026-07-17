@@ -228,3 +228,5 @@ Requirements should be traced to accepted decisions in `docs/decisions.md` and t
 - Lookup foundation is separate from candidate filtering. The candidate-selection engine, melody knowledge, repertoire, preference thresholds, full Czech/Polish import, and automatic hymn picking remain future work.
 
 Phase 29 implementation also requires that unchanged inactive song references be matched independently of row position, so moving rows, inserting note-only rows before a saved song, or deleting other rows does not force a valid historical snapshot through current catalog eligibility again. Additional occurrences beyond the originally saved snapshot count are treated as new selections.
+
+Default priest/organist values from Completed records are resolved by stable catalog ID, not historical display-name search. If the catalog record is active and still has the required role, the new draft uses the current catalog display name; otherwise the field remains empty while the historical Completed snapshot remains unchanged.

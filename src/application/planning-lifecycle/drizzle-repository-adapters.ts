@@ -375,7 +375,7 @@ export function createDbBackedPlanningLifecycleService(
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
-    catalog: new DrizzleCatalogRepository(dependencies.db),
+    catalog: new DrizzleCatalogRepository(dependencies.db as never),
     now: dependencies.now,
   });
 }

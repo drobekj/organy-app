@@ -1,4 +1,4 @@
-import { eq, like } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { CatalogService, DrizzleCatalogRepository } from "../src/application/catalog";
@@ -25,7 +25,8 @@ async function main() {
     assert(priest.success && priestLookup.success && priestLookup.value.length === 1, "person lookup works");
     assert(songLookup.success && songLookup.value.length === 1 && songLookup.value[0].sheetMusicUrl, "song lookup works");
     if (!priest.success || !organist.success) throw new Error("fixture save failed");
-    const ctx: ServiceContext = { serviceDate: "1899-01-01", serviceTime: "10:29", language: "czech", priest: { id: priest.value.id, displayName: priest.value.displayName }, organist: { id: organist.value.id, displayName: organist.value.displayName } };
+    const identity = await findUnusedServiceIdentity();
+    const ctx: ServiceContext = { serviceDate: identity.serviceDate, serviceTime: identity.serviceTime, language: "czech", priest: { id: priest.value.id, displayName: priest.value.displayName }, organist: { id: organist.value.id, displayName: organist.value.displayName } };
     const saved = await service.saveWorkingSet({ role: "admin", serviceContext: ctx, set: { status: "working", language: "czech", rows: [{ song: { songId: `${marker} cz`, language: "czech", number: marker, title: `${marker} Czech Song` } }, { note: `${marker} note` }] } });
     assert(saved.success, "working save works");
     if (!saved.success) throw new Error("save failed");
@@ -38,8 +39,20 @@ async function main() {
     const unchanged = await service.updateCompletedRecord({ role: "admin", recordId: completed.success ? completed.value.id : "missing", serviceContext: completedLoaded.success ? completedLoaded.value.serviceContext : ctx, set: completedLoaded.success ? completedLoaded.value.set : { status: "final", language: "czech", rows: [] } });
     assert(unchanged.success, "unchanged deactivated snapshots can be saved");
     console.log("DB catalog lifecycle smoke passed.");
-  } finally { await cleanup(); await pool.end(); }
+  } finally { try { await cleanup(); } finally { await pool.end(); } }
 }
+async function findUnusedServiceIdentity(): Promise<{ serviceDate: string; serviceTime: string }> {
+  const start = new Date(Date.UTC(1899, 0, 1, 0, 0, 0));
+  for (let offsetMinutes = 0; offsetMinutes < 525_600; offsetMinutes += 1) {
+    const candidate = new Date(start.getTime() + offsetMinutes * 60_000);
+    const serviceDate = candidate.toISOString().slice(0, 10);
+    const serviceTime = candidate.toISOString().slice(11, 16);
+    const existing = await db.select({ id: schema.serviceContexts.id }).from(schema.serviceContexts).where(and(eq(schema.serviceContexts.serviceDate, serviceDate), eq(schema.serviceContexts.serviceTime, serviceTime))).limit(1);
+    if (existing.length === 0) return { serviceDate, serviceTime };
+  }
+  throw new Error("No free historical service identity found for smoke test.");
+}
+
 async function cleanup() { const contexts = await db.select({ id: schema.serviceContexts.id }).from(schema.serviceContexts).where(like(schema.serviceContexts.priestDisplayName, `${marker}%`)); for (const c of contexts) await db.delete(schema.serviceContexts).where(eq(schema.serviceContexts.id, c.id)); await db.delete(schema.catalogSongs).where(like(schema.catalogSongs.songId, `${marker}%`)); await db.delete(schema.catalogPersons).where(like(schema.catalogPersons.id, `${marker}%`)); }
 function assert(value: unknown, message: string): asserts value { if (!value) throw new Error(message); }
 main().catch((e) => { console.error(e); process.exit(1); });
