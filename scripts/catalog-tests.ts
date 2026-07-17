@@ -1,0 +1,202 @@
+import assert from "node:assert/strict";
+import { CatalogService, InMemoryCatalogRepository, getEligiblePersonDefaultById, validateCatalogSongImport } from "../src/application/catalog";
+import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichSongSnapshotWithSheetMusic, getCatalogLanguageDeviationRowNumbers, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { phase29DemoPeople, phase29DemoSongs, seedCatalog } from "../src/application/catalog-seed";
+import { InMemoryCompletedServiceRecordRepository, InMemoryPlanningSetRepository, PlanningLifecycleService } from "../src/application/planning-lifecycle";
+import type { ServiceContext, PlanningSet } from "../src/planning-lifecycle";
+
+async function main() {
+  const repo = new InMemoryCatalogRepository();
+  const catalog = new CatalogService(repo);
+  assert((await must(catalog.searchPeople({ role: "priest", query: "Organist" }))).some((p) => p.id === "demo-both"));
+  assert(!(await must(catalog.searchPeople({ role: "priest", query: "Demo Organist" }))).some((p) => p.id === "demo-organist"));
+  assert(!(await must(catalog.searchPeople({ role: "organist", query: "Demo Priest" }))).some((p) => p.id === "demo-priest"));
+  assert(!(await must(catalog.searchPeople({ role: "priest", query: "Inactive" }))).length);
+  assert.equal((await catalog.savePerson({ role: "organist", person: { displayName: "X", active: true, priest: true, organist: false } })).success, false);
+  const created = await catalog.savePerson({ role: "admin", person: { displayName: "Created Both", active: true, priest: true, organist: true } });
+  assert.equal(created.success, true);
+  const removedRole = created.success ? await catalog.savePerson({ role: "admin", person: { ...created.value, organist: false } }) : created;
+  assert.equal(removedRole.success, true);
+  assert(!(await must(catalog.searchPeople({ role: "organist", query: "Created Both" }))).length);
+
+  assert(validateCatalogSongImport([{ language: "bad", number: "", title: "", active: "yes", sheetMusicUrl: 1 }, { language: "czech", number: "1", title: "A" }, { language: "czech", number: "1", title: "B" }]).length >= 6);
+  assert.equal(validateCatalogSongImport([{ language: "czech", number: "1", title: "A" }, { language: "polish", number: "1", title: "B" }]).length, 0);
+  assert((await must(catalog.searchSongs({ language: "czech", query: "101" }))).every((s) => s.language === "czech"));
+  assert((await must(catalog.searchSongs({ language: "polish", query: "Polish" }))).every((s) => s.language === "polish"));
+  assert((await must(catalog.searchSongs({ language: "mixed", query: "101" }))).length >= 2);
+  assert(!(await must(catalog.searchSongs({ language: "mixed", query: "Inactive" }))).length);
+  assert((await must(catalog.searchSongs({ language: "czech", query: "101" })))[0].sheetMusicUrl);
+  assert.equal((await catalog.setSongActive({ role: "priest", songId: "demo-cz-101", active: false })).success, false);
+  assert.equal((await catalog.setSongActive({ role: "admin", songId: "demo-cz-101", active: false })).success, true);
+  await catalog.setSongActive({ role: "admin", songId: "demo-cz-101", active: true });
+
+  const czechSong = { songSearch: "czech", selectedSong: { songId: "demo-cz-101", language: "czech" as const, number: "101", title: "Demo Czech Song" }, note: "" };
+  const polishSong = { songSearch: "polish", selectedSong: { songId: "demo-pl-101", language: "polish" as const, number: "101", title: "Demo Polish Song" }, note: "" };
+  const noteOnly = { songSearch: "", note: "note only" };
+  assert.deepEqual(preserveRowsOnServiceLanguageChange([czechSong], "polish")[0].selectedSong, czechSong.selectedSong);
+  assert.deepEqual(preserveRowsOnServiceLanguageChange([polishSong], "mixed")[0].selectedSong, polishSong.selectedSong);
+  assert.deepEqual(preserveRowsOnServiceLanguageChange([noteOnly], "czech")[0], noteOnly);
+  assert.deepEqual(getCatalogLanguageDeviationRowNumbers([{ song: polishSong.selectedSong }], "czech"), [1]);
+  assert.deepEqual(clearSongLookupResultsOnServiceLanguageChange(), {});
+  assert((await must(catalog.searchSongs({ language: "mixed", query: "101" }))).some((s) => s.language === "polish"));
+  assert((await must(catalog.searchSongs({ language: "czech", query: "101" }))).every((s) => s.language === "czech"));
+  const enriched = await enrichSongSnapshotWithSheetMusic(czechSong.selectedSong, repo) as typeof czechSong.selectedSong & { sheetMusicUrl?: string };
+  assert.equal(enriched.sheetMusicUrl, "https://example.com/cz-101.pdf");
+  await repo.upsertPerson({ id: "default-priest", displayName: "Default Priest", active: true, priest: true, organist: false });
+  assert.deepEqual(await getEligiblePersonDefaultById(repo, "default-priest", "priest"), { id: "default-priest", displayName: "Default Priest" });
+  await repo.upsertPerson({ id: "default-priest", displayName: "Renamed Default Priest", active: true, priest: true, organist: false });
+  assert.deepEqual(await getEligiblePersonDefaultById(repo, "default-priest", "priest"), { id: "default-priest", displayName: "Renamed Default Priest" });
+  await repo.upsertPerson({ id: "default-priest", displayName: "Renamed Default Priest", active: false, priest: true, organist: false });
+  assert.equal(await getEligiblePersonDefaultById(repo, "default-priest", "priest"), undefined);
+  await repo.upsertPerson({ id: "default-priest", displayName: "Renamed Default Priest", active: true, priest: false, organist: false });
+  assert.equal(await getEligiblePersonDefaultById(repo, "default-priest", "priest"), undefined);
+
+  const seedRepo = new InMemoryCatalogRepository([], []);
+  const foreignPerson = { id: "foreign-person", displayName: "Foreign Person", active: true, priest: true, organist: false };
+  const foreignCzechSong = { songId: "foreign-cz-101", language: "czech" as const, number: "101", title: "Real Czech 101", active: true };
+  const foreignPolishSong = { songId: "foreign-pl-101", language: "polish" as const, number: "101", title: "Real Polish 101", active: true };
+  await seedRepo.upsertPerson(foreignPerson);
+  await seedRepo.upsertSong(foreignCzechSong);
+  await seedRepo.upsertSong(foreignPolishSong);
+  await seedCatalog(seedRepo);
+  await seedCatalog(seedRepo);
+  const seedPeople = await seedRepo.listPeople();
+  const seedSongs = await seedRepo.listSongs();
+  assert.deepEqual(seedPeople.find((person) => person.id === foreignPerson.id), foreignPerson);
+  assert.deepEqual(seedSongs.find((song) => song.songId === foreignCzechSong.songId), foreignCzechSong);
+  assert.deepEqual(seedSongs.find((song) => song.songId === foreignPolishSong.songId), foreignPolishSong);
+  assert.equal(seedPeople.filter((person) => person.id.startsWith("phase29-demo-")).length, phase29DemoPeople.length);
+  assert.equal(seedSongs.filter((song) => song.songId.startsWith("phase29-demo-")).length, phase29DemoSongs.length);
+  assert(seedSongs.some((song) => song.number === "PH29-DEMO-101"));
+  assert(seedSongs.some((song) => song.language === "czech" && song.number === "101"));
+  assert(seedSongs.some((song) => song.language === "polish" && song.number === "101"));
+
+
+  const tracker = new CatalogLookupRequestTracker();
+  const requestA = tracker.begin(getSongLookupScope(1), "mixed:a");
+  const requestB = tracker.begin(getSongLookupScope(1), "mixed:b");
+  assert.equal(tracker.isCurrent(requestB, "mixed:b"), true);
+  assert.equal(tracker.isCurrent(requestA, "mixed:a"), false);
+  const mixedRequest = tracker.begin(getSongLookupScope(2), "mixed:101");
+  tracker.invalidatePrefix("song:");
+  assert.equal(tracker.isCurrent(mixedRequest, "mixed:101"), false);
+  const selectInvalidated = tracker.begin(getSongLookupScope(3), "czech:101");
+  tracker.invalidate(getSongLookupScope(3));
+  assert.equal(tracker.isCurrent(selectInvalidated, "czech:101"), false);
+  const clearInvalidated = tracker.begin(getSongLookupScope(4), "czech:101");
+  tracker.invalidate(getSongLookupScope(4));
+  assert.equal(tracker.isCurrent(clearInvalidated, "czech:101"), false);
+  const priestInvalidated = tracker.begin(getPersonLookupScope("priest"), "a");
+  tracker.invalidate(getPersonLookupScope("priest"));
+  assert.equal(tracker.isCurrent(priestInvalidated, "a"), false);
+  const organistInvalidated = tracker.begin(getPersonLookupScope("organist"), "a");
+  tracker.invalidate(getPersonLookupScope("organist"));
+  assert.equal(tracker.isCurrent(organistInvalidated, "a"), false);
+  const currentRequest = tracker.begin(getSongLookupScope(5), "czech:current");
+  assert.equal(tracker.isCurrent(currentRequest, "czech:current"), true);
+
+  const appliedLookupResults: string[] = [];
+  const asyncTracker = new CatalogLookupRequestTracker();
+  const asyncA = asyncTracker.begin(getSongLookupScope(6), "mixed:a");
+  const asyncB = asyncTracker.begin(getSongLookupScope(6), "mixed:b");
+  await applyLookupResultLater(asyncTracker, asyncB, "mixed:b", "B", appliedLookupResults);
+  await applyLookupResultLater(asyncTracker, asyncA, "mixed:a", "A", appliedLookupResults);
+  assert.deepEqual(appliedLookupResults, ["B"]);
+  const languageChangeResults: string[] = [];
+  const mixedBeforeLanguageChange = asyncTracker.begin(getSongLookupScope(7), "mixed:101");
+  asyncTracker.invalidatePrefix("song:");
+  await applyLookupResultLater(asyncTracker, mixedBeforeLanguageChange, "mixed:101", "old-mixed", languageChangeResults);
+  assert.deepEqual(languageChangeResults, []);
+
+
+  const service = new PlanningLifecycleService({ planningSets: new InMemoryPlanningSetRepository(), completedServiceRecords: new InMemoryCompletedServiceRecordRepository(), catalog: repo, now: () => new Date("2026-01-01T00:00:00Z") });
+  const ctx: ServiceContext = { serviceDate: "2025-01-01", serviceTime: "10:00", language: "mixed", priest: { id: "demo-priest", displayName: "Typed ignored" }, organist: { id: "demo-organist", displayName: "Typed ignored" } };
+  const set: PlanningSet & { status: "working" } = { status: "working", language: "mixed", rows: [{ song: { songId: "demo-pl-101", language: "polish", number: "101", title: "Old title" } }, { note: "note-only valid" }] };
+
+  const czechAllowed = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:02", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: { songId: "demo-cz-101", language: "czech", number: "101", title: "Demo Czech Song" } }] } });
+  assert.equal(czechAllowed.success, true);
+
+  const storedCzechLanguageChangeRejected = await service.saveWorkingSet({ role: "admin", existingSetId: czechAllowed.success ? czechAllowed.value.id : "missing", serviceContext: czechAllowed.success ? { ...czechAllowed.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:02", language: "polish" }, set: { status: "working", language: "polish", rows: czechAllowed.success ? czechAllowed.value.rows : [{ song: czechSong.selectedSong }] } });
+  assert.equal(storedCzechLanguageChangeRejected.success, false);
+  const storedCzechLanguageChangeAllowed = await service.saveWorkingSet({ role: "admin", existingSetId: czechAllowed.success ? czechAllowed.value.id : "missing", serviceContext: czechAllowed.success ? { ...czechAllowed.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:02", language: "polish" }, set: { status: "working", language: "polish", rows: czechAllowed.success ? czechAllowed.value.rows : [{ song: czechSong.selectedSong }] }, allowLanguageDeviations: true });
+  assert.equal(storedCzechLanguageChangeAllowed.success, true);
+  const polishDeviationRejected = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:03", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: { songId: "demo-pl-101", language: "polish", number: "101", title: "Demo Polish Song" } }] } });
+  assert.equal(polishDeviationRejected.success, false);
+  const polishDeviationAllowed = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:04", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: { songId: "demo-pl-101", language: "polish", number: "101", title: "Demo Polish Song" } }] }, allowLanguageDeviations: true });
+  assert.equal(polishDeviationAllowed.success, true);
+  await repo.upsertSong({ songId: "inactive-polish", language: "polish", number: "404", title: "Inactive Polish", active: false });
+  const inactiveDeviation = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:05", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: { songId: "inactive-polish", language: "polish", number: "404", title: "Inactive Polish" } }] }, allowLanguageDeviations: true });
+  assert.equal(inactiveDeviation.success, false);
+
+  const inactiveCzechSource = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:09", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: czechSong.selectedSong }] } });
+  assert.equal(inactiveCzechSource.success, true);
+  await catalog.setSongActive({ role: "admin", songId: "demo-cz-101", active: false });
+  const inactiveCzechUnchanged = await service.saveWorkingSet({ role: "admin", existingSetId: inactiveCzechSource.success ? inactiveCzechSource.value.id : "missing", serviceContext: inactiveCzechSource.success ? inactiveCzechSource.value.serviceContext : { ...ctx, serviceTime: "10:09", language: "czech" }, set: { status: "working", language: "czech", rows: inactiveCzechSource.success ? inactiveCzechSource.value.rows : [{ song: czechSong.selectedSong }] } });
+  assert.equal(inactiveCzechUnchanged.success, true);
+  const inactiveCzechChangedLanguageRejected = await service.saveWorkingSet({ role: "admin", existingSetId: inactiveCzechSource.success ? inactiveCzechSource.value.id : "missing", serviceContext: inactiveCzechSource.success ? { ...inactiveCzechSource.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:09", language: "polish" }, set: { status: "working", language: "polish", rows: inactiveCzechSource.success ? inactiveCzechSource.value.rows : [{ song: czechSong.selectedSong }] } });
+  assert.equal(inactiveCzechChangedLanguageRejected.success, false);
+  const inactiveCzechChangedLanguageAllowed = await service.saveWorkingSet({ role: "admin", existingSetId: inactiveCzechSource.success ? inactiveCzechSource.value.id : "missing", serviceContext: inactiveCzechSource.success ? { ...inactiveCzechSource.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:09", language: "polish" }, set: { status: "working", language: "polish", rows: inactiveCzechSource.success ? inactiveCzechSource.value.rows : [{ song: czechSong.selectedSong }] }, allowLanguageDeviations: true });
+  assert.equal(inactiveCzechChangedLanguageAllowed.success, true);
+  await catalog.setSongActive({ role: "admin", songId: "demo-cz-101", active: true });
+  const noSongIdWithDeviation = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:06", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: { language: "polish", number: "101" } }] }, allowLanguageDeviations: true });
+  assert.equal(noSongIdWithDeviation.success, false);
+  const preservedCzechOnPolishDraft = preserveRowsOnServiceLanguageChange([czechSong], "polish")[0].selectedSong;
+  assert.deepEqual(preservedCzechOnPolishDraft, czechSong.selectedSong);
+  const confirmedDeviation = confirmLanguageDeviationSave([{ song: czechSong.selectedSong }], "polish", () => true);
+  assert.equal(confirmedDeviation.allowLanguageDeviations, true);
+  const declinedDeviation = confirmLanguageDeviationSave([{ song: czechSong.selectedSong }], "polish", () => false);
+  assert.equal(declinedDeviation.cancelled, true);
+  const czechInPolishAllowed = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:07", language: "polish" }, set: { status: "working", language: "polish", rows: [{ song: czechSong.selectedSong }] }, allowLanguageDeviations: true });
+  assert.equal(czechInPolishAllowed.success, true);
+  const completedSource = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:08", language: "czech" }, set: { status: "working", language: "czech", rows: [{ song: czechSong.selectedSong }] } });
+  assert.equal(completedSource.success, true);
+  const completedSourceFinal = await service.finalizeWorkingSet({ role: "admin", workingSetId: completedSource.success ? completedSource.value.id : "missing" });
+  const completedSourceRecord = await service.completeFinalSet({ role: "admin", finalSetId: completedSourceFinal.success ? completedSourceFinal.value.id : "missing" });
+  assert.equal(completedSourceRecord.success, true);
+
+  const completedStoredDeviationRejected = await service.updateCompletedRecord({ role: "admin", recordId: completedSourceRecord.success ? completedSourceRecord.value.id : "missing", serviceContext: completedSourceRecord.success ? { ...completedSourceRecord.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:08", language: "polish" }, set: { status: "final", language: "polish", rows: completedSourceRecord.success ? completedSourceRecord.value.set.rows : [{ song: czechSong.selectedSong }] } });
+  assert.equal(completedStoredDeviationRejected.success, false);
+  const completedStoredDeviationAllowed = await service.updateCompletedRecord({ role: "admin", recordId: completedSourceRecord.success ? completedSourceRecord.value.id : "missing", serviceContext: completedSourceRecord.success ? { ...completedSourceRecord.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:08", language: "polish" }, set: { status: "final", language: "polish", rows: completedSourceRecord.success ? completedSourceRecord.value.set.rows : [{ song: czechSong.selectedSong }] }, allowLanguageDeviations: true });
+  assert.equal(completedStoredDeviationAllowed.success, true);
+  const completedDeviationUpdate = await service.updateCompletedRecord({ role: "admin", recordId: completedSourceRecord.success ? completedSourceRecord.value.id : "missing", serviceContext: completedSourceRecord.success ? completedSourceRecord.value.serviceContext : ctx, set: { status: "final", language: "czech", rows: [{ song: polishSong.selectedSong }] }, allowLanguageDeviations: true });
+  assert.equal(completedDeviationUpdate.success, true);
+
+  const noPersonId = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, priest: { displayName: "free text" } }, set });
+  assert.equal(noPersonId.success, false);
+  const noSongId = await service.saveWorkingSet({ role: "admin", serviceContext: { ...ctx, serviceTime: "10:01" }, set: { ...set, rows: [{ song: { language: "polish", number: "101" } }] } });
+  assert.equal(noSongId.success, false);
+  const saved = await service.saveWorkingSet({ role: "admin", serviceContext: ctx, set });
+  assert.equal(saved.success, true);
+  if (!saved.success) throw new Error("save failed");
+  assert.equal(saved.value.serviceContext.priest.displayName, "Demo Priest");
+  assert.equal(saved.value.rows[0].song?.title, "Demo Polish Song");
+  await catalog.savePerson({ role: "admin", person: { id: "demo-priest", displayName: "Renamed Priest", active: false, priest: false, organist: false } });
+  await catalog.setSongActive({ role: "admin", songId: "demo-pl-101", active: false });
+  const unchanged = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set: { status: "working", language: "mixed", rows: saved.value.rows } });
+  assert.equal(unchanged.success, true);
+  assert.equal(unchanged.success && unchanged.value.serviceContext.priest.displayName, "Demo Priest");
+  assert.equal(unchanged.success && unchanged.value.rows[0].song?.title, "Demo Polish Song");
+  const movedInactive = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set: { status: "working", language: "mixed", rows: [{ note: "inserted before inactive" }, saved.value.rows[0]] } });
+  assert.equal(movedInactive.success, true);
+  const duplicatedInactive = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set: { status: "working", language: "mixed", rows: [saved.value.rows[0], saved.value.rows[0]] } });
+  assert.equal(duplicatedInactive.success, false);
+  await catalog.savePerson({ role: "admin", person: { id: "demo-priest", displayName: "Renamed Priest", active: true, priest: true, organist: false } });
+  await catalog.setSongActive({ role: "admin", songId: "demo-pl-101", active: true });
+  await catalogRepoUpsertSongTitle(repo, "demo-pl-101", "Renamed Polish Song");
+  const updatedSnapshotSave = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set });
+  assert.equal(updatedSnapshotSave.success, true);
+  assert.equal(updatedSnapshotSave.success && updatedSnapshotSave.value.rows[0].song?.title, "Renamed Polish Song");
+  const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.value.id });
+  assert.equal(finalized.success, true);
+  const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+  assert.equal(completed.success, true);
+  assert.equal(completed.success && completed.value.set.rows[1].note, "note-only valid");
+  console.log("Catalog tests passed.");
+}
+async function applyLookupResultLater(tracker: CatalogLookupRequestTracker, token: ReturnType<CatalogLookupRequestTracker["begin"]>, query: string, value: string, applied: string[]) {
+  await Promise.resolve();
+  if (tracker.isCurrent(token, query)) applied.push(value);
+}
+async function catalogRepoUpsertSongTitle(repo: InMemoryCatalogRepository, songId: string, title: string) { const song = await repo.findSongById(songId); if (!song) throw new Error("song missing"); await repo.upsertSong({ ...song, title }); }
+async function must<T>(promise: Promise<{ success: true; value: T } | { success: false; error: unknown }>): Promise<T> { const result = await promise; if (!result.success) throw new Error("expected success"); return result.value; }
+main().catch((e) => { console.error(e); process.exit(1); });

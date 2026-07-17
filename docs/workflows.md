@@ -238,3 +238,25 @@ No development workflows are defined in this product workflow document.
 
 - What exact default time should trigger automatic conversion of a final set to a completed-service record?
 - What exact automatic conversion behavior should apply around that default time?
+
+## Phase 29 catalog lookup workflow
+
+Planning users search for a priest, organist, or song and then choose a concrete catalog result. The visible search text is only a search aid; save validation requires the chosen catalog ID for new or changed selections. Existing saved references that later become inactive or role-ineligible may be re-saved unchanged, preserving their snapshots, but they cannot be chosen again until made eligible.
+
+Local admins use the minimal catalog administration surface to maintain people and to activate/deactivate songs. Development/demo catalog data is loaded explicitly with `npm run db:seed:catalog` after `npm run db:migrate` when using `ORGANY_RUNTIME=db`.
+
+### Phase 29 editor lookup completion
+
+The Planning Lifecycle editor now uses catalog lookup controls for priest, organist, and song rows. Typing in a lookup box is search text only; changing the text clears the selected catalog ID until the user chooses a result. Legacy snapshots without IDs are shown as saved snapshots and remain readable, but a new or changed save must select an eligible active catalog record. The same in-memory catalog instance backs both lookup/admin UI and the in-memory Planning Lifecycle service, so local runtime no longer bypasses catalog validation.
+
+Admin catalog controls are intentionally minimal: people can be added, renamed, assigned priest/organist roles, activated, and deactivated; songs can only be listed and activated/deactivated. Song creation and metadata editing remain import-only future work.
+
+Language changes preserve already selected song snapshots. The editor keeps existing song selections visible, limits only subsequent lookup results to the new service language, and relies on the existing save confirmation for language-deviation rows.
+
+### Phase 29 development seed smoke
+
+Run `npm run db:catalog-seed-smoke` against a disposable or development PostgreSQL database after migration to verify that the explicit Phase 29 catalog seed is idempotent against the real Drizzle/PostgreSQL repository. The smoke uses a transaction rollback and marker-scoped foreign records; it must not reset the database or broadly delete catalog data.
+
+Confirmed language deviations are now carried through the lifecycle save input as `allowLanguageDeviations`. The UI sets it only after the user confirms a visible mismatch; the service still requires a real active catalog song with `songId` and only relaxes the service-language match.
+
+Lookup result rendering is guarded by request generations. Typing, selecting, clearing, or changing service language invalidates stale person/song lookup requests so late responses cannot restore obsolete results.

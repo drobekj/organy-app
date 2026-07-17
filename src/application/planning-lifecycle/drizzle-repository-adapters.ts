@@ -1,4 +1,5 @@
 import { asc, eq } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as planningLifecycleSchema from "../../db/schema";
 import {
   completedServiceRows,
@@ -15,6 +16,7 @@ import type {
   PlanningSetRepository,
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
+import { DrizzleCatalogRepository } from "../catalog";
 import type { PlanningLifecycleServiceDependencies } from "./service";
 import { normalizeServiceTime, type PlanningRow, type PlanningSet, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
 
@@ -27,19 +29,12 @@ export type PlanningLifecycleDrizzleSchema = Pick<
   | "completedServiceRows"
 >;
 
-type DrizzleExecutor = {
-  select: () => unknown;
-  insert: (table: unknown) => unknown;
-  update: (table: unknown) => unknown;
-  delete: (table: unknown) => unknown;
-};
-
-type TransactionalDrizzleExecutor = DrizzleExecutor & {
-  transaction: <T>(callback: (tx: DrizzleExecutor) => Promise<T>) => Promise<T>;
-};
+type PlanningLifecycleDrizzleDatabase = NodePgDatabase<typeof planningLifecycleSchema>;
+type DrizzleExecutor = Pick<PlanningLifecycleDrizzleDatabase, "select" | "insert" | "update" | "delete">;
+type DrizzleTable = Parameters<PlanningLifecycleDrizzleDatabase["insert"]>[0];
 
 export type PlanningLifecycleDrizzleAdapterDependencies = {
-  db: TransactionalDrizzleExecutor;
+  db: PlanningLifecycleDrizzleDatabase;
   schema?: PlanningLifecycleDrizzleSchema;
 };
 
@@ -63,7 +58,9 @@ type ServiceContextRecord = {
 type ServiceSetRowRecord = {
   position: number;
   songLanguage: "czech" | "polish" | null;
+  songId: string | null;
   songNumber: string | null;
+  songTitle: string | null;
   note: string | null;
 };
 
@@ -272,8 +269,10 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
           record.set.rows.map((row, index) => ({
             completedServiceId: completedService.id,
             position: index + 1,
+            songId: row.song?.songId,
             songLanguage: row.song?.language,
             songNumber: row.song?.number,
+            songTitle: row.song?.title,
             note: row.note,
             createdAt: now,
             updatedAt: now,
@@ -370,6 +369,7 @@ export function createDbBackedPlanningLifecycleService(
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
+    catalog: new DrizzleCatalogRepository(dependencies.db),
     now: dependencies.now,
   });
 }
@@ -418,8 +418,10 @@ async function replaceRows(db: DrizzleExecutor, serviceSetId: number, rows: Plan
     rows.map((row, index) => ({
       serviceSetId,
       position: index + 1,
+      songId: row.song?.songId,
       songLanguage: row.song?.language,
       songNumber: row.song?.number,
+      songTitle: row.song?.title,
       note: row.note,
       createdAt: now,
       updatedAt: now,
@@ -438,8 +440,10 @@ async function replaceCompletedRows(db: DrizzleExecutor, completedServiceId: num
     rows.map((row, index) => ({
       completedServiceId,
       position: index + 1,
+      songId: row.song?.songId,
       songLanguage: row.song?.language,
       songNumber: row.song?.number,
+      songTitle: row.song?.title,
       note: row.note,
       createdAt: now,
       updatedAt: now,
@@ -470,7 +474,7 @@ function mapServiceContextToContextValues(context: ServiceContext) {
 
 function mapRowRecordToPlanningRow(row: ServiceSetRowRecord): PlanningRow {
   return {
-    ...(row.songLanguage && row.songNumber ? { song: { language: row.songLanguage, number: row.songNumber } } : {}),
+    ...(row.songLanguage && row.songNumber ? { song: { ...(row.songId ? { songId: row.songId } : {}), language: row.songLanguage, number: row.songNumber, ...(row.songTitle ? { title: row.songTitle } : {}) } } : {}),
     ...(row.note ? { note: row.note } : {}),
   };
 }
@@ -502,15 +506,15 @@ function selectAll(db: DrizzleExecutor) {
   return db.select() as ReturnType<typeof serviceSetsSelect>;
 }
 
-function insertInto(db: DrizzleExecutor, table: unknown) {
+function insertInto(db: DrizzleExecutor, table: DrizzleTable) {
   return db.insert(table) as ReturnType<typeof serviceSetsInsert>;
 }
 
-function updateTable(db: DrizzleExecutor, table: unknown) {
+function updateTable(db: DrizzleExecutor, table: DrizzleTable) {
   return db.update(table) as ReturnType<typeof serviceSetsUpdate>;
 }
 
-function deleteFrom(db: DrizzleExecutor, table: unknown) {
+function deleteFrom(db: DrizzleExecutor, table: DrizzleTable) {
   return db.delete(table) as ReturnType<typeof serviceSetsDelete>;
 }
 

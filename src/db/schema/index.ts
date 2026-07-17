@@ -11,11 +11,35 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 export const serviceSetStatus = pgEnum("service_set_status", ["working", "final"]);
 export const serviceLanguage = pgEnum("service_language", ["czech", "polish", "mixed"]);
 export const songLanguage = pgEnum("song_language", ["czech", "polish"]);
+
+export const catalogPersons = pgTable("catalog_persons", {
+  id: text("id").primaryKey(),
+  displayName: text("display_name").notNull(),
+  active: boolean("active").notNull().default(true),
+  priest: boolean("priest").notNull().default(false),
+  organist: boolean("organist").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const catalogSongs = pgTable("catalog_songs", {
+  songId: text("song_id").primaryKey(),
+  language: songLanguage("language").notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  active: boolean("active").notNull().default(true),
+  sheetMusicUrl: text("sheet_music_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  languageNumber: uniqueIndex("catalog_songs_language_number_idx").on(table.language, table.number),
+}));
 
 export const serviceContexts = pgTable(
   "service_contexts",
@@ -55,8 +79,10 @@ export const serviceSetRows = pgTable(
       .notNull()
       .references(() => serviceSets.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
+    songId: text("song_id"),
     songLanguage: songLanguage("song_language"),
     songNumber: text("song_number"),
+    songTitle: text("song_title"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,8 +119,10 @@ export const completedServiceRows = pgTable(
       .notNull()
       .references(() => completedServices.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
+    songId: text("song_id"),
     songLanguage: songLanguage("song_language"),
     songNumber: text("song_number"),
+    songTitle: text("song_title"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

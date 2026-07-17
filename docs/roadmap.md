@@ -203,3 +203,9 @@ The following areas are intentionally not ready for implementation from this roa
 
 ## Change Log
 - 2026-07-07 — Replaced the roadmap template with a high-level phased roadmap derived from accepted product, domain, decision, requirement, workflow, and architecture documents.
+
+## Phase 29 implementation note
+
+Phase 29 adds the lookup foundation for DB-backed person and song catalogs, including explicit development seed data and snapshot persistence. It deliberately does not close the broader candidate-selection roadmap: full Czech/Polish chorale import, melody equivalence, repertoire management, non-repetition, preferences, antiphon/season highlighting, and automatic candidate picking remain later phases.
+
+The catalog import foundation is limited to documented JSON validation in `docs/catalog-import-format.md`; a full chorale importer and production catalog population remain separate future milestones.

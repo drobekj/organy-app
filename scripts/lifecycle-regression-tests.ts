@@ -7,6 +7,7 @@ import {
   type CompletedServiceRecordRepository,
   type PlanningSetId,
 } from "../src/application/planning-lifecycle";
+import { InMemoryCatalogRepository } from "../src/application/catalog";
 import type { PlanningRole, PlanningSet, ServiceContext } from "../src/planning-lifecycle";
 import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
 
@@ -492,7 +493,7 @@ function createService() {
   return {
     planningSets,
     completedRecords,
-    service: new PlanningLifecycleService({ planningSets, completedServiceRecords: completedRecords, now: () => fixedNow }),
+    service: new PlanningLifecycleService({ planningSets, completedServiceRecords: completedRecords, catalog: new InMemoryCatalogRepository(), enforceCatalogSelections: false, now: () => fixedNow }),
   };
 }
 

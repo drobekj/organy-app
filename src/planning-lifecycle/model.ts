@@ -7,8 +7,10 @@ export type ServiceSetStatus = "working" | "final";
 export type PlanningRole = "priest" | "organist" | "admin" | "congregationMember";
 
 export type SongReference = {
+  songId?: string;
   number: string;
   language: ConcreteSongLanguage;
+  title?: string;
 };
 
 export type PlanningRow = {

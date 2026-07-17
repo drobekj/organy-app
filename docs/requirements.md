@@ -216,3 +216,17 @@ Acceptance criteria are listed under each functional requirement.
 ## Traceability
 
 Requirements should be traced to accepted decisions in `docs/decisions.md` and to domain concepts in `docs/domain-analysis.md` and `docs/domain-model.md`. Future backlog items, tests, and release notes should reference requirement identifiers when implementation work begins.
+
+## Phase 29 lookup requirements
+
+- Priest and organist fields use lookup of active catalog persons with the matching role; typed search text alone is not a valid new selection.
+- Song rows use lookup of active catalog songs scoped by service language: Czech services show Czech songs, Polish services show Polish songs, and Mixed services show both.
+- Song lookup searches number and title and exposes a sheet-music link only when the catalog record has one.
+- Note-only planning rows remain valid.
+- Admin may add/update/deactivate people and manage priest/organist role membership. Admin may only activate/deactivate catalog songs in the application UI/API; song creation/editing is reserved for a future import milestone.
+- The explicit development seed is `npm run db:seed:catalog`; it is not run by migrations or application startup.
+- Lookup foundation is separate from candidate filtering. The candidate-selection engine, melody knowledge, repertoire, preference thresholds, full Czech/Polish import, and automatic hymn picking remain future work.
+
+Phase 29 implementation also requires that unchanged inactive song references be matched independently of row position, so moving rows, inserting note-only rows before a saved song, or deleting other rows does not force a valid historical snapshot through current catalog eligibility again. Additional occurrences beyond the originally saved snapshot count are treated as new selections.
+
+Default priest/organist values from Completed records are resolved by stable catalog ID, not historical display-name search. If the catalog record is active and still has the required role, the new draft uses the current catalog display name; otherwise the field remains empty while the historical Completed snapshot remains unchanged.
