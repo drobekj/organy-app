@@ -23,7 +23,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add src/application/planning-lifecycle/drizzle-repository-adapters.ts src/application/catalog.ts scripts/db-catalog-seed-smoke.ts
           if git diff --cached --quiet; then
             echo "No autofix changes to commit."
           else
