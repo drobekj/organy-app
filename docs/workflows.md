@@ -259,4 +259,8 @@ Run `npm run db:catalog-seed-smoke` against a disposable or development PostgreS
 
 Confirmed language deviations are now carried through the lifecycle save input as `allowLanguageDeviations`. The UI sets it only after the user confirms a visible mismatch; the service still requires a real active catalog song with `songId` and only relaxes the service-language match.
 
+### Phase 29 local PostgreSQL verification note
+
+Manual local PostgreSQL verification for Phase 29 passed for catalog lookup, persistence, lifecycle transitions, historical snapshots, and soft deactivation. The legacy `db:lifecycle-smoke` verification now provisions its own marker-scoped catalog people and songs so priest, organist, and song rows use valid catalog selections while preserving the original lifecycle coverage.
+
 Lookup result rendering is guarded by request generations. Typing, selecting, clearing, or changing service language invalidates stale person/song lookup requests so late responses cannot restore obsolete results.
