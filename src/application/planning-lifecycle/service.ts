@@ -357,7 +357,12 @@ export class PlanningLifecycleService {
     for (const [index, row] of normalizedRows.entries()) {
       if (!row.song) continue;
       if (!row.song.songId) { issues.push({ path: `rows.${index}.song`, message: "Song must be selected from the song catalog." }); continue; }
-      if (consumeUnchangedSongSnapshot(unchangedSongs, row.song)) continue;
+      if (consumeUnchangedSongSnapshot(unchangedSongs, row.song)) {
+        if (!allowLanguageDeviations && !languagesForService(normalizedContext.language).includes(row.song.language)) {
+          issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
+        }
+        continue;
+      }
       const song = await this.catalog.findSongById(row.song.songId);
       if (!song) { issues.push({ path: `rows.${index}.song`, message: "Song was not found in the catalog." }); continue; }
       if (!song.active) { issues.push({ path: `rows.${index}.song`, message: "Song is not active." }); continue; }
