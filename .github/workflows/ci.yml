@@ -6,12 +6,30 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout head branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+      - name: Apply one-time Phase 29 autofix
+        run: python scripts/ci-autofix-phase29.py
+      - name: Commit autofix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No autofix changes to commit."
+          else
+            git commit -m "Fix Phase 29 Drizzle types and seed smoke"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
