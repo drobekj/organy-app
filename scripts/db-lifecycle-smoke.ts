@@ -22,12 +22,25 @@ if (!databaseUrl) {
 
 const smokeRunId = `Lifecycle Smoke ${Date.now()}-${process.pid}`;
 
+const smokeCatalog = {
+  priestOne: { id: `${smokeRunId} priest one`, displayName: `${smokeRunId} Priest One`, active: true, priest: true, organist: false },
+  priestTwo: { id: `${smokeRunId} priest two`, displayName: `${smokeRunId} Priest Two`, active: true, priest: true, organist: false },
+  priestUpdated: { id: `${smokeRunId} priest updated`, displayName: `${smokeRunId} Priest Updated`, active: true, priest: true, organist: false },
+  organistOne: { id: `${smokeRunId} organist one`, displayName: `${smokeRunId} Organist One`, active: true, priest: false, organist: true },
+  organistTwo: { id: `${smokeRunId} organist two`, displayName: `${smokeRunId} Organist Two`, active: true, priest: false, organist: true },
+  organistUpdated: { id: `${smokeRunId} organist updated`, displayName: `${smokeRunId} Organist Updated`, active: true, priest: false, organist: true },
+  czechEntrance: { songId: `${smokeRunId} song czech entrance`, language: "czech", number: `${smokeRunId} CZ-101`, title: `${smokeRunId} Czech Entrance`, active: true },
+  polishOffertory: { songId: `${smokeRunId} song polish offertory`, language: "polish", number: `${smokeRunId} PL-202`, title: `${smokeRunId} Polish Offertory`, active: true },
+  polishUpdate: { songId: `${smokeRunId} song polish update`, language: "polish", number: `${smokeRunId} PL-303`, title: `${smokeRunId} Polish Update`, active: true },
+  czechCompleted: { songId: `${smokeRunId} song czech completed`, language: "czech", number: `${smokeRunId} CZ-815`, title: `${smokeRunId} Czech Completed`, active: true },
+} as const;
+
 const firstWorkingSet = {
   status: "working",
   language: "mixed",
   rows: [
-    { song: { language: "czech", number: "101" }, note: "lifecycle smoke entrance" },
-    { song: { language: "polish", number: "202" }, note: "lifecycle smoke offertory" },
+    { song: smokeCatalog.czechEntrance, note: "lifecycle smoke entrance" },
+    { song: smokeCatalog.polishOffertory, note: "lifecycle smoke offertory" },
   ],
 } satisfies PlanningSet & { status: "working" };
 
@@ -40,7 +53,7 @@ const secondWorkingSet = {
 const updatedFirstWorkingSet = {
   status: "working",
   language: "polish",
-  rows: [{ song: { language: "polish", number: "303" }, note: "updated lifecycle smoke row" }],
+  rows: [{ song: smokeCatalog.polishUpdate, note: "updated lifecycle smoke row" }],
 } satisfies PlanningSet & { status: "working" };
 
 async function main() {
@@ -59,6 +72,7 @@ async function main() {
     await cleanupLegacySmokeData(db);
     assert((await countLegacySmokeContexts(db)) === 0, "legacy smoke cleanup removes exact old service contexts");
     await cleanupSmokeData(db);
+    await provisionSmokeCatalog(db);
 
     const identities = await findUnusedServiceIdentities(db, 3);
     const firstIdentity = requireSmokeIdentity(identities, 0);
@@ -121,7 +135,7 @@ async function main() {
 
     const originalCompletedAt = completed.value.completedAt;
     const updatedCompletedContext = buildSmokeContext(updatedIdentity, "mixed", "Updated");
-    const updatedCompletedSet = { status: "final", language: "mixed", rows: [{ note: "DB smoke admin completed update" }, { song: { language: "czech", number: "815" } }] } satisfies PlanningSet & { status: "final" };
+    const updatedCompletedSet = { status: "final", language: "mixed", rows: [{ note: "DB smoke admin completed update" }, { song: smokeCatalog.czechCompleted }] } satisfies PlanningSet & { status: "final" };
     const adminUpdated = await service.updateCompletedRecord({ role: "admin", recordId: completed.value.id, serviceContext: updatedCompletedContext, set: updatedCompletedSet });
     assertServiceSuccess(adminUpdated, "admin update completed record succeeds");
     assert(adminUpdated.value.completedAt.getTime() === originalCompletedAt.getTime(), "admin update preserves completedAt");
@@ -219,14 +233,20 @@ const legacySmokeIdentities = [
 function buildSmokeContext(
   identity: SmokeIdentity,
   language: ServiceContext["language"],
-  label: string,
+  label: "One" | "Two" | "Updated",
 ): ServiceContext {
+  const peopleByLabel = {
+    One: { priest: smokeCatalog.priestOne, organist: smokeCatalog.organistOne },
+    Two: { priest: smokeCatalog.priestTwo, organist: smokeCatalog.organistTwo },
+    Updated: { priest: smokeCatalog.priestUpdated, organist: smokeCatalog.organistUpdated },
+  };
+  const people = peopleByLabel[label];
   return {
     serviceDate: identity.serviceDate,
     serviceTime: identity.serviceTime,
     language,
-    priest: { id: `${smokeRunId} priest ${label}`, displayName: `${smokeRunId} Priest ${label}` },
-    organist: { id: `${smokeRunId} organist ${label}`, displayName: `${smokeRunId} Organist ${label}` },
+    priest: { id: people.priest.id, displayName: people.priest.displayName },
+    organist: { id: people.organist.id, displayName: people.organist.displayName },
   };
 }
 
@@ -260,6 +280,32 @@ async function findUnusedServiceIdentities(
 
   assert(identities.length === requiredCount, `found ${requiredCount} unused smoke service date/time identities`);
   return identities;
+}
+
+async function provisionSmokeCatalog(db: SmokeDb): Promise<void> {
+  const people = [
+    smokeCatalog.priestOne,
+    smokeCatalog.priestTwo,
+    smokeCatalog.priestUpdated,
+    smokeCatalog.organistOne,
+    smokeCatalog.organistTwo,
+    smokeCatalog.organistUpdated,
+  ];
+  const songs = [smokeCatalog.czechEntrance, smokeCatalog.polishOffertory, smokeCatalog.polishUpdate, smokeCatalog.czechCompleted];
+
+  for (const person of people) {
+    await db.insert(schema.catalogPersons).values(person).onConflictDoUpdate({
+      target: schema.catalogPersons.id,
+      set: { displayName: person.displayName, active: person.active, priest: person.priest, organist: person.organist, updatedAt: new Date() },
+    });
+  }
+
+  for (const song of songs) {
+    await db.insert(schema.catalogSongs).values(song).onConflictDoUpdate({
+      target: schema.catalogSongs.songId,
+      set: { language: song.language, number: song.number, title: song.title, active: song.active, updatedAt: new Date() },
+    });
+  }
 }
 
 async function cleanupSmokeData(db: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }) {
@@ -309,6 +355,8 @@ async function cleanupSmokeData(db: { execute: (query: ReturnType<typeof sql>) =
       or organist_display_name like ${markerPattern}
     )
   `);
+  await db.execute(sql`delete from catalog_songs where song_id like ${markerPattern}`);
+  await db.execute(sql`delete from catalog_persons where id like ${markerPattern}`);
 }
 
 async function cleanupLegacySmokeData(db: { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }) {
