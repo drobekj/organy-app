@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -14,20 +15,16 @@ import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage }
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import {
   formatDateInputValue,
-  getDefaultRowLanguage,
   getDefaultServiceLanguage,
-  getLanguageDeviationRowNumbers,
   getNearestSunday,
-  propagateServiceLanguageToRows,
 } from "../src/planning-lifecycle/service-context-defaults";
 import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
 
 type EditableRow = {
   id: number;
-  songLanguage: "" | ConcreteSongLanguage;
-  songNumber: string;
+  songSearch: string;
+  selectedSong?: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string };
   note: string;
-  languageTouched: boolean;
 };
 
 type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
@@ -41,7 +38,7 @@ type WorkingSetSnapshot = {
   rows: PlanningRow[];
 };
 
-type PlanningLifecycleClientApi = PlanningLifecycleService | DbPlanningLifecycleClient;
+type CatalogClient = CatalogService | DbCatalogClient;
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -49,18 +46,15 @@ type PlanningRepositories = {
 };
 
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
-const songLanguageOptions: ConcreteSongLanguage[] = ["czech", "polish"];
 const defaultServiceTime = "10:00";
 
 const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
-function createEmptyRow(id: number, serviceLanguage: ServiceLanguage): EditableRow {
+function createEmptyRow(id: number, _serviceLanguage: ServiceLanguage): EditableRow {
   return {
     id,
-    songLanguage: getDefaultRowLanguage(serviceLanguage),
-    songNumber: "",
+    songSearch: "",
     note: "",
-    languageTouched: false,
   };
 }
 
@@ -68,28 +62,37 @@ function createEmptyRow(id: number, serviceLanguage: ServiceLanguage): EditableR
 function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
   return {
     id,
-    songLanguage: row.song?.language ?? "",
-    songNumber: row.song?.number ?? "",
+    songSearch: row.song ? formatSongLabel(row.song) : "",
+    selectedSong: row.song ? { ...row.song } : undefined,
     note: row.note ?? "",
-    languageTouched: Boolean(row.song?.language),
   };
 }
 
 function toPlanningRow(row: EditableRow): PlanningRow {
-  const songNumber = row.songNumber.trim();
   const note = row.note.trim();
-
   return {
-    ...(songNumber
+    ...(row.selectedSong
       ? {
           song: {
-            language: row.songLanguage as ConcreteSongLanguage,
-            number: songNumber,
+            ...(row.selectedSong.songId ? { songId: row.selectedSong.songId } : {}),
+            language: row.selectedSong.language,
+            number: row.selectedSong.number,
+            ...(row.selectedSong.title ? { title: row.selectedSong.title } : {}),
           },
         }
       : {}),
     ...(note ? { note } : {}),
   };
+}
+
+function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {
+  return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
+}
+
+
+function getCatalogLanguageDeviationRowNumbers(rows: PlanningRow[], serviceLanguage: ServiceLanguage): number[] {
+  if (serviceLanguage === "mixed") return [];
+  return rows.flatMap((row, index) => row.song && row.song.language !== serviceLanguage ? [index + 1] : []);
 }
 
 function isFuturePragueDate(serviceDate: string): boolean {
@@ -145,6 +148,23 @@ class DbPlanningLifecycleClient {
   }
 }
 
+
+class DbCatalogClient {
+  async searchPeople(input: { role: PersonRole; query?: string }) { return callCatalogApi("searchPeople", input); }
+  async listPeople() { return callCatalogApi("listPeople", {}); }
+  async savePerson(input: { role: PlanningRole; person: Omit<CatalogPerson, "id"> & { id?: string } }) { return callCatalogApi("savePerson", input); }
+  async searchSongs(input: { language: ServiceLanguage; query?: string }) { return callCatalogApi("searchSongs", input); }
+  async listSongs() { return callCatalogApi("listSongs", {}); }
+  async setSongActive(input: { role: PlanningRole; songId: string; active: boolean }) { return callCatalogApi("setSongActive", input); }
+}
+
+async function callCatalogApi(action: string, input: unknown) {
+  const response = await fetch("/api/catalog", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, input }) });
+  const payload = await response.json();
+  if (!response.ok) return { success: false as const, error: { code: "invalidInput" as const, message: typeof payload?.error === "string" ? payload.error : "Catalog API request failed." } };
+  return payload;
+}
+
 async function callPlanningLifecycleApi(action: string, input: unknown) {
   const response = await fetch("/api/planning-lifecycle", {
     method: "POST",
@@ -168,6 +188,7 @@ async function callPlanningLifecycleApi(action: string, input: unknown) {
 }
 
 export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecycleClientProps) {
+  const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
   const repositories = useMemo<PlanningRepositories>(
     () => ({
       planningSets: new InMemoryPlanningSetRepository(),
@@ -182,9 +203,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         : new PlanningLifecycleService({
             planningSets: repositories.planningSets,
             completedServiceRecords: repositories.completedServiceRecords,
+            catalog: catalogRepository,
           }),
-    [repositories, runtimeMode],
+    [repositories, runtimeMode, catalogRepository],
   );
+  const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
   const initialServiceLanguage = useMemo(() => getDefaultServiceLanguage(initialServiceSunday), [initialServiceSunday]);
@@ -193,8 +216,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [serviceLanguage, setServiceLanguage] = useState<ServiceLanguage>(initialServiceLanguage);
   const [priest, setPriest] = useState("");
   const [priestId, setPriestId] = useState<string | undefined>(undefined);
+  const [priestResults, setPriestResults] = useState<CatalogPerson[]>([]);
   const [organist, setOrganist] = useState("");
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
+  const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
   const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
   const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
   const [nextRowId, setNextRowId] = useState(2);
@@ -207,10 +232,18 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
   const [lastSavedRecord, setLastSavedRecord] = useState<PersistedRecordReference | null>(null);
   const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
+  const [songResults, setSongResults] = useState<Record<number, CatalogSong[]>>({});
+  const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
+  const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
+  const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
 
   useEffect(() => {
     void refreshDbSets();
   }, [runtimeMode]);
+
+  useEffect(() => {
+    void refreshCatalogAdmin();
+  }, [selectedRole, runtimeMode]);
 
   useEffect(() => {
     if (!persistedSet && !completedRecord && saveState === "unsaved") {
@@ -226,7 +259,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
   const isCompletedRecordOpen = Boolean(completedRecord);
-  const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim());
+  const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim() && priestId && organistId);
   const isFinalSetOpen = persistedSet?.status === "final";
   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
@@ -243,12 +276,25 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
 
+
+  async function getEligibleDraftPeopleDefaults(records: CompletedServiceRecord[]): Promise<DraftPeopleDefaults> {
+    const defaults = getDraftPeopleDefaults(records);
+    const [priestOk, organistOk] = await Promise.all([
+      defaults.priest.id ? catalogClient.searchPeople({ role: "priest", query: defaults.priest.displayName }) : Promise.resolve({ success: true as const, value: [] as CatalogPerson[] }),
+      defaults.organist.id ? catalogClient.searchPeople({ role: "organist", query: defaults.organist.displayName }) : Promise.resolve({ success: true as const, value: [] as CatalogPerson[] }),
+    ]);
+    return {
+      priest: priestOk.success && priestOk.value.some((p) => p.id === defaults.priest.id) ? defaults.priest : { displayName: "" },
+      organist: organistOk.success && organistOk.value.some((p) => p.id === defaults.organist.id) ? defaults.organist : { displayName: "" },
+    };
+  }
+
   async function refreshDbSets() {
     const result = await planningLifecycleService.listPlanningSets();
     const completedResult = await planningLifecycleService.listCompletedRecords();
     const activeSets = result.success ? result.value : savedDbSets;
     const completed = completedResult.success ? completedResult.value : completedRecords;
-    const defaults = getDraftPeopleDefaults(completed);
+    const defaults = await getEligibleDraftPeopleDefaults(completed);
 
     if (result.success) setSavedDbSets(activeSets);
     if (completedResult.success) {
@@ -257,6 +303,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
 
     return { activeSets, completedRecords: completed, draftPeopleDefaults: defaults };
+  }
+
+
+  async function refreshCatalogAdmin() {
+    if (selectedRole !== "admin") return;
+    const [people, songs] = await Promise.all([catalogClient.listPeople(), catalogClient.listSongs()]);
+    if (people.success) setPeopleAdmin(people.value);
+    if (songs.success) setSongsAdmin(songs.value);
   }
 
   function openPersistedSet(set: PersistedPlanningSet) {
@@ -365,24 +419,35 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     guardedEditorUpdate(() => setServiceTime(value));
   }
 
-  function updatePriestValue(value: string) {
+  async function updatePersonSearch(role: PersonRole, value: string) {
     guardedEditorUpdate(() => {
-      setPriest(value);
-      setPriestId(undefined);
+      if (role === "priest") { setPriest(value); setPriestId(undefined); }
+      else { setOrganist(value); setOrganistId(undefined); }
+    });
+    const result = await catalogClient.searchPeople({ role, query: value });
+    if (result.success) role === "priest" ? setPriestResults(result.value) : setOrganistResults(result.value);
+  }
+
+  function selectPerson(role: PersonRole, person: CatalogPerson) {
+    guardedEditorUpdate(() => {
+      if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); setPriestResults([]); }
+      else { setOrganist(person.displayName); setOrganistId(person.id); setOrganistResults([]); }
     });
   }
 
-  function updateOrganistValue(value: string) {
-    guardedEditorUpdate(() => {
-      setOrganist(value);
-      setOrganistId(undefined);
-    });
+  async function updateSongSearch(rowId: number, value: string) {
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: value, selectedSong: undefined } : row)));
+    const result = await catalogClient.searchSongs({ language: serviceLanguage, query: value });
+    if (result.success) setSongResults((current) => ({ ...current, [rowId]: result.value }));
   }
 
-  function markUnsaved() {
-    if (isEditorLocked) return;
-    setSaveState("unsaved");
-    setServiceError(null);
+  function selectSong(rowId: number, song: CatalogSong) {
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: formatSongLabel(song), selectedSong: song } : row)));
+    setSongResults((current) => ({ ...current, [rowId]: [] }));
+  }
+
+  function clearSong(rowId: number) {
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined } : row)));
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
@@ -423,7 +488,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function updateServiceLanguage(nextServiceLanguage: ServiceLanguage) {
     guardedEditorUpdate(() => {
       setServiceLanguage(nextServiceLanguage);
-      setRows((currentRows) => propagateServiceLanguageToRows(currentRows, nextServiceLanguage));
+      setRows((currentRows) => currentRows.map((row) => ({ ...row, selectedSong: undefined, songSearch: "" })));
     });
   }
 
@@ -436,15 +501,15 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         issues: [
           ...(!serviceDate ? [{ path: "serviceDate", message: "Service date is required." }] : []),
           ...(!isValidServiceTime(serviceTime) ? [{ path: "serviceTime", message: "Service time is required in HH:mm format between 00:00 and 23:59." }] : []),
-          ...(!priest.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
-          ...(!organist.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
+          ...(!priestId ? [{ path: "priest", message: "Priest must be selected from lookup." }] : []),
+          ...(!organistId ? [{ path: "organist", message: "Organist must be selected from lookup." }] : []),
         ],
       });
       setSaveState("errors");
       return;
     }
 
-    const languageDeviationRows = getLanguageDeviationRowNumbers(rows, serviceLanguage);
+    const languageDeviationRows = getCatalogLanguageDeviationRowNumbers(planningRows, serviceLanguage);
     if (languageDeviationRows.length > 0) {
       const confirmed = window.confirm(
         `Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language. Save this combination?`,
@@ -549,7 +614,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function saveCompletedChanges() {
     if (!completedRecord || selectedRole !== "admin") return;
 
-    const languageDeviationRows = getLanguageDeviationRowNumbers(rows, serviceLanguage);
+    const languageDeviationRows = getCatalogLanguageDeviationRowNumbers(planningRows, serviceLanguage);
     if (languageDeviationRows.length > 0) {
       const confirmed = window.confirm(
         `Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language. Save this combination?`,
@@ -747,28 +812,36 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               </select>
             </label>
             <label>
-              Priest
+              Priest lookup
               <input
                 type="text"
-                placeholder="Priest name or placeholder"
+                placeholder="Search active priests"
                 disabled={isEditorLocked}
                 value={priest}
-                onChange={(event) => {
-                  updatePriestValue(event.target.value);
-                }}
+                onChange={(event) => { void updatePersonSearch("priest", event.target.value); }}
               />
+              <span className="field-help">{priestId ? `Selected catalog ID: ${priestId}` : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
+              {priestResults.length > 0 && !isEditorLocked && (
+                <ul className="lookup-list">
+                  {priestResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("priest", person)}>{person.displayName}</button></li>)}
+                </ul>
+              )}
             </label>
             <label>
-              Organist
+              Organist lookup
               <input
                 type="text"
-                placeholder="Organist name or placeholder"
+                placeholder="Search active organists"
                 disabled={isEditorLocked}
                 value={organist}
-                onChange={(event) => {
-                  updateOrganistValue(event.target.value);
-                }}
+                onChange={(event) => { void updatePersonSearch("organist", event.target.value); }}
               />
+              <span className="field-help">{organistId ? `Selected catalog ID: ${organistId}` : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
+              {organistResults.length > 0 && !isEditorLocked && (
+                <ul className="lookup-list">
+                  {organistResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("organist", person)}>{person.displayName}</button></li>)}
+                </ul>
+              )}
             </label>
           </fieldset>
 
@@ -826,34 +899,31 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                   </div>
                   <div className="row-fields">
                     <label>
-                      Song language
-                      <select
-                        disabled={!canEditRows}
-                        value={row.songLanguage}
-                        onChange={(event) =>
-                          updateRow(row.id, {
-                            songLanguage: event.target.value as EditableRow["songLanguage"],
-                            languageTouched: true,
-                          })
-                        }
-                      >
-                        <option value="">No language</option>
-                        {songLanguageOptions.map((language) => (
-                          <option key={language} value={language}>
-                            {language}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Song number
+                      Song lookup
                       <input
                         type="text"
-                        value={row.songNumber}
-                        onChange={(event) => updateRow(row.id, { songNumber: event.target.value })}
-                        placeholder="e.g. 42"
+                        value={row.songSearch}
+                        onChange={(event) => { void updateSongSearch(row.id, event.target.value); }}
+                        placeholder="Search by number or title"
                         disabled={!canEditRows}
                       />
+                      {row.selectedSong ? (
+                        <span className="field-help">
+                          Selected: {formatSongLabel(row.selectedSong)}{row.selectedSong.songId ? ` (ID ${row.selectedSong.songId})` : " — legacy snapshot without catalog ID"}
+                          {"sheetMusicUrl" in row.selectedSong && row.selectedSong.sheetMusicUrl ? <> · <a href={row.selectedSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a></> : null}
+                        </span>
+                      ) : row.songSearch ? <span className="field-help">Search text only — choose a catalog song before saving, or clear it for a note-only row.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
+                      {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
+                      {(songResults[row.id]?.length ?? 0) > 0 && canEditRows && (
+                        <ul className="lookup-list">
+                          {songResults[row.id].map((song) => (
+                            <li key={song.songId}>
+                              <button type="button" onClick={() => selectSong(row.id, song)}>{formatSongLabel(song)}</button>
+                              {song.sheetMusicUrl ? <> <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a></> : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </label>
                     <label className="note-field">
                       Text note
@@ -913,6 +983,36 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>
 
+
+        {selectedRole === "admin" && (
+          <section className="db-workspace" aria-label="Catalog administration">
+            <div className="rows-header"><h2>Catalog administration</h2><button type="button" onClick={refreshCatalogAdmin}>Refresh catalog</button></div>
+            <fieldset className="field-group">
+              <legend>People</legend>
+              <label>Display name<input value={personForm.displayName} onChange={(event) => setPersonForm({ ...personForm, displayName: event.target.value })} /></label>
+              <label><input type="checkbox" checked={personForm.priest} onChange={(event) => setPersonForm({ ...personForm, priest: event.target.checked })} /> Priest role</label>
+              <label><input type="checkbox" checked={personForm.organist} onChange={(event) => setPersonForm({ ...personForm, organist: event.target.checked })} /> Organist role</label>
+              <label><input type="checkbox" checked={personForm.active} onChange={(event) => setPersonForm({ ...personForm, active: event.target.checked })} /> Active</label>
+              <button type="button" onClick={async () => { const result = await catalogClient.savePerson({ role: selectedRole, person: personForm }); if (result.success) { setPersonForm({ displayName: "", priest: true, organist: false, active: true }); await refreshCatalogAdmin(); } }}>Add person</button>
+              <ul className="saved-set-list">
+                {peopleAdmin.map((person) => (
+                  <li key={person.id}>{person.displayName} ({person.active ? "active" : "inactive"}; {person.priest ? "priest" : ""} {person.organist ? "organist" : ""})
+                    <button type="button" onClick={async () => { await catalogClient.savePerson({ role: selectedRole, person: { ...person, active: !person.active } }); await refreshCatalogAdmin(); }}>{person.active ? "Deactivate" : "Activate"}</button>
+                    <button type="button" onClick={async () => { const displayName = window.prompt("Display name", person.displayName); if (displayName) { await catalogClient.savePerson({ role: selectedRole, person: { ...person, displayName } }); await refreshCatalogAdmin(); } }}>Rename</button>
+                    <button type="button" onClick={async () => { await catalogClient.savePerson({ role: selectedRole, person: { ...person, priest: !person.priest } }); await refreshCatalogAdmin(); }}>Toggle priest</button>
+                    <button type="button" onClick={async () => { await catalogClient.savePerson({ role: selectedRole, person: { ...person, organist: !person.organist } }); await refreshCatalogAdmin(); }}>Toggle organist</button>
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+            <fieldset className="field-group">
+              <legend>Songs</legend>
+              <ul className="saved-set-list">
+                {songsAdmin.map((song) => <li key={song.songId}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"}) {song.sheetMusicUrl ? <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a> : null} <button type="button" onClick={async () => { await catalogClient.setSongActive({ role: selectedRole, songId: song.songId, active: !song.active }); await refreshCatalogAdmin(); }}>{song.active ? "Deactivate" : "Activate"}</button></li>)}
+              </ul>
+            </fieldset>
+          </section>
+        )}
         {serviceError && (
           <p className="error-summary">
             {serviceError.message}

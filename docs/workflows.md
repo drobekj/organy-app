@@ -244,3 +244,9 @@ No development workflows are defined in this product workflow document.
 Planning users search for a priest, organist, or song and then choose a concrete catalog result. The visible search text is only a search aid; save validation requires the chosen catalog ID for new or changed selections. Existing saved references that later become inactive or role-ineligible may be re-saved unchanged, preserving their snapshots, but they cannot be chosen again until made eligible.
 
 Local admins use the minimal catalog administration surface to maintain people and to activate/deactivate songs. Development/demo catalog data is loaded explicitly with `npm run db:seed:catalog` after `npm run db:migrate` when using `ORGANY_RUNTIME=db`.
+
+### Phase 29 editor lookup completion
+
+The Planning Lifecycle editor now uses catalog lookup controls for priest, organist, and song rows. Typing in a lookup box is search text only; changing the text clears the selected catalog ID until the user chooses a result. Legacy snapshots without IDs are shown as saved snapshots and remain readable, but a new or changed save must select an eligible active catalog record. The same in-memory catalog instance backs both lookup/admin UI and the in-memory Planning Lifecycle service, so local runtime no longer bypasses catalog validation.
+
+Admin catalog controls are intentionally minimal: people can be added, renamed, assigned priest/organist roles, activated, and deactivated; songs can only be listed and activated/deactivated. Song creation and metadata editing remain import-only future work.

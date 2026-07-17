@@ -22,8 +22,9 @@ import { failure, success, type PlanningServiceResult } from "./results";
 export type PlanningLifecycleServiceDependencies = {
   planningSets: PlanningSetRepository;
   completedServiceRecords: CompletedServiceRecordRepository;
+  catalog: CatalogRepository;
   now?: () => Date;
-  catalog?: CatalogRepository;
+  enforceCatalogSelections?: boolean;
 };
 
 export type SaveWorkingSetServiceContext = ServiceContext;
@@ -73,12 +74,14 @@ export class PlanningLifecycleService {
   private readonly now: () => Date;
   private readonly planningSets: PlanningSetRepository;
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
-  private readonly catalog?: CatalogRepository;
+  private readonly catalog: CatalogRepository;
+  private readonly enforceCatalogSelections: boolean;
 
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
     this.planningSets = dependencies.planningSets;
     this.completedServiceRecords = dependencies.completedServiceRecords;
     this.catalog = dependencies.catalog;
+    this.enforceCatalogSelections = dependencies.enforceCatalogSelections ?? true;
     this.now = dependencies.now ?? (() => new Date());
   }
 
@@ -117,12 +120,12 @@ export class PlanningLifecycleService {
     }
 
     const existingSet = input.existingSetId ? await this.planningSets.findById(input.existingSetId) : undefined;
-    const catalogValidation = await this.validateCatalogReferences(serviceContext, input.set, existingSet);
-    if (catalogValidation.length > 0) {
-      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: catalogValidation });
+    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existingSet);
+    if (normalized.issues.length > 0) {
+      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
     }
 
-    const validation = validatePlanningSet(input.set);
+    const validation = validatePlanningSet(normalized.set);
     if (!validation.valid) {
       return failure({ code: "invalidInput", message: "Working planning set is invalid.", issues: validation.issues });
     }
@@ -143,7 +146,7 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: `A service already exists for ${serviceContext.serviceDate} at ${serviceContext.serviceTime}.` });
     }
 
-    return success(await this.planningSets.saveWorkingSet(input.set, serviceContext, input.existingSetId));
+    return success(await this.planningSets.saveWorkingSet(normalized.set as PlanningSet & { status: "working" }, normalized.serviceContext, input.existingSetId));
   }
 
   async finalizeWorkingSet(input: FinalizeWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
@@ -254,12 +257,12 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
     }
 
-    const catalogValidation = await this.validateCatalogReferences(serviceContext, input.set, existing);
-    if (catalogValidation.length > 0) {
-      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: catalogValidation });
+    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existing);
+    if (normalized.issues.length > 0) {
+      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
     }
 
-    const validation = validatePlanningSet(input.set);
+    const validation = validatePlanningSet(normalized.set);
     if (!validation.valid) {
       return failure({ code: "invalidInput", message: "Completed record rows are invalid.", issues: validation.issues });
     }
@@ -270,7 +273,7 @@ export class PlanningLifecycleService {
     }
 
     try {
-      return success(await this.completedServiceRecords.update(input.recordId, serviceContext, { status: "final", language: serviceContext.language, rows: input.set.rows }));
+      return success(await this.completedServiceRecords.update(input.recordId, normalized.serviceContext, { status: "final", language: normalized.serviceContext.language, rows: normalized.set.rows }));
     } catch {
       return failure({ code: "notFound", message: "Completed record was not found." });
     }
@@ -320,10 +323,27 @@ export class PlanningLifecycleService {
     return success(completedRecord);
   }
 
-  private async validateCatalogReferences(serviceContext: ServiceContext, set: PlanningSet, existing?: PersistedPlanningSet | CompletedServiceRecord): Promise<{ path: string; message: string }[]> {
-    if (!this.catalog) return [];
+  private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
     const issues: { path: string; message: string }[] = [];
-    for (const [role, ref] of [["priest", serviceContext.priest], ["organist", serviceContext.organist]] as const) {
+    if (!this.enforceCatalogSelections) {
+      return {
+        serviceContext: { ...serviceContext, priest: { ...serviceContext.priest }, organist: { ...serviceContext.organist } },
+        set: { ...set, rows: set.rows.map((row) => ({ ...(row.song ? { song: { ...row.song } } : {}), ...(row.note ? { note: row.note } : {}) })) } as TSet,
+        issues,
+      };
+    }
+    const normalizedContext: ServiceContext = {
+      ...serviceContext,
+      priest: { ...serviceContext.priest },
+      organist: { ...serviceContext.organist },
+    };
+    const normalizedRows: PlanningRow[] = set.rows.map((row) => ({
+      ...(row.song ? { song: { ...row.song } } : {}),
+      ...(row.note ? { note: row.note } : {}),
+    }));
+    const unchangedSongs = createSongSnapshotMultiset(existing ? getRowsFromExisting(existing) : []);
+
+    for (const [role, ref] of [["priest", normalizedContext.priest], ["organist", normalizedContext.organist]] as const) {
       const previous = existing?.serviceContext[role];
       if (!ref.id) { issues.push({ path: role, message: `${role} must be selected from the person catalog.` }); continue; }
       if (previous?.id === ref.id && previous.displayName === ref.displayName) continue;
@@ -331,16 +351,17 @@ export class PlanningLifecycleService {
       if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });
       else ref.displayName = person!.displayName;
     }
-    for (const [index, row] of set.rows.entries()) {
+
+    for (const [index, row] of normalizedRows.entries()) {
       if (!row.song) continue;
-      const previous = existing && "set" in existing ? existing.set.rows[index]?.song : existing?.rows[index]?.song;
       if (!row.song.songId) { issues.push({ path: `rows.${index}.song`, message: "Song must be selected from the song catalog." }); continue; }
-      if (previous?.songId === row.song.songId && previous.language === row.song.language && previous.number === row.song.number && previous.title === row.song.title) continue;
+      if (consumeUnchangedSongSnapshot(unchangedSongs, row.song)) continue;
       const song = await this.catalog.findSongById(row.song.songId);
-      if (!isEligibleSong(song, serviceContext.language)) issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
-      else { row.song.language = song!.language; row.song.number = song!.number; row.song.title = song!.title; }
+      if (!isEligibleSong(song, normalizedContext.language)) issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
+      else row.song = { songId: song!.songId, language: song!.language, number: song!.number, title: song!.title };
     }
-    return issues;
+
+    return { serviceContext: normalizedContext, set: { ...set, rows: normalizedRows } as TSet, issues };
   }
 
   private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId, currentCompletedRecordId?: string): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {
@@ -350,6 +371,33 @@ export class PlanningLifecycleService {
     const completed = await this.completedServiceRecords.list();
     return completed.find((record) => record.id !== currentCompletedRecordId && record.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(record.serviceContext.serviceTime) === serviceContext.serviceTime);
   }
+}
+
+function getRowsFromExisting(existing: PersistedPlanningSet | CompletedServiceRecord): PlanningRow[] {
+  return "set" in existing ? existing.set.rows : existing.rows;
+}
+
+function createSongSnapshotMultiset(rows: PlanningRow[]): Map<string, number> {
+  const multiset = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.song?.songId) continue;
+    const key = songSnapshotKey(row.song);
+    multiset.set(key, (multiset.get(key) ?? 0) + 1);
+  }
+  return multiset;
+}
+
+function consumeUnchangedSongSnapshot(multiset: Map<string, number>, song: NonNullable<PlanningRow["song"]>): boolean {
+  const key = songSnapshotKey(song);
+  const count = multiset.get(key) ?? 0;
+  if (count <= 0) return false;
+  if (count === 1) multiset.delete(key);
+  else multiset.set(key, count - 1);
+  return true;
+}
+
+function songSnapshotKey(song: NonNullable<PlanningRow["song"]>): string {
+  return JSON.stringify({ songId: song.songId, language: song.language, number: song.number, title: song.title });
 }
 
 function isFuturePragueDate(serviceDate: string, now: Date): boolean {

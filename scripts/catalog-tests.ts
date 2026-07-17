@@ -17,7 +17,8 @@ async function main() {
   assert.equal(removedRole.success, true);
   assert(!(await must(catalog.searchPeople({ role: "organist", query: "Created Both" }))).length);
 
-  assert(validateCatalogSongImport([{ language: "bad", number: "", title: "", sheetMusicUrl: 1 }, { language: "czech", number: "1", title: "A" }, { language: "czech", number: "1", title: "B" }]).length >= 5);
+  assert(validateCatalogSongImport([{ language: "bad", number: "", title: "", active: "yes", sheetMusicUrl: 1 }, { language: "czech", number: "1", title: "A" }, { language: "czech", number: "1", title: "B" }]).length >= 6);
+  assert.equal(validateCatalogSongImport([{ language: "czech", number: "1", title: "A" }, { language: "polish", number: "1", title: "B" }]).length, 0);
   assert((await must(catalog.searchSongs({ language: "czech", query: "101" }))).every((s) => s.language === "czech"));
   assert((await must(catalog.searchSongs({ language: "polish", query: "Polish" }))).every((s) => s.language === "polish"));
   assert((await must(catalog.searchSongs({ language: "mixed", query: "101" }))).length >= 2);
@@ -44,6 +45,16 @@ async function main() {
   assert.equal(unchanged.success, true);
   assert.equal(unchanged.success && unchanged.value.serviceContext.priest.displayName, "Demo Priest");
   assert.equal(unchanged.success && unchanged.value.rows[0].song?.title, "Demo Polish Song");
+  const movedInactive = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set: { status: "working", language: "mixed", rows: [{ note: "inserted before inactive" }, saved.value.rows[0]] } });
+  assert.equal(movedInactive.success, true);
+  const duplicatedInactive = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set: { status: "working", language: "mixed", rows: [saved.value.rows[0], saved.value.rows[0]] } });
+  assert.equal(duplicatedInactive.success, false);
+  await catalog.savePerson({ role: "admin", person: { id: "demo-priest", displayName: "Renamed Priest", active: true, priest: true, organist: false } });
+  await catalog.setSongActive({ role: "admin", songId: "demo-pl-101", active: true });
+  await catalogRepoUpsertSongTitle(repo, "demo-pl-101", "Renamed Polish Song");
+  const updatedSnapshotSave = await service.saveWorkingSet({ role: "admin", existingSetId: saved.value.id, serviceContext: saved.value.serviceContext, set });
+  assert.equal(updatedSnapshotSave.success, true);
+  assert.equal(updatedSnapshotSave.success && updatedSnapshotSave.value.rows[0].song?.title, "Renamed Polish Song");
   const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.value.id });
   assert.equal(finalized.success, true);
   const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
@@ -51,5 +62,6 @@ async function main() {
   assert.equal(completed.success && completed.value.set.rows[1].note, "note-only valid");
   console.log("Catalog tests passed.");
 }
+async function catalogRepoUpsertSongTitle(repo: InMemoryCatalogRepository, songId: string, title: string) { const song = await repo.findSongById(songId); if (!song) throw new Error("song missing"); await repo.upsertSong({ ...song, title }); }
 async function must<T>(promise: Promise<{ success: true; value: T } | { success: false; error: unknown }>): Promise<T> { const result = await promise; if (!result.success) throw new Error("expected success"); return result.value; }
 main().catch((e) => { console.error(e); process.exit(1); });
