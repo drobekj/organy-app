@@ -27,6 +27,18 @@ jobs:
         with:
           name: typecheck-log
           path: typecheck.log
+      - name: Upload debug source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-source
+          path: |
+            src/application/planning-lifecycle/drizzle-repository-adapters.ts
+            src/application/catalog.ts
+            scripts/db-catalog-seed-smoke.ts
+            scripts/db-catalog-lifecycle-smoke.ts
+            package.json
+            package-lock.json
       - name: Test
         run: npm run test
       - name: Build
