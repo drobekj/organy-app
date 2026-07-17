@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { DrizzleCatalogRepository } from "../src/application/catalog";
+import { DrizzleCatalogRepository, type CatalogSong } from "../src/application/catalog";
 import { phase29DemoPeople, phase29DemoSongs, seedCatalog } from "../src/application/catalog-seed";
 import * as schema from "../src/db/schema";
 
@@ -18,12 +18,10 @@ async function main() {
     await client.query("BEGIN");
     const repo = new DrizzleCatalogRepository(drizzle(client, { schema }));
     const foreignPerson = { id: `${marker} person`, displayName: `${marker} Person`, active: true, priest: true, organist: false };
-    const foreignCzechSong = { songId: `${marker} czech 101`, language: "czech" as const, number: "101", title: `${marker} Czech 101`, active: true };
-    const foreignPolishSong = { songId: `${marker} polish 101`, language: "polish" as const, number: "101", title: `${marker} Polish 101`, active: true };
+    const czech101Witness = await findOrCreateSongWitness(repo, { songId: `${marker} czech 101`, language: "czech", number: "101", title: `${marker} Czech 101`, active: true });
+    const polish101Witness = await findOrCreateSongWitness(repo, { songId: `${marker} polish 101`, language: "polish", number: "101", title: `${marker} Polish 101`, active: true });
 
     await repo.upsertPerson(foreignPerson);
-    await repo.upsertSong(foreignCzechSong);
-    await repo.upsertSong(foreignPolishSong);
     await seedCatalog(repo);
     await seedCatalog(repo);
 
@@ -32,8 +30,8 @@ async function main() {
     assert(phase29DemoPeople.every((person) => people.filter((row) => row.id === person.id).length === 1), "each demo person exists once");
     assert(phase29DemoSongs.every((song) => songs.filter((row) => row.songId === song.songId).length === 1), "each demo song exists once");
     assertEqual(people.find((row) => row.id === foreignPerson.id), foreignPerson, "foreign person unchanged");
-    assertEqual(songs.find((row) => row.songId === foreignCzechSong.songId), foreignCzechSong, "foreign Czech song unchanged");
-    assertEqual(songs.find((row) => row.songId === foreignPolishSong.songId), foreignPolishSong, "foreign Polish song unchanged");
+    assertEqual(songs.find((row) => row.songId === czech101Witness.songId), czech101Witness, "Czech 101 witness unchanged");
+    assertEqual(songs.find((row) => row.songId === polish101Witness.songId), polish101Witness, "Polish 101 witness unchanged");
     assert(songs.some((song) => song.number === "PH29-DEMO-101"), "reserved demo number exists");
     assert(songs.some((song) => song.language === "czech" && song.number === "101"), "regular Czech 101 can coexist");
     assert(songs.some((song) => song.language === "polish" && song.number === "101"), "regular Polish 101 can coexist");
@@ -47,6 +45,13 @@ async function main() {
   } finally {
     try { await client.query("ROLLBACK"); } finally { client.release(); await pool.end(); }
   }
+}
+
+async function findOrCreateSongWitness(repo: DrizzleCatalogRepository, fallback: CatalogSong): Promise<CatalogSong> {
+  const existing = (await repo.listSongs()).find((song) => song.language === fallback.language && song.number === fallback.number);
+  if (existing) return { ...existing };
+  await repo.upsertSong(fallback);
+  return fallback;
 }
 
 function assert(value: unknown, message: string): asserts value {

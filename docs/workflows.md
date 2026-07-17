@@ -256,3 +256,7 @@ Language changes preserve already selected song snapshots. The editor keeps exis
 ### Phase 29 development seed smoke
 
 Run `npm run db:catalog-seed-smoke` against a disposable or development PostgreSQL database after migration to verify that the explicit Phase 29 catalog seed is idempotent against the real Drizzle/PostgreSQL repository. The smoke uses a transaction rollback and marker-scoped foreign records; it must not reset the database or broadly delete catalog data.
+
+Confirmed language deviations are now carried through the lifecycle save input as `allowLanguageDeviations`. The UI sets it only after the user confirms a visible mismatch; the service still requires a real active catalog song with `songId` and only relaxes the service-language match.
+
+Lookup result rendering is guarded by request generations. Typing, selecting, clearing, or changing service language invalidates stale person/song lookup requests so late responses cannot restore obsolete results.

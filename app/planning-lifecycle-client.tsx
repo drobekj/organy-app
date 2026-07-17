@@ -13,7 +13,7 @@ import {
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
-import { clearSongLookupResultsOnServiceLanguageChange, enrichRowsWithCurrentSheetMusic, getCatalogLanguageDeviationRowNumbers, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -207,6 +207,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     [repositories, runtimeMode, catalogRepository],
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
+  const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
   const initialServiceLanguage = useMemo(() => getDefaultServiceLanguage(initialServiceSunday), [initialServiceSunday]);
@@ -438,15 +439,19 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   async function updatePersonSearch(role: PersonRole, value: string) {
+    const scope = getPersonLookupScope(role);
+    const token = lookupTracker.begin(scope, value);
     guardedEditorUpdate(() => {
       if (role === "priest") { setPriest(value); setPriestId(undefined); }
       else { setOrganist(value); setOrganistId(undefined); }
     });
     const result = await catalogClient.searchPeople({ role, query: value });
+    if (!lookupTracker.isCurrent(token, value)) return;
     if (result.success) role === "priest" ? setPriestResults(result.value) : setOrganistResults(result.value);
   }
 
   function selectPerson(role: PersonRole, person: CatalogPerson) {
+    lookupTracker.invalidate(getPersonLookupScope(role));
     guardedEditorUpdate(() => {
       if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); setPriestResults([]); }
       else { setOrganist(person.displayName); setOrganistId(person.id); setOrganistResults([]); }
@@ -454,18 +459,25 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   async function updateSongSearch(rowId: number, value: string) {
+    const scope = getSongLookupScope(rowId);
+    const languageAtRequest = serviceLanguage;
+    const token = lookupTracker.begin(scope, `${languageAtRequest}:${value}`);
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: value, selectedSong: undefined } : row)));
-    const result = await catalogClient.searchSongs({ language: serviceLanguage, query: value });
+    const result = await catalogClient.searchSongs({ language: languageAtRequest, query: value });
+    if (!lookupTracker.isCurrent(token, `${languageAtRequest}:${value}`)) return;
     if (result.success) setSongResults((current) => ({ ...current, [rowId]: result.value }));
   }
 
   function selectSong(rowId: number, song: CatalogSong) {
+    lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: formatSongLabel(song), selectedSong: song } : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
   }
 
   function clearSong(rowId: number) {
+    lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined } : row)));
+    setSongResults((current) => ({ ...current, [rowId]: [] }));
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
@@ -507,6 +519,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     guardedEditorUpdate(() => {
       setServiceLanguage(nextServiceLanguage);
       setRows((currentRows) => preserveRowsOnServiceLanguageChange(currentRows, nextServiceLanguage));
+      lookupTracker.invalidatePrefix("song:");
       setSongResults(clearSongLookupResultsOnServiceLanguageChange());
     });
   }
@@ -528,19 +541,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       return;
     }
 
-    const languageDeviationRows = getCatalogLanguageDeviationRowNumbers(planningRows, serviceLanguage);
-    if (languageDeviationRows.length > 0) {
-      const confirmed = window.confirm(
-        `Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language. Save this combination?`,
-      );
-      if (!confirmed) {
-        setServiceError({
-          code: "invalidInput",
-          message: `Save cancelled. Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language.`,
-        });
-        setSaveState("errors");
-        return;
-      }
+    const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
+    if (languageDeviationConfirmation.cancelled) {
+      setServiceError({
+        code: "invalidInput",
+        message: `Save cancelled. Rows ${languageDeviationConfirmation.deviationRows.join(", ")} do not match the ${serviceLanguage} service language.`,
+      });
+      setSaveState("errors");
+      return;
     }
 
     const result = await planningLifecycleService.saveWorkingSet({
@@ -558,6 +566,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         language: serviceLanguage,
         rows: planningRows,
       },
+      allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,
     });
 
     if (!result.success) {
@@ -633,16 +642,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function saveCompletedChanges() {
     if (!completedRecord || selectedRole !== "admin") return;
 
-    const languageDeviationRows = getCatalogLanguageDeviationRowNumbers(planningRows, serviceLanguage);
-    if (languageDeviationRows.length > 0) {
-      const confirmed = window.confirm(
-        `Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language. Save this combination?`,
-      );
-      if (!confirmed) {
-        setServiceError({ code: "invalidInput", message: `Save cancelled. Rows ${languageDeviationRows.join(", ")} do not match the ${serviceLanguage} service language.` });
-        setSaveState("errors");
-        return;
-      }
+    const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
+    if (languageDeviationConfirmation.cancelled) {
+      setServiceError({ code: "invalidInput", message: `Save cancelled. Rows ${languageDeviationConfirmation.deviationRows.join(", ")} do not match the ${serviceLanguage} service language.` });
+      setSaveState("errors");
+      return;
     }
 
     const result = await planningLifecycleService.updateCompletedRecord({
@@ -656,6 +660,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
       },
       set: { status: "final", language: serviceLanguage, rows: planningRows },
+      allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,
     });
 
     if (!result.success) {

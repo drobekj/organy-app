@@ -9,7 +9,7 @@ import {
   type ServiceContext,
 } from "../../planning-lifecycle";
 import type { CatalogRepository } from "../catalog";
-import { isEligiblePerson, isEligibleSong } from "../catalog";
+import { isEligiblePerson, languagesForService } from "../catalog";
 import type {
   CompletedServiceRecord,
   CompletedServiceRecordRepository,
@@ -34,6 +34,7 @@ export type SaveWorkingSetInput = {
   existingSetId?: PlanningSetId;
   serviceContext: SaveWorkingSetServiceContext;
   set: PlanningSet & { status: "working" };
+  allowLanguageDeviations?: boolean;
 };
 
 export type FinalizeWorkingSetInput = {
@@ -63,6 +64,7 @@ export type UpdateCompletedRecordInput = {
   recordId: string;
   serviceContext: ServiceContext;
   set: PlanningSet & { status: "final" };
+  allowLanguageDeviations?: boolean;
 };
 
 export type DeleteCompletedRecordInput = {
@@ -120,7 +122,7 @@ export class PlanningLifecycleService {
     }
 
     const existingSet = input.existingSetId ? await this.planningSets.findById(input.existingSetId) : undefined;
-    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existingSet);
+    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existingSet, input.allowLanguageDeviations === true);
     if (normalized.issues.length > 0) {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
     }
@@ -257,7 +259,7 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
     }
 
-    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existing);
+    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existing, input.allowLanguageDeviations === true);
     if (normalized.issues.length > 0) {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
     }
@@ -323,7 +325,7 @@ export class PlanningLifecycleService {
     return success(completedRecord);
   }
 
-  private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
+  private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord, allowLanguageDeviations = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
     const issues: { path: string; message: string }[] = [];
     if (!this.enforceCatalogSelections) {
       return {
@@ -357,8 +359,10 @@ export class PlanningLifecycleService {
       if (!row.song.songId) { issues.push({ path: `rows.${index}.song`, message: "Song must be selected from the song catalog." }); continue; }
       if (consumeUnchangedSongSnapshot(unchangedSongs, row.song)) continue;
       const song = await this.catalog.findSongById(row.song.songId);
-      if (!isEligibleSong(song, normalizedContext.language)) issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
-      else row.song = { songId: song!.songId, language: song!.language, number: song!.number, title: song!.title };
+      if (!song) { issues.push({ path: `rows.${index}.song`, message: "Song was not found in the catalog." }); continue; }
+      if (!song.active) { issues.push({ path: `rows.${index}.song`, message: "Song is not active." }); continue; }
+      if (!allowLanguageDeviations && !languagesForService(normalizedContext.language).includes(song.language)) { issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." }); continue; }
+      row.song = { songId: song.songId, language: song.language, number: song.number, title: song.title };
     }
 
     return { serviceContext: normalizedContext, set: { ...set, rows: normalizedRows } as TSet, issues };
