@@ -10,7 +10,7 @@ export type SongPreference = { profileId: string; songId: string; score: number 
 export type MelodyClass = { id: string; label: string; songIds: string[]; synthetic: boolean };
 export type KnowledgeMapping = { id: string; key: string; songId: string; synthetic: boolean };
 export type MelodyNonRepetitionConfig = { daysBefore: number; daysAfter: number };
-export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; recentSongIds?: string[] };
+export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; recentSongIds?: string[]; recentSongs?: { songId: string; serviceDate: string }[] };
 export type CandidateQueryResult = { songId: string; language: ConcreteSongLanguage; number: string; title: string; equivalentNumbers: { songId: string; number: string; repertoire: boolean }[]; aggregatePreferenceScore: number; antiphonMatch: boolean; seasonMatch: boolean; signal: "antiphon" | "season" | "none"; preferenceShade: "none" | "low" | "medium" | "high"; repertoire: boolean; suppressedByMelodyWindow: boolean; sheetMusicUrl?: string; orderKey: string };
 
 export function preferenceScoreLimit(category: PreferenceProfileCategory): number { return category === "priest" ? 3 : category === "organist" ? 2 : 1; }
@@ -71,7 +71,7 @@ export class InMemoryInteractionRepository {
 
   queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {
     const languageSet = new Set(languagesForService(input.serviceLanguage));
-    const recentClassIds = new Set((input.recentSongIds ?? []).flatMap((songId) => this.melodyClasses.filter((m) => m.songIds.includes(songId)).map((m) => m.id)));
+    const recentClassIds = getRecentMelodyClassIds(this.melodyClasses, input, this.melodyWindow);
     return songs.filter((song) => song.active && languageSet.has(song.language)).map((song) => {
       const melody = this.melodyClasses.find((m) => m.songIds.includes(song.songId));
       const equivalentNumbers = melody ? melody.songIds.filter((id) => id !== song.songId).map((songId) => ({ songId, number: songs.find((s) => s.songId === songId)?.number ?? songId, repertoire: input.organistPersonId ? this.repertoire.has(this.repertoireKey(input.organistPersonId, songId)) : false })) : [];
@@ -88,4 +88,16 @@ export class InMemoryInteractionRepository {
   createSyntheticScaleSongs(count: number): CatalogSong[] { return Array.from({ length: count }, (_, index) => ({ songId: `synthetic-scale-${index + 1}`, language: index % 2 === 0 ? "czech" : "polish", number: `SYN-${String(index + 1).padStart(5, "0")}`, title: `Synthetic Scale Song ${index + 1}`, active: true })); }
   private preferenceKey(profileId: string, songId: string) { return `${profileId}:${songId}`; }
   private repertoireKey(personId: string, songId: string) { return `${personId}:${songId}`; }
+}
+
+function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {
+  const ids = new Set<string>();
+  for (const songId of input.recentSongIds ?? []) for (const melody of classes) if (melody.songIds.includes(songId)) ids.add(melody.id);
+  const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
+  for (const recent of input.recentSongs ?? []) {
+    const days = Math.floor((target - Date.parse(`${recent.serviceDate}T00:00:00Z`)) / 86_400_000);
+    if (days < -window.daysAfter || days > window.daysBefore) continue;
+    for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
+  }
+  return ids;
 }

@@ -43,7 +43,7 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[] }): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[]; recentSongs: { songId: string; serviceDate: string }[] }): Promise<CandidateQueryResult[]>; };
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -153,7 +153,7 @@ class DbInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return callInteractionApi("setMelodyWindow", input); }
-  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[] }) { const result = await callInteractionApi("queryCandidates", { serviceDate: input.serviceDate, serviceLanguage: input.serviceLanguage, organistPersonId: input.organistPersonId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: input.recentSongIds }); return result.success ? result.value as CandidateQueryResult[] : []; }
+  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[]; recentSongs: { songId: string; serviceDate: string }[] }) { const result = await callInteractionApi("queryCandidates", { serviceDate: input.serviceDate, serviceLanguage: input.serviceLanguage, organistPersonId: input.organistPersonId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: input.recentSongIds, recentSongs: input.recentSongs }); return result.success ? result.value as CandidateQueryResult[] : []; }
 }
 
 class MemoryInteractionClient implements InteractionClient {
@@ -161,7 +161,7 @@ class MemoryInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return this.repo.setMelodyWindow(input.actor, { daysBefore: input.daysBefore, daysAfter: input.daysAfter }); }
-  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[] }) { return this.repo.queryCandidates(input.songs, { serviceDate: input.serviceDate, serviceLanguage: input.serviceLanguage, organistPersonId: input.organistPersonId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: input.recentSongIds }); }
+  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[]; recentSongs: { songId: string; serviceDate: string }[] }) { return this.repo.queryCandidates(input.songs, { serviceDate: input.serviceDate, serviceLanguage: input.serviceLanguage, organistPersonId: input.organistPersonId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: input.recentSongIds, recentSongs: input.recentSongs }); }
 }
 
 class DbCatalogClient {
@@ -528,6 +528,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function getRecentCompletedSongIds(): string[] { return completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : [])); }
+  function getRecentCompletedSongs(): { songId: string; serviceDate: string }[] { return completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [{ songId: row.song.songId, serviceDate: record.serviceContext.serviceDate }] : [])); }
 
   async function updateSongSearch(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
@@ -538,7 +539,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (!lookupTracker.isCurrent(token, `${languageAtRequest}:${value}`)) return;
     if (result.success) {
       setSongResults((current) => ({ ...current, [rowId]: result.value }));
-      const candidates = await interactionClient.queryCandidates({ songs: result.value, serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, recentSongIds: getRecentCompletedSongIds() });
+      const candidates = await interactionClient.queryCandidates({ songs: result.value, serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, recentSongIds: getRecentCompletedSongIds(), recentSongs: getRecentCompletedSongs() });
       setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
     }
   }
