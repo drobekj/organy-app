@@ -1,5 +1,5 @@
 import type { CatalogSong } from "../application/catalog";
-import type { CandidateQueryInput, CandidateQueryResult } from "../application/interaction-contracts";
+import type { CandidateQueryInput, CandidateQueryResult, CandidateUsage } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
 
 export type CandidatePopupAction = "select" | "cancel";
@@ -67,6 +67,10 @@ export type CandidateQueryContextInput = {
   liturgicalSeasonKey?: string;
   recentSongIds?: string[];
   recentSongs?: { songId: string; serviceDate: string }[];
+  candidateUsages?: CandidateUsage[];
+  currentPlanId?: string;
+  queryText?: string;
+  preferenceThreshold?: number;
 };
 
 export function getCandidatePopupRows(candidates: CandidateQueryResult[]): CandidatePopupRow[] {
@@ -127,8 +131,10 @@ export function buildCandidateQueryInput(input: CandidateQueryContextInput): Can
     ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}),
     ...(input.antiphonKey?.trim() ? { antiphonKey: input.antiphonKey.trim() } : {}),
     ...(input.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: input.liturgicalSeasonKey.trim() } : {}),
-    recentSongIds: input.recentSongIds ?? [],
-    recentSongs: input.recentSongs ?? [],
+    ...(input.queryText?.trim() ? { queryText: input.queryText.trim() } : {}),
+    ...(typeof input.preferenceThreshold === "number" ? { preferenceThreshold: input.preferenceThreshold } : {}),
+    ...(input.currentPlanId ? { currentPlanId: input.currentPlanId } : {}),
+    candidateUsages: input.candidateUsages ?? [],
   };
 }
 
@@ -158,4 +164,30 @@ export function restoreRowsExceptActive<T extends PlanningCandidateEditableRow>(
 
 export function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {
   return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
+}
+
+
+export type CanonicalUsageInput = {
+  currentPlanId?: string;
+  serviceDate: string;
+  completedRecords?: { id: string; serviceDate: string; rows: { songId?: string }[] }[];
+  plans?: { id: string; status: "working" | "final"; serviceDate: string; rows: { songId?: string }[] }[];
+  currentRows?: { rowId: number; songId?: string }[];
+  activeRowId?: number;
+};
+
+export function buildCanonicalCandidateUsages(input: CanonicalUsageInput): CandidateUsage[] {
+  const usages: CandidateUsage[] = [];
+  for (const record of input.completedRecords ?? []) {
+    for (const row of record.rows) if (row.songId) usages.push({ songId: row.songId, serviceDate: record.serviceDate, source: "completed", planId: record.id });
+  }
+  for (const plan of input.plans ?? []) {
+    if (plan.id === input.currentPlanId) continue;
+    for (const row of plan.rows) if (row.songId) usages.push({ songId: row.songId, serviceDate: plan.serviceDate, source: plan.status, planId: plan.id });
+  }
+  for (const row of input.currentRows ?? []) {
+    if (row.rowId === input.activeRowId) continue;
+    if (row.songId) usages.push({ songId: row.songId, serviceDate: input.serviceDate, source: "current", rowId: row.rowId });
+  }
+  return usages;
 }

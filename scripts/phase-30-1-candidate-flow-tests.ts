@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { queryCandidatesFromData } from "../src/application/interaction-service";
-import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
+import { CandidateLine, getCandidateLineViewModel } from "../src/planning-lifecycle/candidate-line";
 import {
   buildCandidateQueryInput,
+  buildCanonicalCandidateUsages,
   getCandidatePopupRows,
   getSelectedSongPresentation,
   planningCandidateRowReducer,
@@ -65,6 +66,46 @@ assert.equal(escaped.selectedSong?.songId, "visible");
 assert.equal(escaped.lookupOpen, false);
 const switchedAway = planningCandidateRowReducer(invalidLookup, { type: "rowDeactivated" });
 assert.equal(switchedAway.songSearch, "czech 101 — Visible", "row deactivation must restore the confirmed lookup label");
+
+
+const canonicalUsages = buildCanonicalCandidateUsages({
+  currentPlanId: "plan-a",
+  serviceDate: "2026-07-18",
+  completedRecords: [{ id: "completed-1", serviceDate: "2026-07-01", rows: [{ songId: "completed-song" }] }],
+  plans: [
+    { id: "plan-a", status: "working", serviceDate: "2026-07-18", rows: [{ songId: "self-plan-song" }] },
+    { id: "plan-b", status: "final", serviceDate: "2026-07-11", rows: [{ songId: "other-final-song" }] },
+  ],
+  currentRows: [
+    { rowId: 1, songId: "active-row-song" },
+    { rowId: 2, songId: "other-current-row-song" },
+  ],
+  activeRowId: 1,
+});
+assert.deepEqual(canonicalUsages.map((usage) => `${usage.source}:${usage.songId}`).sort(), ["completed:completed-song", "current:other-current-row-song", "final:other-final-song"].sort(), "canonical usages must include dated completed/final/current rows and exclude current plan self plus active row");
+assert(canonicalUsages.every((usage) => usage.serviceDate), "all canonical candidate usages must be dated");
+
+const domainSongs: CatalogSong[] = [
+  { songId: "melody-a", language: "czech", number: "101A", title: "Shared Melody Alpha", active: true },
+  { songId: "melody-r", language: "polish", number: "101R", title: "Shared Melody Repertoire", active: true },
+  { songId: "melody-recent", language: "czech", number: "101Z", title: "Shared Melody Recent", active: true },
+  { songId: "inactive-text-hit", language: "czech", number: "777", title: "Shared Melody Inactive", active: false },
+  { songId: "low-pref", language: "czech", number: "201", title: "Shared Low Preference", active: true },
+];
+const domainPreferences: SongPreference[] = [{ profileId: "p1", songId: "melody-r", score: 6 }, { profileId: "p2", songId: "low-pref", score: 1 }];
+const domainCandidates = queryCandidatesFromData(domainSongs, domainPreferences, new Set(["melody-r"]), {
+  antiphons: [{ id: "a1", key: "service-antiphon", songId: "melody-a", synthetic: true }],
+  seasons: [],
+  melodyClasses: [{ id: "class-shared", label: "Shared class", songIds: ["melody-a", "melody-r"], synthetic: true }, { id: "class-recent", label: "Recent class", songIds: ["melody-recent", "recent-used"], synthetic: true }, { id: "class-low", label: "Low class", songIds: ["low-pref"], synthetic: true }],
+  melodyWindow: { daysBefore: 60, daysAfter: 0 },
+}, { serviceDate: "2026-07-18", serviceLanguage: "mixed", organistPersonId: "organist-1", queryText: "Shared", preferenceThreshold: 3, antiphonKey: "service-antiphon", candidateUsages: [{ songId: "recent-used", serviceDate: "2026-07-01", source: "completed" }] });
+assert.deepEqual(domainCandidates.map((candidate) => candidate.songId), ["melody-r"], "domain service must hard-filter before text, group one candidate per melody class, require repertoire and honor preference threshold");
+assert.deepEqual(domainCandidates[0].equivalentNumbers.map((item) => `${item.number}:${item.repertoire}`), ["101A:false"], "equivalent numbers must be sorted after the repertoire primary candidate");
+const candidateVm = getCandidateLineViewModel(domainCandidates[0]);
+assert.equal(candidateVm.tone, "positive");
+assert(candidateVm.backgroundClass.includes("preference-high"), "view model must expose preference-driven background shading");
+assert(candidateVm.accessibleMeaning.includes("green"), "view model must expose accessible red/green signal meaning");
+assert.equal(candidateVm.numberOptions[0].repertoire, true, "repertoire number must be first in the shared CandidateLine view model");
 
 const popupMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: visible, variant: "popup", onSelect: () => undefined }));
 assert(!popupMarkup.includes("Detail"), "popup candidate line must be compact and must not render Detail");

@@ -16,7 +16,7 @@ import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage }
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
-import { buildCandidateQueryInput, formatSongLabel, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, formatSongLabel, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -46,7 +46,7 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; recentSongIds: string[]; recentSongs: { songId: string; serviceDate: string }[] }): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; };
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -170,7 +170,7 @@ class DbInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return callInteractionApi("setMelodyWindow", input); }
-  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; recentSongIds: string[]; recentSongs: { songId: string; serviceDate: string }[] }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
+  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
 }
 
 class MemoryInteractionClient implements InteractionClient {
@@ -178,7 +178,7 @@ class MemoryInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return this.repo.setMelodyWindow(input.actor, { daysBefore: input.daysBefore, daysAfter: input.daysAfter }); }
-  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; recentSongIds: string[]; recentSongs: { songId: string; serviceDate: string }[] }) { return this.repo.queryCandidates(input.songs, buildCandidateQueryInput(input)); }
+  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { return this.repo.queryCandidates(input.songs, buildCandidateQueryInput(input)); }
 }
 
 class DbCatalogClient {
@@ -550,8 +550,16 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     });
   }
 
-  function getRecentCompletedSongIds(): string[] { return completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : [])); }
-  function getRecentCompletedSongs(): { songId: string; serviceDate: string }[] { return completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [{ songId: row.song.songId, serviceDate: record.serviceContext.serviceDate }] : [])); }
+  function getCanonicalCandidateUsages(activeRowId: number) {
+    return buildCanonicalCandidateUsages({
+      currentPlanId: persistedSet?.id,
+      serviceDate,
+      completedRecords: completedRecords.map((record) => ({ id: record.id, serviceDate: record.serviceContext.serviceDate, rows: record.set.rows.map((row) => ({ songId: row.song?.songId })) })),
+      plans: savedDbSets.map((set) => ({ id: set.id, status: set.status, serviceDate: set.serviceContext.serviceDate, rows: set.rows.map((row) => ({ songId: row.song?.songId })) })),
+      currentRows: rows.map((row) => ({ rowId: row.id, songId: row.selectedSong?.songId })),
+      activeRowId,
+    });
+  }
 
   async function updateSongSearch(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
@@ -562,7 +570,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (!lookupTracker.isCurrent(token, `${languageAtRequest}:${value}`)) return;
     if (result.success) {
       setSongResults((current) => ({ ...current, [rowId]: result.value }));
-      const candidates = await interactionClient.queryCandidates({ songs: result.value, serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, recentSongIds: getRecentCompletedSongIds(), recentSongs: getRecentCompletedSongs() });
+      const candidates = await interactionClient.queryCandidates({ songs: result.value, serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
       setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
     }
   }

@@ -476,3 +476,29 @@ textarea {
 .selected-song-note-row input {
   width: 100%;
 }
+
+.candidate-tone-positive {
+  border-color: #039855;
+}
+
+.candidate-tone-negative {
+  border-color: #d92d20;
+}
+
+.candidate-preference-high {
+  background: #ecfdf3;
+}
+
+.candidate-preference-medium {
+  background: #f0f9ff;
+}
+
+.candidate-preference-low {
+  background: #fffbeb;
+}
+
+.candidate-number-options {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+}

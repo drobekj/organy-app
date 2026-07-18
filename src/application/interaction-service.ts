@@ -34,8 +34,84 @@ export class InteractionService {
   async queryCandidates(input: CandidateQueryInput): Promise<InteractionResult<CandidateQueryResult[]>> { const [songs, preferences, repertoire, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), input.organistPersonId ? this.repo.listRepertoire(input.organistPersonId) : Promise.resolve([]), this.repo.listKnowledge()]); return ok(queryCandidatesFromData(songs, preferences, new Set(repertoire), knowledge, input)); }
 }
 
-export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateQueryInput): CandidateQueryResult[] { const languageSet = new Set(languagesForServiceShim(input.serviceLanguage)); const recentClassIds = getRecentMelodyClassIds(knowledge.melodyClasses, input, knowledge.melodyWindow ?? { daysBefore: 60, daysAfter: 0 }); return songs.filter((song) => song.active && languageSet.has(song.language)).map((song) => { const melody = knowledge.melodyClasses.find((m) => m.songIds.includes(song.songId)); const equivalentNumbers = melody ? melody.songIds.filter((id) => id !== song.songId).map((songId) => ({ songId, number: songs.find((s) => s.songId === songId)?.number ?? songId, repertoire: repertoire.has(songId) })) : []; const aggregatePreferenceScore = preferences.filter((p) => p.songId === song.songId).reduce((sum, p) => sum + p.score, 0); const antiphonMatch = Boolean(input.antiphonKey && knowledge.antiphons.some((m) => m.key === input.antiphonKey && m.songId === song.songId)); const seasonMatch = Boolean(input.liturgicalSeasonKey && knowledge.seasons.some((m) => m.key === input.liturgicalSeasonKey && m.songId === song.songId)); const suppressedByMelodyWindow = Boolean(melody && recentClassIds.has(melody.id)); const signal = getCandidateSignal({ antiphonMatch, seasonMatch }); return { songId: song.songId, language: song.language, number: song.number, title: song.title, equivalentNumbers, aggregatePreferenceScore, antiphonMatch, seasonMatch, signal, preferenceShade: getPreferenceShade(aggregatePreferenceScore), repertoire: repertoire.has(song.songId), suppressedByMelodyWindow, ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}), orderKey: `${suppressedByMelodyWindow ? 1 : 0}:${signal === "antiphon" ? 0 : signal === "season" ? 1 : 2}:${repertoire.has(song.songId) ? 0 : 1}:${999 - aggregatePreferenceScore}:${song.language}:${song.number}` }; }).filter((candidate) => !candidate.suppressedByMelodyWindow).sort((a, b) => a.orderKey.localeCompare(b.orderKey)); }
+export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateQueryInput): CandidateQueryResult[] {
+  const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
+  const window = knowledge.melodyWindow ?? { daysBefore: 60, daysAfter: 0 };
+  const recentClassIds = getRecentMelodyClassIds(knowledge.melodyClasses, input, window);
+  const queryText = input.queryText?.trim().toLowerCase();
+  const threshold = input.preferenceThreshold ?? 0;
+  const songsById = new Map(songs.map((song) => [song.songId, song]));
+  const groups = new Map<string, CatalogSong[]>();
+
+  for (const song of songs) {
+    if (!song.active || !languageSet.has(song.language)) continue;
+    const melody = knowledge.melodyClasses.find((m) => m.songIds.includes(song.songId));
+    const classId = melody?.id ?? `song:${song.songId}`;
+    if (melody && recentClassIds.has(melody.id)) continue;
+    const groupSongs = groups.get(classId) ?? [];
+    groupSongs.push(song);
+    groups.set(classId, groupSongs);
+  }
+
+  const candidates: CandidateQueryResult[] = [];
+  for (const [classId, groupSongs] of groups) {
+    const melody = knowledge.melodyClasses.find((m) => m.id === classId);
+    const allClassSongIds = melody?.songIds ?? groupSongs.map((song) => song.songId);
+    const hasRepertoire = !input.organistPersonId || allClassSongIds.some((songId) => repertoire.has(songId));
+    if (!hasRepertoire) continue;
+
+    const scored = groupSongs.map((song) => {
+      const aggregatePreferenceScore = preferences.filter((pref) => pref.songId === song.songId).reduce((sum, pref) => sum + pref.score, 0);
+      const antiphonMatch = Boolean(input.antiphonKey && knowledge.antiphons.some((m) => m.key === input.antiphonKey && m.songId === song.songId));
+      const seasonMatch = Boolean(input.liturgicalSeasonKey && knowledge.seasons.some((m) => m.key === input.liturgicalSeasonKey && m.songId === song.songId));
+      const signal = getCandidateSignal({ antiphonMatch, seasonMatch });
+      return { song, aggregatePreferenceScore, antiphonMatch, seasonMatch, signal, repertoire: repertoire.has(song.songId) };
+    });
+
+    const groupPreference = Math.max(...scored.map((item) => item.aggregatePreferenceScore), 0);
+    if (groupPreference < threshold) continue;
+    if (queryText && !scored.some((item) => item.song.number.toLowerCase().includes(queryText) || item.song.title.toLowerCase().includes(queryText))) continue;
+
+    scored.sort((a, b) => `${a.repertoire ? 0 : 1}:${b.signal === "antiphon" ? 1 : 0}:${999 - b.aggregatePreferenceScore}:${a.song.language}:${a.song.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${a.signal === "antiphon" ? 1 : 0}:${999 - a.aggregatePreferenceScore}:${b.song.language}:${b.song.number}`));
+    const primary = scored[0];
+    const equivalentNumbers = allClassSongIds
+      .filter((songId) => songId !== primary.song.songId)
+      .map((songId) => ({ songId, number: songsById.get(songId)?.number ?? songId, repertoire: repertoire.has(songId) }))
+      .sort((a, b) => `${a.repertoire ? 0 : 1}:${a.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.number}`));
+
+    candidates.push({
+      songId: primary.song.songId,
+      language: primary.song.language,
+      number: primary.song.number,
+      title: primary.song.title,
+      equivalentNumbers,
+      aggregatePreferenceScore: primary.aggregatePreferenceScore,
+      antiphonMatch: primary.antiphonMatch,
+      seasonMatch: primary.seasonMatch,
+      signal: primary.signal,
+      preferenceShade: getPreferenceShade(primary.aggregatePreferenceScore),
+      repertoire: primary.repertoire,
+      suppressedByMelodyWindow: false,
+      ...(primary.song.sheetMusicUrl ? { sheetMusicUrl: primary.song.sheetMusicUrl } : {}),
+      orderKey: `${primary.signal === "antiphon" ? 0 : primary.signal === "season" ? 1 : 2}:${primary.repertoire ? 0 : 1}:${999 - primary.aggregatePreferenceScore}:${primary.song.language}:${primary.song.number}`,
+    });
+  }
+  return candidates.sort((a, b) => a.orderKey.localeCompare(b.orderKey));
+}
 function ok<T>(value: T): InteractionResult<T> { return { success: true, value }; }
 function fail<T>(code: "permissionDenied" | "notFound" | "invalidInput", message: string): InteractionResult<T> { return { success: false, error: { code, message } }; }
 
-function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> { const ids = new Set<string>(); for (const songId of input.recentSongIds ?? []) for (const melody of classes) if (melody.songIds.includes(songId)) ids.add(melody.id); const target = Date.parse(`${input.serviceDate}T00:00:00Z`); for (const recent of input.recentSongs ?? []) { const days = Math.floor((target - Date.parse(`${recent.serviceDate}T00:00:00Z`)) / 86_400_000); if (days < -window.daysAfter || days > window.daysBefore) continue; for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id); } return ids; }
+function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {
+  const ids = new Set<string>();
+  const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
+  const datedUsages = [
+    ...(input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId),
+    ...(input.recentSongs ?? []).map((recent) => ({ songId: recent.songId, serviceDate: recent.serviceDate })),
+  ];
+  for (const recent of datedUsages) {
+    const days = Math.floor((target - Date.parse(`${recent.serviceDate}T00:00:00Z`)) / 86_400_000);
+    if (days < -window.daysAfter || days > window.daysBefore) continue;
+    for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
+  }
+  return ids;
+}

@@ -49,10 +49,11 @@ const serviceCandidates = await interactionService.queryCandidates({ serviceDate
 assert.equal(serviceCandidates.success && serviceCandidates.value[0].signal, "antiphon");
 const songs = await catalog.listSongs();
 const candidates = interaction.queryCandidates(songs, { serviceDate: "2026-07-18", serviceLanguage: "mixed", organistPersonId: "demo-organist", antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent" });
-assert(candidates.length >= 2);
+assert(candidates.length >= 1);
 assert.equal(candidates[0].signal, "antiphon");
 assert(candidates.some((candidate) => candidate.equivalentNumbers.length > 0));
-const suppressed = interaction.queryCandidates(songs, { serviceDate: "2026-07-18", serviceLanguage: "mixed", recentSongIds: ["demo-pl-101"] });
+assert(candidates.every((candidate) => candidate.repertoire), "organist-filtered candidates must have a repertoire primary number");
+const suppressed = interaction.queryCandidates(songs, { serviceDate: "2026-07-18", serviceLanguage: "mixed", candidateUsages: [{ songId: "demo-pl-101", serviceDate: "2026-07-10", source: "completed" }] });
 assert(!suppressed.some((candidate) => candidate.songId === "demo-cz-101"), "melody-window-suppressed equivalents must be removed from candidate results");
 assert(suppressed.every((candidate) => !candidate.suppressedByMelodyWindow), "candidate results must contain only eligible rows");
 const scaleSongs = interaction.createSyntheticScaleSongs(2500);
