@@ -399,3 +399,65 @@ textarea {
 .detail-panel {
   background: #f8fafc;
 }
+
+@media (min-width: 900px) {
+  .planning-card {
+    grid-template-columns: 11rem minmax(0, 1fr);
+    width: min(100%, 78rem);
+  }
+
+  .planning-card > :not(.workspace-nav) {
+    grid-column: 2;
+  }
+
+  .planning-card > .workspace-nav {
+    align-self: start;
+    flex-direction: column;
+    grid-column: 1;
+    grid-row: 1 / span 20;
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+.row-card,
+.row-fields,
+.catalog-panel {
+  min-width: 0;
+}
+
+.row-fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.candidate-popup {
+  max-height: min(24rem, 70vh);
+  max-width: 70%;
+  min-width: min(42rem, 100%);
+  overflow-y: auto;
+}
+
+.candidate-card,
+.selected-song-summary {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.sticky-song-number {
+  background: inherit;
+  left: 0;
+  position: sticky;
+}
+
+.candidate-detail-button {
+  position: sticky;
+  right: 0;
+}
+
+@media (max-width: 899px) {
+  .candidate-popup {
+    max-width: 100%;
+    min-width: 0;
+  }
+}

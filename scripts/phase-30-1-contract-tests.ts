@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { InMemoryCatalogRepository } from "../src/application/catalog";
-import { cancelLookup, canAddOrPersistRows, canLeaveWorkspace, canManageKnowledge, canManageRepertoire, getCandidateSignal, getPreferenceShade, InMemoryInteractionRepository, validateOwnPreferenceScore } from "../src/application/interaction-contracts";
+import { cancelLookup, canAddOrPersistRows, canLeaveWorkspace, canManageKnowledge, canManageRepertoire, getCandidateSignal, getPreferenceShade, InMemoryInteractionRepository, restoreLookupOnCancel, restoreRowsForRowSwitch, validateOwnPreferenceScore } from "../src/application/interaction-contracts";
 
 async function main() {
 const interaction = new InMemoryInteractionRepository();
@@ -31,6 +31,9 @@ assert.equal(getPreferenceShade(6), "high");
 assert.deepEqual(cancelLookup({ kind: "lookup", text: "demo", previous: { kind: "selected", songId: "s1" } }), { kind: "selected", songId: "s1" });
 assert.equal(canAddOrPersistRows([{ kind: "lookup", text: "101" }]), false);
 assert.equal(canLeaveWorkspace([{ kind: "lookup", text: "101" }]).allowed, false);
+assert.deepEqual(restoreLookupOnCancel({ id: 1, lookupOpen: true, songSearch: "bad", selectedSong: { language: "czech" as const, number: "101", title: "Selected" }, note: "" }).songSearch, "czech 101 — Selected");
+assert.deepEqual(restoreLookupOnCancel({ id: 1, lookupOpen: true, songSearch: "bad", note: "" }).songSearch, "");
+assert.equal(restoreRowsForRowSwitch([{ id: 1, lookupOpen: true, songSearch: "bad", note: "" }, { id: 2, songSearch: "", note: "valid" }], 2)[0].lookupOpen, false);
 
 const catalog = new InMemoryCatalogRepository();
 const songs = await catalog.listSongs();

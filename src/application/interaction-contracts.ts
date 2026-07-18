@@ -25,6 +25,8 @@ export function isValidRowState(row: RowLookupState): boolean { return row.kind 
 export function cancelLookup(row: RowLookupState): RowLookupState { return row.kind === "lookup" ? row.previous ?? { kind: "empty" } : row; }
 export function canLeaveWorkspace(rows: RowLookupState[]): { allowed: boolean; reason?: string } { return rows.some((r) => r.kind === "lookup" && r.text.trim()) ? { allowed: false, reason: "Select a candidate or cancel the active lookup before leaving Planning." } : { allowed: true }; }
 export function canAddOrPersistRows(rows: RowLookupState[]): boolean { return rows.every(isValidRowState); }
+export function restoreLookupOnCancel<T extends { lookupOpen?: boolean; songSearch: string; selectedSong?: { language: ConcreteSongLanguage; number: string; title?: string }; note: string }>(row: T): T { return { ...row, lookupOpen: false, songSearch: row.selectedSong ? `${row.selectedSong.language} ${row.selectedSong.number}${row.selectedSong.title ? ` — ${row.selectedSong.title}` : ""}` : "" }; }
+export function restoreRowsForRowSwitch<T extends { id: number; lookupOpen?: boolean; songSearch: string; selectedSong?: { language: ConcreteSongLanguage; number: string; title?: string }; note: string }>(rows: T[], targetRowId: number): T[] { return rows.map((row) => row.id === targetRowId ? row : row.lookupOpen ? restoreLookupOnCancel(row) : row); }
 
 export class InMemoryInteractionRepository {
   readonly users: AppUser[] = [

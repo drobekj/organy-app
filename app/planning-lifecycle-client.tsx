@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
-import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type CandidateQueryResult } from "../src/application/interaction-contracts";
+import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, restoreLookupOnCancel, restoreRowsForRowSwitch, type CandidateQueryResult } from "../src/application/interaction-contracts";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -241,6 +241,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
   const [selectedCatalogTab, setSelectedCatalogTab] = useState<"songs" | "people" | "knowledge">("songs");
+  const [catalogSongLanguage, setCatalogSongLanguage] = useState<ServiceLanguage>("mixed");
+  const [catalogSongSearch, setCatalogSongSearch] = useState("");
+  const [catalogSongPage, setCatalogSongPage] = useState(0);
+  const [selectedCatalogSongId, setSelectedCatalogSongId] = useState<string | null>(null);
+  const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
   const demoUsers = useMemo(() => interactionRepository.listUsers().map((user) => ({ id: user.id, label: user.displayName, role: user.roles[0] })), [interactionRepository]);
@@ -292,6 +297,17 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const rowLookupStates = rows.map((row) => row.lookupOpen && row.songSearch.trim() && !row.selectedSong ? { kind: "lookup" as const, text: row.songSearch } : row.selectedSong?.songId ? { kind: "selected" as const, songId: row.selectedSong.songId } : row.note.trim() ? { kind: "noteOnly" as const, note: row.note } : { kind: "empty" as const });
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
   const workspaceLeaveState = canLeaveWorkspace(rowLookupStates);
+  const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
+  const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
+  const visibleCatalogSongs = useMemo(() => {
+    const q = catalogSongSearch.trim().toLowerCase();
+    const allowedLanguages = new Set(catalogSongLanguage === "mixed" ? ["czech", "polish"] : [catalogSongLanguage]);
+    return catalogSongPool.filter((song) => allowedLanguages.has(song.language) && (selectedRole === "admin" || song.active) && (!q || song.number.toLowerCase().includes(q) || song.title.toLowerCase().includes(q)));
+  }, [catalogSongPool, catalogSongLanguage, catalogSongSearch, selectedRole]);
+  const catalogPageSize = 40;
+  const catalogPageCount = Math.max(1, Math.ceil(visibleCatalogSongs.length / catalogPageSize));
+  const pagedCatalogSongs = visibleCatalogSongs.slice(catalogSongPage * catalogPageSize, (catalogSongPage + 1) * catalogPageSize);
+  const selectedCatalogSong = selectedCatalogSongId ? catalogSongPool.find((song) => song.songId === selectedCatalogSongId) : undefined;
 
   useEffect(() => {
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
@@ -510,6 +526,16 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined, lookupOpen: false } : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
+  }
+
+  function cancelActiveLookup(rowId: number) {
+    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? restoreLookupOnCancel(row) : row));
+    setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setServiceError(null);
+  }
+
+  function activateExistingRow(rowId: number) {
+    setRows((currentRows) => restoreRowsForRowSwitch(currentRows, rowId));
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
@@ -765,6 +791,23 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("deleted");
   }
 
+  function navigateWorkspace(nextWorkspace: Workspace) {
+    if (nextWorkspace !== workspace && !workspaceLeaveState.allowed) {
+      setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before leaving Planning." });
+      setSaveState("errors");
+      return;
+    }
+    setWorkspace(nextWorkspace);
+  }
+
+  function openCatalogSongDetail(songId: string, rowId?: number) {
+    setSelectedCatalogTab("songs");
+    setSelectedCatalogSongId(songId);
+    setCatalogReturnRowId(rowId ?? null);
+    setCandidateDetails(null);
+    navigateWorkspace("catalog");
+  }
+
   return (
     <main className="shell">
       <section className="card planning-card" aria-labelledby="page-title">
@@ -777,11 +820,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
-          <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => setWorkspace("planning")}>Planning</button>
-          <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => setWorkspace("plans")}>Plans</button>
-          <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => setWorkspace("history")}>History</button>
-          <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => setWorkspace("catalog")}>Catalog</button>
-          <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => setWorkspace("development")}>Development</button>
+          <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
+          <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
+          <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
+          <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
+          <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
         </nav>
 
         <div className={`status status-${saveState}`} role="status">
@@ -856,27 +899,19 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Priest
               <select disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); }}>
                 <option value="">Select active priest</option>
+                {priestId && !priestResults.some((person) => person.id === priestId) && <option value={priestId} disabled aria-label={`Historical inactive priest ${priest}`}>{priest} (historical inactive)</option>}
                 {priestResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
               </select>
-              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
-              {priestResults.length > 0 && !isEditorLocked && (
-                <ul className="lookup-list">
-                  {priestResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("priest", person)}>{person.displayName}</button></li>)}
-                </ul>
-              )}
+              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Historical or incomplete priest selection — choose an active catalog priest before saving." : "No priest selected."}</span>
             </label>
             <label>
               Organist
               <select disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); }}>
                 <option value="">Select active organist</option>
+                {organistId && !organistResults.some((person) => person.id === organistId) && <option value={organistId} disabled aria-label={`Historical inactive organist ${organist}`}>{organist} (historical inactive)</option>}
                 {organistResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
               </select>
-              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
-              {organistResults.length > 0 && !isEditorLocked && (
-                <ul className="lookup-list">
-                  {organistResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("organist", person)}>{person.displayName}</button></li>)}
-                </ul>
-              )}
+              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Historical or incomplete organist selection — choose an active catalog organist before saving." : "No organist selected."}</span>
             </label>
             <label className="note-field">
               Service note
@@ -896,7 +931,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               const validation = validationResults[index];
 
               return (
-                <fieldset className="row-card" key={row.id}>
+                <fieldset className="row-card" key={row.id} onFocus={() => activateExistingRow(row.id)} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-actions">
                     <button type="button" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>
@@ -925,9 +960,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       />
                       {row.selectedSong ? (
                         <div className="selected-song-card" aria-label={`Selected song for row ${index + 1}`}>
-                          <strong>{row.selectedSong.number} · {row.selectedSong.title ?? "Untitled snapshot"}</strong>
+                          <div className="selected-song-summary"><strong className="sticky-song-number">{row.selectedSong.number}</strong><span>{row.selectedSong.title ?? "Untitled snapshot"}</span>{row.selectedSong.songId && <button type="button" className="candidate-detail-button" onClick={() => openCatalogSongDetail(row.selectedSong!.songId!, row.id)}>Detail</button>}</div>
                           <span>{row.selectedSong.language}{row.selectedSong.songId ? ` · ${row.selectedSong.songId}` : " · historical snapshot without catalog ID"}</span>
-                          {"sheetMusicUrl" in row.selectedSong && row.selectedSong.sheetMusicUrl ? <a href={row.selectedSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a> : null}
                         </div>
                       ) : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
                       {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
@@ -940,11 +974,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                               <div key={candidate.songId} className={candidate.suppressedByMelodyWindow ? "candidate-card candidate-muted" : "candidate-card"}>
                                 <button type="button" onClick={() => selectSong(row.id, song)}>{candidate.number} · {candidate.title}</button>
                                 <span>{candidate.language} · {candidate.signal} · preference {candidate.preferenceShade}{candidate.repertoire ? " · repertoire" : ""}{candidate.suppressedByMelodyWindow ? " · recent melody" : ""}</span>
-                                <button type="button" onClick={() => setCandidateDetails(candidate)}>Detail</button>
+                                <button type="button" className="candidate-detail-button" onClick={() => openCatalogSongDetail(candidate.songId, row.id)}>Detail</button>
                               </div>
                             );
                           })}
-                          <button type="button" onClick={() => clearSong(row.id)}>Cancel lookup</button>
+                          <button type="button" onClick={() => cancelActiveLookup(row.id)}>Cancel lookup</button>
                         </div>
                       )}
                     </label>
@@ -1039,9 +1073,23 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               </fieldset>
             )}
             {selectedCatalogTab === "songs" && (
-              <fieldset className="field-group">
-                <legend>Songs {selectedRole !== "admin" ? "(read-only, own preference/repertoire allowed)" : ""}</legend>
-                <ul className="saved-set-list">{songsAdmin.map((song) => <li key={song.songId}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"}) {song.sheetMusicUrl ? <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a> : null} <button type="button" onClick={() => interactionRepository.saveOwnPreference(activeActor, song.songId, selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1)}>Prefer</button>{activeActor.personId && <button type="button" onClick={() => interactionRepository.setRepertoire(activeActor, activeActor.personId!, song.songId, true)}>In repertoire</button>}{selectedRole === "admin" && <button type="button" onClick={async () => { await toggleAdminSong(song); }}>{song.active ? "Deactivate" : "Activate"}</button>}</li>)}</ul>
+              <fieldset className="field-group catalog-panel">
+                <legend>Songs {selectedRole !== "admin" ? "(active only, own preference/repertoire allowed)" : "(admin includes inactive)"}</legend>
+                <label>Language<select value={catalogSongLanguage} onChange={(event) => { setCatalogSongLanguage(event.target.value as ServiceLanguage); setCatalogSongPage(0); }}><option value="mixed">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
+                <label>Search<input value={catalogSongSearch} onChange={(event) => { setCatalogSongSearch(event.target.value); setCatalogSongPage(0); }} placeholder="Search by number or title" /></label>
+                <p className="field-help">Showing {pagedCatalogSongs.length} of {visibleCatalogSongs.length} songs over demo + 1,600 synthetic scale records.</p>
+                {selectedCatalogSong && (
+                  <div className="detail-panel" aria-label="Catalog song detail">
+                    <div className="rows-header"><h2>{selectedCatalogSong.number} · {selectedCatalogSong.title}</h2>{catalogReturnRowId ? <button type="button" onClick={() => { setWorkspace("planning"); setCatalogReturnRowId(null); }}>Back to Planning row {catalogReturnRowId}</button> : null}</div>
+                    <p className="field-help">{selectedCatalogSong.language} · {selectedCatalogSong.songId} · {selectedCatalogSong.active ? "active" : "inactive"}</p>
+                    {selectedCatalogSong.sheetMusicUrl && <a href={selectedCatalogSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a>}
+                    {selectedRole !== "admin" && <button type="button" onClick={() => interactionRepository.saveOwnPreference(activeActor, selectedCatalogSong.songId, selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1)}>Set own max preference</button>}
+                    {activeActor.personId && selectedRole === "organist" && <button type="button" onClick={() => interactionRepository.setRepertoire(activeActor, activeActor.personId!, selectedCatalogSong.songId, true)}>Mark in my repertoire</button>}
+                    {selectedRole === "admin" && <><button type="button" onClick={async () => { await toggleAdminSong(selectedCatalogSong); }}>Toggle active</button><button type="button" onClick={() => interactionRepository.setRepertoire(activeActor, "demo-organist", selectedCatalogSong.songId, true)}>Add to demo organist repertoire</button></>}
+                  </div>
+                )}
+                <ul className="saved-set-list catalog-song-list">{pagedCatalogSongs.map((song) => <li key={song.songId}><button type="button" onClick={() => setSelectedCatalogSongId(song.songId)}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"})</button></li>)}</ul>
+                <div className="row-actions"><button type="button" disabled={catalogSongPage === 0} onClick={() => setCatalogSongPage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {catalogSongPage + 1} / {catalogPageCount}</span><button type="button" disabled={catalogSongPage >= catalogPageCount - 1} onClick={() => setCatalogSongPage((page) => Math.min(catalogPageCount - 1, page + 1))}>Next</button></div>
               </fieldset>
             )}
             {selectedCatalogTab === "knowledge" && (

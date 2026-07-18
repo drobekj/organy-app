@@ -4,6 +4,7 @@ declare module "pg" {
 
   export class Pool {
     constructor(config?: PoolConfig);
+    query(text: string, params?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
     end(): Promise<void>;
   }
 }

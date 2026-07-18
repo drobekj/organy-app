@@ -35,3 +35,16 @@ For local development, rollback is safe by rebuilding a disposable database from
 9. Activate a Planning row, select a demo candidate, and confirm invalid lookup text cannot be persisted by state-machine tests.
 10. Use a disposable DB to run migrate and smoke checks when Docker/PostgreSQL are available.
 11. Verify candidate popup ordering, Detail return navigation, selected-song two-line display, invalid lookup blocking, preference/repertoire actions, admin-only Knowledge changes, and synthetic scale fixtures.
+
+## Completion matrix
+
+| Acceptance item | Status | Implementation | Automated evidence | Manual checkpoint |
+| --- | --- | --- | --- | --- |
+| Service context priest/organist dropdowns, stable IDs, historical inactive display, and service note lifecycle | DONE | `app/planning-lifecycle-client.tsx`, `src/planning-lifecycle/model.ts`, lifecycle repositories | `npm test` lifecycle/catalog suites | Steps 1-3 |
+| Stable deterministic actor identity and one preference profile per non-admin user | DONE | `src/application/interaction-contracts.ts` | `scripts/phase-30-1-contract-tests.ts` | Step 4 |
+| Preference score ranges, aggregate score, repertoire, admin-only Knowledge authorization | DONE | `src/application/interaction-contracts.ts` | `scripts/phase-30-1-contract-tests.ts` | Steps 5-8 |
+| Persistent model and migration for users, roles, profiles, preferences, repertoire, melody equivalence, mappings, note, and shared non-repetition config | DONE | `src/db/schema/index.ts`, `drizzle/0005_phase_30_1_contract_foundation.sql`, `scripts/db-phase-30-1-smoke.ts` | `npm run typecheck`; DB smoke script available when PostgreSQL is available | Step 17 |
+| Planning row activation, candidate popup/list, ordering/signals/shading, two-line selected song, Detail navigation, invalid lookup blocking, cancel/restore | DONE | `app/planning-lifecycle-client.tsx`, `src/application/interaction-contracts.ts`, `app/globals.css` | `scripts/phase-30-1-contract-tests.ts`; `npm run build` | Steps 10-16 |
+| Role-aware Catalog Songs/People/Knowledge with language browsing, empty-query browse, search, active/inactive visibility, pagination over synthetic scale data, and song detail | DONE | `app/planning-lifecycle-client.tsx`, `src/application/interaction-contracts.ts` | `scripts/phase-30-1-contract-tests.ts`; `npm run build` | Steps 7-8 and 13-14 |
+| Deterministic fixtures and synthetic scale data without real catalog import | DONE | `src/application/interaction-contracts.ts`, `scripts/phase-30-1-contract-tests.ts` | 2,500-song synthetic assertion in `scripts/phase-30-1-contract-tests.ts` | Steps 10-16 |
+| Existing Phase 30 lifecycle permissions and snapshots remain green | DONE | Existing lifecycle services and adapters plus service note round-trip | `npm test` | Steps 1-3 and 17 |
