@@ -214,3 +214,5 @@ Implementation
 - `docs/backlog.md` — candidate work items, prioritization notes, readiness criteria, technical debt, and parked ideas.
 
 These documents are intentionally templates or evolving analytical records. Add project-specific content as decisions are made and requirements become clear. Do not add detailed product requirements, architecture, implementation tasks, or database design until those topics are ready for deliberate discussion.
+
+- `docs/phase-30-1-interaction-data-contract.md` — Phase 30.1 interaction/data-contract foundation, synthetic data boundary, rollback, and final checkpoint.

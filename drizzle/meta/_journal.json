@@ -36,6 +36,13 @@
       "when": 1784280000000,
       "tag": "0004_phase_29_catalog_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784403789407,
+      "tag": "0005_phase_30_1_contract_foundation",
+      "breakpoints": true
     }
   ]
 }

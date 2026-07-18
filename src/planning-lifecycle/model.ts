@@ -29,6 +29,8 @@ export type ServiceContext = {
   language: ServiceLanguage;
   priest: ServicePersonReference;
   organist: ServicePersonReference;
+  /** Optional service-level note. Whitespace-only values are normalized away before persistence. */
+  note?: string;
 };
 
 export type PlanningSet = {

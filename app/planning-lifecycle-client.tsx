@@ -50,7 +50,6 @@ type PlanningRepositories = {
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const defaultServiceTime = "10:00";
 
-const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
 function createEmptyRow(id: number, _serviceLanguage: ServiceLanguage): EditableRow {
   return {
@@ -221,6 +220,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [organist, setOrganist] = useState("");
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
+  const [serviceNote, setServiceNote] = useState("");
   const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
   const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
   const [nextRowId, setNextRowId] = useState(2);
@@ -238,6 +238,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
+  const demoUsers = useMemo(() => [
+    { id: "demo-priest-user", label: "Demo Priest User", role: "priest" as PlanningRole },
+    { id: "demo-organist-user", label: "Demo Organist User", role: "organist" as PlanningRole },
+    { id: "demo-admin-user", label: "Demo Admin User", role: "admin" as PlanningRole },
+    { id: "demo-member-user", label: "Demo Congregation User", role: "congregationMember" as PlanningRole },
+  ], []);
+  const [selectedUserId, setSelectedUserId] = useState("demo-priest-user");
+  const activeUser = demoUsers.find((user) => user.id === selectedUserId) ?? demoUsers[0];
 
   useEffect(() => {
     void refreshDbSets();
@@ -245,7 +253,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   useEffect(() => {
     void refreshCatalogAdmin();
-  }, [selectedRole, runtimeMode]);
+    void catalogClient.searchPeople({ role: "priest", query: "" }).then((r) => { if (r.success) setPriestResults(r.value); });
+    void catalogClient.searchPeople({ role: "organist", query: "" }).then((r) => { if (r.success) setOrganistResults(r.value); });
+  }, [selectedRole, runtimeMode, catalogClient]);
 
   useEffect(() => {
     if (!persistedSet && !completedRecord && saveState === "unsaved") {
@@ -349,6 +359,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(set.serviceContext.priest.id);
     setOrganist(set.serviceContext.organist.displayName);
     setOrganistId(set.serviceContext.organist.id);
+    setServiceNote(set.serviceContext.note ?? "");
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
     setRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }));
     setNextRowId(editableRows.length + 1);
@@ -367,6 +378,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(record.serviceContext.priest.id);
     setOrganist(record.serviceContext.organist.displayName);
     setOrganistId(record.serviceContext.organist.id);
+    setServiceNote(record.serviceContext.note ?? "");
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
     setRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }));
     setNextRowId(editableRows.length + 1);
@@ -410,6 +422,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(defaults.priest.id);
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
+    setServiceNote("");
     setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
   }
@@ -426,6 +439,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(defaults.priest.id);
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
+    setServiceNote("");
     setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
     setServiceError(null);
@@ -463,8 +477,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function selectPerson(role: PersonRole, person: CatalogPerson) {
     lookupTracker.invalidate(getPersonLookupScope(role));
     guardedEditorUpdate(() => {
-      if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); setPriestResults([]); }
-      else { setOrganist(person.displayName); setOrganistId(person.id); setOrganistResults([]); }
+      if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); }
+      else { setOrganist(person.displayName); setOrganistId(person.id); }
     });
   }
 
@@ -570,6 +584,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
       },
       set: {
         status: "working",
@@ -671,6 +686,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
       },
       set: { status: "final", language: serviceLanguage, rows: planningRows },
       allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,
@@ -746,13 +762,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
             <p className="lede">Plan services, review active plans and history, administer the catalog, and keep development tools separate.</p>
           </div>
-          <div className="role-pill" aria-label="Current simulated role">Role: <strong>{selectedRole}</strong></div>
+          <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
           <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => setWorkspace("planning")}>Planning</button>
           <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => setWorkspace("plans")}>Plans</button>
           <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => setWorkspace("history")}>History</button>
-          {selectedRole === "admin" && <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => setWorkspace("catalog")}>Catalog</button>}
+          <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => setWorkspace("catalog")}>Catalog</button>
           <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => setWorkspace("development")}>Development</button>
         </nav>
 
@@ -825,14 +841,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               </select>
             </label>
             <label>
-              Priest lookup
-              <input
-                type="text"
-                placeholder="Search active priests"
-                disabled={isEditorLocked}
-                value={priest}
-                onChange={(event) => { void updatePersonSearch("priest", event.target.value); }}
-              />
+              Priest
+              <select disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); }}>
+                <option value="">Select active priest</option>
+                {priestResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+              </select>
               <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
               {priestResults.length > 0 && !isEditorLocked && (
                 <ul className="lookup-list">
@@ -841,20 +854,21 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               )}
             </label>
             <label>
-              Organist lookup
-              <input
-                type="text"
-                placeholder="Search active organists"
-                disabled={isEditorLocked}
-                value={organist}
-                onChange={(event) => { void updatePersonSearch("organist", event.target.value); }}
-              />
+              Organist
+              <select disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); }}>
+                <option value="">Select active organist</option>
+                {organistResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+              </select>
               <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
               {organistResults.length > 0 && !isEditorLocked && (
                 <ul className="lookup-list">
                   {organistResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("organist", person)}>{person.displayName}</button></li>)}
                 </ul>
               )}
+            </label>
+            <label className="note-field">
+              Service note
+              <textarea rows={4} disabled={isEditorLocked} value={serviceNote} onChange={(event) => guardedEditorUpdate(() => setServiceNote(event.target.value))} placeholder="Gospel readings, links, or planning information" />
             </label>
           </fieldset>
 
@@ -974,7 +988,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         </form>
         )}
 
-        {workspace === "catalog" && selectedRole === "admin" && (
+        {workspace === "catalog" && (
           <section className="db-workspace" aria-label="Catalog administration">
             <div className="rows-header"><h2>Catalog administration</h2><button type="button" onClick={refreshCatalogAdmin}>Refresh catalog</button></div>
             <fieldset className="field-group">
@@ -1006,7 +1020,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            <div><span className="guidance-label">Local role simulation</span><strong>{selectedRole}</strong><label>Change role<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as PlanningRole)}>{localRoleOptions.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>This is not authentication, a real session, an account model, or a durable role source.</p></div>
+            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedRole(user.role); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><p>Development switches stable user IDs and effective roles until authentication exists.</p></div>
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}

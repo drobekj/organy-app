@@ -53,6 +53,7 @@ type ServiceContextRecord = {
   priestDisplayName: string;
   organistId: string | null;
   organistDisplayName: string;
+  note: string | null;
 };
 
 type ServiceSetRowRecord = {
@@ -458,6 +459,7 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
     language: context.serviceLanguage,
     priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
     organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
+    ...(context.note ? { note: context.note } : {}),
   };
 }
 
@@ -469,6 +471,7 @@ function mapServiceContextToContextValues(context: ServiceContext) {
     priestDisplayName: context.priest.displayName,
     organistId: context.organist.id,
     organistDisplayName: context.organist.displayName,
+    note: context.note?.trim() || null,
   };
 }
 

@@ -53,6 +53,7 @@ export const serviceContexts = pgTable(
     priestDisplayName: text("priest_display_name").notNull().default(""),
     organistId: text("organist_id"),
     organistDisplayName: text("organist_display_name").notNull().default(""),
+    note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -139,6 +140,59 @@ export const completedServiceRows = pgTable(
     ),
   }),
 );
+
+
+export const preferenceProfileCategory = pgEnum("preference_profile_category", ["priest", "organist", "congregation_member"]);
+export const userRole = pgEnum("user_role", ["priest", "organist", "admin", "congregation_member"]);
+
+export const appUsers = pgTable("app_users", {
+  id: text("id").primaryKey(),
+  displayName: text("display_name").notNull(),
+  personId: text("person_id").references(() => catalogPersons.id, { onDelete: "set null" }),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const appUserRoles = pgTable("app_user_roles", {
+  userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+  role: userRole("role").notNull(),
+}, (table) => ({ userRoleUnique: uniqueIndex("app_user_roles_user_role_idx").on(table.userId, table.role) }));
+
+export const preferenceProfiles = pgTable("preference_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+  category: preferenceProfileCategory("category").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ oneProfilePerUser: uniqueIndex("preference_profiles_user_id_idx").on(table.userId) }));
+
+export const melodyEquivalenceClasses = pgTable("melody_equivalence_classes", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  synthetic: boolean("synthetic").notNull().default(false),
+});
+
+export const songMelodyEquivalence = pgTable("song_melody_equivalence", {
+  songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
+  classId: text("class_id").notNull().references(() => melodyEquivalenceClasses.id, { onDelete: "cascade" }),
+}, (table) => ({ oneClassPerSong: uniqueIndex("song_melody_equivalence_song_id_idx").on(table.songId) }));
+
+export const songPreferences = pgTable("song_preferences", {
+  profileId: text("profile_id").notNull().references(() => preferenceProfiles.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
+  score: integer("score").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ onePreferencePerProfileSong: uniqueIndex("song_preferences_profile_song_idx").on(table.profileId, table.songId), scoreRange: check("song_preferences_score_range", sql`${table.score} >= 0 and ${table.score} <= 3`) }));
+
+export const organistRepertoire = pgTable("organist_repertoire", {
+  organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
+}, (table) => ({ oneRepertoireMembership: uniqueIndex("organist_repertoire_person_song_idx").on(table.organistPersonId, table.songId) }));
+
+export const antiphonMappings = pgTable("antiphon_mappings", { id: text("id").primaryKey(), antiphonKey: text("antiphon_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
+export const liturgicalSeasonMappings = pgTable("liturgical_season_mappings", { id: text("id").primaryKey(), seasonKey: text("season_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
+export const melodyNonRepetitionRules = pgTable("melody_non_repetition_rules", { id: text("id").primaryKey(), classId: text("class_id").notNull().references(() => melodyEquivalenceClasses.id, { onDelete: "cascade" }), daysBefore: integer("days_before").notNull().default(0), daysAfter: integer("days_after").notNull().default(0), synthetic: boolean("synthetic").notNull().default(false) });
 
 export const serviceContextsRelations = relations(serviceContexts, ({ many }) => ({
   serviceSets: many(serviceSets),
