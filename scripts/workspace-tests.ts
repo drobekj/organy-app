@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import { groupActivePlanningSets, getAvailableWorkspaces, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterComplete, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, formatPlanningSetSummary, formatCompletedRecordSummary } from "../src/planning-lifecycle/workspace";
+import { recordListClassName } from "../src/planning-lifecycle/ui-session";
+import type { CompletedServiceRecord, PersistedPlanningSet } from "../src/application/planning-lifecycle";
+
+const baseContext = { serviceDate: "2026-07-19", serviceTime: "10:00", language: "czech" as const, priest: { id: "person-1", displayName: "Priest One" }, organist: { id: "person-2", displayName: "Organist One" } };
+const working: PersistedPlanningSet = { id: "set-1", status: "working", language: "czech", serviceContext: baseContext, rows: [{ note: "Prelude" }] };
+const final: PersistedPlanningSet = { id: "set-2", status: "final", language: "polish", serviceContext: { ...baseContext, language: "polish" }, rows: [{ note: "Song" }, { note: "Postlude" }] };
+const completed: CompletedServiceRecord = { id: "completed-1", sourceFinalSetId: "set-2", serviceContext: baseContext, set: { status: "final", language: "czech", rows: [{ note: "Done" }] }, completedAt: new Date("2026-07-20T10:00:00.000Z") };
+
+assert.deepEqual(groupActivePlanningSets([working, final]), { working: [working], final: [final] });
+assert.deepEqual(getAvailableWorkspaces("priest"), ["planning", "plans", "history", "development"]);
+assert.deepEqual(getAvailableWorkspaces("admin"), ["planning", "plans", "history", "catalog", "development"]);
+assert.equal(getWorkspaceAfterOpenRecord(), "planning");
+assert.equal(getWorkspaceAfterSaveWorking(), "plans");
+assert.equal(getWorkspaceAfterFinalize(), "plans");
+assert.equal(getWorkspaceAfterComplete(), "history");
+assert.equal(getWorkspaceAfterCompletedUpdate(), "history");
+assert.equal(getWorkspaceAfterDelete({ kind: "active", id: "set-1" }, groupActivePlanningSets([final]), []), "plans");
+assert.equal(getWorkspaceAfterDelete({ kind: "active", id: "set-1" }, groupActivePlanningSets([]), []), "planning");
+assert.equal(getWorkspaceAfterDelete({ kind: "completed", id: "completed-1" }, groupActivePlanningSets([]), [completed]), "history");
+assert.equal(recordListClassName(true, true), "selected-record");
+assert.equal(recordListClassName(false, true), "last-saved-record");
+const summary = formatPlanningSetSummary(final);
+assert.match(summary, /Final service/);
+assert.match(summary, /2026-07-19 10:00/);
+assert.match(summary, /Priest One/);
+assert.match(summary, /2 rows/);
+assert.doesNotMatch(summary, /set-2|person-1|person-2/);
+const completedSummary = formatCompletedRecordSummary(completed);
+assert.match(completedSummary, /Completed service/);
+assert.doesNotMatch(completedSummary, /completed-1|set-2/);
+console.log("Workspace tests passed.");

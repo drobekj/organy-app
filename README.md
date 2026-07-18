@@ -4,7 +4,7 @@ Administration and communication of the musical part of church masses SCEAV.
 
 ## Local Development
 
-This repository contains a minimal Next.js App Router scaffold for the Organ Planner local development baseline, including the current in-memory Planning Lifecycle flow. The default runtime is intentionally **local in-memory only**: planned data is not durable yet and can be lost after refresh, browser/session restart, or app restart.
+This repository contains a minimal Next.js App Router scaffold for the Organ Planner local development baseline, including a single mounted workspace shell for Planning, Plans, History, Catalog, and Development. The default runtime is intentionally **local in-memory only**: planned data is not durable yet and can be lost after refresh, browser/session restart, or app restart.
 
 ### Setup
 
@@ -79,7 +79,7 @@ DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app
 
 ### DB runtime behavior
 
-When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The page also shows a simple saved-set list. Use **Refresh list** after another browser session writes data, **Start new set** to detach from the opened DB set without deleting it, then open any saved working or final set to reload its service date, service language, priest, organist, and rows. Saved DB sets remain available after browser refreshes and dev-server restarts as long as the same migrated database is used.
+When `ORGANY_RUNTIME=db` is set, Planning Lifecycle actions are routed through the DB-backed service. The application shell separates the editor from Plans, History, Catalog, and Development workspaces while keeping the same client-side controller mounted so local state is not reset merely by changing workspaces. Use **Start new set** in Plans to detach from the opened DB set without deleting it, then open any saved working, final, or completed record to reload its service date, service language, priest, organist, and rows in Planning. Saved DB records remain available after browser refreshes and dev-server restarts as long as the same migrated database is used.
 
 Readable DB setup errors are intentionally surfaced for the local workflow:
 
@@ -89,7 +89,7 @@ Readable DB setup errors are intentionally surfaced for the local workflow:
 
 The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow unless `ORGANY_RUNTIME=db` is explicitly set.
 
-The page includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the first in-memory version can exercise the permission matrix without authentication. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
+The Development workspace includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the local version can exercise the permission matrix without authentication. The selected role is also shown compactly in the application header. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
 
 ### Local Drizzle Planning Set Adapter Verification
 

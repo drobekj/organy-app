@@ -9,7 +9,7 @@ Guidance for Codex and other AI assistants collaborating in this repository.
 - Refer to `README.md` for the documentation map and to files in `docs/` for project context.
 
 ## Working Principles
-- Prefer small, reviewable changes with clear rationale.
+- Prefer reviewable changes with clear rationale. For accepted implementation milestones, prefer the largest safely reviewable functional milestone over unnecessary fragmentation.
 - Preserve existing behavior unless the requested change explicitly requires otherwise.
 - Ask for clarification when requirements are ambiguous, risky, or likely to affect product direction.
 - Avoid adding application code, dependencies, or tooling unless explicitly requested.
