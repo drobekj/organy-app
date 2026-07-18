@@ -43,6 +43,7 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; };
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -148,6 +149,19 @@ class DbPlanningLifecycleClient {
 }
 
 
+class DbInteractionClient implements InteractionClient {
+  async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
+  async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
+  async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return callInteractionApi("setMelodyWindow", input); }
+}
+
+class MemoryInteractionClient implements InteractionClient {
+  constructor(private readonly repo: InMemoryInteractionRepository) {}
+  async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
+  async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
+  async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return this.repo.setMelodyWindow(input.actor, { daysBefore: input.daysBefore, daysAfter: input.daysAfter }); }
+}
+
 class DbCatalogClient {
   async getPerson(input: { id: string }) { return callCatalogApi("getPerson", input); }
   async getSong(input: { songId: string }) { return callCatalogApi("getSong", input); }
@@ -157,6 +171,13 @@ class DbCatalogClient {
   async searchSongs(input: { language: ServiceLanguage; query?: string }) { return callCatalogApi("searchSongs", input); }
   async listSongs() { return callCatalogApi("listSongs", {}); }
   async setSongActive(input: { role: PlanningRole; songId: string; active: boolean }) { return callCatalogApi("setSongActive", input); }
+}
+
+async function callInteractionApi(action: string, input: unknown) {
+  const response = await fetch("/api/interaction", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, input }) });
+  const payload = await response.json();
+  if (!response.ok) return { success: false as const, error: { code: "invalidInput" as const, message: typeof payload?.error === "string" ? payload.error : "Interaction API request failed." } };
+  return payload;
 }
 
 async function callCatalogApi(action: string, input: unknown) {
@@ -210,6 +231,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     [repositories, runtimeMode, catalogRepository],
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
+  const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository), [runtimeMode, interactionRepository]);
   const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
@@ -1083,9 +1105,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <div className="rows-header"><h2>{selectedCatalogSong.number} · {selectedCatalogSong.title}</h2>{catalogReturnRowId ? <button type="button" onClick={() => { setWorkspace("planning"); setCatalogReturnRowId(null); }}>Back to Planning row {catalogReturnRowId}</button> : null}</div>
                     <p className="field-help">{selectedCatalogSong.language} · {selectedCatalogSong.songId} · {selectedCatalogSong.active ? "active" : "inactive"}</p>
                     {selectedCatalogSong.sheetMusicUrl && <a href={selectedCatalogSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a>}
-                    {selectedRole !== "admin" && <button type="button" onClick={() => interactionRepository.saveOwnPreference(activeActor, selectedCatalogSong.songId, selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1)}>Set own max preference</button>}
-                    {activeActor.personId && selectedRole === "organist" && <button type="button" onClick={() => interactionRepository.setRepertoire(activeActor, activeActor.personId!, selectedCatalogSong.songId, true)}>Mark in my repertoire</button>}
-                    {selectedRole === "admin" && <><button type="button" onClick={async () => { await toggleAdminSong(selectedCatalogSong); }}>Toggle active</button><button type="button" onClick={() => interactionRepository.setRepertoire(activeActor, "demo-organist", selectedCatalogSong.songId, true)}>Add to demo organist repertoire</button></>}
+                    {selectedRole !== "admin" && <button type="button" onClick={() => interactionClient.saveOwnPreference({ actor: activeActor, songId: selectedCatalogSong.songId, score: selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1 })}>Set own max preference</button>}
+                    {activeActor.personId && selectedRole === "organist" && <button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: activeActor.personId!, songId: selectedCatalogSong.songId, active: true })}>Mark in my repertoire</button>}
+                    {selectedRole === "admin" && <><button type="button" onClick={async () => { await toggleAdminSong(selectedCatalogSong); }}>Toggle active</button><button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: "demo-organist", songId: selectedCatalogSong.songId, active: true })}>Add to demo organist repertoire</button></>}
                   </div>
                 )}
                 <ul className="saved-set-list catalog-song-list">{pagedCatalogSongs.map((song) => <li key={song.songId}><button type="button" onClick={() => setSelectedCatalogSongId(song.songId)}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"})</button></li>)}</ul>
@@ -1096,7 +1118,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <fieldset className="field-group">
                 <legend>Knowledge {selectedRole !== "admin" ? "(read-only)" : ""}</legend>
                 <p className="field-help">Melody non-repetition is one shared configurable window: {interactionRepository.getMelodyWindow().daysBefore} days before / {interactionRepository.getMelodyWindow().daysAfter} days after.</p>
-                {selectedRole === "admin" && <button type="button" onClick={() => interactionRepository.setMelodyWindow(activeActor, { daysBefore: 21, daysAfter: 0 })}>Set demo 21-day window</button>}
+                {selectedRole === "admin" && <button type="button" onClick={() => interactionClient.setMelodyWindow({ actor: activeActor, daysBefore: 21, daysAfter: 0 })}>Set demo 21-day window</button>}
                 <ul className="saved-set-list">{interactionRepository.listKnowledge().melodyClasses.map((item) => <li key={item.id}>{item.label}: {item.songIds.join(", ")} ({item.synthetic ? "synthetic" : "production"})</li>)}</ul>
               </fieldset>
             )}
