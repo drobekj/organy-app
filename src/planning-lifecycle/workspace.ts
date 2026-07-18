@@ -41,6 +41,16 @@ export function formatCompletedRecordSummary(record: CompletedServiceRecord): st
   return ["Completed service", formatServiceContext(record.serviceContext), `${record.set.rows.length} ${record.set.rows.length === 1 ? "row" : "rows"}`].join(" · ");
 }
 
+export const workspaceLabels: Record<Workspace, string> = {
+  planning: "Planning",
+  plans: "Plans",
+  history: "History",
+  catalog: "Catalog",
+  development: "Development",
+};
+
+export function getWorkspaceLabel(workspace: Workspace): string { return workspaceLabels[workspace]; }
+export function getWorkspaceAfterStartNewSet(): Workspace { return "planning"; }
 export function getWorkspaceAfterSaveWorking(): Workspace { return "plans"; }
 export function getWorkspaceAfterFinalize(): Workspace { return "plans"; }
 export function getWorkspaceAfterComplete(): Workspace { return "history"; }

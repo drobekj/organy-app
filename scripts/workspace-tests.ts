@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { groupActivePlanningSets, getAvailableWorkspaces, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterComplete, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, formatPlanningSetSummary, formatCompletedRecordSummary } from "../src/planning-lifecycle/workspace";
+import { groupActivePlanningSets, getAvailableWorkspaces, getWorkspaceAfterStartNewSet, getWorkspaceLabel, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterComplete, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, formatPlanningSetSummary, formatCompletedRecordSummary } from "../src/planning-lifecycle/workspace";
 import { recordListClassName } from "../src/planning-lifecycle/ui-session";
 import type { CompletedServiceRecord, PersistedPlanningSet } from "../src/application/planning-lifecycle";
 
@@ -11,7 +11,13 @@ const completed: CompletedServiceRecord = { id: "completed-1", sourceFinalSetId:
 assert.deepEqual(groupActivePlanningSets([working, final]), { working: [working], final: [final] });
 assert.deepEqual(getAvailableWorkspaces("priest"), ["planning", "plans", "history", "development"]);
 assert.deepEqual(getAvailableWorkspaces("admin"), ["planning", "plans", "history", "catalog", "development"]);
+assert.equal(getWorkspaceLabel("planning"), "Planning");
+assert.equal(getWorkspaceLabel("plans"), "Plans");
+assert.equal(getWorkspaceLabel("history"), "History");
+assert.equal(getWorkspaceLabel("catalog"), "Catalog");
+assert.equal(getWorkspaceLabel("development"), "Development");
 assert.equal(getWorkspaceAfterOpenRecord(), "planning");
+assert.equal(getWorkspaceAfterStartNewSet(), "planning");
 assert.equal(getWorkspaceAfterSaveWorking(), "plans");
 assert.equal(getWorkspaceAfterFinalize(), "plans");
 assert.equal(getWorkspaceAfterComplete(), "history");
@@ -21,6 +27,8 @@ assert.equal(getWorkspaceAfterDelete({ kind: "active", id: "set-1" }, groupActiv
 assert.equal(getWorkspaceAfterDelete({ kind: "completed", id: "completed-1" }, groupActivePlanningSets([]), [completed]), "history");
 assert.equal(recordListClassName(true, true), "selected-record");
 assert.equal(recordListClassName(false, true), "last-saved-record");
+assert.equal(getAvailableWorkspaces("congregationMember").includes("development"), true);
+assert.equal(getAvailableWorkspaces("congregationMember").includes("catalog"), false);
 const summary = formatPlanningSetSummary(final);
 assert.match(summary, /Final service/);
 assert.match(summary, /2026-07-19 10:00/);

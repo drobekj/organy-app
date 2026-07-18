@@ -20,7 +20,7 @@ import {
   getNearestSunday,
 } from "../src/planning-lifecycle/service-context-defaults";
 import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
-import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
+import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, getWorkspaceAfterStartNewSet, getWorkspaceLabel, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
 
 type EditableRow = {
   id: number;
@@ -430,6 +430,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setNextRowId(2);
     setServiceError(null);
     setSaveState("unsaved");
+    setWorkspace(getWorkspaceAfterStartNewSet());
   }
 
   function guardedEditorUpdate(update: () => void) {
@@ -742,7 +743,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         <p className="eyebrow">Organ Planner workspace</p>
         <div className="app-header">
           <div>
-            <h1 id="page-title">Planning</h1>
+            <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
             <p className="lede">Plan services, review active plans and history, administer the catalog, and keep development tools separate.</p>
           </div>
           <div className="role-pill" aria-label="Current simulated role">Role: <strong>{selectedRole}</strong></div>
@@ -832,7 +833,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 value={priest}
                 onChange={(event) => { void updatePersonSearch("priest", event.target.value); }}
               />
-              <span className="field-help">{priestId ? `Selected catalog ID: ${priestId}` : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
+              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
               {priestResults.length > 0 && !isEditorLocked && (
                 <ul className="lookup-list">
                   {priestResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("priest", person)}>{person.displayName}</button></li>)}
@@ -848,36 +849,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 value={organist}
                 onChange={(event) => { void updatePersonSearch("organist", event.target.value); }}
               />
-              <span className="field-help">{organistId ? `Selected catalog ID: ${organistId}` : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
+              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
               {organistResults.length > 0 && !isEditorLocked && (
                 <ul className="lookup-list">
                   {organistResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("organist", person)}>{person.displayName}</button></li>)}
                 </ul>
               )}
             </label>
-          </fieldset>
-
-          <fieldset className="field-group local-role-block">
-            <legend>Local role simulation</legend>
-            <label>
-              Local role
-              <select
-                value={selectedRole}
-                onChange={(event) => {
-                  setSelectedRole(event.target.value as PlanningRole);
-                }}
-                aria-describedby="local-role-help"
-              >
-                {localRoleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p id="local-role-help" className="field-help">
-              Local in-memory dev selector only; lifecycle actions use this role for permission checks. It is not part of ServiceContext.
-            </p>
           </fieldset>
 
           <div className="rows-header">
@@ -921,7 +899,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       />
                       {row.selectedSong ? (
                         <span className="field-help">
-                          Selected: {formatSongLabel(row.selectedSong)}{row.selectedSong.songId ? ` (ID ${row.selectedSong.songId})` : " — legacy snapshot without catalog ID"}
+                          Selected: {formatSongLabel(row.selectedSong)}{row.selectedSong.songId ? "" : " — legacy snapshot without catalog ID"}
                           {"sheetMusicUrl" in row.selectedSong && row.selectedSong.sheetMusicUrl ? <> · <a href={row.selectedSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a></> : null}
                         </span>
                       ) : row.songSearch ? <span className="field-help">Search text only — choose a catalog song before saving, or clear it for a note-only row.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
