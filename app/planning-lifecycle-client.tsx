@@ -19,7 +19,8 @@ import {
   getDefaultServiceLanguage,
   getNearestSunday,
 } from "../src/planning-lifecycle/service-context-defaults";
-import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults, type PersistedRecordReference } from "../src/planning-lifecycle/ui-session";
+import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
+import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, getWorkspaceAfterStartNewSet, getWorkspaceLabel, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
 
 type EditableRow = {
   id: number;
@@ -236,6 +237,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
+  const [workspace, setWorkspace] = useState<Workspace>("planning");
 
   useEffect(() => {
     void refreshDbSets();
@@ -255,6 +257,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }, [draftPeopleDefaults]);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
+  const activeRecordGroups = useMemo(() => groupActivePlanningSets(savedDbSets), [savedDbSets]);
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
@@ -275,6 +278,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     : false;
   const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
+
+  useEffect(() => {
+    setWorkspace((current) => getSafeWorkspace(current, selectedRole));
+  }, [selectedRole]);
 
 
   async function getEligibleDraftPeopleDefaults(records: CompletedServiceRecord[]): Promise<DraftPeopleDefaults> {
@@ -372,6 +379,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const result = await planningLifecycleService.loadCompletedRecord(recordId);
     if (result.success) {
       await openCompletedRecord(result.value);
+      setWorkspace(getWorkspaceAfterOpenRecord());
       await refreshDbSets();
       return;
     }
@@ -383,6 +391,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const result = await planningLifecycleService.loadPlanningSet(setId);
     if (result.success) {
       await openPersistedSet(result.value);
+      setWorkspace(getWorkspaceAfterOpenRecord());
       await refreshDbSets();
       return;
     }
@@ -421,6 +430,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setNextRowId(2);
     setServiceError(null);
     setSaveState("unsaved");
+    setWorkspace(getWorkspaceAfterStartNewSet());
   }
 
   function guardedEditorUpdate(update: () => void) {
@@ -588,6 +598,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("saved");
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setWorkspace(getWorkspaceAfterSaveWorking());
   }
 
   async function finalizeWorkingSet() {
@@ -611,6 +622,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("finalized");
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setWorkspace(getWorkspaceAfterFinalize());
   }
 
   async function completeFinalSet() {
@@ -636,6 +648,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("completed");
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setWorkspace(getWorkspaceAfterComplete());
   }
 
 
@@ -674,6 +687,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("completed");
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setWorkspace(getWorkspaceAfterCompletedUpdate());
   }
 
   async function deleteCompletedRecord() {
@@ -691,6 +705,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setServiceError(null);
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setWorkspace(getWorkspaceAfterDelete({ kind: "completed", id: deletedRecordId }, groupActivePlanningSets(refreshed.activeSets), refreshed.completedRecords));
     setSaveState("deleted");
   }
 
@@ -718,37 +733,28 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (lastSavedRecord?.kind === "active" && lastSavedRecord.id === deletedSetId) setLastSavedRecord(null);
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
+    setWorkspace(getWorkspaceAfterDelete({ kind: "active", id: deletedSetId }, groupActivePlanningSets(refreshed.activeSets), refreshed.completedRecords));
     setSaveState("deleted");
   }
 
   return (
     <main className="shell">
       <section className="card planning-card" aria-labelledby="page-title">
-        <p className="eyebrow">Planning Lifecycle First</p>
-        <h1 id="page-title">Working service set</h1>
-        <p className="lede">Build a minimal in-memory set before persistence or final UX exists.</p>
-
-        <section className="release-guidance" aria-label="First local release guidance">
+        <p className="eyebrow">Organ Planner workspace</p>
+        <div className="app-header">
           <div>
-            <span className="guidance-label">Runtime mode</span>
-            <strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong>
-            <p>
-              {runtimeMode === "db"
-                ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db."
-                : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}
-            </p>
+            <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
+            <p className="lede">Plan services, review active plans and history, administer the catalog, and keep development tools separate.</p>
           </div>
-          <div>
-            <span className="guidance-label">Selected role</span>
-            <strong>{selectedRole}</strong>
-            <p>Permission checks use this local selector; there is no auth, session, or account model yet.</p>
-          </div>
-          <div>
-            <span className="guidance-label">Lifecycle state</span>
-            <strong>{lifecycleState}</strong>
-            <p>Use Save, Finalize, Complete, and Delete to walk the first local smoke flow.</p>
-          </div>
-        </section>
+          <div className="role-pill" aria-label="Current simulated role">Role: <strong>{selectedRole}</strong></div>
+        </div>
+        <nav className="workspace-nav" aria-label="Application workspaces">
+          <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => setWorkspace("planning")}>Planning</button>
+          <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => setWorkspace("plans")}>Plans</button>
+          <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => setWorkspace("history")}>History</button>
+          {selectedRole === "admin" && <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => setWorkspace("catalog")}>Catalog</button>}
+          <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => setWorkspace("development")}>Development</button>
+        </nav>
 
         <div className={`status status-${saveState}`} role="status">
           {saveState === "unsaved" && "Unsaved"}
@@ -759,40 +765,23 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           {saveState === "errors" && "Service error"}
         </div>
 
-        <section className="db-workspace" aria-label="Saved planning records">
-          <div className="rows-header">
-            <h2>Active sets</h2>
-            <button type="button" onClick={startNewDbDraft}>Start new set</button>
-          </div>
-          {savedDbSets.length === 0 ? (
-            <p className="field-help">No active planning sets saved yet.</p>
-          ) : (
-            <ul className="saved-set-list">
-              {savedDbSets.map((set) => (
-                <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}>
-                  <button type="button" onClick={() => loadDbSet(set.id)}>
-                    Open #{set.id}: {set.status}, {set.serviceContext.serviceDate} {set.serviceContext.serviceTime || "Time missing"}, {set.serviceContext.language}, priest {set.serviceContext.priest.displayName || "—"}, organist {set.serviceContext.organist.displayName || "—"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <h2>Completed records</h2>
-          {completedRecords.length === 0 ? (
-            <p className="field-help">No completed service records saved yet.</p>
-          ) : (
-            <ul className="saved-set-list">
-              {completedRecords.map((record) => (
-                <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}>
-                  <button type="button" onClick={() => loadCompletedRecord(record.id)}>
-                    Read #{record.id}: {record.serviceContext.serviceDate} {record.serviceContext.serviceTime || "Time missing"}, {record.set.rows.length} rows
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {workspace === "plans" && (
+          <section className="db-workspace" aria-label="Plans">
+            <div className="rows-header"><h2>Working plans</h2><button type="button" onClick={startNewDbDraft}>Start new set</button></div>
+            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
+            <h2>Final plans</h2>
+            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
+          </section>
+        )}
 
+        {workspace === "history" && (
+          <section className="db-workspace" aria-label="Completed history">
+            <h2>Completed history</h2>
+            {completedRecords.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list">{completedRecords.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" onClick={() => loadCompletedRecord(record.id)}>{formatCompletedRecordSummary(record)}</button></li>)}</ul>}
+          </section>
+        )}
+
+        {workspace === "planning" && (
         <form className="planning-form" onSubmit={(event) => event.preventDefault()}>
           <fieldset className="field-group">
             <legend>Service context</legend>
@@ -844,7 +833,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 value={priest}
                 onChange={(event) => { void updatePersonSearch("priest", event.target.value); }}
               />
-              <span className="field-help">{priestId ? `Selected catalog ID: ${priestId}` : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
+              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
               {priestResults.length > 0 && !isEditorLocked && (
                 <ul className="lookup-list">
                   {priestResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("priest", person)}>{person.displayName}</button></li>)}
@@ -860,36 +849,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 value={organist}
                 onChange={(event) => { void updatePersonSearch("organist", event.target.value); }}
               />
-              <span className="field-help">{organistId ? `Selected catalog ID: ${organistId}` : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
+              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
               {organistResults.length > 0 && !isEditorLocked && (
                 <ul className="lookup-list">
                   {organistResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("organist", person)}>{person.displayName}</button></li>)}
                 </ul>
               )}
             </label>
-          </fieldset>
-
-          <fieldset className="field-group local-role-block">
-            <legend>Local role simulation</legend>
-            <label>
-              Local role
-              <select
-                value={selectedRole}
-                onChange={(event) => {
-                  setSelectedRole(event.target.value as PlanningRole);
-                }}
-                aria-describedby="local-role-help"
-              >
-                {localRoleOptions.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p id="local-role-help" className="field-help">
-              Local in-memory dev selector only; lifecycle actions use this role for permission checks. It is not part of ServiceContext.
-            </p>
           </fieldset>
 
           <div className="rows-header">
@@ -933,7 +899,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       />
                       {row.selectedSong ? (
                         <span className="field-help">
-                          Selected: {formatSongLabel(row.selectedSong)}{row.selectedSong.songId ? ` (ID ${row.selectedSong.songId})` : " — legacy snapshot without catalog ID"}
+                          Selected: {formatSongLabel(row.selectedSong)}{row.selectedSong.songId ? "" : " — legacy snapshot without catalog ID"}
                           {"sheetMusicUrl" in row.selectedSong && row.selectedSong.sheetMusicUrl ? <> · <a href={row.selectedSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a></> : null}
                         </span>
                       ) : row.songSearch ? <span className="field-help">Search text only — choose a catalog song before saving, or clear it for a note-only row.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
@@ -1006,9 +972,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           </div>
           {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>
+        )}
 
-
-        {selectedRole === "admin" && (
+        {workspace === "catalog" && selectedRole === "admin" && (
           <section className="db-workspace" aria-label="Catalog administration">
             <div className="rows-header"><h2>Catalog administration</h2><button type="button" onClick={refreshCatalogAdmin}>Refresh catalog</button></div>
             <fieldset className="field-group">
@@ -1037,6 +1003,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             </fieldset>
           </section>
         )}
+        {workspace === "development" && (
+          <section className="release-guidance" aria-label="Development workspace">
+            <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
+            <div><span className="guidance-label">Local role simulation</span><strong>{selectedRole}</strong><label>Change role<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as PlanningRole)}>{localRoleOptions.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>This is not authentication, a real session, an account model, or a durable role source.</p></div>
+            <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
+          </section>
+        )}
+
         {serviceError && (
           <p className="error-summary">
             {serviceError.message}
@@ -1046,14 +1020,13 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
         {persistedSet && (
           <p className="saved-summary">
-            {runtimeMode === "db" ? "Current DB set ID" : "Current in-memory set ID"}: {persistedSet.id}. Display order: current saved set 1 (
-            {persistedSet.status}, {persistedSet.rows.length} row{persistedSet.rows.length === 1 ? "" : "s"}).
+            Opened {formatPlanningSetSummary(persistedSet)}.
           </p>
         )}
 
         {completedRecord && (
           <p className="saved-summary">
-            Completed record: {completedRecord.id} from {completedRecord.sourceFinalSetId}.
+            Opened {formatCompletedRecordSummary(completedRecord)}.
           </p>
         )}
 
