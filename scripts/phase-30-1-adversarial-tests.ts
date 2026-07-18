@@ -34,7 +34,8 @@ async function main() {
     recentSongs: [{ songId: "demo-pl-101", serviceDate: "2026-07-01" }],
   } as never);
   assert.equal(recentWithinWindow.success, true);
-  assert.equal(recentWithinWindow.success && recentWithinWindow.value.some((candidate) => candidate.songId === "demo-cz-101" && candidate.suppressedByMelodyWindow), true, "equivalent melody within shared window must be suppressed");
+  assert.equal(recentWithinWindow.success && recentWithinWindow.value.some((candidate) => candidate.songId === "demo-cz-101"), false, "equivalent melody within shared window must be removed from eligible candidates");
+  assert.equal(recentWithinWindow.success && recentWithinWindow.value.every((candidate) => !candidate.suppressedByMelodyWindow), true, "candidate service must return only eligible non-suppressed rows");
 
   const recentOutsideWindow = await service.queryCandidates({
     serviceDate: "2026-07-18",

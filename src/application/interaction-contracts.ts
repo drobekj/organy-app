@@ -82,7 +82,7 @@ export class InMemoryInteractionRepository {
       const suppressedByMelodyWindow = Boolean(melody && recentClassIds.has(melody.id));
       const signal = getCandidateSignal({ antiphonMatch, seasonMatch });
       return { songId: song.songId, language: song.language, number: song.number, title: song.title, equivalentNumbers, aggregatePreferenceScore, antiphonMatch, seasonMatch, signal, preferenceShade: getPreferenceShade(aggregatePreferenceScore), repertoire, suppressedByMelodyWindow, ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}), orderKey: `${suppressedByMelodyWindow ? 1 : 0}:${signal === "antiphon" ? 0 : signal === "season" ? 1 : 2}:${repertoire ? 0 : 1}:${999 - aggregatePreferenceScore}:${song.language}:${song.number}` };
-    }).sort((a, b) => a.orderKey.localeCompare(b.orderKey));
+    }).filter((candidate) => !candidate.suppressedByMelodyWindow).sort((a, b) => a.orderKey.localeCompare(b.orderKey));
   }
 
   createSyntheticScaleSongs(count: number): CatalogSong[] { return Array.from({ length: count }, (_, index) => ({ songId: `synthetic-scale-${index + 1}`, language: index % 2 === 0 ? "czech" : "polish", number: `SYN-${String(index + 1).padStart(5, "0")}`, title: `Synthetic Scale Song ${index + 1}`, active: true })); }

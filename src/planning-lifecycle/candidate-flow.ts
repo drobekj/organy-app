@@ -1,4 +1,6 @@
-import type { CandidateQueryResult } from "../application/interaction-contracts";
+import type { CatalogSong } from "../application/catalog";
+import type { CandidateQueryInput, CandidateQueryResult } from "../application/interaction-contracts";
+import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
 
 export type CandidatePopupAction = "select" | "cancel";
 
@@ -39,6 +41,33 @@ export type PlanningLookupAction =
   | { type: "lookupCancelled" }
   | { type: "detailOpened"; songId: string; returnRowId: number }
   | { type: "detailReturned" };
+
+export type PlanningCandidateEditableRow = {
+  id: number;
+  songSearch: string;
+  selectedSong?: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string };
+  selectedCandidate?: CandidateQueryResult;
+  note: string;
+  lookupOpen?: boolean;
+};
+
+export type PlanningCandidateRowAction =
+  | { type: "lookupChanged"; text: string }
+  | { type: "candidateSelected"; song: CatalogSong; candidate?: CandidateQueryResult }
+  | { type: "lookupCancelled" }
+  | { type: "rowDeactivated" }
+  | { type: "songCleared" }
+  | { type: "noteChanged"; note: string };
+
+export type CandidateQueryContextInput = {
+  serviceDate: string;
+  serviceLanguage: ServiceLanguage;
+  organistPersonId?: string;
+  antiphonKey?: string;
+  liturgicalSeasonKey?: string;
+  recentSongIds?: string[];
+  recentSongs?: { songId: string; serviceDate: string }[];
+};
 
 export function getCandidatePopupRows(candidates: CandidateQueryResult[]): CandidatePopupRow[] {
   return candidates.filter((candidate) => !candidate.suppressedByMelodyWindow).map((candidate) => ({
@@ -89,4 +118,44 @@ export function planningLookupReducer(state: PlanningLookupState, action: Planni
       return rest;
     }
   }
+}
+
+export function buildCandidateQueryInput(input: CandidateQueryContextInput): CandidateQueryInput {
+  return {
+    serviceDate: input.serviceDate,
+    serviceLanguage: input.serviceLanguage,
+    ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}),
+    ...(input.antiphonKey?.trim() ? { antiphonKey: input.antiphonKey.trim() } : {}),
+    ...(input.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: input.liturgicalSeasonKey.trim() } : {}),
+    recentSongIds: input.recentSongIds ?? [],
+    recentSongs: input.recentSongs ?? [],
+  };
+}
+
+export function planningCandidateRowReducer(row: PlanningCandidateEditableRow, action: PlanningCandidateRowAction): PlanningCandidateEditableRow {
+  switch (action.type) {
+    case "lookupChanged":
+      return { ...row, songSearch: action.text, lookupOpen: Boolean(action.text.trim()) };
+    case "candidateSelected":
+      return { ...row, songSearch: formatSongLabel(action.song), selectedSong: action.song, selectedCandidate: action.candidate, lookupOpen: false };
+    case "lookupCancelled":
+    case "rowDeactivated":
+      return restoreConfirmedCandidate(row);
+    case "songCleared":
+      return { ...row, songSearch: "", selectedSong: undefined, selectedCandidate: undefined, lookupOpen: false };
+    case "noteChanged":
+      return { ...row, note: action.note };
+  }
+}
+
+export function restoreConfirmedCandidate<T extends PlanningCandidateEditableRow>(row: T): T {
+  return { ...row, lookupOpen: false, songSearch: row.selectedSong ? formatSongLabel(row.selectedSong) : "" };
+}
+
+export function restoreRowsExceptActive<T extends PlanningCandidateEditableRow>(rows: T[], targetRowId: number): T[] {
+  return rows.map((row) => row.id === targetRowId ? row : row.lookupOpen ? restoreConfirmedCandidate(row) : row);
+}
+
+export function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {
+  return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
 }

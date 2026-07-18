@@ -461,3 +461,18 @@ textarea {
     min-width: 0;
   }
 }
+
+.candidate-card-compact button {
+  align-items: center;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  overflow-x: auto;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.selected-song-note-row input {
+  width: 100%;
+}
