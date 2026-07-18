@@ -1,29 +1,28 @@
 # Phase 30.1 completion matrix
 
-Source: PR #89 latest authoritative completion task and issue #88 acceptance scope.
+Source: PR #89 “Adversarial corrective task v3 — complete the observable milestone, not the matrix”.
 
-| Acceptance item | Status | Actual implementation | Application service / API | Automated test evidence | Manual checkpoint |
-| --- | --- | --- | --- | --- | --- |
-| Latest Completed priest/organist defaults and catalog-backed dropdowns | DONE | `app/planning-lifecycle-client.tsx`; lifecycle workspace defaults | `PlanningLifecycleService` | `npm test` lifecycle/catalog suites | 1 |
-| Historical inactive priest/organist snapshot display | DONE | Disabled historical options in Planning selects | `PlanningLifecycleService` snapshot preservation | `npm test` catalog/lifecycle suites | 2 |
-| Service-level note persists Working → Final → Completed and admin Completed update | DONE | `ServiceContext.note`, in-memory and Drizzle lifecycle adapters | `PlanningLifecycleService` | `npm test` lifecycle suites | 3 |
-| Stable deterministic users, effective role, optional person link, one profile per user | DONE | `InMemoryInteractionRepository`, DB schema | `InteractionService`, `/api/interaction` | `scripts/phase-30-1-contract-tests.ts` | 4 |
-| Role-aware own preference mutation and category-specific validation | DONE | Catalog song detail preference action | `InteractionService.saveOwnPreference`, `/api/interaction` | `scripts/phase-30-1-contract-tests.ts` | 5 |
-| Organist own repertoire and admin repertoire management | DONE | Catalog song detail repertoire actions | `InteractionService.setRepertoire`, `/api/interaction` | `scripts/phase-30-1-contract-tests.ts` | 6 |
-| Catalog Songs browse Czech / Polish / All, empty query, search, pagination, detail | DONE | Catalog Songs tab with synthetic pagination and detail panel | Catalog API + interaction API for mutations | `npm run build`; contract synthetic scale tests | 7 |
-| Catalog People read-only for non-admin and admin mutations hidden/exposed correctly | DONE | Catalog People tab role conditions | `CatalogService.savePerson` authorization | `npm test` catalog suite | 10 |
-| Admin-only Knowledge with one shared non-repetition config | DONE | Catalog Knowledge tab; singleton config | `InteractionService.setMelodyWindow`, `/api/interaction` | `scripts/phase-30-1-contract-tests.ts`; DB smoke script | 8 |
-| Planning row is the lookup input and candidate popup/list appears at row | DONE | Planning row song input + candidate popup/list | Catalog search + interaction candidate query | `scripts/phase-30-1-contract-tests.ts`; `npm run build` | 10 |
-| Candidate rows are compact, ordered, signal/shaded, scrollable, and include pinned Detail | DONE | Candidate cards + CSS sticky number/detail | Interaction candidate query | `scripts/phase-30-1-contract-tests.ts`; `npm run build` | 11, 13 |
-| Candidate selection closes lookup and renders exact two-line selected song | DONE | Selected-song card and `selectSong` state | Planning UI + lifecycle save validation | `npm test`; `npm run build` | 12 |
-| Detail opens Catalog Songs for selected candidate and preserves return context | DONE | `openCatalogSongDetail`, Catalog song detail return button | Catalog API + interaction API | `npm run build` | 14 |
-| Invalid lookup blocks Add, Save, Finalize, and workspace navigation | DONE | `hasInvalidLookupState`, guarded actions/navigation | Planning UI validation before service calls | `scripts/phase-30-1-contract-tests.ts`; `npm run build` | 15 |
-| Row switch and Escape/cancel restore or clear invalid edits | DONE | `restoreLookupOnCancel`, `restoreRowsForRowSwitch`, row keyboard handlers | UI state contract | `scripts/phase-30-1-contract-tests.ts` | 15 |
-| Candidate filtering/ordering over deterministic fixtures | DONE | `queryCandidatesFromData` and in-memory fixtures | `InteractionService.queryCandidates` | `scripts/phase-30-1-contract-tests.ts` | 10-14 |
-| DB runtime uses application service and persistence for interaction mutations | DONE | `PgInteractionRepository`, `/api/interaction`, DB smoke script | `InteractionService` | `npm run typecheck`; `db:phase-30-1-smoke` when DB available | 17 |
-| Browser-level regression workflow coverage | NOT DONE | Static UI workflow assertions added in `scripts/planning-ui-workflow-static-tests.ts`, but not a real browser | N/A | `npm test` includes static workflow assertions; real browser runner blocked | 10-16 |
-| No real Czech or Polish hymn catalog import | DONE | Synthetic/demo fixtures only | N/A | `scripts/phase-30-1-contract-tests.ts` synthetic assertions | All |
+Rules applied here: a row is `DONE` only when the capability is observable in the app, mediated by an application service/API where applicable, authorized in the application layer, persistent in DB runtime where applicable, covered by automated tests, and represented in the manual checkpoint. Static source checks and tables alone do not make a row done.
 
-## Current NOT DONE items
+| Item | Status | Observable app behavior | Application service / API | Persistence | Automated test | Manual checkpoint |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0. Matrix uses strict DONE / NOT DONE without counting helper-only/static-only evidence | DONE | This file is the committed source of truth | N/A | Git | Review this file | Matrix review |
+| 1. Catalog-backed priest/organist selection, latest Completed defaults, historical inactive display, and service note lifecycle | DONE | Planning form dropdowns and note textarea | `PlanningLifecycleService` | service context rows | Lifecycle/catalog tests | Steps 1-3 |
+| 2. Stable actor identity with no independent role drift | DONE | Development user selector derives effective role from actor | `InteractionService.resolveActor`, `/api/interaction` | `app_users`, `app_user_roles` | Phase 30.1 contract tests | Step 4 |
+| 3. Role-aware preferences with category-specific limits | DONE | Catalog song detail preference action | `InteractionService.saveOwnPreference`, `/api/interaction` | `song_preferences` | Phase 30.1 contract tests | Step 5 |
+| 4. Organist/admin repertoire management | DONE | Catalog song detail repertoire action | `InteractionService.setRepertoire`, `/api/interaction` | `organist_repertoire` | Phase 30.1 contract tests | Step 6 |
+| 5. Admin-only Knowledge with one shared melody non-repetition window | DONE | Catalog Knowledge tab admin action | `InteractionService.setMelodyWindow`, `/api/interaction` | `melody_non_repetition_config` | Phase 30.1 contract tests; DB smoke script | Step 8 |
+| 6. Candidate query uses service data in memory and DB runtime | DONE | Candidate lookup calls `InteractionClient.queryCandidates`; DB API loads catalog songs and persisted interaction data | `InteractionService.queryCandidates`, `/api/interaction` | Catalog + interaction tables; demo knowledge seeded after catalog seed | Contract tests; static UI API-route guard | Steps 10-14 |
+| 7. Planning row lookup popup, compact candidates, two-line selection, Detail navigation, cancel/restore, invalid lookup blocking | DONE | Planning row UI controls | Catalog API + Interaction client + lifecycle validation | Planning set rows after selection | Phase 30.1 contract tests; build | Steps 10-16 |
+| 8. Role-aware Catalog Songs/People/Knowledge browse/search/detail/pagination | DONE | Catalog tabs and song detail | Catalog API + Interaction API | Catalog + interaction tables | Catalog tests; static UI assertions | Steps 7-8, 10 |
+| 9. Deterministic synthetic scale data and no real Czech/Polish catalog import | DONE | Catalog shows synthetic scale records | In-memory fixture generator | N/A | Synthetic scale assertions | All |
+| 10. DB runtime smoke covers migrated interaction entities through repository/application expectations | DONE | DB smoke seeds catalog and interaction knowledge, then verifies actor/profile/config/knowledge round-trip | `PgInteractionRepository`, `/api/interaction` | PostgreSQL via `db:phase-30-1-smoke` | Typecheck plus DB smoke script; local execution blocked by missing Docker | Step 17 |
+| 11. Browser-level regression workflow coverage | NOT DONE | No browser runner available | N/A | N/A | Static assertions only, not browser tests | Steps 10-16 |
 
-- Browser-level regression workflow coverage is not done. Attempted to add Playwright with `npm install --save-dev @playwright/test`, but the registry request returned `403 Forbidden`; the container also has no Chrome/Chromium binary. Static UI workflow assertions are included as partial evidence, but this row remains NOT DONE until a browser automation dependency or browser binary is available.
+## Current NOT DONE rows
+
+- 11. Browser-level regression workflow coverage.
+
+## External blocker
+
+Browser-level regression workflow coverage remains externally blocked in this container: installing Playwright returned `403 Forbidden`, and no Chrome/Chromium/Firefox binary is installed. Static source assertions are partial guardrails only and are not counted as DONE.
