@@ -7,9 +7,10 @@ const css = readFileSync("app/globals.css", "utf8");
 for (const required of [
   "role=\"listbox\"",
   "Cancel lookup",
-  "openCatalogSongDetail(candidate.songId, row.id)",
+  "openCatalogSongDetail(candidateLine.songId, row.id)",
   "Back to Planning row",
-  "selected-song-summary",
+  `data-content-row="candidate"`,
+  `data-content-row="note"`,
   "Historical inactive priest",
   "Historical inactive organist",
   "Catalog sections",

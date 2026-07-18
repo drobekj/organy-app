@@ -15,6 +15,7 @@ import {
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { getCandidatePopupRows, getSelectedSongPresentation } from "../src/planning-lifecycle/candidate-flow";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -27,6 +28,7 @@ type EditableRow = {
   id: number;
   songSearch: string;
   selectedSong?: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string };
+  selectedCandidate?: CandidateQueryResult;
   note: string;
   lookupOpen?: boolean;
 };
@@ -91,6 +93,24 @@ function toPlanningRow(row: EditableRow): PlanningRow {
 
 function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {
   return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
+}
+
+function candidateFromSelectedSong(song: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }): CandidateQueryResult {
+  return {
+    songId: song.songId ?? `historical:${song.language}:${song.number}`,
+    language: song.language,
+    number: song.number,
+    title: song.title ?? "Untitled snapshot",
+    equivalentNumbers: [],
+    aggregatePreferenceScore: 0,
+    antiphonMatch: false,
+    seasonMatch: false,
+    signal: "none",
+    preferenceShade: "none",
+    repertoire: false,
+    suppressedByMelodyWindow: false,
+    orderKey: `${song.language}:${song.number}`,
+  };
 }
 
 
@@ -544,16 +564,16 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
   }
 
-  function selectSong(rowId: number, song: CatalogSong) {
+  function selectSong(rowId: number, song: CatalogSong, candidate?: CandidateQueryResult) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: formatSongLabel(song), selectedSong: song, lookupOpen: false } : row)));
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: formatSongLabel(song), selectedSong: song, selectedCandidate: candidate, lookupOpen: false } : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
     setCandidateResults((current) => ({ ...current, [rowId]: [] }));
   }
 
   function clearSong(rowId: number) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined, lookupOpen: false } : row)));
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined, selectedCandidate: undefined, lookupOpen: false } : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
     setCandidateResults((current) => ({ ...current, [rowId]: [] }));
   }
@@ -989,23 +1009,33 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                         placeholder="Search by number or title"
                         disabled={!canEditRows}
                       />
-                      {row.selectedSong ? (
-                        <div className="selected-song-card" aria-label={`Selected song for row ${index + 1}`}>
-                          <div className="selected-song-summary"><strong className="sticky-song-number">{row.selectedSong.number}</strong><span>{row.selectedSong.title ?? "Untitled snapshot"}</span>{row.selectedSong.songId && <button type="button" className="candidate-detail-button" onClick={() => openCatalogSongDetail(row.selectedSong!.songId!, row.id)}>Detail</button>}</div>
-                          <span>{row.selectedSong.language}{row.selectedSong.songId ? ` · ${row.selectedSong.songId}` : " · historical snapshot without catalog ID"}</span>
-                        </div>
-                      ) : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
+                      {row.selectedSong ? (() => {
+                        const candidate = row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong);
+                        const presentation = getSelectedSongPresentation(candidate, row.note);
+                        const candidateLine = presentation.lines[0];
+                        const noteLine = presentation.lines[1];
+                        return (
+                          <div className="selected-song-card" aria-label={`Selected song for row ${index + 1}`}>
+                            <div className="selected-song-summary" data-content-row="candidate">
+                              <strong className="sticky-song-number">{candidateLine.number}</strong>
+                              <span>{candidateLine.title || "Untitled snapshot"} · {candidateLine.language} · {candidateLine.signal} · preference {candidateLine.preferenceShade}{candidateLine.repertoire ? " · repertoire" : ""}</span>
+                              {candidateLine.songId && <button type="button" className="candidate-detail-button" onClick={() => openCatalogSongDetail(candidateLine.songId, row.id)}>Detail</button>}
+                            </div>
+                            <span data-content-row="note">{noteLine.text.trim() ? noteLine.text : "No text note."}</span>
+                          </div>
+                        );
+                      })() : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
                       {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
-                      {(songResults[row.id]?.length ?? 0) > 0 && canEditRows && (
+                      {getCandidatePopupRows(candidateResults[row.id] ?? []).length > 0 && canEditRows && (
                         <div className="candidate-popup" role="listbox" aria-label={`Song candidates for row ${index + 1}`}>
-                          {(candidateResults[row.id] ?? []).map((candidate) => {
+                          {getCandidatePopupRows(candidateResults[row.id] ?? []).map((candidate) => {
+                            const fullCandidate = (candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId);
                             const song = songResults[row.id].find((item) => item.songId === candidate.songId);
                             if (!song) return null;
                             return (
-                              <div key={candidate.songId} className={candidate.suppressedByMelodyWindow ? "candidate-card candidate-muted" : "candidate-card"}>
-                                <button type="button" onClick={() => selectSong(row.id, song)}>{candidate.number} · {candidate.title}</button>
-                                <span>{candidate.language} · {candidate.signal} · preference {candidate.preferenceShade}{candidate.repertoire ? " · repertoire" : ""}{candidate.suppressedByMelodyWindow ? " · recent melody" : ""}</span>
-                                <button type="button" className="candidate-detail-button" onClick={() => openCatalogSongDetail(candidate.songId, row.id)}>Detail</button>
+                              <div key={candidate.songId} className="candidate-card">
+                                <button type="button" onClick={() => selectSong(row.id, song, fullCandidate)}>{candidate.number} · {candidate.title}</button>
+                                <span>{candidate.language} · {candidate.signal} · preference {candidate.preferenceShade}{candidate.repertoire ? " · repertoire" : ""}</span>
                               </div>
                             );
                           })}
