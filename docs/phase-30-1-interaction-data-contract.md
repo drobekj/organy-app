@@ -1,6 +1,6 @@
 # Phase 30.1 interaction and data-contract foundation
 
-Issue #88 is implemented as a deterministic foundation only. It does **not** import or derive from the real Czech or Polish hymn catalogs.
+Issue #88 is implemented as the first manual Planning interaction milestone using deterministic demo fixtures and synthetic scale data only. It does **not** import or derive from the real Czech or Polish hymn catalogs.
 
 ## Delivered foundation
 
@@ -8,8 +8,11 @@ Issue #88 is implemented as a deterministic foundation only. It does **not** imp
 - Planning uses catalog-backed priest and organist selections rather than valid free text. Historical saved snapshots remain displayable because the service context still stores both stable person IDs and display-name snapshots.
 - Development mode exposes deterministic user identities with effective roles so preference and repertoire behavior can be exercised before authentication exists.
 - Catalog is present in the permanent workspace navigation for all roles. Admin-only actions remain application-service guarded.
-- The persistent contract now includes users, user roles, one preference profile per user, song preferences, organist repertoire, melody-equivalence classes, antiphon mappings, liturgical-season mappings, and melody non-repetition rules.
-- Candidate-query and row-transition contracts live in `src/application/interaction-contracts.ts`; they define deterministic candidate signals, preference shading, repertoire authorization, knowledge authorization, and invalid lookup blocking helpers.
+- The persistent contract now includes users, user roles, one preference profile per user, song preferences, organist repertoire, melody-equivalence classes, antiphon mappings, liturgical-season mappings, and one shared melody non-repetition configuration.
+- Candidate-query and row-transition contracts live in `src/application/interaction-contracts.ts`; they define deterministic candidate ordering, antiphon/season signals, preference shading, repertoire authorization, Knowledge authorization, invalid lookup blocking helpers, and synthetic scale fixtures.
+- Planning rows now expose a candidate popup, candidate Detail navigation with return to the row, and a precise two-line selected-song presentation. Lookup text remains invalid until a candidate is selected or the lookup is cancelled.
+- Catalog has role-aware Songs, People, and Knowledge sections: non-admins can browse, users can manage their own preference/repertoire within role limits, and only admins can mutate People, Songs activation, or Knowledge configuration.
+- Melody non-repetition uses one shared configurable window instead of per-melody-class rule rows.
 
 ## Demo and synthetic data policy
 
@@ -31,3 +34,4 @@ For local development, rollback is safe by rebuilding a disposable database from
 8. Confirm the left navigation remains visible while switching workspaces.
 9. Activate a Planning row, select a demo candidate, and confirm invalid lookup text cannot be persisted by state-machine tests.
 10. Use a disposable DB to run migrate and smoke checks when Docker/PostgreSQL are available.
+11. Verify candidate popup ordering, Detail return navigation, selected-song two-line display, invalid lookup blocking, preference/repertoire actions, admin-only Knowledge changes, and synthetic scale fixtures.

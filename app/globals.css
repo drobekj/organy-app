@@ -352,3 +352,50 @@ button:disabled {
     display: grid;
   }
 }
+
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  color: var(--foreground);
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+}
+
+.candidate-popup,
+.detail-panel,
+.selected-song-card {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+.candidate-popup {
+  background: #f8fafc;
+  box-shadow: 0 0.75rem 1.5rem rgb(31 41 51 / 10%);
+}
+
+.candidate-card {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: 1fr auto;
+  padding-bottom: 0.5rem;
+}
+
+.candidate-card span,
+.selected-song-card span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.candidate-muted {
+  opacity: 0.7;
+}
+
+.detail-panel {
+  background: #f8fafc;
+}

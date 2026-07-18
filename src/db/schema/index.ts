@@ -192,7 +192,7 @@ export const organistRepertoire = pgTable("organist_repertoire", {
 
 export const antiphonMappings = pgTable("antiphon_mappings", { id: text("id").primaryKey(), antiphonKey: text("antiphon_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
 export const liturgicalSeasonMappings = pgTable("liturgical_season_mappings", { id: text("id").primaryKey(), seasonKey: text("season_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
-export const melodyNonRepetitionRules = pgTable("melody_non_repetition_rules", { id: text("id").primaryKey(), classId: text("class_id").notNull().references(() => melodyEquivalenceClasses.id, { onDelete: "cascade" }), daysBefore: integer("days_before").notNull().default(0), daysAfter: integer("days_after").notNull().default(0), synthetic: boolean("synthetic").notNull().default(false) });
+export const melodyNonRepetitionConfig = pgTable("melody_non_repetition_config", { id: text("id").primaryKey().default("global"), daysBefore: integer("days_before").notNull().default(14), daysAfter: integer("days_after").notNull().default(0), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow() }, (table) => ({ singletonConfig: check("melody_non_repetition_config_singleton", sql`${table.id} = 'global'`), nonNegativeWindow: check("melody_non_repetition_config_non_negative", sql`${table.daysBefore} >= 0 and ${table.daysAfter} >= 0`) }));
 
 export const serviceContextsRelations = relations(serviceContexts, ({ many }) => ({
   serviceSets: many(serviceSets),
