@@ -17,6 +17,9 @@ for (const required of [
   "interactionClient.saveOwnPreference",
   "interactionClient.setRepertoire",
   "interactionClient.setMelodyWindow",
+  "const selectedRole = activeActor.role",
+  "interactionClient.queryCandidates",
+  `callInteractionApi("queryCandidates"`,
 ]) {
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }

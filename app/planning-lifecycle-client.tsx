@@ -43,7 +43,7 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[] }): Promise<CandidateQueryResult[]>; };
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -153,6 +153,7 @@ class DbInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return callInteractionApi("setMelodyWindow", input); }
+  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[] }) { const result = await callInteractionApi("queryCandidates", { serviceDate: input.serviceDate, serviceLanguage: input.serviceLanguage, organistPersonId: input.organistPersonId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: input.recentSongIds }); return result.success ? result.value as CandidateQueryResult[] : []; }
 }
 
 class MemoryInteractionClient implements InteractionClient {
@@ -160,6 +161,7 @@ class MemoryInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return this.repo.setMelodyWindow(input.actor, { daysBefore: input.daysBefore, daysAfter: input.daysAfter }); }
+  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; recentSongIds: string[] }) { return this.repo.queryCandidates(input.songs, { serviceDate: input.serviceDate, serviceLanguage: input.serviceLanguage, organistPersonId: input.organistPersonId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: input.recentSongIds }); }
 }
 
 class DbCatalogClient {
@@ -246,7 +248,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
   const [serviceNote, setServiceNote] = useState("");
-  const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
   const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
@@ -259,6 +260,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [lastSavedRecord, setLastSavedRecord] = useState<PersistedRecordReference | null>(null);
   const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
   const [songResults, setSongResults] = useState<Record<number, CatalogSong[]>>({});
+  const [candidateResults, setCandidateResults] = useState<Record<number, CandidateQueryResult[]>>({});
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
@@ -272,7 +274,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [workspace, setWorkspace] = useState<Workspace>("planning");
   const demoUsers = useMemo(() => interactionRepository.listUsers().map((user) => ({ id: user.id, label: user.displayName, role: user.roles[0] })), [interactionRepository]);
   const [selectedUserId, setSelectedUserId] = useState("demo-priest-user");
-  const activeActor: ActorIdentity = interactionRepository.resolveActor(selectedUserId, selectedRole) ?? interactionRepository.resolveActor("demo-priest-user")!;
+  const activeActor: ActorIdentity = interactionRepository.resolveActor(selectedUserId) ?? interactionRepository.resolveActor("demo-priest-user")!;
+  const selectedRole = activeActor.role;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
 
   useEffect(() => {
@@ -524,9 +527,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     });
   }
 
-  function getCandidatesForSongs(songs: CatalogSong[]): CandidateQueryResult[] {
-    return interactionRepository.queryCandidates(songs, { serviceDate, serviceLanguage, organistPersonId: organistId, antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", recentSongIds: completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : [])) });
-  }
+  function getRecentCompletedSongIds(): string[] { return completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : [])); }
 
   async function updateSongSearch(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
@@ -535,24 +536,31 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: value, selectedSong: undefined, lookupOpen: Boolean(value.trim()) } : row)));
     const result = await catalogClient.searchSongs({ language: languageAtRequest, query: value });
     if (!lookupTracker.isCurrent(token, `${languageAtRequest}:${value}`)) return;
-    if (result.success) setSongResults((current) => ({ ...current, [rowId]: result.value }));
+    if (result.success) {
+      setSongResults((current) => ({ ...current, [rowId]: result.value }));
+      const candidates = await interactionClient.queryCandidates({ songs: result.value, serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, recentSongIds: getRecentCompletedSongIds() });
+      setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
+    }
   }
 
   function selectSong(rowId: number, song: CatalogSong) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: formatSongLabel(song), selectedSong: song, lookupOpen: false } : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
   }
 
   function clearSong(rowId: number) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined, lookupOpen: false } : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
   }
 
   function cancelActiveLookup(rowId: number) {
     setRows((currentRows) => currentRows.map((row) => row.id === rowId ? restoreLookupOnCancel(row) : row));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
     setServiceError(null);
   }
 
@@ -989,7 +997,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
                       {(songResults[row.id]?.length ?? 0) > 0 && canEditRows && (
                         <div className="candidate-popup" role="listbox" aria-label={`Song candidates for row ${index + 1}`}>
-                          {getCandidatesForSongs(songResults[row.id]).map((candidate) => {
+                          {(candidateResults[row.id] ?? []).map((candidate) => {
                             const song = songResults[row.id].find((item) => item.songId === candidate.songId);
                             if (!song) return null;
                             return (
@@ -1127,7 +1135,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedRole(user.role); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><p>Development switches stable user IDs and effective roles until authentication exists.</p></div>
+            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) setSelectedUserId(user.id); }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><p>Development switches stable user IDs and effective roles until authentication exists.</p></div>
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}

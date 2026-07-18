@@ -16,3 +16,22 @@ CREATE UNIQUE INDEX "organist_repertoire_person_song_idx" ON "organist_repertoir
 CREATE TABLE "antiphon_mappings" ("id" text PRIMARY KEY NOT NULL,"antiphon_key" text NOT NULL,"song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade,"synthetic" boolean DEFAULT false NOT NULL);
 CREATE TABLE "liturgical_season_mappings" ("id" text PRIMARY KEY NOT NULL,"season_key" text NOT NULL,"song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade,"synthetic" boolean DEFAULT false NOT NULL);
 CREATE TABLE "melody_non_repetition_config" ("id" text DEFAULT 'global' PRIMARY KEY NOT NULL,"days_before" integer DEFAULT 14 NOT NULL,"days_after" integer DEFAULT 0 NOT NULL,"updated_at" timestamp with time zone DEFAULT now() NOT NULL, CONSTRAINT "melody_non_repetition_config_singleton" CHECK ("id" = 'global'), CONSTRAINT "melody_non_repetition_config_non_negative" CHECK ("days_before" >= 0 and "days_after" >= 0));
+
+INSERT INTO "app_users" ("id", "display_name", "person_id", "active") VALUES
+  ('demo-priest-user', 'Demo Priest User', 'demo-priest', true),
+  ('demo-organist-user', 'Demo Organist User', 'demo-organist', true),
+  ('demo-admin-user', 'Demo Admin User', null, true),
+  ('demo-member-user', 'Demo Congregation User', null, true)
+ON CONFLICT ("id") DO NOTHING;
+INSERT INTO "app_user_roles" ("user_id", "role") VALUES
+  ('demo-priest-user', 'priest'),
+  ('demo-organist-user', 'organist'),
+  ('demo-admin-user', 'admin'),
+  ('demo-member-user', 'congregation_member')
+ON CONFLICT DO NOTHING;
+INSERT INTO "preference_profiles" ("id", "user_id", "category") VALUES
+  ('pref-priest', 'demo-priest-user', 'priest'),
+  ('pref-organist', 'demo-organist-user', 'organist'),
+  ('pref-member', 'demo-member-user', 'congregation_member')
+ON CONFLICT ("user_id") DO NOTHING;
+INSERT INTO "melody_non_repetition_config" ("id", "days_before", "days_after") VALUES ('global', 60, 0) ON CONFLICT ("id") DO NOTHING;
