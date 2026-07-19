@@ -9,6 +9,22 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,6 +35,34 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Wait for PostgreSQL
+        run: |
+          for attempt in {1..30}; do
+            if docker exec ${{ job.services.postgres.id }} pg_isready -U organy_app -d organy_app; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs ${{ job.services.postgres.id }} > postgres.log 2>&1 || true
+          exit 1
+      - name: Database migration
+        run: |
+          set -o pipefail
+          npm run db:migrate 2>&1 | tee db-migrate.log
+      - name: Phase 30.1 DB lifecycle smoke
+        run: |
+          set -o pipefail
+          npm run db:phase-30-1-smoke 2>&1 | tee db-phase-30-1-smoke.log
+      - name: Upload database logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-logs
+          path: |
+            db-migrate.log
+            db-phase-30-1-smoke.log
+            postgres.log
+          if-no-files-found: ignore
       - name: Typecheck
         run: npm run typecheck
       - name: Test
