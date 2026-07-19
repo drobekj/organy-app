@@ -35,6 +35,7 @@ assert(interactionSeedSource.includes("catalog_persons") && interactionSeedSourc
 assert(interactionSeedSource.includes("catalog_songs") && interactionSeedSource.includes("demo-cz-101") && interactionSeedSource.includes("demo-pl-101"), "Phase 30 interaction seed must create exact demo catalog songs before interaction knowledge");
 const smokeSource = readFileSync("scripts/db-phase-30-1-smoke.ts", "utf8");
 assert(smokeSource.includes("months"), "DB smoke must verify the persisted months column");
+assert(smokeSource.includes("string_agg(r.role::text"), "DB smoke must normalize PostgreSQL enum roles to exact text before assertion");
 assert(schemaSource.slice(schemaSource.indexOf("export const serviceContexts"), schemaSource.indexOf("export const serviceSets")).includes("antiphonKey"), "service-level hydration keys must live on serviceContexts");
 assert(!schemaSource.slice(schemaSource.indexOf("export const serviceSetRows"), schemaSource.indexOf("export const completedServices")).includes("antiphonKey"), "serviceSetRows must not persist service-level hydration keys");
 assert(!schemaSource.slice(schemaSource.indexOf("export const completedServiceRows"), schemaSource.indexOf("export const preferenceProfileCategory")).includes("antiphonKey"), "completedServiceRows must not persist service-level hydration keys");
