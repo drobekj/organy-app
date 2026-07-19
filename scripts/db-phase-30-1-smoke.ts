@@ -19,6 +19,14 @@ async function main() {
     await pool.query("insert into preference_profiles (id, user_id, category) values ($1, $2, 'priest') on conflict (user_id) do update set category = excluded.category", ["phase30-db-profile", "phase30-db-user"]);
     await pool.query("insert into melody_non_repetition_config (id, months) values ('global', 2) on conflict (id) do update set months = excluded.months");
     await seedDemoInteractionKnowledge(pool);
+    await seedDemoInteractionKnowledge(pool);
+    const identityRows = await pool.query("select u.id, u.person_id, array_agg(r.role order by r.role) as roles, count(p.id)::int as profile_count from app_users u left join app_user_roles r on r.user_id = u.id left join preference_profiles p on p.user_id = u.id where u.id in ('demo-priest-user', 'demo-organist-user', 'demo-admin-user', 'demo-member-user') group by u.id, u.person_id order by u.id");
+    const identityById = new Map(identityRows.rows.map((row) => [String(row.id), { person_id: row.person_id, roles: row.roles as string[], profile_count: Number(row.profile_count) }]));
+    if (identityById.get("demo-priest-user")?.person_id !== "demo-priest" || identityById.get("demo-organist-user")?.person_id !== "demo-organist") throw new Error("Demo priest/organist users must keep catalog person links.");
+    if (identityById.get("demo-priest-user")?.profile_count !== 1 || identityById.get("demo-organist-user")?.profile_count !== 1 || identityById.get("demo-member-user")?.profile_count !== 1) throw new Error("Demo seed must create exactly one preference profile for priest, organist, and member.");
+    if (identityById.get("demo-priest-user")?.roles[0] !== "priest" || identityById.get("demo-organist-user")?.roles[0] !== "organist" || identityById.get("demo-admin-user")?.roles[0] !== "admin" || identityById.get("demo-member-user")?.roles[0] !== "congregation_member") throw new Error("Demo seed roles did not round-trip.");
+    const duplicateCheck = await pool.query("select (select count(*) from app_users where id like 'demo-%user')::int as users, (select count(*) from preference_profiles where id in ('pref-priest', 'pref-organist', 'pref-member'))::int as profiles, (select count(*) from song_preferences where profile_id in ('pref-priest', 'pref-organist', 'pref-member'))::int as preferences, (select count(*) from organist_repertoire where organist_person_id = 'demo-organist' and song_id = 'demo-cz-101')::int as repertoire");
+    if (duplicateCheck.rows[0].users !== 4 || duplicateCheck.rows[0].profiles !== 3 || duplicateCheck.rows[0].preferences !== 3 || duplicateCheck.rows[0].repertoire !== 1) throw new Error("Repeated Phase 30.1 demo seed must remain idempotent.");
 
     const lifecycle = new PlanningLifecycleService({
       planningSets: new DrizzlePlanningSetRepository({ db }),
