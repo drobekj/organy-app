@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
+import { existsSync, readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { queryCandidatesFromData } from "../src/application/interaction-service";
 import { InMemoryInteractionRepository } from "../src/application/interaction-contracts";
@@ -21,6 +22,13 @@ import type { CandidateQueryResult, KnowledgeMapping, MelodyClass, SongPreferenc
 import type { CatalogSong } from "../src/application/catalog";
 
 
+
+const schemaSource = readFileSync("src/db/schema/index.ts", "utf8");
+assert(schemaSource.includes('months: integer("months")'), "Drizzle schema must persist melody non-repetition months directly");
+assert(existsSync("drizzle/0006_melody_non_repetition_months.sql"), "months persistence must have an additive DB migration");
+const smokeSource = readFileSync("scripts/db-phase-30-1-smoke.ts", "utf8");
+assert(smokeSource.includes("months"), "DB smoke must verify the persisted months column");
+
 const melodyWindowConfig = new InMemoryInteractionRepository().getMelodyWindow();
 assert.deepEqual(melodyWindowConfig, { months: 2 }, "melody non-repetition config must be one global symmetric month count");
 
@@ -32,6 +40,8 @@ const rehydrated = rehydrateCandidateFromSelectedSong({ songId: "rehydrated", la
 assert.equal(rehydrated.songId, "rehydrated");
 assert.equal(rehydrated.orderKey.includes("rehydrated"), true, "rehydrated rows must regain a complete CandidateQueryResult order key");
 assert.equal(rehydrated.suppressedByMelodyWindow, false);
+assert.equal(rehydrated.preferenceShade, "none", "text note must not affect rehydrated candidate preference metadata");
+assert.equal(rehydrated.aggregatePreferenceScore, 0, "text note must not affect rehydrated candidate scoring metadata");
 
 const visible = candidate("visible", false);
 const suppressed = candidate("suppressed", true);

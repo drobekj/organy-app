@@ -166,7 +166,7 @@ export function formatSongLabel(song: { language: ConcreteSongLanguage; number: 
   return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
 }
 
-export function rehydrateCandidateFromSelectedSong(song: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }, note = ""): CandidateQueryResult {
+export function rehydrateCandidateFromSelectedSong(song: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }, _note = ""): CandidateQueryResult {
   const songId = song.songId ?? `historical:${song.language}:${song.number}`;
   return {
     songId,
@@ -178,7 +178,7 @@ export function rehydrateCandidateFromSelectedSong(song: { songId?: string; lang
     antiphonMatch: false,
     seasonMatch: false,
     signal: "none",
-    preferenceShade: note.trim() ? "low" : "none",
+    preferenceShade: "none",
     repertoire: false,
     suppressedByMelodyWindow: false,
     orderKey: `rehydrated:${song.language}:${song.number}:${songId}`,

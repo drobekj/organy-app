@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(input.actor as ActorIdentity, { months: Number(input.months) })); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
       case "queryCandidates": return NextResponse.json(await service.queryCandidates(asRecord(body.input) as never));
+      case "hydrateCandidates": return NextResponse.json(await service.hydrateCandidates(asRecord(body.input) as never));
       default: return NextResponse.json({ error: `Unsupported interaction action '${body.action}'.` }, { status: 400 });
     }
   } catch (error) {

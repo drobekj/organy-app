@@ -31,6 +31,12 @@ export class InteractionService {
     return resolved;
   }
 
+  async hydrateCandidates(input: { songs: { songId?: string; language: CatalogSong["language"]; number: string; title?: string }[] }): Promise<InteractionResult<CandidateQueryResult[]>> {
+    const [songs, preferences, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), this.repo.listKnowledge()]);
+    const base = queryCandidatesFromData(songs, preferences, new Set(), knowledge, { serviceDate: "1970-01-01", serviceLanguage: "mixed", preferenceThreshold: 0, candidateUsages: [] });
+    return ok(input.songs.map((song) => base.find((candidate) => song.songId && candidate.songId === song.songId) ?? hydrateCandidateFromReference(song)));
+  }
+
   async queryCandidates(input: CandidateQueryInput): Promise<InteractionResult<CandidateQueryResult[]>> { const [songs, preferences, repertoire, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), input.organistPersonId ? this.repo.listRepertoire(input.organistPersonId) : Promise.resolve([]), this.repo.listKnowledge()]); return ok(queryCandidatesFromData(songs, preferences, new Set(repertoire), knowledge, input)); }
 }
 
@@ -127,3 +133,5 @@ function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryIn
 
 function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number, months = 2): boolean { const earlier = addMonthsUtc(target, -months); const later = addMonthsUtc(target, months); return usedAt >= earlier && usedAt <= later; }
 function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }
+
+function hydrateCandidateFromReference(song: { songId?: string; language: CatalogSong["language"]; number: string; title?: string }): CandidateQueryResult { const songId = song.songId ?? `historical:${song.language}:${song.number}`; return { songId, language: song.language, number: song.number, title: song.title ?? "Untitled snapshot", equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, suppressedByMelodyWindow: false, orderKey: `rehydrated:${song.language}:${song.number}:${songId}` }; }
