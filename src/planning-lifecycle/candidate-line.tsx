@@ -11,6 +11,7 @@ export type CandidateLineViewModel = {
   numberOptions: { songId: string; number: string; repertoire: boolean; primary: boolean }[];
   tone: "positive" | "neutral" | "negative";
   backgroundClass: string;
+  contentTextClass: string;
   accessibleMeaning: string;
 };
 
@@ -21,8 +22,9 @@ export function getCandidateLineViewModel(candidate: CandidateQueryResult): Cand
   ].sort((a, b) => `${a.primary ? 0 : a.repertoire ? 1 : 2}:${a.number}`.localeCompare(`${b.primary ? 0 : b.repertoire ? 1 : 2}:${b.number}`));
   const tone: CandidateLineViewModel["tone"] = candidate.suppressedByMelodyWindow || candidate.antiphonMatch ? "negative" : candidate.seasonMatch ? "positive" : "neutral";
   const backgroundClass = `candidate-tone-${tone} candidate-preference-${candidate.preferenceShade}`;
+  const contentTextClass = `candidate-content-text candidate-text-${tone}`;
   const accessibleMeaning = `${tone === "positive" ? "green positive" : tone === "negative" ? "red negative" : "neutral"} candidate; ${candidate.repertoire ? "in organist repertoire" : "not in organist repertoire"}`;
-  return { candidate, numberOptions, tone, backgroundClass, accessibleMeaning };
+  return { candidate, numberOptions, tone, backgroundClass, contentTextClass, accessibleMeaning };
 }
 
 export function CandidateLine(props: CandidateLineProps) {
@@ -30,7 +32,7 @@ export function CandidateLine(props: CandidateLineProps) {
   if (props.variant === "popup") {
     return (
       <div className={`candidate-card candidate-card-compact ${viewModel.backgroundClass}`} data-candidate-line="popup" aria-label={viewModel.accessibleMeaning}>
-        <button type="button" onClick={props.onSelect}><CandidateSummary viewModel={viewModel} /><span>{props.candidate.title} · {props.candidate.language} · {props.candidate.signal}</span></button>
+        <button type="button" onClick={props.onSelect}><span className={viewModel.contentTextClass}><CandidateSummary viewModel={viewModel} /><span>{props.candidate.title} · {props.candidate.language} · {props.candidate.signal}</span></span></button>
       </div>
     );
   }
@@ -41,8 +43,8 @@ export function CandidateLine(props: CandidateLineProps) {
   return (
     <div className={`selected-song-card ${viewModel.backgroundClass}`} data-candidate-line="selected" aria-label={viewModel.accessibleMeaning}>
       <div className="selected-song-summary" data-content-row="candidate">
-        <CandidateSummary viewModel={viewModel} />
-        <span>{candidateLine.title || "Untitled snapshot"} · {candidateLine.language} · {candidateLine.signal}</span>
+        <span className={viewModel.contentTextClass}><CandidateSummary viewModel={viewModel} />
+        <span>{candidateLine.title || "Untitled snapshot"} · {candidateLine.language} · {candidateLine.signal}</span></span>
         <button type="button" className="candidate-detail-button" onClick={props.onOpenDetail}>Detail</button>
       </div>
       <div className="selected-song-note-row" data-content-row="note">

@@ -1,4 +1,4 @@
-import { InMemoryInteractionRepository, type ActorIdentity, type AppUser, type CandidateQueryInput, type CandidateQueryResult, type KnowledgeMapping, type MelodyClass, type MelodyNonRepetitionConfig, type PreferenceProfile, type SongPreference } from "./interaction-contracts";
+import { InMemoryInteractionRepository, type ActorIdentity, type AppUser, type CandidateHydrationInput, type CandidateQueryInput, type CandidateQueryResult, type KnowledgeMapping, type MelodyClass, type MelodyNonRepetitionConfig, type PreferenceProfile, type SongPreference } from "./interaction-contracts";
 import { canManageKnowledge, canManageRepertoire, getCandidateSignal, getPreferenceShade, languagesForServiceShim, preferenceScoreLimit, validateOwnPreferenceScore } from "./interaction-service-utils";
 import type { CatalogSong, CatalogRepository } from "./catalog";
 
@@ -31,10 +31,9 @@ export class InteractionService {
     return resolved;
   }
 
-  async hydrateCandidates(input: { songs: { songId?: string; language: CatalogSong["language"]; number: string; title?: string }[] }): Promise<InteractionResult<CandidateQueryResult[]>> {
-    const [songs, preferences, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), this.repo.listKnowledge()]);
-    const base = queryCandidatesFromData(songs, preferences, new Set(), knowledge, { serviceDate: "1970-01-01", serviceLanguage: "mixed", preferenceThreshold: 0, candidateUsages: [] });
-    return ok(input.songs.map((song) => base.find((candidate) => song.songId && candidate.songId === song.songId) ?? hydrateCandidateFromReference(song)));
+  async hydrateCandidates(input: CandidateHydrationInput): Promise<InteractionResult<CandidateQueryResult[]>> {
+    const [songs, preferences, repertoire, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), input.organistPersonId ? this.repo.listRepertoire(input.organistPersonId) : Promise.resolve([]), this.repo.listKnowledge()]);
+    return ok(hydrateCandidatesFromData(songs, preferences, new Set(repertoire), knowledge, input));
   }
 
   async queryCandidates(input: CandidateQueryInput): Promise<InteractionResult<CandidateQueryResult[]>> { const [songs, preferences, repertoire, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), input.organistPersonId ? this.repo.listRepertoire(input.organistPersonId) : Promise.resolve([]), this.repo.listKnowledge()]); return ok(queryCandidatesFromData(songs, preferences, new Set(repertoire), knowledge, input)); }
@@ -133,5 +132,41 @@ function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryIn
 
 function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number, months = 2): boolean { const earlier = addMonthsUtc(target, -months); const later = addMonthsUtc(target, months); return usedAt >= earlier && usedAt <= later; }
 function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }
+
+export function hydrateCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateHydrationInput): CandidateQueryResult[] {
+  const songsById = new Map(songs.map((song) => [song.songId, song]));
+  return input.songs.map((reference) => {
+    const storedSong = reference.songId ? songsById.get(reference.songId) : undefined;
+    if (!storedSong?.active) return hydrateCandidateFromReference(reference);
+    const melody = knowledge.melodyClasses.find((m) => m.songIds.includes(storedSong.songId));
+    const classSongIds = melody?.songIds ?? [storedSong.songId];
+    const aggregatePreferenceScore = preferences.filter((pref) => pref.songId === storedSong.songId).reduce((sum, pref) => sum + pref.score, 0);
+    const antiphonMatch = Boolean(input.antiphonKey && knowledge.antiphons.some((m) => m.key === input.antiphonKey && m.songId === storedSong.songId));
+    const seasonMatch = Boolean(input.liturgicalSeasonKey && knowledge.seasons.some((m) => m.key === input.liturgicalSeasonKey && m.songId === storedSong.songId));
+    const equivalentNumbers = classSongIds
+      .filter((songId) => songId !== storedSong.songId)
+      .map((songId) => songsById.get(songId))
+      .filter((song): song is CatalogSong => Boolean(song?.active))
+      .map((song) => ({ songId: song.songId, number: song.number, repertoire: repertoire.has(song.songId) }))
+      .sort((a, b) => `${a.repertoire ? 0 : 1}:${a.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.number}`));
+    const signal = getCandidateSignal({ antiphonMatch, seasonMatch });
+    return {
+      songId: storedSong.songId,
+      language: storedSong.language,
+      number: storedSong.number,
+      title: storedSong.title,
+      equivalentNumbers,
+      aggregatePreferenceScore,
+      antiphonMatch,
+      seasonMatch,
+      signal,
+      preferenceShade: getPreferenceShade(aggregatePreferenceScore),
+      repertoire: repertoire.has(storedSong.songId),
+      suppressedByMelodyWindow: false,
+      ...(storedSong.sheetMusicUrl ? { sheetMusicUrl: storedSong.sheetMusicUrl } : {}),
+      orderKey: `hydrated:${storedSong.language}:${storedSong.number}:${storedSong.songId}`,
+    };
+  });
+}
 
 function hydrateCandidateFromReference(song: { songId?: string; language: CatalogSong["language"]; number: string; title?: string }): CandidateQueryResult { const songId = song.songId ?? `historical:${song.language}:${song.number}`; return { songId, language: song.language, number: song.number, title: song.title ?? "Untitled snapshot", equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, suppressedByMelodyWindow: false, orderKey: `rehydrated:${song.language}:${song.number}:${songId}` }; }

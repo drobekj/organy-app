@@ -497,6 +497,24 @@ textarea {
   background: #fffbeb;
 }
 
+.candidate-content-text {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.candidate-text-positive {
+  color: #027a48;
+}
+
+.candidate-text-negative {
+  color: #b42318;
+}
+
+.candidate-text-neutral {
+  color: inherit;
+}
+
 .candidate-number-options {
   align-items: center;
   display: inline-flex;

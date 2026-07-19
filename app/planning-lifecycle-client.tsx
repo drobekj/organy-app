@@ -47,7 +47,8 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: { songs: NonNullable<PlanningRow["song"]>[] }): Promise<CandidateQueryResult[]>; };
+type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
 const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
 
 type PlanningRepositories = {
@@ -174,7 +175,7 @@ class DbInteractionClient implements InteractionClient {
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
-  async hydrateCandidates(input: { songs: NonNullable<PlanningRow["song"]>[] }) { const result = await callInteractionApi("hydrateCandidates", input); return result.success ? result.value as CandidateQueryResult[] : []; }
+  async hydrateCandidates(input: CandidateHydrationClientInput) { const result = await callInteractionApi("hydrateCandidates", input); return result.success ? result.value as CandidateQueryResult[] : []; }
 }
 
 class MemoryInteractionClient implements InteractionClient {
@@ -184,7 +185,7 @@ class MemoryInteractionClient implements InteractionClient {
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await this.service.queryCandidates(buildCandidateQueryInput(input)); return result.success ? result.value : []; }
-  async hydrateCandidates(input: { songs: NonNullable<PlanningRow["song"]>[] }) { const result = await this.service.hydrateCandidates(input); return result.success ? result.value : []; }
+  async hydrateCandidates(input: CandidateHydrationClientInput) { const result = await this.service.hydrateCandidates(input); return result.success ? result.value : []; }
 }
 
 class DbCatalogClient {
@@ -423,7 +424,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const rowIndexes = rowsToHydrate.map((row, index) => row.selectedSong?.songId ? index : -1).filter((index) => index >= 0);
     const songs = rowIndexes.map((index) => rowsToHydrate[index].selectedSong!).filter((song): song is NonNullable<PlanningRow["song"]> => Boolean(song.songId));
     if (songs.length === 0) return rowsToHydrate;
-    const hydrated = await interactionClient.hydrateCandidates({ songs });
+    const hydrated = await interactionClient.hydrateCandidates({ songs, organistPersonId: organistId || undefined });
     return rowsToHydrate.map((row, index) => {
       const hydratedIndex = rowIndexes.indexOf(index);
       return hydratedIndex >= 0 && hydrated[hydratedIndex] ? { ...row, selectedCandidate: hydrated[hydratedIndex] } : row;

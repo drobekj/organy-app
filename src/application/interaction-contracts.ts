@@ -14,6 +14,7 @@ export type CandidateUsageSource = "completed" | "working" | "final" | "current"
 export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number };
 export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
 export type CandidateQueryResult = { songId: string; language: ConcreteSongLanguage; number: string; title: string; equivalentNumbers: { songId: string; number: string; repertoire: boolean }[]; aggregatePreferenceScore: number; antiphonMatch: boolean; seasonMatch: boolean; signal: "antiphon" | "season" | "none"; preferenceShade: "none" | "low" | "medium" | "high"; repertoire: boolean; suppressedByMelodyWindow: boolean; sheetMusicUrl?: string; orderKey: string };
+export type CandidateHydrationInput = { songs: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }[]; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
 
 export function preferenceScoreLimit(category: PreferenceProfileCategory): number { return category === "priest" ? 3 : category === "organist" ? 2 : 1; }
 export function validateOwnPreferenceScore(category: PreferenceProfileCategory, score: number): boolean { return Number.isInteger(score) && score >= 0 && score <= preferenceScoreLimit(category); }

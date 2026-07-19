@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { existsSync, readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { queryCandidatesFromData } from "../src/application/interaction-service";
+import { InMemoryInteractionServiceRepository, InteractionService, queryCandidatesFromData } from "../src/application/interaction-service";
 import { InMemoryInteractionRepository } from "../src/application/interaction-contracts";
 import { CandidateLine, getCandidateLineViewModel } from "../src/planning-lifecycle/candidate-line";
 import {
@@ -158,6 +158,13 @@ assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: true, season
 assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: false, seasonMatch: true, signal: "season" }).tone, "positive", "season candidates must be green");
 assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: true, seasonMatch: true, signal: "antiphon" }).tone, "negative", "antiphon+season candidates must be red");
 
+const antiphonMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: { ...visible, antiphonMatch: true, seasonMatch: false, signal: "antiphon", preferenceShade: "high" }, variant: "selected", note: "Plain note", onOpenDetail: () => undefined, onNoteChange: () => undefined }));
+assert(antiphonMarkup.includes("candidate-content-text candidate-text-negative"), "candidate content text must be red for antiphon candidates");
+assert(antiphonMarkup.includes("candidate-preference-high"), "preference must remain a background class");
+assert(!/selected-song-note-row[^>]*candidate-text-negative/.test(antiphonMarkup), "note row must not receive the candidate signal text color");
+const seasonMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: { ...visible, antiphonMatch: false, seasonMatch: true, signal: "season" }, variant: "popup", onSelect: () => undefined }));
+assert(seasonMarkup.includes("candidate-content-text candidate-text-positive"), "candidate content text must be green for season candidates");
+
 const popupMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: visible, variant: "popup", onSelect: () => undefined }));
 assert(!popupMarkup.includes("Detail"), "popup candidate line must be compact and must not render Detail");
 assert(!popupMarkup.includes(" · preference"), "preference must not be visible text in popup CandidateLine");
@@ -167,7 +174,35 @@ assert(!selectedMarkup.includes(" · preference"), "preference must not be visib
 assert(selectedMarkup.includes("Editable note"), "selected candidate line must render the note as the second row");
 assert.equal((selectedMarkup.match(/data-content-row=/g) ?? []).length, 2, "selected candidate line must render exactly two direct content rows");
 
-console.log("Phase 30.1 candidate flow tests passed.");
+runHydrationAssertions().then(() => console.log("Phase 30.1 candidate flow tests passed."));
+
+async function runHydrationAssertions() {
+  const repo = new InMemoryInteractionRepository();
+  const service = new InteractionService(new InMemoryInteractionServiceRepository(repo), { listSongs: async () => [
+    { songId: "demo-cz-101", language: "czech", number: "101", title: "Demo Czech Song", active: true },
+    { songId: "demo-pl-101", language: "polish", number: "201", title: "Saved Equivalent Primary", active: true },
+    { songId: "missing-historical", language: "czech", number: "999", title: "Inactive historical", active: false },
+  ] });
+  const hydratedResult = await service.hydrateCandidates({
+    organistPersonId: "demo-organist",
+    antiphonKey: "synthetic-entry",
+    liturgicalSeasonKey: "synthetic-advent",
+    songs: [
+      { songId: "demo-pl-101", language: "polish", number: "201", title: "Saved Equivalent Primary" },
+      { songId: "missing-historical", language: "czech", number: "999", title: "Inactive historical" },
+    ],
+  });
+  assert.equal(hydratedResult.success, true);
+  if (!hydratedResult.success) throw new Error("unreachable");
+  assert.equal(hydratedResult.value.length, 2, "hydration must return exactly one result per input");
+  assert.equal(hydratedResult.value[0].songId, "demo-pl-101", "saved equivalent song must remain the primary hydrated result");
+  assert.deepEqual(hydratedResult.value[0].equivalentNumbers.map((item) => `${item.songId}:${item.repertoire}`), ["demo-cz-101:true"], "hydration must include current equivalent numbers and repertoire metadata");
+  assert.equal(hydratedResult.value[0].aggregatePreferenceScore, 0, "row note must not create preference metadata during service hydration");
+  assert.equal(hydratedResult.value[0].seasonMatch, true, "hydration must use saved liturgical season context");
+  assert.equal(hydratedResult.value[1].songId, "missing-historical", "missing/inactive historical song must remain visible as a fallback");
+  assert.equal(hydratedResult.value[1].signal, "none");
+  assert.equal(hydratedResult.value[1].preferenceShade, "none");
+}
 
 function candidate(songId: string, suppressedByMelodyWindow: boolean): CandidateQueryResult {
   return { songId, language: "czech", number: songId === "visible" ? "101" : "102", title: `${songId} title`, equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, suppressedByMelodyWindow, orderKey: songId };
