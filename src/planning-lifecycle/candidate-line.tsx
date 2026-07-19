@@ -18,8 +18,8 @@ export function getCandidateLineViewModel(candidate: CandidateQueryResult): Cand
   const numberOptions = [
     { songId: candidate.songId, number: candidate.number, repertoire: candidate.repertoire, primary: true },
     ...candidate.equivalentNumbers.map((item) => ({ ...item, primary: false })),
-  ].sort((a, b) => `${a.repertoire ? 0 : 1}:${a.primary ? 0 : 1}:${a.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.primary ? 0 : 1}:${b.number}`));
-  const tone: CandidateLineViewModel["tone"] = candidate.suppressedByMelodyWindow ? "negative" : candidate.signal !== "none" || candidate.repertoire || candidate.aggregatePreferenceScore > 0 ? "positive" : "neutral";
+  ].sort((a, b) => `${a.primary ? 0 : a.repertoire ? 1 : 2}:${a.number}`.localeCompare(`${b.primary ? 0 : b.repertoire ? 1 : 2}:${b.number}`));
+  const tone: CandidateLineViewModel["tone"] = candidate.suppressedByMelodyWindow || candidate.antiphonMatch ? "negative" : candidate.seasonMatch ? "positive" : "neutral";
   const backgroundClass = `candidate-tone-${tone} candidate-preference-${candidate.preferenceShade}`;
   const accessibleMeaning = `${tone === "positive" ? "green positive" : tone === "negative" ? "red negative" : "neutral"} candidate; ${candidate.repertoire ? "in organist repertoire" : "not in organist repertoire"}`;
   return { candidate, numberOptions, tone, backgroundClass, accessibleMeaning };
@@ -53,5 +53,5 @@ export function CandidateLine(props: CandidateLineProps) {
 }
 
 function CandidateSummary({ viewModel }: { viewModel: CandidateLineViewModel }) {
-  return <span className="candidate-number-options">{viewModel.numberOptions.map((item) => item.repertoire ? <strong key={item.songId} className="sticky-song-number">{item.number}</strong> : <span key={item.songId}>{item.number}</span>)}</span>;
+  return <span className="candidate-number-options">{viewModel.numberOptions.map((item) => item.primary ? <strong key={item.songId} className="sticky-song-number">{item.number}</strong> : item.repertoire ? <strong key={item.songId}>{item.number}</strong> : <span key={item.songId}>{item.number}</span>)}</span>;
 }

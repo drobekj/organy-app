@@ -1,3 +1,5 @@
+export const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
+
 import type { CatalogSong } from "../application/catalog";
 import type { CandidateQueryInput, CandidateQueryResult, CandidateUsage } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
@@ -130,7 +132,7 @@ export function buildCandidateQueryInput(input: CandidateQueryContextInput): Can
     ...(input.antiphonKey?.trim() ? { antiphonKey: input.antiphonKey.trim() } : {}),
     ...(input.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: input.liturgicalSeasonKey.trim() } : {}),
     ...(input.queryText?.trim() ? { queryText: input.queryText.trim() } : {}),
-    ...(typeof input.preferenceThreshold === "number" ? { preferenceThreshold: input.preferenceThreshold } : {}),
+    preferenceThreshold: typeof input.preferenceThreshold === "number" ? input.preferenceThreshold : PHASE_30_1_PREFERENCE_THRESHOLD,
     ...(input.currentPlanId ? { currentPlanId: input.currentPlanId } : {}),
     candidateUsages: input.candidateUsages ?? [],
   };
@@ -164,6 +166,24 @@ export function formatSongLabel(song: { language: ConcreteSongLanguage; number: 
   return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
 }
 
+export function rehydrateCandidateFromSelectedSong(song: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }, note = ""): CandidateQueryResult {
+  const songId = song.songId ?? `historical:${song.language}:${song.number}`;
+  return {
+    songId,
+    language: song.language,
+    number: song.number,
+    title: song.title ?? "Untitled snapshot",
+    equivalentNumbers: [],
+    aggregatePreferenceScore: 0,
+    antiphonMatch: false,
+    seasonMatch: false,
+    signal: "none",
+    preferenceShade: note.trim() ? "low" : "none",
+    repertoire: false,
+    suppressedByMelodyWindow: false,
+    orderKey: `rehydrated:${song.language}:${song.number}:${songId}`,
+  };
+}
 
 export function candidateToSelectedSong(candidate: CandidateQueryResult): { songId: string; language: ConcreteSongLanguage; number: string; title: string } {
   return { songId: candidate.songId, language: candidate.language, number: candidate.number, title: candidate.title };

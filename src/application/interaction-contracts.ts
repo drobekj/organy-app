@@ -9,7 +9,7 @@ export type PreferenceProfile = { id: string; userId: string; category: Preferen
 export type SongPreference = { profileId: string; songId: string; score: number };
 export type MelodyClass = { id: string; label: string; songIds: string[]; synthetic: boolean };
 export type KnowledgeMapping = { id: string; key: string; songId: string; synthetic: boolean };
-export type MelodyNonRepetitionConfig = { daysBefore: number; daysAfter: number };
+export type MelodyNonRepetitionConfig = { months: number };
 export type CandidateUsageSource = "completed" | "working" | "final" | "current";
 export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number };
 export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
@@ -47,7 +47,7 @@ export class InMemoryInteractionRepository {
   private melodyClasses: MelodyClass[] = [];
   private antiphons: KnowledgeMapping[] = [];
   private seasons: KnowledgeMapping[] = [];
-  private melodyWindow: MelodyNonRepetitionConfig = { daysBefore: 14, daysAfter: 0 };
+  private melodyWindow: MelodyNonRepetitionConfig = { months: 2 };
 
   constructor() {
     this.preferences.set(this.preferenceKey("pref-priest", "demo-cz-101"), { profileId: "pref-priest", songId: "demo-cz-101", score: 3 });
@@ -67,7 +67,7 @@ export class InMemoryInteractionRepository {
   listRepertoire(organistPersonId: string): string[] { return [...this.repertoire].filter((key) => key.startsWith(`${organistPersonId}:`)).map((key) => key.split(":")[1]); }
   listMelodyClasses(): MelodyClass[] { return this.melodyClasses.map((m) => ({ ...m, songIds: [...m.songIds] })); }
   getMelodyWindow(): MelodyNonRepetitionConfig { return { ...this.melodyWindow }; }
-  setMelodyWindow(actor: ActorIdentity, config: MelodyNonRepetitionConfig): boolean { if (!canManageKnowledge(actor.role) || config.daysBefore < 0 || config.daysAfter < 0) return false; this.melodyWindow = { daysBefore: Math.floor(config.daysBefore), daysAfter: Math.floor(config.daysAfter) }; return true; }
+  setMelodyWindow(actor: ActorIdentity, config: MelodyNonRepetitionConfig): boolean { if (!canManageKnowledge(actor.role) || config.months < 0) return false; this.melodyWindow = { months: Math.floor(config.months) }; return true; }
   addKnowledgeMapping(actor: ActorIdentity, kind: "antiphon" | "season", mapping: KnowledgeMapping): boolean { if (!canManageKnowledge(actor.role)) return false; if (kind === "antiphon") this.antiphons.push({ ...mapping, synthetic: true }); else this.seasons.push({ ...mapping, synthetic: true }); return true; }
   listKnowledge() { return { antiphons: this.antiphons.map((m) => ({ ...m })), seasons: this.seasons.map((m) => ({ ...m })), melodyWindow: this.getMelodyWindow(), melodyClasses: this.listMelodyClasses() }; }
 
@@ -116,11 +116,11 @@ function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryIn
   const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
   const datedUsages = (input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId);
   for (const recent of datedUsages) {
-    if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`))) continue;
+    if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`), window.months)) continue;
     for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
   }
   return ids;
 }
 
-function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number): boolean { const earlier = addMonthsUtc(target, -2); const later = addMonthsUtc(target, 2); return usedAt >= earlier && usedAt <= later; }
+function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number, months = 2): boolean { const earlier = addMonthsUtc(target, -months); const later = addMonthsUtc(target, months); return usedAt >= earlier && usedAt <= later; }
 function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }

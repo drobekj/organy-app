@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       case "resolveActor": return NextResponse.json(await service.resolveActor(asRecord(body.input).userId as string, asRecord(body.input).role as ActorIdentity["role"] | undefined));
       case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await service.saveOwnPreference(input.actor as ActorIdentity, String(input.songId), Number(input.score))); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(input.actor as ActorIdentity, String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
-      case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(input.actor as ActorIdentity, { daysBefore: Number(input.daysBefore), daysAfter: Number(input.daysAfter) })); }
+      case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(input.actor as ActorIdentity, { months: Number(input.months) })); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
       case "queryCandidates": return NextResponse.json(await service.queryCandidates(asRecord(body.input) as never));
       default: return NextResponse.json({ error: `Unsupported interaction action '${body.action}'.` }, { status: 400 });

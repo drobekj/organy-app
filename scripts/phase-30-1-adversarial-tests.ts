@@ -25,7 +25,7 @@ async function main() {
   const adminActor = await service.resolveActor("demo-admin-user", "admin");
   assert.equal(adminActor.success, true);
   if (!adminActor.success) throw new Error("admin actor missing");
-  const windowResult = await service.setMelodyWindow(adminActor.value, { daysBefore: 60, daysAfter: 0 });
+  const windowResult = await service.setMelodyWindow(adminActor.value, { months: 2 });
   assert.equal(windowResult.success, true);
 
   const recentWithinWindow = await service.queryCandidates({

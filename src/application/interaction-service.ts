@@ -1,4 +1,4 @@
-import type { ActorIdentity, AppUser, CandidateQueryInput, CandidateQueryResult, KnowledgeMapping, MelodyClass, MelodyNonRepetitionConfig, PreferenceProfile, SongPreference } from "./interaction-contracts";
+import { InMemoryInteractionRepository, type ActorIdentity, type AppUser, type CandidateQueryInput, type CandidateQueryResult, type KnowledgeMapping, type MelodyClass, type MelodyNonRepetitionConfig, type PreferenceProfile, type SongPreference } from "./interaction-contracts";
 import { canManageKnowledge, canManageRepertoire, getCandidateSignal, getPreferenceShade, languagesForServiceShim, preferenceScoreLimit, validateOwnPreferenceScore } from "./interaction-service-utils";
 import type { CatalogSong, CatalogRepository } from "./catalog";
 
@@ -21,7 +21,7 @@ export class InteractionService {
   async resolveActor(userId: string, requestedRole?: ActorIdentity["role"]): Promise<InteractionResult<ActorIdentity>> { const users = await this.repo.listUsers(); const user = users.find((u) => u.id === userId && u.active); if (!user) return fail("notFound", "Actor was not found."); const role = requestedRole && user.roles.includes(requestedRole) ? requestedRole : user.roles[0]; if (!role) return fail("permissionDenied", "Actor has no active role."); return ok({ userId: user.id, displayName: user.displayName, role, ...(user.personId ? { personId: user.personId } : {}) }); }
   async saveOwnPreference(actor: ActorIdentity, songId: string, score: number): Promise<InteractionResult<SongPreference>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; const profile = (await this.repo.listProfiles()).find((p) => p.userId === actor.userId); if (!profile) return fail("notFound", "Preference profile was not found."); if (!validateOwnPreferenceScore(profile.category, score)) return fail("invalidInput", `Preference score must be between 0 and ${preferenceScoreLimit(profile.category)}.`); return ok(await this.repo.upsertPreference({ profileId: profile.id, songId, score })); }
   async setRepertoire(actor: ActorIdentity, organistPersonId: string, songId: string, active: boolean): Promise<InteractionResult<{ organistPersonId: string; songId: string; active: boolean }>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; if (!canManageRepertoire(actor, organistPersonId)) return fail("permissionDenied", "Actor cannot manage this repertoire."); await this.repo.setRepertoire(organistPersonId, songId, active); return ok({ organistPersonId, songId, active }); }
-  async setMelodyWindow(actor: ActorIdentity, config: MelodyNonRepetitionConfig): Promise<InteractionResult<MelodyNonRepetitionConfig>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; if (!canManageKnowledge(actor.role)) return fail("permissionDenied", "Only admin can manage Knowledge."); if (config.daysBefore < 0 || config.daysAfter < 0) return fail("invalidInput", "Melody non-repetition window must be non-negative."); return ok(await this.repo.setMelodyWindow({ daysBefore: Math.floor(config.daysBefore), daysAfter: Math.floor(config.daysAfter) })); }
+  async setMelodyWindow(actor: ActorIdentity, config: MelodyNonRepetitionConfig): Promise<InteractionResult<MelodyNonRepetitionConfig>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; if (!canManageKnowledge(actor.role)) return fail("permissionDenied", "Only admin can manage Knowledge."); if (config.months < 0) return fail("invalidInput", "Melody non-repetition window must be non-negative."); return ok(await this.repo.setMelodyWindow({ months: Math.floor(config.months) })); }
   async listKnowledge() { return ok(await this.repo.listKnowledge()); }
   private async verifyActor(actor: ActorIdentity): Promise<InteractionResult<ActorIdentity>> {
     const resolved = await this.resolveActor(actor.userId, actor.role);
@@ -34,9 +34,22 @@ export class InteractionService {
   async queryCandidates(input: CandidateQueryInput): Promise<InteractionResult<CandidateQueryResult[]>> { const [songs, preferences, repertoire, knowledge] = await Promise.all([this.catalog.listSongs(), this.repo.listPreferences(), input.organistPersonId ? this.repo.listRepertoire(input.organistPersonId) : Promise.resolve([]), this.repo.listKnowledge()]); return ok(queryCandidatesFromData(songs, preferences, new Set(repertoire), knowledge, input)); }
 }
 
+export class InMemoryInteractionServiceRepository implements InteractionRepository {
+  constructor(private readonly repo: InMemoryInteractionRepository) {}
+  async listUsers() { return this.repo.listUsers(); }
+  async listProfiles() { return this.repo.profiles.map((profile) => ({ ...profile })); }
+  async listPreferences() { return this.repo.listPreferences(); }
+  async upsertPreference(preference: SongPreference) { const actor = this.repo.resolveActor(preference.profileId.includes("organist") ? "demo-organist-user" : preference.profileId.includes("member") ? "demo-member-user" : "demo-priest-user")!; return this.repo.saveOwnPreference(actor, preference.songId, preference.score) ?? preference; }
+  async listRepertoire(organistPersonId: string) { return this.repo.listRepertoire(organistPersonId); }
+  async setRepertoire(organistPersonId: string, songId: string, active: boolean) { const actor = this.repo.resolveActor("demo-admin-user")!; this.repo.setRepertoire(actor, organistPersonId, songId, active); }
+  async listMelodyClasses() { return this.repo.listMelodyClasses(); }
+  async listKnowledge() { return this.repo.listKnowledge(); }
+  async setMelodyWindow(config: MelodyNonRepetitionConfig) { const actor = this.repo.resolveActor("demo-admin-user")!; this.repo.setMelodyWindow(actor, config); return this.repo.getMelodyWindow(); }
+}
+
 export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateQueryInput): CandidateQueryResult[] {
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
-  const window = knowledge.melodyWindow ?? { daysBefore: 60, daysAfter: 60 };
+  const window = knowledge.melodyWindow ?? { months: 2 };
   const recentClassIds = getRecentMelodyClassIds(knowledge.melodyClasses, input, window);
   const queryText = input.queryText?.trim().toLowerCase();
   const threshold = input.preferenceThreshold ?? 0;
@@ -106,11 +119,11 @@ function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryIn
   const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
   const datedUsages = (input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId);
   for (const recent of datedUsages) {
-    if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`))) continue;
+    if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`), window.months)) continue;
     for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
   }
   return ids;
 }
 
-function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number): boolean { const earlier = addMonthsUtc(target, -2); const later = addMonthsUtc(target, 2); return usedAt >= earlier && usedAt <= later; }
+function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number, months = 2): boolean { const earlier = addMonthsUtc(target, -months); const later = addMonthsUtc(target, months); return usedAt >= earlier && usedAt <= later; }
 function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }

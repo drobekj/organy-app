@@ -14,7 +14,7 @@ for (const required of [
   "Historical inactive priest",
   "Historical inactive organist",
   "Catalog sections",
-  "Set demo 21-day window",
+  "Set demo 2-month window",
   "interactionClient.saveOwnPreference",
   "interactionClient.setRepertoire",
   "interactionClient.setMelodyWindow",

@@ -2,11 +2,14 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { queryCandidatesFromData } from "../src/application/interaction-service";
+import { InMemoryInteractionRepository } from "../src/application/interaction-contracts";
 import { CandidateLine, getCandidateLineViewModel } from "../src/planning-lifecycle/candidate-line";
 import {
   buildCandidateQueryInput,
+  PHASE_30_1_PREFERENCE_THRESHOLD,
   buildCanonicalCandidateUsages,
   candidateToSelectedSong,
+  rehydrateCandidateFromSelectedSong,
   getCandidatePopupRows,
   getSelectedSongPresentation,
   planningCandidateRowReducer,
@@ -16,6 +19,19 @@ import {
 } from "../src/planning-lifecycle/candidate-flow";
 import type { CandidateQueryResult, KnowledgeMapping, MelodyClass, SongPreference } from "../src/application/interaction-contracts";
 import type { CatalogSong } from "../src/application/catalog";
+
+
+const melodyWindowConfig = new InMemoryInteractionRepository().getMelodyWindow();
+assert.deepEqual(melodyWindowConfig, { months: 2 }, "melody non-repetition config must be one global symmetric month count");
+
+const thresholdQuery = buildCandidateQueryInput({ serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [] });
+assert.equal(thresholdQuery.preferenceThreshold, PHASE_30_1_PREFERENCE_THRESHOLD, "Planning candidate queries must default to the Phase 30.1 threshold");
+assert.equal(PHASE_30_1_PREFERENCE_THRESHOLD, 1);
+
+const rehydrated = rehydrateCandidateFromSelectedSong({ songId: "rehydrated", language: "czech", number: "777", title: "Rehydrated title" }, "Loaded note");
+assert.equal(rehydrated.songId, "rehydrated");
+assert.equal(rehydrated.orderKey.includes("rehydrated"), true, "rehydrated rows must regain a complete CandidateQueryResult order key");
+assert.equal(rehydrated.suppressedByMelodyWindow, false);
 
 const visible = candidate("visible", false);
 const suppressed = candidate("suppressed", true);
@@ -47,7 +63,7 @@ const songs: CatalogSong[] = [
   { songId: "eligible", language: "czech", number: "101", title: "Eligible", active: true },
 ];
 const melodyClasses: MelodyClass[] = [{ id: "class-a", label: "Class A", songIds: ["recent", "recent-equivalent"], synthetic: true }];
-const serviceCandidates = queryCandidatesFromData(songs, [], new Set(), { antiphons: [], seasons: [], melodyClasses, melodyWindow: { daysBefore: 60, daysAfter: 0 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "recent", serviceDate: "2026-07-01", source: "completed" }] });
+const serviceCandidates = queryCandidatesFromData(songs, [], new Set(), { antiphons: [], seasons: [], melodyClasses, melodyWindow: { months: 2 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "recent", serviceDate: "2026-07-01", source: "completed" }] });
 assert.deepEqual(serviceCandidates.map((item) => item.songId), ["eligible"], "candidate service must return only eligible non-suppressed candidates");
 assert(serviceCandidates.every((item) => !item.suppressedByMelodyWindow), "suppressed candidates must not leave the candidate service");
 
@@ -98,21 +114,21 @@ const domainCandidates = queryCandidatesFromData(domainSongs, domainPreferences,
   antiphons: [{ id: "a1", key: "service-antiphon", songId: "melody-a", synthetic: true }],
   seasons: [],
   melodyClasses: [{ id: "class-shared", label: "Shared class", songIds: ["melody-a", "melody-r"], synthetic: true }, { id: "class-recent", label: "Recent class", songIds: ["melody-recent", "recent-used"], synthetic: true }, { id: "class-low", label: "Low class", songIds: ["low-pref"], synthetic: true }],
-  melodyWindow: { daysBefore: 60, daysAfter: 0 },
+  melodyWindow: { months: 2 },
 }, { serviceDate: "2026-07-18", serviceLanguage: "mixed", organistPersonId: "organist-1", queryText: "Shared", preferenceThreshold: 3, antiphonKey: "service-antiphon", candidateUsages: [{ songId: "recent-used", serviceDate: "2026-07-01", source: "completed" }] });
 assert.deepEqual(domainCandidates.map((candidate) => candidate.songId), ["melody-r"], "domain service must hard-filter before text, group one candidate per melody class, require repertoire and honor preference threshold");
 assert.deepEqual(domainCandidates[0].equivalentNumbers.map((item) => `${item.number}:${item.repertoire}`), ["101A:false"], "equivalent numbers must be sorted after the repertoire primary candidate");
 const candidateVm = getCandidateLineViewModel(domainCandidates[0]);
-assert.equal(candidateVm.tone, "positive");
+assert.equal(candidateVm.tone, "neutral");
 assert(candidateVm.backgroundClass.includes("preference-high"), "view model must expose preference-driven background shading");
-assert(candidateVm.accessibleMeaning.includes("green"), "view model must expose accessible red/green signal meaning");
-assert.equal(candidateVm.numberOptions[0].repertoire, true, "repertoire number must be first in the shared CandidateLine view model");
+assert(candidateVm.accessibleMeaning.includes("neutral"), "preference/repertoire without season or antiphon must not force red/green signal meaning");
+assert.equal(candidateVm.numberOptions[0].primary, true, "primary number must be first in the shared CandidateLine view model");
 
 
 const futureWindowCandidates = queryCandidatesFromData([
   { songId: "future-equivalent", language: "czech", number: "303", title: "Future Equivalent", active: true },
   { songId: "future-eligible", language: "czech", number: "304", title: "Future Eligible", active: true },
-], [], new Set(), { antiphons: [], seasons: [], melodyClasses: [{ id: "future-class", label: "Future class", songIds: ["future-equivalent", "future-used"], synthetic: true }], melodyWindow: { daysBefore: 60, daysAfter: 60 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "future-used", serviceDate: "2026-09-17", source: "final" }] });
+], [], new Set(), { antiphons: [], seasons: [], melodyClasses: [{ id: "future-class", label: "Future class", songIds: ["future-equivalent", "future-used"], synthetic: true }], melodyWindow: { months: 2 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "future-used", serviceDate: "2026-09-17", source: "final" }] });
 assert.deepEqual(futureWindowCandidates.map((candidate) => candidate.songId), ["future-eligible"], "symmetric two-calendar-month melody window must suppress future dated usages too");
 
 const selectedFromCandidate = candidateToSelectedSong(domainCandidates[0]);
@@ -121,6 +137,16 @@ assert.deepEqual(selectedFromCandidate, { songId: "melody-r", language: "polish"
 const canonicalQuery = buildCandidateQueryInput({ serviceDate: "2026-07-18", serviceLanguage: "mixed", candidateUsages: canonicalUsages, queryText: "101" });
 assert(!("recentSongIds" in canonicalQuery), "candidate query context must not expose undated recentSongIds");
 assert(!("recentSongs" in canonicalQuery), "candidate query context must not expose legacy recentSongs");
+
+
+const primaryFirstVm = getCandidateLineViewModel({ ...visible, repertoire: false, equivalentNumbers: [{ songId: "eq-r", number: "099", repertoire: true }, { songId: "eq-a", number: "100", repertoire: false }] });
+assert.equal(primaryFirstVm.numberOptions[0].primary, true, "primary number must remain first and be the only sticky number");
+assert.equal(primaryFirstVm.numberOptions[1].repertoire, true, "repertoire equivalents must follow primary and be bold before other equivalents");
+assert.equal(primaryFirstVm.numberOptions.filter((item) => item.primary).length, 1);
+
+assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: true, seasonMatch: false, signal: "antiphon" }).tone, "negative", "antiphon candidates must be red");
+assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: false, seasonMatch: true, signal: "season" }).tone, "positive", "season candidates must be green");
+assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: true, seasonMatch: true, signal: "antiphon" }).tone, "negative", "antiphon+season candidates must be red");
 
 const popupMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: visible, variant: "popup", onSelect: () => undefined }));
 assert(!popupMarkup.includes("Detail"), "popup candidate line must be compact and must not render Detail");
