@@ -420,11 +420,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, songId: song.songId, active: !song.active }));
   }
 
-  async function hydrateEditableRows(rowsToHydrate: EditableRow[]): Promise<EditableRow[]> {
+  async function hydrateEditableRows(rowsToHydrate: EditableRow[], context: { organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string }): Promise<EditableRow[]> {
     const rowIndexes = rowsToHydrate.map((row, index) => row.selectedSong?.songId ? index : -1).filter((index) => index >= 0);
     const songs = rowIndexes.map((index) => rowsToHydrate[index].selectedSong!).filter((song): song is NonNullable<PlanningRow["song"]> => Boolean(song.songId));
     if (songs.length === 0) return rowsToHydrate;
-    const hydrated = await interactionClient.hydrateCandidates({ songs, organistPersonId: organistId || undefined });
+    const hydrated = await interactionClient.hydrateCandidates({ songs, organistPersonId: context.organistPersonId, antiphonKey: context.antiphonKey, liturgicalSeasonKey: context.liturgicalSeasonKey });
     return rowsToHydrate.map((row, index) => {
       const hydratedIndex = rowIndexes.indexOf(index);
       return hydratedIndex >= 0 && hydrated[hydratedIndex] ? { ...row, selectedCandidate: hydrated[hydratedIndex] } : row;
@@ -442,8 +442,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(set.serviceContext.organist.displayName);
     setOrganistId(set.serviceContext.organist.id);
     setServiceNote(set.serviceContext.note ?? "");
+    setCandidateAntiphonKey(set.serviceContext.antiphonKey ?? "");
+    setCandidateSeasonKey(set.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
-    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } })));
+    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }), { organistPersonId: set.serviceContext.organist.id, antiphonKey: set.serviceContext.antiphonKey, liturgicalSeasonKey: set.serviceContext.liturgicalSeasonKey }));
     setNextRowId(editableRows.length + 1);
     setSaveState(set.status === "working" ? "saved" : "finalized");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -461,8 +463,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(record.serviceContext.organist.displayName);
     setOrganistId(record.serviceContext.organist.id);
     setServiceNote(record.serviceContext.note ?? "");
+    setCandidateAntiphonKey(record.serviceContext.antiphonKey ?? "");
+    setCandidateSeasonKey(record.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
-    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } })));
+    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }), { organistPersonId: record.serviceContext.organist.id, antiphonKey: record.serviceContext.antiphonKey, liturgicalSeasonKey: record.serviceContext.liturgicalSeasonKey }));
     setNextRowId(editableRows.length + 1);
     setSaveState("completed");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -697,6 +701,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
       set: {
         status: "working",
@@ -801,6 +807,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
       set: { status: "final", language: serviceLanguage, rows: planningRows },
       allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,

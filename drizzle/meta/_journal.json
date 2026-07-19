@@ -50,6 +50,13 @@
       "when": 1784500000000,
       "tag": "0006_melody_non_repetition_months",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784600000000,
+      "tag": "0007_service_context_hydration_keys",
+      "breakpoints": true
     }
   ]
 }

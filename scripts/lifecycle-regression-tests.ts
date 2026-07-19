@@ -350,7 +350,37 @@ const tests: TestCase[] = [
       assert.equal(records.success ? records.value[0]?.serviceContext.serviceTime : undefined, "09:00");
       assert.equal(records.success ? records.value[0]?.serviceContext.priest.displayName : undefined, mixedContext.priest.displayName);
     },
-  },  {
+  },
+  {
+    name: "phase 30.1 hydration context persists across working final completed and completed updates",
+    async run() {
+      const { service } = createService();
+      const contextWithHydration = { ...mixedContext, serviceDate: "2026-07-08", serviceTime: "08:00", antiphonKey: " synthetic-entry ", liturgicalSeasonKey: "synthetic-advent" } as ServiceContext & { antiphonKey?: string; liturgicalSeasonKey?: string };
+      const saved = await service.saveWorkingSet({ role: "admin", serviceContext: contextWithHydration, set: workingSet });
+      assert.equal(saved.success, true);
+      if (!saved.success) throw new Error("working save failed");
+      const loadedWorking = await service.loadPlanningSet(saved.value.id);
+      assert.equal(loadedWorking.success ? loadedWorking.value.serviceContext.antiphonKey : undefined, "synthetic-entry", "Working reload must preserve normalized antiphon key");
+      assert.equal(loadedWorking.success ? loadedWorking.value.serviceContext.liturgicalSeasonKey : undefined, "synthetic-advent", "Working reload must preserve liturgical season key");
+
+      const finalized = await service.finalizeWorkingSet({ role: "admin", workingSetId: saved.value.id });
+      assert.equal(finalized.success, true);
+      assert.equal(finalized.success ? finalized.value.serviceContext.antiphonKey : undefined, "synthetic-entry", "Final reload must preserve antiphon key");
+      assert.equal(finalized.success ? finalized.value.serviceContext.liturgicalSeasonKey : undefined, "synthetic-advent", "Final reload must preserve liturgical season key");
+
+      const completed = await service.completeFinalSet({ role: "admin", finalSetId: finalized.success ? finalized.value.id : "missing" });
+      assert.equal(completed.success, true);
+      assert.equal(completed.success ? completed.value.serviceContext.antiphonKey : undefined, "synthetic-entry", "Completed reload must preserve antiphon key");
+      assert.equal(completed.success ? completed.value.serviceContext.liturgicalSeasonKey : undefined, "synthetic-advent", "Completed reload must preserve liturgical season key");
+
+      const updatedContext = { ...(completed.success ? completed.value.serviceContext : contextWithHydration), antiphonKey: "  ", liturgicalSeasonKey: "ordinary-time" } as ServiceContext & { antiphonKey?: string; liturgicalSeasonKey?: string };
+      const updated = await service.updateCompletedRecord({ role: "admin", recordId: completed.success ? completed.value.id : "missing", serviceContext: updatedContext, set: completed.success ? completed.value.set : finalSet });
+      assert.equal(updated.success, true);
+      assert.equal(updated.success ? updated.value.serviceContext.antiphonKey : undefined, undefined, "Whitespace-only antiphon key must normalize away on completed update");
+      assert.equal(updated.success ? updated.value.serviceContext.liturgicalSeasonKey : undefined, "ordinary-time", "Completed admin update reload must preserve season key");
+    },
+  },
+  {
     name: "repository saves, loads, lists, updates, preserves row order and service context, deletes, and isolates multiple sets",
     async run() {
       const repository = new InMemoryPlanningSetRepository();

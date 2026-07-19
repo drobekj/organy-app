@@ -158,6 +158,10 @@ assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: true, season
 assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: false, seasonMatch: true, signal: "season" }).tone, "positive", "season candidates must be green");
 assert.equal(getCandidateLineViewModel({ ...visible, antiphonMatch: true, seasonMatch: true, signal: "antiphon" }).tone, "negative", "antiphon+season candidates must be red");
 
+const cssSource = readFileSync("app/globals.css", "utf8");
+assert(cssSource.includes(".candidate-card .candidate-content-text") && cssSource.includes(".selected-song-card .candidate-content-text"), "candidate signal color selectors must override the generic candidate-card span muted rule");
+assert(cssSource.indexOf(".candidate-card span") < cssSource.indexOf(".candidate-card .candidate-content-text"), "specific candidate-content color rules must be declared after the muted span rule");
+
 const antiphonMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: { ...visible, antiphonMatch: true, seasonMatch: false, signal: "antiphon", preferenceShade: "high" }, variant: "selected", note: "Plain note", onOpenDetail: () => undefined, onNoteChange: () => undefined }));
 assert(antiphonMarkup.includes("candidate-content-text candidate-text-negative"), "candidate content text must be red for antiphon candidates");
 assert(antiphonMarkup.includes("candidate-preference-high"), "preference must remain a background class");

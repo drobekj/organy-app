@@ -111,7 +111,7 @@ export class PlanningLifecycleService {
       return failure({ code: "permissionDenied", message: "Role cannot save a working planning set." });
     }
 
-    const serviceContext: SaveWorkingSetServiceContext = { ...input.serviceContext, serviceTime: normalizeServiceTime(input.serviceContext.serviceTime) };
+    const serviceContext: SaveWorkingSetServiceContext = normalizeServiceContext(input.serviceContext);
     const serviceContextIssues = validateSaveWorkingSetServiceContext(serviceContext, input.set);
     if (serviceContextIssues.length > 0) {
       return failure({
@@ -253,7 +253,7 @@ export class PlanningLifecycleService {
       return failure({ code: "notFound", message: "Completed record was not found." });
     }
 
-    const serviceContext: ServiceContext = { ...input.serviceContext, serviceTime: normalizeServiceTime(input.serviceContext.serviceTime) };
+    const serviceContext: ServiceContext = normalizeServiceContext(input.serviceContext);
     const serviceContextIssues = validateSaveWorkingSetServiceContext(serviceContext, input.set);
     if (serviceContextIssues.length > 0) {
       return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
@@ -380,6 +380,16 @@ export class PlanningLifecycleService {
     const completed = await this.completedServiceRecords.list();
     return completed.find((record) => record.id !== currentCompletedRecordId && record.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(record.serviceContext.serviceTime) === serviceContext.serviceTime);
   }
+}
+
+function normalizeServiceContext(context: ServiceContext): ServiceContext {
+  return {
+    ...context,
+    serviceTime: normalizeServiceTime(context.serviceTime),
+    ...(context.note?.trim() ? { note: context.note.trim() } : { note: undefined }),
+    ...(context.antiphonKey?.trim() ? { antiphonKey: context.antiphonKey.trim() } : { antiphonKey: undefined }),
+    ...(context.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: context.liturgicalSeasonKey.trim() } : { liturgicalSeasonKey: undefined }),
+  };
 }
 
 function getRowsFromExisting(existing: PersistedPlanningSet | CompletedServiceRecord): PlanningRow[] {

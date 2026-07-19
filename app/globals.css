@@ -515,6 +515,30 @@ textarea {
   color: inherit;
 }
 
+.candidate-card .candidate-content-text,
+.selected-song-card .candidate-content-text {
+  color: inherit;
+}
+
+.candidate-card .candidate-content-text.candidate-text-positive,
+.selected-song-card .candidate-content-text.candidate-text-positive,
+.candidate-card .candidate-content-text.candidate-text-positive span,
+.selected-song-card .candidate-content-text.candidate-text-positive span {
+  color: #027a48;
+}
+
+.candidate-card .candidate-content-text.candidate-text-negative,
+.selected-song-card .candidate-content-text.candidate-text-negative,
+.candidate-card .candidate-content-text.candidate-text-negative span,
+.selected-song-card .candidate-content-text.candidate-text-negative span {
+  color: #b42318;
+}
+
+.candidate-card .candidate-content-text.candidate-text-neutral,
+.selected-song-card .candidate-content-text.candidate-text-neutral {
+  color: inherit;
+}
+
 .candidate-number-options {
   align-items: center;
   display: inline-flex;

@@ -15,6 +15,9 @@ async function main() {
     await pool.query("insert into app_user_roles (user_id, role) values ($1, 'priest') on conflict do nothing", ["phase30-db-user"]);
     await pool.query("insert into preference_profiles (id, user_id, category) values ($1, $2, 'priest') on conflict (user_id) do update set category = excluded.category", ["phase30-db-profile", "phase30-db-user"]);
     await pool.query("insert into melody_non_repetition_config (id, months) values ('global', 2) on conflict (id) do update set months = excluded.months");
+    await pool.query("insert into service_contexts (service_date, service_time, service_language, priest_display_name, organist_display_name, antiphon_key, liturgical_season_key) values (current_date, '08:11', 'czech', 'phase30 priest', 'phase30 organist', 'phase30-antiphon', 'phase30-season') returning id");
+    const contextRoundTrip = await pool.query("select antiphon_key, liturgical_season_key from service_contexts where priest_display_name = 'phase30 priest' order by id desc limit 1");
+    if (contextRoundTrip.rows[0]?.antiphon_key !== "phase30-antiphon" || contextRoundTrip.rows[0]?.liturgical_season_key !== "phase30-season") throw new Error("Phase 30.1 service context hydration keys did not round-trip.");
     await seedDemoInteractionKnowledge(pool);
     const { rows } = await pool.query("select u.id, r.role, p.category, c.months from app_users u join app_user_roles r on r.user_id = u.id join preference_profiles p on p.user_id = u.id cross join melody_non_repetition_config c where u.id = $1", ["phase30-db-user"]);
     if (rows.length !== 1 || rows[0].months !== 2) throw new Error("Phase 30.1 persisted entities did not round-trip.");

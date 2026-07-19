@@ -31,6 +31,10 @@ export type ServiceContext = {
   organist: ServicePersonReference;
   /** Optional service-level note. Whitespace-only values are normalized away before persistence. */
   note?: string;
+  /** Optional synthetic/demo antiphon key used to rehydrate candidate metadata. */
+  antiphonKey?: string;
+  /** Optional synthetic/demo liturgical season key used to rehydrate candidate metadata. */
+  liturgicalSeasonKey?: string;
 };
 
 export type PlanningSet = {
