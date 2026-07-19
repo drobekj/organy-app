@@ -28,6 +28,9 @@ assert(schemaSource.includes('months: integer("months")'), "Drizzle schema must 
 assert(existsSync("drizzle/0006_melody_non_repetition_months.sql"), "months persistence must have an additive DB migration");
 const smokeSource = readFileSync("scripts/db-phase-30-1-smoke.ts", "utf8");
 assert(smokeSource.includes("months"), "DB smoke must verify the persisted months column");
+assert(schemaSource.slice(schemaSource.indexOf("export const serviceContexts"), schemaSource.indexOf("export const serviceSets")).includes("antiphonKey"), "service-level hydration keys must live on serviceContexts");
+assert(!schemaSource.slice(schemaSource.indexOf("export const serviceSetRows"), schemaSource.indexOf("export const completedServices")).includes("antiphonKey"), "serviceSetRows must not persist service-level hydration keys");
+assert(!schemaSource.slice(schemaSource.indexOf("export const completedServiceRows"), schemaSource.indexOf("export const preferenceProfileCategory")).includes("antiphonKey"), "completedServiceRows must not persist service-level hydration keys");
 
 const melodyWindowConfig = new InMemoryInteractionRepository().getMelodyWindow();
 assert.deepEqual(melodyWindowConfig, { months: 2 }, "melody non-repetition config must be one global symmetric month count");
