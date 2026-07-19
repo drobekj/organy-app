@@ -30,6 +30,9 @@ const phase30Migration = readFileSync("drizzle/0005_phase_30_1_contract_foundati
 assert(!phase30Migration.includes("INSERT INTO \"app_users\""), "Phase 30.1 schema migration must not seed demo app users before catalog data exists");
 assert(!phase30Migration.includes("INSERT INTO \"app_user_roles\""), "Phase 30.1 schema migration must not seed demo app roles before catalog data exists");
 assert(!phase30Migration.includes("INSERT INTO \"preference_profiles\""), "Phase 30.1 schema migration must not seed demo preference profiles before catalog data exists");
+const interactionSeedSource = readFileSync("src/application/interaction-seed.ts", "utf8");
+assert(interactionSeedSource.includes("catalog_persons") && interactionSeedSource.includes("demo-priest") && interactionSeedSource.includes("demo-organist"), "Phase 30 interaction seed must create exact demo catalog people before app users");
+assert(interactionSeedSource.includes("catalog_songs") && interactionSeedSource.includes("demo-cz-101") && interactionSeedSource.includes("demo-pl-101"), "Phase 30 interaction seed must create exact demo catalog songs before interaction knowledge");
 const smokeSource = readFileSync("scripts/db-phase-30-1-smoke.ts", "utf8");
 assert(smokeSource.includes("months"), "DB smoke must verify the persisted months column");
 assert(schemaSource.slice(schemaSource.indexOf("export const serviceContexts"), schemaSource.indexOf("export const serviceSets")).includes("antiphonKey"), "service-level hydration keys must live on serviceContexts");

@@ -20,6 +20,8 @@ async function main() {
     await pool.query("insert into melody_non_repetition_config (id, months) values ('global', 2) on conflict (id) do update set months = excluded.months");
     await seedDemoInteractionKnowledge(pool);
     await seedDemoInteractionKnowledge(pool);
+    const phase30Catalog = await pool.query("select (select count(*) from catalog_persons where id in ('demo-priest', 'demo-organist'))::int as people, (select count(*) from catalog_songs where song_id in ('demo-cz-101', 'demo-pl-101'))::int as songs");
+    if (phase30Catalog.rows[0].people !== 2 || phase30Catalog.rows[0].songs !== 2) throw new Error("Phase 30 exact demo catalog fixtures did not round-trip.");
     const identityRows = await pool.query("select u.id, u.person_id, array_agg(r.role order by r.role) as roles, count(p.id)::int as profile_count from app_users u left join app_user_roles r on r.user_id = u.id left join preference_profiles p on p.user_id = u.id where u.id in ('demo-priest-user', 'demo-organist-user', 'demo-admin-user', 'demo-member-user') group by u.id, u.person_id order by u.id");
     const identityById = new Map(identityRows.rows.map((row) => [String(row.id), { person_id: row.person_id, roles: row.roles as string[], profile_count: Number(row.profile_count) }]));
     if (identityById.get("demo-priest-user")?.person_id !== "demo-priest" || identityById.get("demo-organist-user")?.person_id !== "demo-organist") throw new Error("Demo priest/organist users must keep catalog person links.");
