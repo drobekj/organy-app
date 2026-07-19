@@ -36,7 +36,7 @@ export class InteractionService {
 
 export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateQueryInput): CandidateQueryResult[] {
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
-  const window = knowledge.melodyWindow ?? { daysBefore: 60, daysAfter: 0 };
+  const window = knowledge.melodyWindow ?? { daysBefore: 60, daysAfter: 60 };
   const recentClassIds = getRecentMelodyClassIds(knowledge.melodyClasses, input, window);
   const queryText = input.queryText?.trim().toLowerCase();
   const threshold = input.preferenceThreshold ?? 0;
@@ -104,14 +104,13 @@ function fail<T>(code: "permissionDenied" | "notFound" | "invalidInput", message
 function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {
   const ids = new Set<string>();
   const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
-  const datedUsages = [
-    ...(input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId),
-    ...(input.recentSongs ?? []).map((recent) => ({ songId: recent.songId, serviceDate: recent.serviceDate })),
-  ];
+  const datedUsages = (input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId);
   for (const recent of datedUsages) {
-    const days = Math.floor((target - Date.parse(`${recent.serviceDate}T00:00:00Z`)) / 86_400_000);
-    if (days < -window.daysAfter || days > window.daysBefore) continue;
+    if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`))) continue;
     for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
   }
   return ids;
 }
+
+function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number): boolean { const earlier = addMonthsUtc(target, -2); const later = addMonthsUtc(target, 2); return usedAt >= earlier && usedAt <= later; }
+function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }

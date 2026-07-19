@@ -12,7 +12,7 @@ export type KnowledgeMapping = { id: string; key: string; songId: string; synthe
 export type MelodyNonRepetitionConfig = { daysBefore: number; daysAfter: number };
 export type CandidateUsageSource = "completed" | "working" | "final" | "current";
 export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number };
-export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[]; recentSongIds?: string[]; recentSongs?: { songId: string; serviceDate: string }[] };
+export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
 export type CandidateQueryResult = { songId: string; language: ConcreteSongLanguage; number: string; title: string; equivalentNumbers: { songId: string; number: string; repertoire: boolean }[]; aggregatePreferenceScore: number; antiphonMatch: boolean; seasonMatch: boolean; signal: "antiphon" | "season" | "none"; preferenceShade: "none" | "low" | "medium" | "high"; repertoire: boolean; suppressedByMelodyWindow: boolean; sheetMusicUrl?: string; orderKey: string };
 
 export function preferenceScoreLimit(category: PreferenceProfileCategory): number { return category === "priest" ? 3 : category === "organist" ? 2 : 1; }
@@ -114,14 +114,13 @@ export class InMemoryInteractionRepository {
 function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {
   const ids = new Set<string>();
   const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
-  const datedUsages = [
-    ...(input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId),
-    ...(input.recentSongs ?? []).map((recent) => ({ songId: recent.songId, serviceDate: recent.serviceDate })),
-  ];
+  const datedUsages = (input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId);
   for (const recent of datedUsages) {
-    const days = Math.floor((target - Date.parse(`${recent.serviceDate}T00:00:00Z`)) / 86_400_000);
-    if (days < -window.daysAfter || days > window.daysBefore) continue;
+    if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`))) continue;
     for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
   }
   return ids;
 }
+
+function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number): boolean { const earlier = addMonthsUtc(target, -2); const later = addMonthsUtc(target, 2); return usedAt >= earlier && usedAt <= later; }
+function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }

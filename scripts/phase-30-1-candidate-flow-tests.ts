@@ -6,6 +6,7 @@ import { CandidateLine, getCandidateLineViewModel } from "../src/planning-lifecy
 import {
   buildCandidateQueryInput,
   buildCanonicalCandidateUsages,
+  candidateToSelectedSong,
   getCandidatePopupRows,
   getSelectedSongPresentation,
   planningCandidateRowReducer,
@@ -46,11 +47,11 @@ const songs: CatalogSong[] = [
   { songId: "eligible", language: "czech", number: "101", title: "Eligible", active: true },
 ];
 const melodyClasses: MelodyClass[] = [{ id: "class-a", label: "Class A", songIds: ["recent", "recent-equivalent"], synthetic: true }];
-const serviceCandidates = queryCandidatesFromData(songs, [], new Set(), { antiphons: [], seasons: [], melodyClasses, melodyWindow: { daysBefore: 60, daysAfter: 0 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", recentSongs: [{ songId: "recent", serviceDate: "2026-07-01" }] });
+const serviceCandidates = queryCandidatesFromData(songs, [], new Set(), { antiphons: [], seasons: [], melodyClasses, melodyWindow: { daysBefore: 60, daysAfter: 0 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "recent", serviceDate: "2026-07-01", source: "completed" }] });
 assert.deepEqual(serviceCandidates.map((item) => item.songId), ["eligible"], "candidate service must return only eligible non-suppressed candidates");
 assert(serviceCandidates.every((item) => !item.suppressedByMelodyWindow), "suppressed candidates must not leave the candidate service");
 
-const queryContext = buildCandidateQueryInput({ serviceDate: "2026-07-18", serviceLanguage: "czech", organistPersonId: "organist-1", recentSongs: [], antiphonKey: "service-antiphon", liturgicalSeasonKey: "service-season" });
+const queryContext = buildCandidateQueryInput({ serviceDate: "2026-07-18", serviceLanguage: "czech", organistPersonId: "organist-1", candidateUsages: [], antiphonKey: "service-antiphon", liturgicalSeasonKey: "service-season" });
 assert.equal(queryContext.antiphonKey, "service-antiphon");
 assert.equal(queryContext.liturgicalSeasonKey, "service-season");
 assert(!JSON.stringify(queryContext).includes("synthetic-entry"), "lookup query context must not inject hard-coded antiphon values");
@@ -107,10 +108,26 @@ assert(candidateVm.backgroundClass.includes("preference-high"), "view model must
 assert(candidateVm.accessibleMeaning.includes("green"), "view model must expose accessible red/green signal meaning");
 assert.equal(candidateVm.numberOptions[0].repertoire, true, "repertoire number must be first in the shared CandidateLine view model");
 
+
+const futureWindowCandidates = queryCandidatesFromData([
+  { songId: "future-equivalent", language: "czech", number: "303", title: "Future Equivalent", active: true },
+  { songId: "future-eligible", language: "czech", number: "304", title: "Future Eligible", active: true },
+], [], new Set(), { antiphons: [], seasons: [], melodyClasses: [{ id: "future-class", label: "Future class", songIds: ["future-equivalent", "future-used"], synthetic: true }], melodyWindow: { daysBefore: 60, daysAfter: 60 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "future-used", serviceDate: "2026-09-17", source: "final" }] });
+assert.deepEqual(futureWindowCandidates.map((candidate) => candidate.songId), ["future-eligible"], "symmetric two-calendar-month melody window must suppress future dated usages too");
+
+const selectedFromCandidate = candidateToSelectedSong(domainCandidates[0]);
+assert.deepEqual(selectedFromCandidate, { songId: "melody-r", language: "polish", number: "101R", title: "Shared Melody Repertoire" }, "selection must be derived directly from CandidateQueryResult without joining through songResults");
+
+const canonicalQuery = buildCandidateQueryInput({ serviceDate: "2026-07-18", serviceLanguage: "mixed", candidateUsages: canonicalUsages, queryText: "101" });
+assert(!("recentSongIds" in canonicalQuery), "candidate query context must not expose undated recentSongIds");
+assert(!("recentSongs" in canonicalQuery), "candidate query context must not expose legacy recentSongs");
+
 const popupMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: visible, variant: "popup", onSelect: () => undefined }));
 assert(!popupMarkup.includes("Detail"), "popup candidate line must be compact and must not render Detail");
+assert(!popupMarkup.includes(" · preference"), "preference must not be visible text in popup CandidateLine");
 const selectedMarkup = renderToStaticMarkup(createElement(CandidateLine, { candidate: visible, variant: "selected", note: "Editable note", onOpenDetail: () => undefined, onNoteChange: () => undefined }));
 assert(selectedMarkup.includes("Detail"), "selected candidate line must render Detail on the first row");
+assert(!selectedMarkup.includes(" · preference"), "preference must not be visible text in selected CandidateLine");
 assert(selectedMarkup.includes("Editable note"), "selected candidate line must render the note as the second row");
 assert.equal((selectedMarkup.match(/data-content-row=/g) ?? []).length, 2, "selected candidate line must render exactly two direct content rows");
 

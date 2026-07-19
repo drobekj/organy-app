@@ -16,7 +16,7 @@ import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage }
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
-import { buildCandidateQueryInput, buildCanonicalCandidateUsages, formatSongLabel, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -46,7 +46,7 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; };
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -170,15 +170,15 @@ class DbInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return callInteractionApi("setMelodyWindow", input); }
-  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
+  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
 }
 
 class MemoryInteractionClient implements InteractionClient {
-  constructor(private readonly repo: InMemoryInteractionRepository) {}
+  constructor(private readonly repo: InMemoryInteractionRepository, private readonly catalog: CatalogClient) {}
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; daysBefore: number; daysAfter: number }) { return this.repo.setMelodyWindow(input.actor, { daysBefore: input.daysBefore, daysAfter: input.daysAfter }); }
-  async queryCandidates(input: { songs: CatalogSong[]; serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { return this.repo.queryCandidates(input.songs, buildCandidateQueryInput(input)); }
+  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const songs = await this.catalog.listSongs(); return songs.success ? this.repo.queryCandidates(songs.value, buildCandidateQueryInput(input)) : []; }
 }
 
 class DbCatalogClient {
@@ -250,7 +250,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     [repositories, runtimeMode, catalogRepository],
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
-  const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository), [runtimeMode, interactionRepository]);
+  const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
   const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
@@ -566,18 +566,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const languageAtRequest = serviceLanguage;
     const token = lookupTracker.begin(scope, `${languageAtRequest}:${value}`);
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
-    const result = await catalogClient.searchSongs({ language: languageAtRequest, query: value });
+    const candidates = await interactionClient.queryCandidates({ serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
     if (!lookupTracker.isCurrent(token, `${languageAtRequest}:${value}`)) return;
-    if (result.success) {
-      setSongResults((current) => ({ ...current, [rowId]: result.value }));
-      const candidates = await interactionClient.queryCandidates({ songs: result.value, serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
-      setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
-    }
+    setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
   }
 
-  function selectSong(rowId: number, song: CatalogSong, candidate?: CandidateQueryResult) {
+  function selectCandidate(rowId: number, candidate: CandidateQueryResult) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song, candidate }) : row)));
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
     setCandidateResults((current) => ({ ...current, [rowId]: [] }));
   }
@@ -1041,14 +1037,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
                       {getCandidatePopupRows(candidateResults[row.id] ?? []).length > 0 && canEditRows && (
                         <div className="candidate-popup" role="listbox" aria-label={`Song candidates for row ${index + 1}`}>
-                          {getCandidatePopupRows(candidateResults[row.id] ?? []).map((candidate) => {
-                            const fullCandidate = (candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId);
-                            const song = songResults[row.id].find((item) => item.songId === candidate.songId);
-                            if (!song) return null;
-                            return (
-                              <CandidateLine key={candidate.songId} candidate={fullCandidate ?? candidateFromSelectedSong(song)} variant="popup" onSelect={() => selectSong(row.id, song, fullCandidate)} />
-                            );
-                          })}
+                          {getCandidatePopupRows(candidateResults[row.id] ?? []).map((candidate) => (
+                            <CandidateLine key={candidate.songId} candidate={(candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId)!} variant="popup" onSelect={() => selectCandidate(row.id, (candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId)!)} />
+                          ))}
                           <button type="button" onClick={() => cancelActiveLookup(row.id)}>Cancel lookup</button>
                         </div>
                       )}

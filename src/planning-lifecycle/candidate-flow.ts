@@ -53,7 +53,7 @@ export type PlanningCandidateEditableRow = {
 
 export type PlanningCandidateRowAction =
   | { type: "lookupChanged"; text: string }
-  | { type: "candidateSelected"; song: CatalogSong; candidate?: CandidateQueryResult }
+  | { type: "candidateSelected"; song: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }; candidate?: CandidateQueryResult }
   | { type: "lookupCancelled" }
   | { type: "rowDeactivated" }
   | { type: "songCleared" }
@@ -65,8 +65,6 @@ export type CandidateQueryContextInput = {
   organistPersonId?: string;
   antiphonKey?: string;
   liturgicalSeasonKey?: string;
-  recentSongIds?: string[];
-  recentSongs?: { songId: string; serviceDate: string }[];
   candidateUsages?: CandidateUsage[];
   currentPlanId?: string;
   queryText?: string;
@@ -166,6 +164,10 @@ export function formatSongLabel(song: { language: ConcreteSongLanguage; number: 
   return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
 }
 
+
+export function candidateToSelectedSong(candidate: CandidateQueryResult): { songId: string; language: ConcreteSongLanguage; number: string; title: string } {
+  return { songId: candidate.songId, language: candidate.language, number: candidate.number, title: candidate.title };
+}
 
 export type CanonicalUsageInput = {
   currentPlanId?: string;
