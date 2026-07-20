@@ -148,6 +148,9 @@ function cloneServiceContext(context: ServiceContext): ServiceContext {
     language: context.language,
     priest: { ...context.priest },
     organist: { ...context.organist },
+    ...(context.note?.trim() ? { note: context.note.trim() } : {}),
+    ...(context.antiphonKey?.trim() ? { antiphonKey: context.antiphonKey.trim() } : {}),
+    ...(context.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: context.liturgicalSeasonKey.trim() } : {}),
   };
 }
 

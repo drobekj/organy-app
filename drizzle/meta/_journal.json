@@ -36,6 +36,27 @@
       "when": 1784280000000,
       "tag": "0004_phase_29_catalog_lookup",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784403789407,
+      "tag": "0005_phase_30_1_contract_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784500000000,
+      "tag": "0006_melody_non_repetition_months",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784600000000,
+      "tag": "0007_service_context_hydration_keys",
+      "breakpoints": true
     }
   ]
 }

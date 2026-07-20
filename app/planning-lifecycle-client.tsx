@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
+import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type CandidateQueryResult } from "../src/application/interaction-contracts";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -14,6 +15,9 @@ import {
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -26,7 +30,9 @@ type EditableRow = {
   id: number;
   songSearch: string;
   selectedSong?: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string };
+  selectedCandidate?: CandidateQueryResult;
   note: string;
+  lookupOpen?: boolean;
 };
 
 type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
@@ -41,6 +47,9 @@ type WorkingSetSnapshot = {
 };
 
 type CatalogClient = CatalogService | DbCatalogClient;
+type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
+const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -50,7 +59,6 @@ type PlanningRepositories = {
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const defaultServiceTime = "10:00";
 
-const localRoleOptions: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
 function createEmptyRow(id: number, _serviceLanguage: ServiceLanguage): EditableRow {
   return {
@@ -66,6 +74,7 @@ function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
     id,
     songSearch: row.song ? formatSongLabel(row.song) : "",
     selectedSong: row.song ? { ...row.song } : undefined,
+    selectedCandidate: row.song ? rehydrateCandidateFromSelectedSong(row.song, row.note ?? "") : undefined,
     note: row.note ?? "",
   };
 }
@@ -87,8 +96,22 @@ function toPlanningRow(row: EditableRow): PlanningRow {
   };
 }
 
-function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {
-  return `${song.language} ${song.number}${song.title ? ` — ${song.title}` : ""}`;
+function candidateFromSelectedSong(song: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }): CandidateQueryResult {
+  return {
+    songId: song.songId ?? `historical:${song.language}:${song.number}`,
+    language: song.language,
+    number: song.number,
+    title: song.title ?? "Untitled snapshot",
+    equivalentNumbers: [],
+    aggregatePreferenceScore: 0,
+    antiphonMatch: false,
+    seasonMatch: false,
+    signal: "none",
+    preferenceShade: "none",
+    repertoire: false,
+    suppressedByMelodyWindow: false,
+    orderKey: `${song.language}:${song.number}`,
+  };
 }
 
 
@@ -147,6 +170,24 @@ class DbPlanningLifecycleClient {
 }
 
 
+class DbInteractionClient implements InteractionClient {
+  async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
+  async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
+  async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input); }
+  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
+  async hydrateCandidates(input: CandidateHydrationClientInput) { const result = await callInteractionApi("hydrateCandidates", input); return result.success ? result.value as CandidateQueryResult[] : []; }
+}
+
+class MemoryInteractionClient implements InteractionClient {
+  private readonly service: InteractionService;
+  constructor(private readonly repo: InMemoryInteractionRepository, catalog: CatalogClient) { this.service = new InteractionService(new InMemoryInteractionServiceRepository(repo), { listSongs: async () => { const songs = await catalog.listSongs(); return songs.success ? songs.value : []; } }); }
+  async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
+  async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
+  async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
+  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await this.service.queryCandidates(buildCandidateQueryInput(input)); return result.success ? result.value : []; }
+  async hydrateCandidates(input: CandidateHydrationClientInput) { const result = await this.service.hydrateCandidates(input); return result.success ? result.value : []; }
+}
+
 class DbCatalogClient {
   async getPerson(input: { id: string }) { return callCatalogApi("getPerson", input); }
   async getSong(input: { songId: string }) { return callCatalogApi("getSong", input); }
@@ -156,6 +197,13 @@ class DbCatalogClient {
   async searchSongs(input: { language: ServiceLanguage; query?: string }) { return callCatalogApi("searchSongs", input); }
   async listSongs() { return callCatalogApi("listSongs", {}); }
   async setSongActive(input: { role: PlanningRole; songId: string; active: boolean }) { return callCatalogApi("setSongActive", input); }
+}
+
+async function callInteractionApi(action: string, input: unknown) {
+  const response = await fetch("/api/interaction", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, input }) });
+  const payload = await response.json();
+  if (!response.ok) return { success: false as const, error: { code: "invalidInput" as const, message: typeof payload?.error === "string" ? payload.error : "Interaction API request failed." } };
+  return payload;
 }
 
 async function callCatalogApi(action: string, input: unknown) {
@@ -189,6 +237,7 @@ async function callPlanningLifecycleApi(action: string, input: unknown) {
 
 export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecycleClientProps) {
   const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
+  const interactionRepository = useMemo(() => new InMemoryInteractionRepository(), []);
   const repositories = useMemo<PlanningRepositories>(
     () => ({
       planningSets: new InMemoryPlanningSetRepository(),
@@ -208,6 +257,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     [repositories, runtimeMode, catalogRepository],
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
+  const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
   const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
@@ -221,7 +271,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [organist, setOrganist] = useState("");
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
-  const [selectedRole, setSelectedRole] = useState<PlanningRole>("priest");
+  const [serviceNote, setServiceNote] = useState("");
+  const [candidateAntiphonKey, setCandidateAntiphonKey] = useState("");
+  const [candidateSeasonKey, setCandidateSeasonKey] = useState("");
   const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
@@ -234,10 +286,23 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [lastSavedRecord, setLastSavedRecord] = useState<PersistedRecordReference | null>(null);
   const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
   const [songResults, setSongResults] = useState<Record<number, CatalogSong[]>>({});
+  const [candidateResults, setCandidateResults] = useState<Record<number, CandidateQueryResult[]>>({});
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
+  const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
+  const [selectedCatalogTab, setSelectedCatalogTab] = useState<"songs" | "people" | "knowledge">("songs");
+  const [catalogSongLanguage, setCatalogSongLanguage] = useState<ServiceLanguage>("mixed");
+  const [catalogSongSearch, setCatalogSongSearch] = useState("");
+  const [catalogSongPage, setCatalogSongPage] = useState(0);
+  const [selectedCatalogSongId, setSelectedCatalogSongId] = useState<string | null>(null);
+  const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
+  const demoUsers = useMemo(() => interactionRepository.listUsers().map((user) => ({ id: user.id, label: user.displayName, role: user.roles[0] })), [interactionRepository]);
+  const [selectedUserId, setSelectedUserId] = useState("demo-priest-user");
+  const activeActor: ActorIdentity = interactionRepository.resolveActor(selectedUserId) ?? interactionRepository.resolveActor("demo-priest-user")!;
+  const selectedRole = activeActor.role;
+  const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
 
   useEffect(() => {
     void refreshDbSets();
@@ -245,7 +310,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   useEffect(() => {
     void refreshCatalogAdmin();
-  }, [selectedRole, runtimeMode]);
+    void catalogClient.searchPeople({ role: "priest", query: "" }).then((r) => { if (r.success) setPriestResults(r.value); });
+    void catalogClient.searchPeople({ role: "organist", query: "" }).then((r) => { if (r.success) setOrganistResults(r.value); });
+  }, [selectedRole, runtimeMode, catalogClient]);
 
   useEffect(() => {
     if (!persistedSet && !completedRecord && saveState === "unsaved") {
@@ -278,6 +345,20 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     : false;
   const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
+  const rowLookupStates = rows.map((row) => row.lookupOpen && row.songSearch.trim() ? { kind: "lookup" as const, text: row.songSearch } : row.selectedSong?.songId ? { kind: "selected" as const, songId: row.selectedSong.songId } : row.note.trim() ? { kind: "noteOnly" as const, note: row.note } : { kind: "empty" as const });
+  const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
+  const workspaceLeaveState = canLeaveWorkspace(rowLookupStates);
+  const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
+  const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
+  const visibleCatalogSongs = useMemo(() => {
+    const q = catalogSongSearch.trim().toLowerCase();
+    const allowedLanguages = new Set(catalogSongLanguage === "mixed" ? ["czech", "polish"] : [catalogSongLanguage]);
+    return catalogSongPool.filter((song) => allowedLanguages.has(song.language) && (selectedRole === "admin" || song.active) && (!q || song.number.toLowerCase().includes(q) || song.title.toLowerCase().includes(q)));
+  }, [catalogSongPool, catalogSongLanguage, catalogSongSearch, selectedRole]);
+  const catalogPageSize = 40;
+  const catalogPageCount = Math.max(1, Math.ceil(visibleCatalogSongs.length / catalogPageSize));
+  const pagedCatalogSongs = visibleCatalogSongs.slice(catalogSongPage * catalogPageSize, (catalogSongPage + 1) * catalogPageSize);
+  const selectedCatalogSong = selectedCatalogSongId ? catalogSongPool.find((song) => song.songId === selectedCatalogSongId) : undefined;
 
   useEffect(() => {
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
@@ -339,6 +420,17 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, songId: song.songId, active: !song.active }));
   }
 
+  async function hydrateEditableRows(rowsToHydrate: EditableRow[], context: { organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string }): Promise<EditableRow[]> {
+    const rowIndexes = rowsToHydrate.map((row, index) => row.selectedSong?.songId ? index : -1).filter((index) => index >= 0);
+    const songs = rowIndexes.map((index) => rowsToHydrate[index].selectedSong!).filter((song): song is NonNullable<PlanningRow["song"]> => Boolean(song.songId));
+    if (songs.length === 0) return rowsToHydrate;
+    const hydrated = await interactionClient.hydrateCandidates({ songs, organistPersonId: context.organistPersonId, antiphonKey: context.antiphonKey, liturgicalSeasonKey: context.liturgicalSeasonKey });
+    return rowsToHydrate.map((row, index) => {
+      const hydratedIndex = rowIndexes.indexOf(index);
+      return hydratedIndex >= 0 && hydrated[hydratedIndex] ? { ...row, selectedCandidate: hydrated[hydratedIndex] } : row;
+    });
+  }
+
   async function openPersistedSet(set: PersistedPlanningSet) {
     setPersistedSet(set);
     setCompletedRecord(null);
@@ -349,8 +441,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(set.serviceContext.priest.id);
     setOrganist(set.serviceContext.organist.displayName);
     setOrganistId(set.serviceContext.organist.id);
+    setServiceNote(set.serviceContext.note ?? "");
+    setCandidateAntiphonKey(set.serviceContext.antiphonKey ?? "");
+    setCandidateSeasonKey(set.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
-    setRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }));
+    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }), { organistPersonId: set.serviceContext.organist.id, antiphonKey: set.serviceContext.antiphonKey, liturgicalSeasonKey: set.serviceContext.liturgicalSeasonKey }));
     setNextRowId(editableRows.length + 1);
     setSaveState(set.status === "working" ? "saved" : "finalized");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -367,8 +462,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(record.serviceContext.priest.id);
     setOrganist(record.serviceContext.organist.displayName);
     setOrganistId(record.serviceContext.organist.id);
+    setServiceNote(record.serviceContext.note ?? "");
+    setCandidateAntiphonKey(record.serviceContext.antiphonKey ?? "");
+    setCandidateSeasonKey(record.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
-    setRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }));
+    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }), { organistPersonId: record.serviceContext.organist.id, antiphonKey: record.serviceContext.antiphonKey, liturgicalSeasonKey: record.serviceContext.liturgicalSeasonKey }));
     setNextRowId(editableRows.length + 1);
     setSaveState("completed");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -410,6 +508,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(defaults.priest.id);
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
+    setServiceNote("");
+    setCandidateAntiphonKey("");
+    setCandidateSeasonKey("");
     setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
   }
@@ -426,6 +527,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setPriestId(defaults.priest.id);
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
+    setServiceNote("");
+    setCandidateAntiphonKey("");
+    setCandidateSeasonKey("");
     setRows([createEmptyRow(1, initialServiceLanguage)]);
     setNextRowId(2);
     setServiceError(null);
@@ -463,8 +567,19 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function selectPerson(role: PersonRole, person: CatalogPerson) {
     lookupTracker.invalidate(getPersonLookupScope(role));
     guardedEditorUpdate(() => {
-      if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); setPriestResults([]); }
-      else { setOrganist(person.displayName); setOrganistId(person.id); setOrganistResults([]); }
+      if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); }
+      else { setOrganist(person.displayName); setOrganistId(person.id); }
+    });
+  }
+
+  function getCanonicalCandidateUsages(activeRowId: number) {
+    return buildCanonicalCandidateUsages({
+      currentPlanId: persistedSet?.id,
+      serviceDate,
+      completedRecords: completedRecords.map((record) => ({ id: record.id, serviceDate: record.serviceContext.serviceDate, rows: record.set.rows.map((row) => ({ songId: row.song?.songId })) })),
+      plans: savedDbSets.map((set) => ({ id: set.id, status: set.status, serviceDate: set.serviceContext.serviceDate, rows: set.rows.map((row) => ({ songId: row.song?.songId })) })),
+      currentRows: rows.map((row) => ({ rowId: row.id, songId: row.selectedSong?.songId })),
+      activeRowId,
     });
   }
 
@@ -472,31 +587,45 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const scope = getSongLookupScope(rowId);
     const languageAtRequest = serviceLanguage;
     const token = lookupTracker.begin(scope, `${languageAtRequest}:${value}`);
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: value, selectedSong: undefined } : row)));
-    const result = await catalogClient.searchSongs({ language: languageAtRequest, query: value });
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
+    const candidates = await interactionClient.queryCandidates({ serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
     if (!lookupTracker.isCurrent(token, `${languageAtRequest}:${value}`)) return;
-    if (result.success) setSongResults((current) => ({ ...current, [rowId]: result.value }));
+    setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
   }
 
-  function selectSong(rowId: number, song: CatalogSong) {
+  function selectCandidate(rowId: number, candidate: CandidateQueryResult) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: formatSongLabel(song), selectedSong: song } : row)));
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
   }
 
   function clearSong(rowId: number) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? { ...row, songSearch: "", selectedSong: undefined } : row)));
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "songCleared" }) : row)));
     setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
+  }
+
+  function cancelActiveLookup(rowId: number) {
+    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+    setSongResults((current) => ({ ...current, [rowId]: [] }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
+    setServiceError(null);
+  }
+
+  function activateExistingRow(rowId: number) {
+    setRows((currentRows) => restoreRowsExceptActive(currentRows, rowId));
   }
 
   function updateRow(id: number, changes: Partial<EditableRow>) {
     guardedEditorUpdate(() => setRows((currentRows) =>
-      currentRows.map((row) => (row.id === id ? { ...row, ...changes } : row)),
+      currentRows.map((row) => (row.id === id && typeof changes.note === "string" ? planningCandidateRowReducer({ ...row, ...changes }, { type: "noteChanged", note: changes.note }) : row.id === id ? { ...row, ...changes } : row)),
     ));
   }
 
   function addRow() {
+    if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: "Select a candidate or cancel the active lookup before adding another row." }); setSaveState("errors"); return; }
     guardedEditorUpdate(() => {
       setRows((currentRows) => [...currentRows, createEmptyRow(nextRowId, serviceLanguage)]);
       setNextRowId((currentId) => currentId + 1);
@@ -536,6 +665,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function saveWorkingSet() {
     if (isCompletedRecordOpen || isFinalSetOpen) return;
+    if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
     if (!hasServiceContext) {
       setServiceError({
         code: "invalidInput",
@@ -570,6 +700,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
       set: {
         status: "working",
@@ -662,6 +795,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       return;
     }
 
+    if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
+
     const result = await planningLifecycleService.updateCompletedRecord({
       role: selectedRole,
       recordId: completedRecord.id,
@@ -671,6 +806,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
       set: { status: "final", language: serviceLanguage, rows: planningRows },
       allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,
@@ -737,6 +875,23 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setSaveState("deleted");
   }
 
+  function navigateWorkspace(nextWorkspace: Workspace) {
+    if (nextWorkspace !== workspace && !workspaceLeaveState.allowed) {
+      setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before leaving Planning." });
+      setSaveState("errors");
+      return;
+    }
+    setWorkspace(nextWorkspace);
+  }
+
+  function openCatalogSongDetail(songId: string, rowId?: number) {
+    setSelectedCatalogTab("songs");
+    setSelectedCatalogSongId(songId);
+    setCatalogReturnRowId(rowId ?? null);
+    setCandidateDetails(null);
+    navigateWorkspace("catalog");
+  }
+
   return (
     <main className="shell">
       <section className="card planning-card" aria-labelledby="page-title">
@@ -746,14 +901,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
             <p className="lede">Plan services, review active plans and history, administer the catalog, and keep development tools separate.</p>
           </div>
-          <div className="role-pill" aria-label="Current simulated role">Role: <strong>{selectedRole}</strong></div>
+          <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
-          <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => setWorkspace("planning")}>Planning</button>
-          <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => setWorkspace("plans")}>Plans</button>
-          <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => setWorkspace("history")}>History</button>
-          {selectedRole === "admin" && <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => setWorkspace("catalog")}>Catalog</button>}
-          <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => setWorkspace("development")}>Development</button>
+          <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
+          <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
+          <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
+          <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
+          <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
         </nav>
 
         <div className={`status status-${saveState}`} role="status">
@@ -825,36 +980,34 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               </select>
             </label>
             <label>
-              Priest lookup
-              <input
-                type="text"
-                placeholder="Search active priests"
-                disabled={isEditorLocked}
-                value={priest}
-                onChange={(event) => { void updatePersonSearch("priest", event.target.value); }}
-              />
-              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Search text only — choose a catalog priest before saving." : "No priest selected."}</span>
-              {priestResults.length > 0 && !isEditorLocked && (
-                <ul className="lookup-list">
-                  {priestResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("priest", person)}>{person.displayName}</button></li>)}
-                </ul>
-              )}
+              Priest
+              <select disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); }}>
+                <option value="">Select active priest</option>
+                {priestId && !priestResults.some((person) => person.id === priestId) && <option value={priestId} disabled aria-label={`Historical inactive priest ${priest}`}>{priest} (historical inactive)</option>}
+                {priestResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+              </select>
+              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Historical or incomplete priest selection — choose an active catalog priest before saving." : "No priest selected."}</span>
             </label>
             <label>
-              Organist lookup
-              <input
-                type="text"
-                placeholder="Search active organists"
-                disabled={isEditorLocked}
-                value={organist}
-                onChange={(event) => { void updatePersonSearch("organist", event.target.value); }}
-              />
-              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Search text only — choose a catalog organist before saving." : "No organist selected."}</span>
-              {organistResults.length > 0 && !isEditorLocked && (
-                <ul className="lookup-list">
-                  {organistResults.map((person) => <li key={person.id}><button type="button" onClick={() => selectPerson("organist", person)}>{person.displayName}</button></li>)}
-                </ul>
-              )}
+              Organist
+              <select disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); }}>
+                <option value="">Select active organist</option>
+                {organistId && !organistResults.some((person) => person.id === organistId) && <option value={organistId} disabled aria-label={`Historical inactive organist ${organist}`}>{organist} (historical inactive)</option>}
+                {organistResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+              </select>
+              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Historical or incomplete organist selection — choose an active catalog organist before saving." : "No organist selected."}</span>
+            </label>
+            <label className="note-field">
+              Service note
+              <textarea rows={4} disabled={isEditorLocked} value={serviceNote} onChange={(event) => guardedEditorUpdate(() => setServiceNote(event.target.value))} placeholder="Gospel readings, links, or planning information" />
+            </label>
+            <label>
+              Candidate antiphon key
+              <input type="text" disabled={isEditorLocked} value={candidateAntiphonKey} onChange={(event) => guardedEditorUpdate(() => setCandidateAntiphonKey(event.target.value))} placeholder="Optional synthetic/demo antiphon key" />
+            </label>
+            <label>
+              Candidate season key
+              <input type="text" disabled={isEditorLocked} value={candidateSeasonKey} onChange={(event) => guardedEditorUpdate(() => setCandidateSeasonKey(event.target.value))} placeholder="Optional synthetic/demo season key" />
             </label>
           </fieldset>
 
@@ -870,7 +1023,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               const validation = validationResults[index];
 
               return (
-                <fieldset className="row-card" key={row.id}>
+                <fieldset className="row-card" key={row.id} onFocus={() => activateExistingRow(row.id)} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-actions">
                     <button type="button" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>
@@ -898,33 +1051,37 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                         disabled={!canEditRows}
                       />
                       {row.selectedSong ? (
-                        <span className="field-help">
-                          Selected: {formatSongLabel(row.selectedSong)}{row.selectedSong.songId ? "" : " — legacy snapshot without catalog ID"}
-                          {"sheetMusicUrl" in row.selectedSong && row.selectedSong.sheetMusicUrl ? <> · <a href={row.selectedSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a></> : null}
-                        </span>
-                      ) : row.songSearch ? <span className="field-help">Search text only — choose a catalog song before saving, or clear it for a note-only row.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
+                        <CandidateLine
+                          candidate={row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong)}
+                          variant="selected"
+                          note={row.note}
+                          readOnly={!canEditRows}
+                          onOpenDetail={() => row.selectedSong?.songId && openCatalogSongDetail(row.selectedSong.songId, row.id)}
+                          onNoteChange={(note) => updateRow(row.id, { note })}
+                        />
+                      ) : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
                       {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
-                      {(songResults[row.id]?.length ?? 0) > 0 && canEditRows && (
-                        <ul className="lookup-list">
-                          {songResults[row.id].map((song) => (
-                            <li key={song.songId}>
-                              <button type="button" onClick={() => selectSong(row.id, song)}>{formatSongLabel(song)}</button>
-                              {song.sheetMusicUrl ? <> <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a></> : null}
-                            </li>
+                      {getCandidatePopupRows(candidateResults[row.id] ?? []).length > 0 && canEditRows && (
+                        <div className="candidate-popup" role="listbox" aria-label={`Song candidates for row ${index + 1}`}>
+                          {getCandidatePopupRows(candidateResults[row.id] ?? []).map((candidate) => (
+                            <CandidateLine key={candidate.songId} candidate={(candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId)!} variant="popup" onSelect={() => selectCandidate(row.id, (candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId)!)} />
                           ))}
-                        </ul>
+                          <button type="button" onClick={() => cancelActiveLookup(row.id)}>Cancel lookup</button>
+                        </div>
                       )}
                     </label>
-                    <label className="note-field">
-                      Text note
-                      <input
-                        type="text"
-                        value={row.note}
-                        onChange={(event) => updateRow(row.id, { note: event.target.value })}
-                        placeholder="Optional note without a song"
-                        disabled={!canEditRows}
-                      />
-                    </label>
+                    {!row.selectedSong && (
+                      <label className="note-field">
+                        Text note
+                        <input
+                          type="text"
+                          value={row.note}
+                          onChange={(event) => updateRow(row.id, { note: event.target.value })}
+                          placeholder="Optional note without a song"
+                          disabled={!canEditRows}
+                        />
+                      </label>
+                    )}
                   </div>
                   {!validation.valid && (
                     <ul className="validation-list" aria-label={`Row ${index + 1} validation errors`}>
@@ -942,10 +1099,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors}>
+                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState}>
                       Finalize set
                     </button>
                   </>
@@ -962,7 +1119,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors}>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
                       Save completed changes
                     </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>
@@ -974,39 +1131,71 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         </form>
         )}
 
-        {workspace === "catalog" && selectedRole === "admin" && (
-          <section className="db-workspace" aria-label="Catalog administration">
-            <div className="rows-header"><h2>Catalog administration</h2><button type="button" onClick={refreshCatalogAdmin}>Refresh catalog</button></div>
-            <fieldset className="field-group">
-              <legend>People</legend>
-              <label>Display name<input value={personForm.displayName} onChange={(event) => setPersonForm({ ...personForm, displayName: event.target.value })} /></label>
-              <label><input type="checkbox" checked={personForm.priest} onChange={(event) => setPersonForm({ ...personForm, priest: event.target.checked })} /> Priest role</label>
-              <label><input type="checkbox" checked={personForm.organist} onChange={(event) => setPersonForm({ ...personForm, organist: event.target.checked })} /> Organist role</label>
-              <label><input type="checkbox" checked={personForm.active} onChange={(event) => setPersonForm({ ...personForm, active: event.target.checked })} /> Active</label>
-              <button type="button" onClick={async () => { if (await saveAdminPerson(personForm)) setPersonForm({ displayName: "", priest: true, organist: false, active: true }); }}>Add person</button>
-              <ul className="saved-set-list">
-                {peopleAdmin.map((person) => (
-                  <li key={person.id}>{person.displayName} ({person.active ? "active" : "inactive"}; {person.priest ? "priest" : ""} {person.organist ? "organist" : ""})
-                    <button type="button" onClick={async () => { await saveAdminPerson({ ...person, active: !person.active }); }}>{person.active ? "Deactivate" : "Activate"}</button>
-                    <button type="button" onClick={async () => { const displayName = window.prompt("Display name", person.displayName); if (displayName) await saveAdminPerson({ ...person, displayName }); }}>Rename</button>
-                    <button type="button" onClick={async () => { await saveAdminPerson({ ...person, priest: !person.priest }); }}>Toggle priest</button>
-                    <button type="button" onClick={async () => { await saveAdminPerson({ ...person, organist: !person.organist }); }}>Toggle organist</button>
-                  </li>
-                ))}
-              </ul>
-            </fieldset>
-            <fieldset className="field-group">
-              <legend>Songs</legend>
-              <ul className="saved-set-list">
-                {songsAdmin.map((song) => <li key={song.songId}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"}) {song.sheetMusicUrl ? <a href={song.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a> : null} <button type="button" onClick={async () => { await toggleAdminSong(song); }}>{song.active ? "Deactivate" : "Activate"}</button></li>)}
-              </ul>
-            </fieldset>
+
+        {candidateDetails && (
+          <section className="detail-panel" aria-label="Song detail">
+            <div className="rows-header"><h2>Song detail</h2><button type="button" onClick={() => setCandidateDetails(null)}>Back to Planning row</button></div>
+            <div className="selected-song-card"><strong>{candidateDetails.number} · {candidateDetails.title}</strong><span>{candidateDetails.language} · {candidateDetails.songId}</span></div>
+            <p className="field-help">Signal: {candidateDetails.signal}; preference: {candidateDetails.preferenceShade} ({candidateDetails.aggregatePreferenceScore}); repertoire: {candidateDetails.repertoire ? "yes" : "no"}; melody window: {candidateDetails.suppressedByMelodyWindow ? "recent equivalent found" : "clear"}.</p>
+            {candidateDetails.equivalentNumbers.length > 0 && <p className="field-help">Equivalent numbers: {candidateDetails.equivalentNumbers.map((item) => `${item.number}${item.repertoire ? " repertoire" : ""}`).join(", ")}</p>}
+          </section>
+        )}
+
+        {workspace === "catalog" && (
+          <section className="db-workspace" aria-label="Catalog">
+            <div className="rows-header"><h2>Catalog</h2><button type="button" onClick={refreshCatalogAdmin}>Refresh catalog</button></div>
+            <div className="workspace-nav" role="tablist" aria-label="Catalog sections">
+              <button type="button" className={selectedCatalogTab === "songs" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("songs")}>Songs</button>
+              <button type="button" className={selectedCatalogTab === "people" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("people")}>People</button>
+              <button type="button" className={selectedCatalogTab === "knowledge" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("knowledge")}>Knowledge</button>
+            </div>
+            {selectedCatalogTab === "people" && (
+              <fieldset className="field-group">
+                <legend>People {selectedRole !== "admin" ? "(read-only)" : ""}</legend>
+                {selectedRole === "admin" && <>
+                  <label>Display name<input value={personForm.displayName} onChange={(event) => setPersonForm({ ...personForm, displayName: event.target.value })} /></label>
+                  <label><input type="checkbox" checked={personForm.priest} onChange={(event) => setPersonForm({ ...personForm, priest: event.target.checked })} /> Priest role</label>
+                  <label><input type="checkbox" checked={personForm.organist} onChange={(event) => setPersonForm({ ...personForm, organist: event.target.checked })} /> Organist role</label>
+                  <label><input type="checkbox" checked={personForm.active} onChange={(event) => setPersonForm({ ...personForm, active: event.target.checked })} /> Active</label>
+                  <button type="button" onClick={async () => { if (await saveAdminPerson(personForm)) setPersonForm({ displayName: "", priest: true, organist: false, active: true }); }}>Add person</button>
+                </>}
+                <ul className="saved-set-list">{peopleAdmin.map((person) => <li key={person.id}>{person.displayName} ({person.active ? "active" : "inactive"}; {person.priest ? "priest" : ""} {person.organist ? "organist" : ""}) {selectedRole === "admin" && <><button type="button" onClick={async () => { await saveAdminPerson({ ...person, active: !person.active }); }}>{person.active ? "Deactivate" : "Activate"}</button><button type="button" onClick={async () => { const displayName = window.prompt("Display name", person.displayName); if (displayName) await saveAdminPerson({ ...person, displayName }); }}>Rename</button><button type="button" onClick={async () => { await saveAdminPerson({ ...person, priest: !person.priest }); }}>Toggle priest</button><button type="button" onClick={async () => { await saveAdminPerson({ ...person, organist: !person.organist }); }}>Toggle organist</button></>}</li>)}</ul>
+              </fieldset>
+            )}
+            {selectedCatalogTab === "songs" && (
+              <fieldset className="field-group catalog-panel">
+                <legend>Songs {selectedRole !== "admin" ? "(active only, own preference/repertoire allowed)" : "(admin includes inactive)"}</legend>
+                <label>Language<select value={catalogSongLanguage} onChange={(event) => { setCatalogSongLanguage(event.target.value as ServiceLanguage); setCatalogSongPage(0); }}><option value="mixed">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
+                <label>Search<input value={catalogSongSearch} onChange={(event) => { setCatalogSongSearch(event.target.value); setCatalogSongPage(0); }} placeholder="Search by number or title" /></label>
+                <p className="field-help">Showing {pagedCatalogSongs.length} of {visibleCatalogSongs.length} songs over demo + 1,600 synthetic scale records.</p>
+                {selectedCatalogSong && (
+                  <div className="detail-panel" aria-label="Catalog song detail">
+                    <div className="rows-header"><h2>{selectedCatalogSong.number} · {selectedCatalogSong.title}</h2>{catalogReturnRowId ? <button type="button" onClick={() => { setWorkspace("planning"); setCatalogReturnRowId(null); }}>Back to Planning row {catalogReturnRowId}</button> : null}</div>
+                    <p className="field-help">{selectedCatalogSong.language} · {selectedCatalogSong.songId} · {selectedCatalogSong.active ? "active" : "inactive"}</p>
+                    {selectedCatalogSong.sheetMusicUrl && <a href={selectedCatalogSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a>}
+                    {selectedRole !== "admin" && <button type="button" onClick={() => interactionClient.saveOwnPreference({ actor: activeActor, songId: selectedCatalogSong.songId, score: selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1 })}>Set own max preference</button>}
+                    {activeActor.personId && selectedRole === "organist" && <button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: activeActor.personId!, songId: selectedCatalogSong.songId, active: true })}>Mark in my repertoire</button>}
+                    {selectedRole === "admin" && <><button type="button" onClick={async () => { await toggleAdminSong(selectedCatalogSong); }}>Toggle active</button><button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: "demo-organist", songId: selectedCatalogSong.songId, active: true })}>Add to demo organist repertoire</button></>}
+                  </div>
+                )}
+                <ul className="saved-set-list catalog-song-list">{pagedCatalogSongs.map((song) => <li key={song.songId}><button type="button" onClick={() => setSelectedCatalogSongId(song.songId)}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"})</button></li>)}</ul>
+                <div className="row-actions"><button type="button" disabled={catalogSongPage === 0} onClick={() => setCatalogSongPage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {catalogSongPage + 1} / {catalogPageCount}</span><button type="button" disabled={catalogSongPage >= catalogPageCount - 1} onClick={() => setCatalogSongPage((page) => Math.min(catalogPageCount - 1, page + 1))}>Next</button></div>
+              </fieldset>
+            )}
+            {selectedCatalogTab === "knowledge" && (
+              <fieldset className="field-group">
+                <legend>Knowledge {selectedRole !== "admin" ? "(read-only)" : ""}</legend>
+                <p className="field-help">Melody non-repetition is one shared configurable window: {interactionRepository.getMelodyWindow().months} calendar months before and after.</p>
+                {selectedRole === "admin" && <button type="button" onClick={() => interactionClient.setMelodyWindow({ actor: activeActor, months: 2 })}>Set demo 2-month window</button>}
+                <ul className="saved-set-list">{interactionRepository.listKnowledge().melodyClasses.map((item) => <li key={item.id}>{item.label}: {item.songIds.join(", ")} ({item.synthetic ? "synthetic" : "production"})</li>)}</ul>
+              </fieldset>
+            )}
           </section>
         )}
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            <div><span className="guidance-label">Local role simulation</span><strong>{selectedRole}</strong><label>Change role<select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as PlanningRole)}>{localRoleOptions.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>This is not authentication, a real session, an account model, or a durable role source.</p></div>
+            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) setSelectedUserId(user.id); }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><p>Development switches stable user IDs and effective roles until authentication exists.</p></div>
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}

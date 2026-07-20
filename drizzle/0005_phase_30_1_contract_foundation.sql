@@ -1,0 +1,20 @@
+ALTER TABLE "service_contexts" ADD COLUMN IF NOT EXISTS "note" text;
+CREATE TYPE "preference_profile_category" AS ENUM ('priest', 'organist', 'congregation_member');
+CREATE TYPE "user_role" AS ENUM ('priest', 'organist', 'admin', 'congregation_member');
+CREATE TABLE "app_users" ("id" text PRIMARY KEY NOT NULL,"display_name" text NOT NULL,"person_id" text REFERENCES "catalog_persons"("id") ON DELETE set null,"active" boolean DEFAULT true NOT NULL,"created_at" timestamp with time zone DEFAULT now() NOT NULL,"updated_at" timestamp with time zone DEFAULT now() NOT NULL);
+CREATE TABLE "app_user_roles" ("user_id" text NOT NULL REFERENCES "app_users"("id") ON DELETE cascade,"role" "user_role" NOT NULL);
+CREATE UNIQUE INDEX "app_user_roles_user_role_idx" ON "app_user_roles" ("user_id","role");
+CREATE TABLE "preference_profiles" ("id" text PRIMARY KEY NOT NULL,"user_id" text NOT NULL REFERENCES "app_users"("id") ON DELETE cascade,"category" "preference_profile_category" NOT NULL,"created_at" timestamp with time zone DEFAULT now() NOT NULL,"updated_at" timestamp with time zone DEFAULT now() NOT NULL);
+CREATE UNIQUE INDEX "preference_profiles_user_id_idx" ON "preference_profiles" ("user_id");
+CREATE TABLE "melody_equivalence_classes" ("id" text PRIMARY KEY NOT NULL,"label" text NOT NULL,"synthetic" boolean DEFAULT false NOT NULL);
+CREATE TABLE "song_melody_equivalence" ("song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade,"class_id" text NOT NULL REFERENCES "melody_equivalence_classes"("id") ON DELETE cascade);
+CREATE UNIQUE INDEX "song_melody_equivalence_song_id_idx" ON "song_melody_equivalence" ("song_id");
+CREATE TABLE "song_preferences" ("profile_id" text NOT NULL REFERENCES "preference_profiles"("id") ON DELETE cascade,"song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade,"score" integer NOT NULL,"updated_at" timestamp with time zone DEFAULT now() NOT NULL, CONSTRAINT "song_preferences_score_range" CHECK ("score" >= 0 and "score" <= 3));
+CREATE UNIQUE INDEX "song_preferences_profile_song_idx" ON "song_preferences" ("profile_id","song_id");
+CREATE TABLE "organist_repertoire" ("organist_person_id" text NOT NULL REFERENCES "catalog_persons"("id") ON DELETE cascade,"song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade);
+CREATE UNIQUE INDEX "organist_repertoire_person_song_idx" ON "organist_repertoire" ("organist_person_id","song_id");
+CREATE TABLE "antiphon_mappings" ("id" text PRIMARY KEY NOT NULL,"antiphon_key" text NOT NULL,"song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade,"synthetic" boolean DEFAULT false NOT NULL);
+CREATE TABLE "liturgical_season_mappings" ("id" text PRIMARY KEY NOT NULL,"season_key" text NOT NULL,"song_id" text NOT NULL REFERENCES "catalog_songs"("song_id") ON DELETE cascade,"synthetic" boolean DEFAULT false NOT NULL);
+CREATE TABLE "melody_non_repetition_config" ("id" text DEFAULT 'global' PRIMARY KEY NOT NULL,"days_before" integer DEFAULT 14 NOT NULL,"days_after" integer DEFAULT 0 NOT NULL,"updated_at" timestamp with time zone DEFAULT now() NOT NULL, CONSTRAINT "melody_non_repetition_config_singleton" CHECK ("id" = 'global'), CONSTRAINT "melody_non_repetition_config_non_negative" CHECK ("days_before" >= 0 and "days_after" >= 0));
+
+INSERT INTO "melody_non_repetition_config" ("id", "days_before", "days_after") VALUES ('global', 60, 0) ON CONFLICT ("id") DO NOTHING;
