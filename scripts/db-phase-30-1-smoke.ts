@@ -11,23 +11,25 @@ if (!databaseUrl) { console.error("DATABASE_URL is required for Phase 30.1 DB sm
 async function main() {
   const { Pool } = await importPg();
   const pool = new Pool({ connectionString: databaseUrl });
-  const db = drizzle(pool, { schema });
+  const client = await pool.connect();
+  const db = drizzle(client, { schema });
   try {
+    await client.query("begin");
     await seedCatalog(new DrizzleCatalogRepository(db));
-    await pool.query("insert into app_users (id, display_name) values ($1, $2) on conflict (id) do update set display_name = excluded.display_name", ["phase30-db-user", "Phase 30 DB User"]);
-    await pool.query("insert into app_user_roles (user_id, role) values ($1, 'priest') on conflict do nothing", ["phase30-db-user"]);
-    await pool.query("insert into preference_profiles (id, user_id, category) values ($1, $2, 'priest') on conflict (user_id) do update set category = excluded.category", ["phase30-db-profile", "phase30-db-user"]);
-    await pool.query("insert into melody_non_repetition_config (id, months) values ('global', 2) on conflict (id) do update set months = excluded.months");
-    await seedDemoInteractionKnowledge(pool);
-    await seedDemoInteractionKnowledge(pool);
-    const phase30Catalog = await pool.query("select (select count(*) from catalog_persons where id in ('demo-priest', 'demo-organist'))::int as people, (select count(*) from catalog_songs where song_id in ('demo-cz-101', 'demo-pl-101'))::int as songs");
+    await client.query("insert into app_users (id, display_name) values ($1, $2) on conflict (id) do update set display_name = excluded.display_name", ["phase30-db-user", "Phase 30 DB User"]);
+    await client.query("insert into app_user_roles (user_id, role) values ($1, 'priest') on conflict do nothing", ["phase30-db-user"]);
+    await client.query("insert into preference_profiles (id, user_id, category) values ($1, $2, 'priest') on conflict (user_id) do update set category = excluded.category", ["phase30-db-profile", "phase30-db-user"]);
+    await client.query("insert into melody_non_repetition_config (id, months) values ('global', 2) on conflict (id) do update set months = excluded.months");
+    await seedDemoInteractionKnowledge(client as any);
+    await seedDemoInteractionKnowledge(client as any);
+    const phase30Catalog = await client.query("select (select count(*) from catalog_persons where id in ('demo-priest', 'demo-organist'))::int as people, (select count(*) from catalog_songs where song_id in ('demo-cz-101', 'demo-pl-101'))::int as songs");
     if (phase30Catalog.rows[0].people !== 2 || phase30Catalog.rows[0].songs !== 2) throw new Error("Phase 30 exact demo catalog fixtures did not round-trip.");
-    const identityRows = await pool.query("select u.id, u.person_id, string_agg(r.role::text, ',' order by r.role::text) as roles, count(p.id)::int as profile_count from app_users u left join app_user_roles r on r.user_id = u.id left join preference_profiles p on p.user_id = u.id where u.id in ('demo-priest-user', 'demo-organist-user', 'demo-admin-user', 'demo-member-user') group by u.id, u.person_id order by u.id");
+    const identityRows = await client.query("select u.id, u.person_id, string_agg(r.role::text, ',' order by r.role::text) as roles, count(p.id)::int as profile_count from app_users u left join app_user_roles r on r.user_id = u.id left join preference_profiles p on p.user_id = u.id where u.id in ('demo-priest-user', 'demo-organist-user', 'demo-admin-user', 'demo-member-user') group by u.id, u.person_id order by u.id");
     const identityById = new Map(identityRows.rows.map((row) => [String(row.id), { person_id: row.person_id, roles: String(row.roles ?? "").split(",").filter(Boolean), profile_count: Number(row.profile_count) }]));
     if (identityById.get("demo-priest-user")?.person_id !== "demo-priest" || identityById.get("demo-organist-user")?.person_id !== "demo-organist") throw new Error("Demo priest/organist users must keep catalog person links.");
     if (identityById.get("demo-priest-user")?.profile_count !== 1 || identityById.get("demo-organist-user")?.profile_count !== 1 || identityById.get("demo-member-user")?.profile_count !== 1) throw new Error("Demo seed must create exactly one preference profile for priest, organist, and member.");
     if (identityById.get("demo-priest-user")?.roles[0] !== "priest" || identityById.get("demo-organist-user")?.roles[0] !== "organist" || identityById.get("demo-admin-user")?.roles[0] !== "admin" || identityById.get("demo-member-user")?.roles[0] !== "congregation_member") throw new Error("Demo seed roles did not round-trip.");
-    const duplicateCheck = await pool.query("select (select count(*) from app_users where id like 'demo-%user')::int as users, (select count(*) from preference_profiles where id in ('pref-priest', 'pref-organist', 'pref-member'))::int as profiles, (select count(*) from song_preferences where profile_id in ('pref-priest', 'pref-organist', 'pref-member'))::int as preferences, (select count(*) from organist_repertoire where organist_person_id = 'demo-organist' and song_id = 'demo-cz-101')::int as repertoire");
+    const duplicateCheck = await client.query("select (select count(*) from app_users where id like 'demo-%user')::int as users, (select count(*) from preference_profiles where id in ('pref-priest', 'pref-organist', 'pref-member'))::int as profiles, (select count(*) from song_preferences where profile_id in ('pref-priest', 'pref-organist', 'pref-member'))::int as preferences, (select count(*) from organist_repertoire where organist_person_id = 'demo-organist' and song_id = 'demo-cz-101')::int as repertoire");
     if (duplicateCheck.rows[0].users !== 4 || duplicateCheck.rows[0].profiles !== 3 || duplicateCheck.rows[0].preferences !== 3 || duplicateCheck.rows[0].repertoire !== 1) throw new Error("Repeated Phase 30.1 demo seed must remain idempotent.");
 
     const lifecycle = new PlanningLifecycleService({
@@ -53,15 +55,19 @@ async function main() {
     const reloadedCompleted = await lifecycle.loadCompletedRecord(completed.value.id);
     if (!reloadedCompleted.success || reloadedCompleted.value.serviceContext.antiphonKey !== "phase30-antiphon" || reloadedCompleted.value.serviceContext.liturgicalSeasonKey !== "phase30-updated-season" || reloadedCompleted.value.set.rows[0]?.song?.songId !== "demo-cz-101") throw new Error("Completed update reload context/song round-trip failed.");
 
-    const contextColumns = await pool.query("select column_name from information_schema.columns where table_name = 'service_contexts' and column_name in ('antiphon_key', 'liturgical_season_key')");
-    const rowColumns = await pool.query("select table_name, column_name from information_schema.columns where table_name in ('service_set_rows', 'completed_service_rows') and column_name in ('antiphon_key', 'liturgical_season_key')");
+    const contextColumns = await client.query("select column_name from information_schema.columns where table_name = 'service_contexts' and column_name in ('antiphon_key', 'liturgical_season_key')");
+    const rowColumns = await client.query("select table_name, column_name from information_schema.columns where table_name in ('service_set_rows', 'completed_service_rows') and column_name in ('antiphon_key', 'liturgical_season_key')");
     if (contextColumns.rows.length !== 2 || rowColumns.rows.length !== 0) throw new Error("Hydration keys must exist only on service_contexts.");
-    const { rows } = await pool.query("select u.id, r.role, p.category, c.months from app_users u join app_user_roles r on r.user_id = u.id join preference_profiles p on p.user_id = u.id cross join melody_non_repetition_config c where u.id = $1", ["phase30-db-user"]);
+    const { rows } = await client.query("select u.id, r.role, p.category, c.months from app_users u join app_user_roles r on r.user_id = u.id join preference_profiles p on p.user_id = u.id cross join melody_non_repetition_config c where u.id = $1", ["phase30-db-user"]);
     if (rows.length !== 1 || rows[0].months !== 2) throw new Error("Phase 30.1 persisted entities did not round-trip.");
-    const knowledge = await pool.query("select count(*) as count from melody_equivalence_classes c join song_melody_equivalence s on s.class_id = c.id join antiphon_mappings a on a.song_id = s.song_id where c.id = $1", ["synthetic-melody-a"]);
+    const knowledge = await client.query("select count(*) as count from melody_equivalence_classes c join song_melody_equivalence s on s.class_id = c.id join antiphon_mappings a on a.song_id = s.song_id where c.id = $1", ["synthetic-melody-a"]);
     if (Number(knowledge.rows[0].count) < 1) throw new Error("Phase 30.1 candidate knowledge did not round-trip.");
-    console.log("Phase 30.1 DB smoke passed.");
-  } finally { await pool.end(); }
+    await client.query("rollback");
+    console.log("Phase 30.1 DB smoke passed with transaction rollback isolation.");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally { client.release(); await pool.end(); }
 }
 async function importPg(): Promise<PgModule> { return import("pg"); }
 main().catch((error) => { console.error("Phase 30.1 DB smoke failed."); console.error(error); process.exit(1); });
