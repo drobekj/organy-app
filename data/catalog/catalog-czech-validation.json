@@ -1,0 +1,63 @@
+{
+  "validation_passed": true,
+  "expected_records": 808,
+  "actual_records": 808,
+  "source": "https://www.evangelickykancional.cz",
+  "schema": [
+    "source_id",
+    "language",
+    "number",
+    "title",
+    "source_url"
+  ],
+  "rules": {
+    "unique_key": [
+      "language",
+      "number"
+    ],
+    "three_digit_variant": "xyz/1 -> xyz1, xyz/2 -> xyz2, ..., xyz/9 -> xyz9",
+    "two_digit_variant": "xy/1 -> xy10, xy/2 -> xy20, ..., xy/9 -> xy90",
+    "one_digit_variant": "x/1 -> x100, x/2 -> x200, ..., x/9 -> x900",
+    "display": "All synthetic four-digit values display as base/variant.",
+    "number_52_1": 5210,
+    "number_52_2": 5220,
+    "source_url": "Preserved from the Evangelický kancionál source; seven manually completed hymns have null URL."
+  },
+  "checks": {
+    "duplicate_language_number_keys": [],
+    "duplicate_nonempty_source_ids": [],
+    "missing_base_numbers_1_to_799": [],
+    "empty_titles": [],
+    "invalid_source_urls": [],
+    "records_with_null_source_url": [
+      {
+        "number": 178,
+        "title": "Ó, Hospodine, přioděj"
+      },
+      {
+        "number": 198,
+        "title": "Zahradu znám jednu"
+      },
+      {
+        "number": 286,
+        "title": "Svatý je náš Bůh (Hagios ho Theos)"
+      },
+      {
+        "number": 304,
+        "title": "Svíce nohám mým"
+      },
+      {
+        "number": 336,
+        "title": "Člověče, chceš-li dojíti"
+      },
+      {
+        "number": 460,
+        "title": "Tvoje, Pane Kriste, dobrota"
+      },
+      {
+        "number": 462,
+        "title": "V zajetí hříchu tisíce lidí"
+      }
+    ]
+  }
+}
