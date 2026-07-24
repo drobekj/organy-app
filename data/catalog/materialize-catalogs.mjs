@@ -50,9 +50,15 @@ async function materialize({ name, partPrefix, output, sha256: expectedHash, rec
     throw new Error(`${name}: no transport payload parts found.`);
   }
 
-  const base64 = (
+  let base64 = (
     await Promise.all(partNames.map((file) => readFile(join(payloadDir, file), "utf8")))
   ).join("");
+
+  // The frozen Czech transport in this handoff is missing one Base64 character,
+  // but the authoritative SHA-256 still proves the byte-exact materialized JSON.
+  if (partPrefix === "catalog-czech-final.json.gz.b64.part") {
+    base64 = `${base64.slice(0, 4013)}J${base64.slice(4013)}`;
+  }
 
   const jsonBytes = gunzipSync(Buffer.from(base64, "base64"));
   const actualHash = sha256(jsonBytes);
