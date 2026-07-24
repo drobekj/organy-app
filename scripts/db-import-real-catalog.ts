@@ -6,7 +6,7 @@ async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const result = await importRealCatalog(pool);
-    console.log(`Real catalog import passed: ${result.byLanguage.czech} Czech + ${result.byLanguage.polish} Polish; imported ${result.imported}; fingerprint ${result.fingerprint}`);
+    console.log(`Real catalog import passed: ${result.byLanguage.czech} Czech + ${result.byLanguage.polish} Polish; processed ${result.processed}, inserted ${result.inserted}, updated ${result.updated}; fingerprint ${result.fingerprint}`);
   } finally { await pool.end(); }
 }
 main().catch((error) => { console.error(error); process.exit(1); });
