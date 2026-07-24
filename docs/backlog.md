@@ -552,3 +552,36 @@ The following areas must not be decomposed from this backlog yet:
 - migration scripts;
 - multi-congregation implementation;
 - automatic completion implementation details.
+
+## Phase 31A issue #91 acceptance traceability
+
+| Acceptance item | Implementation / verification |
+|---|---|
+| Reconstruct and commit frozen Czech and Polish catalog files | `node data/catalog/materialize-catalogs.mjs` reconstructs `data/catalog/catalog-czech-final.json` and `data/catalog/catalog-polish-final.json` with the accepted SHA-256 checks. |
+| Local acceptance database is rebuilt by removing the persistent Docker Compose volume | Human checkpoint: run `docker compose down -v`, then `npm run db:start`, `npm run db:migrate`, and `npm run db:import:real-catalog` against the local-only `DATABASE_URL`. |
+| Standalone import rejects dirty demo or synthetic catalog state | `npm run db:import:real-catalog` refuses non-empty person, user, lifecycle, melody, antiphon, or season state and only permits an empty catalog or exact idempotent real-catalog reimport. |
+| Runtime catalog contains exactly 808 Czech and 990 Polish real records | The import runs in one transaction and verifies the grouped runtime counts before commit. |
+| Import is idempotent and keyed by `(language, number)` | `catalog_songs_language_number_idx` remains the import conflict target. |
+| `sourceUrl` remains separate from `sheetMusicUrl` | Phase 31A adds `catalog_songs.source_url`; the importer writes source URLs there and clears `sheet_music_url` for frozen catalog rows. |
+| Variant display decodes accepted synthetic four-digit numbers | Runtime import maps `5210` to `52/1` and `3478` to `347/8` without changing the frozen JSON artifacts. |
+| DB smoke tests do not leave human acceptance data behind | New DB acceptance smoke should be run after the local-only volume rebuild; destructive reset/rollback are documented below. |
+
+### Phase 31A rollback and local-only reset
+
+Phase 31A destructive reset is only for the local acceptance PostgreSQL service from `docker-compose.yml`. Do not run it against any shared, staging, or production database.
+
+Rollback the local acceptance database by running:
+
+```bash
+docker compose down -v
+npm run db:start
+DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:migrate
+```
+
+Reapply the real catalog with:
+
+```bash
+DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:import:real-catalog
+```
+
+The required human checkpoint for issue #91 is to perform this local-only reset, import the real catalog, verify the importer reports Czech catalog 808, Polish catalog 990, and Total 1,798, then review the runtime catalog UI/search for real Czech and Polish records before merging.

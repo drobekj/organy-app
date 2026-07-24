@@ -8,8 +8,8 @@ const databaseUrl = process.env.DATABASE_URL;
 const pool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : undefined;
 const pgCatalog = { listSongs: async () => {
   if (!pool) return [];
-  const { rows } = await pool.query("select song_id, language, number, title, active, sheet_music_url from catalog_songs order by language, number");
-  return rows.map((row) => ({ songId: String(row.song_id), language: row.language as "czech" | "polish", number: String(row.number), title: String(row.title), active: Boolean(row.active), ...(row.sheet_music_url ? { sheetMusicUrl: String(row.sheet_music_url) } : {}) }));
+  const { rows } = await pool.query("select song_id, language, number, title, active, sheet_music_url, source_url from catalog_songs order by language, number");
+  return rows.map((row) => ({ songId: String(row.song_id), language: row.language as "czech" | "polish", number: String(row.number), title: String(row.title), active: Boolean(row.active), ...(row.sheet_music_url ? { sheetMusicUrl: String(row.sheet_music_url) } : {}), ...(row.source_url ? { sourceUrl: String(row.source_url) } : {}) }));
 } };
 
 export async function POST(request: Request) {

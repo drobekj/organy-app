@@ -14,7 +14,7 @@
     "db:stop": "docker compose down",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "test:lifecycle": "tsx scripts/lifecycle-regression-tests.ts",
-    "test": "tsx scripts/lifecycle-regression-tests.ts && tsx scripts/service-context-defaults-tests.ts && tsx scripts/catalog-tests.ts && tsx scripts/workspace-tests.ts && tsx scripts/phase-30-1-contract-tests.ts && tsx scripts/planning-ui-workflow-static-tests.ts && tsx scripts/phase-30-1-adversarial-tests.ts && tsx scripts/phase-30-1-candidate-flow-tests.ts",
+    "test": "tsx scripts/lifecycle-regression-tests.ts && tsx scripts/service-context-defaults-tests.ts && tsx scripts/catalog-tests.ts && tsx scripts/workspace-tests.ts && tsx scripts/phase-30-1-contract-tests.ts && tsx scripts/planning-ui-workflow-static-tests.ts && tsx scripts/phase-30-1-adversarial-tests.ts && tsx scripts/phase-30-1-candidate-flow-tests.ts && tsx scripts/phase-31a-real-catalog-tests.ts",
     "db:seed:catalog": "tsx scripts/db-seed-catalog.ts",
     "db:catalog-lifecycle-smoke": "tsx scripts/db-catalog-lifecycle-smoke.ts",
     "db:catalog-seed-smoke": "tsx scripts/db-catalog-seed-smoke.ts",
@@ -22,7 +22,10 @@
     "test:ui-static": "tsx scripts/planning-ui-workflow-static-tests.ts",
     "test:phase-30-1-adversarial": "tsx scripts/phase-30-1-adversarial-tests.ts",
     "verify:phase-30-1": "npm run typecheck && npm test && npm run build",
-    "test:phase-30-1-candidate-flow": "tsx scripts/phase-30-1-candidate-flow-tests.ts"
+    "test:phase-30-1-candidate-flow": "tsx scripts/phase-30-1-candidate-flow-tests.ts",
+    "db:import:real-catalog": "tsx scripts/db-import-real-catalog.ts",
+    "test:phase-31a": "tsx scripts/phase-31a-real-catalog-tests.ts",
+    "db:phase-31a-smoke": "tsx scripts/db-phase-31a-smoke.ts"
   },
   "dependencies": {
     "next": "16.2.10",

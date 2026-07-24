@@ -35,6 +35,7 @@ export const catalogSongs = pgTable("catalog_songs", {
   title: text("title").notNull(),
   active: boolean("active").notNull().default(true),
   sheetMusicUrl: text("sheet_music_url"),
+  sourceUrl: text("source_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
