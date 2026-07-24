@@ -1,0 +1,31 @@
+{
+  "format": "phase-31a-gzip-base64-paired-chunks-v1",
+  "bundle_files": [
+    "bundle-chunks-01.json",
+    "bundle-chunks-02.json",
+    "bundle-chunks-03.json",
+    "bundle-chunks-04.json",
+    "bundle-chunks-05.json",
+    "bundle-chunks-06.json"
+  ],
+  "artifacts": {
+    "catalog-czech-final.json": {
+      "sha256": "5aaf767a5cc7f21d2c428be6ef3d07f58ebf6f5e1303807177254283cd1896f9",
+      "bytes": 168053,
+      "records": 808
+    },
+    "catalog-polish-final.json": {
+      "sha256": "b06a3c452709213f4f60dcb0243e6a91bf00fd1881eac10b941b6bd05601cea9",
+      "bytes": 152752,
+      "records": 990
+    },
+    "catalog-czech-validation.json": {
+      "sha256": "e47da19e263f1ba962cb8e2699c6e94125499438a3ff74ccf78bdb29517cab40",
+      "bytes": 1622
+    },
+    "catalog-polish-validation.json": {
+      "sha256": "49a0accd4392ff9167707e2677d9edab9b5ed9ceb7d0d023a2251dfbca1b5559",
+      "bytes": 7624
+    }
+  }
+}
