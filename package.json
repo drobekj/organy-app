@@ -25,7 +25,11 @@
     "test:phase-30-1-candidate-flow": "tsx scripts/phase-30-1-candidate-flow-tests.ts",
     "db:import:real-catalog": "tsx scripts/db-import-real-catalog.ts",
     "test:phase-31a": "tsx scripts/phase-31a-real-catalog-tests.ts",
-    "db:phase-31a-smoke": "tsx scripts/db-phase-31a-smoke.ts"
+    "db:phase-31a-smoke": "tsx scripts/db-phase-31a-smoke.ts",
+    "db:reset:local-real-catalog": "node scripts/db-reset-local-real-catalog.mjs",
+    "db:verify:real-catalog": "tsx scripts/db-phase-31a-smoke.ts",
+    "dev:db": "node scripts/db-start-runtime.mjs",
+    "verify:phase-31a": "tsx scripts/phase-31a-postgres-acceptance.ts && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "next": "16.2.10",

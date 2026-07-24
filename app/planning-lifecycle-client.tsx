@@ -348,8 +348,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const rowLookupStates = rows.map((row) => row.lookupOpen && row.songSearch.trim() ? { kind: "lookup" as const, text: row.songSearch } : row.selectedSong?.songId ? { kind: "selected" as const, songId: row.selectedSong.songId } : row.note.trim() ? { kind: "noteOnly" as const, note: row.note } : { kind: "empty" as const });
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
   const workspaceLeaveState = canLeaveWorkspace(rowLookupStates);
-  const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
-  const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
+  const catalogSongPool = songsAdmin;
   const visibleCatalogSongs = useMemo(() => {
     const q = catalogSongSearch.trim().toLowerCase();
     const allowedLanguages = new Set(catalogSongLanguage === "mixed" ? ["czech", "polish"] : [catalogSongLanguage]);
@@ -1167,11 +1166,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 <legend>Songs {selectedRole !== "admin" ? "(active only, own preference/repertoire allowed)" : "(admin includes inactive)"}</legend>
                 <label>Language<select value={catalogSongLanguage} onChange={(event) => { setCatalogSongLanguage(event.target.value as ServiceLanguage); setCatalogSongPage(0); }}><option value="mixed">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
                 <label>Search<input value={catalogSongSearch} onChange={(event) => { setCatalogSongSearch(event.target.value); setCatalogSongPage(0); }} placeholder="Search by number or title" /></label>
-                <p className="field-help">Showing {pagedCatalogSongs.length} of {visibleCatalogSongs.length} songs over demo + 1,600 synthetic scale records.</p>
+                <p className="field-help">Showing {pagedCatalogSongs.length} of {visibleCatalogSongs.length} filtered songs. Catalog totals: Czech {catalogSongPool.filter((song) => song.language === "czech").length}, Polish {catalogSongPool.filter((song) => song.language === "polish").length}, All {catalogSongPool.length}.</p>
                 {selectedCatalogSong && (
                   <div className="detail-panel" aria-label="Catalog song detail">
                     <div className="rows-header"><h2>{selectedCatalogSong.number} · {selectedCatalogSong.title}</h2>{catalogReturnRowId ? <button type="button" onClick={() => { setWorkspace("planning"); setCatalogReturnRowId(null); }}>Back to Planning row {catalogReturnRowId}</button> : null}</div>
                     <p className="field-help">{selectedCatalogSong.language} · {selectedCatalogSong.songId} · {selectedCatalogSong.active ? "active" : "inactive"}</p>
+                    {selectedCatalogSong.sourceUrl ? <a href={selectedCatalogSong.sourceUrl} target="_blank" rel="noopener noreferrer">Source page</a> : <span className="field-help">No source URL recorded.</span>}
                     {selectedCatalogSong.sheetMusicUrl && <a href={selectedCatalogSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a>}
                     {selectedRole !== "admin" && <button type="button" onClick={() => interactionClient.saveOwnPreference({ actor: activeActor, songId: selectedCatalogSong.songId, score: selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1 })}>Set own max preference</button>}
                     {activeActor.personId && selectedRole === "organist" && <button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: activeActor.personId!, songId: selectedCatalogSong.songId, active: true })}>Mark in my repertoire</button>}

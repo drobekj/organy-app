@@ -54,7 +54,21 @@ async function materialize({ name, partPrefix, output, sha256: expectedHash, rec
     await Promise.all(partNames.map((file) => readFile(join(payloadDir, file), "utf8")))
   ).join("");
 
-  const jsonBytes = gunzipSync(Buffer.from(base64, "base64"));
+  let jsonBytes;
+  try {
+    jsonBytes = gunzipSync(Buffer.from(base64, "base64"));
+  } catch (error) {
+    try {
+      const existing = await readFile(join(catalogDir, output));
+      if (sha256(existing) === expectedHash) {
+        jsonBytes = existing;
+      } else {
+        throw error;
+      }
+    } catch {
+      throw error;
+    }
+  }
   const actualHash = sha256(jsonBytes);
 
   if (actualHash !== expectedHash) {

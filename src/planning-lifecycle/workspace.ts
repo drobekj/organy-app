@@ -9,7 +9,7 @@ export type PersistedRecordReference =
 
 export function getAvailableWorkspaces(role: PlanningRole): Workspace[] {
   const base: Workspace[] = ["planning", "plans", "history"];
-  if (role === "admin") base.push("catalog");
+  if (["priest", "organist", "admin", "congregationMember"].includes(role)) base.push("catalog");
   base.push("development");
   return base;
 }

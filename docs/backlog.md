@@ -555,33 +555,48 @@ The following areas must not be decomposed from this backlog yet:
 
 ## Phase 31A issue #91 acceptance traceability
 
-| Acceptance item | Implementation / verification |
-|---|---|
-| Reconstruct and commit frozen Czech and Polish catalog files | `node data/catalog/materialize-catalogs.mjs` reconstructs `data/catalog/catalog-czech-final.json` and `data/catalog/catalog-polish-final.json` with the accepted SHA-256 checks. |
-| Local acceptance database is rebuilt by removing the persistent Docker Compose volume | Human checkpoint: run `docker compose down -v`, then `npm run db:start`, `npm run db:migrate`, and `npm run db:import:real-catalog` against the local-only `DATABASE_URL`. |
-| Standalone import rejects dirty demo or synthetic catalog state | `npm run db:import:real-catalog` refuses non-empty person, user, lifecycle, melody, antiphon, or season state and only permits an empty catalog or exact idempotent real-catalog reimport. |
-| Runtime catalog contains exactly 808 Czech and 990 Polish real records | The import runs in one transaction and verifies the grouped runtime counts before commit. |
-| Import is idempotent and keyed by `(language, number)` | `catalog_songs_language_number_idx` remains the import conflict target. |
-| `sourceUrl` remains separate from `sheetMusicUrl` | Phase 31A adds `catalog_songs.source_url`; the importer writes source URLs there and clears `sheet_music_url` for frozen catalog rows. |
-| Variant display decodes accepted synthetic four-digit numbers | Runtime import maps `5210` to `52/1` and `3478` to `347/8` without changing the frozen JSON artifacts. |
-| DB smoke tests do not leave human acceptance data behind | New DB acceptance smoke should be run after the local-only volume rebuild; destructive reset/rollback are documented below. |
+| Acceptance item | Final implementation / executable evidence | Command safety |
+|---|---|---|
+| Reconstruct and commit frozen Czech and Polish catalog files | `data/catalog/catalog-czech-final.json` and `data/catalog/catalog-polish-final.json` are committed canonical inputs; `loadFrozenCatalogs()` verifies all four accepted SHA-256 hashes before returning importable rows. | Read-only validation |
+| Encoded catalog numbers retained in DB | Import stores JSON integer numbers as digit strings such as `5210` and `3478`; `decodeCatalogNumberForDisplay()` and `normalizeCatalogSearchQuery()` handle slash notation only at display/search boundaries. | Read-only display/search transform |
+| Standalone import is transactional and idempotent | `npm run db:import:real-catalog` uses one checked-out PostgreSQL client, `BEGIN`/`COMMIT`/`ROLLBACK`, and upserts on `(language, number)` while preserving stable `song_id`. | Idempotent write |
+| Dirty demo/synthetic state is refused | Import refuses person, user, lifecycle, melody, antiphon, or season state and points users to the destructive local reset rather than mixing datasets. | Idempotent write with refusal guard |
+| Runtime catalog contains exactly 808 Czech and 990 Polish real rows | `npm run db:verify:real-catalog` verifies Czech 808, Polish 990, total 1,798, duplicate count zero, no demo/synthetic rows, required samples, URLs, and encoded variant rows. | Read-only |
+| One-command clean local setup | `npm run db:reset:local-real-catalog` runs `docker compose down -v`, starts PostgreSQL, waits for health, migrates, imports, verifies, and prints the final result using the repository local Docker Compose database URL. | Destructive local-only |
+| Separate complete Phase 31A verification | `npm run verify:phase-31a` runs isolated PostgreSQL acceptance plus typecheck, unit tests, and build; CI executes this path. | Ephemeral-only plus read-only/build checks |
+| Runtime app start needs no manual `DATABASE_URL` edit | `npm run dev:db` starts Next.js with `ORGANY_RUNTIME=db` and the local Compose `DATABASE_URL`. | Local runtime start |
+| Real-catalog UI browsing | DB runtime Catalog is available to priest, organist, admin, and congregation-member roles, removes the 1,600 synthetic concatenation, shows Czech/Polish/All counts and filters, displays slash numbers, and opens `sourceUrl` links when present. | Runtime behavior |
+| DB smoke isolation | Phase 31A PostgreSQL acceptance runs demo/synthetic seed paths inside a transaction and verifies the real-catalog fingerprint is unchanged after rollback. | Ephemeral-only regression |
+
+### Phase 31A command classifications
+
+| Command | Classification | Purpose |
+|---|---|---|
+| `npm run db:reset:local-real-catalog` | Destructive local-only | Rebuild the local Docker Compose PostgreSQL volume, migrate, import, and verify real catalog acceptance state. |
+| `DATABASE_URL=... npm run db:import:real-catalog` | Idempotent write | Import/update the frozen real catalog into a clean or already-canonical database. |
+| `DATABASE_URL=... npm run db:verify:real-catalog` | Read-only | Verify counts, fingerprints, contamination absence, samples, URLs, and encoded variants. |
+| `DATABASE_URL=... npm run verify:phase-31a` | Ephemeral-only plus local checks | Create/drop an isolated PostgreSQL database, prove import/update/rollback/refusal/smoke isolation, then run typecheck/tests/build. |
+| `npm run dev:db` | Local runtime start | Start the application in DB runtime using the local Compose database URL without manual environment editing. |
 
 ### Phase 31A rollback and local-only reset
 
-Phase 31A destructive reset is only for the local acceptance PostgreSQL service from `docker-compose.yml`. Do not run it against any shared, staging, or production database.
+Code rollback: revert the Phase 31A migration/import/runtime PR.
 
-Rollback the local acceptance database by running:
-
-```bash
-docker compose down -v
-npm run db:start
-DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:migrate
-```
-
-Reapply the real catalog with:
+Local data rollback is intentionally local-only. Run the destructive reset from the revision you want to accept:
 
 ```bash
-DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:import:real-catalog
+npm run db:reset:local-real-catalog
 ```
 
-The required human checkpoint for issue #91 is to perform this local-only reset, import the real catalog, verify the importer reports Czech catalog 808, Polish catalog 990, and Total 1,798, then review the runtime catalog UI/search for real Czech and Polish records before merging.
+The command destroys only the repository Docker Compose PostgreSQL volume, recreates it, applies migrations, imports the real catalog, and runs read-only verification. Do not use it against any shared, staging, production, or non-local database.
+
+### Remaining human product checkpoint
+
+After automated acceptance and independent review, the only remaining human checkpoint is:
+
+1. run `npm run db:reset:local-real-catalog`;
+2. run `npm run dev:db`;
+3. confirm Catalog shows Czech 808, Polish 990, All 1,798;
+4. search Czech `298` / title `Otevři své srdce` and Polish `955` / title `Żegnamy was w Bogu naszym`, then open their source links;
+5. search/display Czech `52/1` and Polish `347/8`;
+6. confirm ordinary Catalog browsing contains no demo or synthetic hymn.

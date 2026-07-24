@@ -9,7 +9,7 @@ const final: PersistedPlanningSet = { id: "set-2", status: "final", language: "p
 const completed: CompletedServiceRecord = { id: "completed-1", sourceFinalSetId: "set-2", serviceContext: baseContext, set: { status: "final", language: "czech", rows: [{ note: "Done" }] }, completedAt: new Date("2026-07-20T10:00:00.000Z") };
 
 assert.deepEqual(groupActivePlanningSets([working, final]), { working: [working], final: [final] });
-assert.deepEqual(getAvailableWorkspaces("priest"), ["planning", "plans", "history", "development"]);
+assert.deepEqual(getAvailableWorkspaces("priest"), ["planning", "plans", "history", "catalog", "development"]);
 assert.deepEqual(getAvailableWorkspaces("admin"), ["planning", "plans", "history", "catalog", "development"]);
 assert.equal(getWorkspaceLabel("planning"), "Planning");
 assert.equal(getWorkspaceLabel("plans"), "Plans");
@@ -28,7 +28,7 @@ assert.equal(getWorkspaceAfterDelete({ kind: "completed", id: "completed-1" }, g
 assert.equal(recordListClassName(true, true), "selected-record");
 assert.equal(recordListClassName(false, true), "last-saved-record");
 assert.equal(getAvailableWorkspaces("congregationMember").includes("development"), true);
-assert.equal(getAvailableWorkspaces("congregationMember").includes("catalog"), false);
+assert.equal(getAvailableWorkspaces("congregationMember").includes("catalog"), true);
 const summary = formatPlanningSetSummary(final);
 assert.match(summary, /Final service/);
 assert.match(summary, /2026-07-19 10:00/);

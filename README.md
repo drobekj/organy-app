@@ -62,13 +62,21 @@ The default application runtime remains intentionally **local in-memory only**. 
 
    The lifecycle smoke check saves two working sets, lists and loads saved sets, updates one set, finalizes and completes it, verifies the second set remains available, and cleans up its test records. It exits with readable errors when `DATABASE_URL` is missing, PostgreSQL is unavailable, or the committed migrations have not been applied.
 
-5. Start the application in DB runtime mode:
+5. For Phase 31A real-catalog acceptance, rebuild the local database and import the authoritative catalog in one destructive local-only command:
 
    ```bash
-   ORGANY_RUNTIME=db DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run dev
+   npm run db:reset:local-real-catalog
    ```
 
-   Open the local Next.js development server at <http://localhost:3000>, or use the localhost URL printed by `npm run dev` if port `3000` is already in use.
+   This removes the persistent Docker Compose PostgreSQL volume, starts PostgreSQL, waits for health, migrates, imports 808 Czech and 990 Polish real catalog rows, and runs read-only verification.
+
+6. Start the application in DB runtime mode without editing `DATABASE_URL` manually:
+
+   ```bash
+   npm run dev:db
+   ```
+
+   Open the local Next.js development server at <http://localhost:3000>, or use the localhost URL printed by `npm run dev:db` if port `3000` is already in use.
 
 For shell-based setup, copy `.env.example` to a local `.env` if useful, but keep real secrets out of committed files. The example file contains only local development placeholders:
 
@@ -87,7 +95,7 @@ Readable DB setup errors are intentionally surfaced for the local workflow:
 - Unavailable PostgreSQL: start the container with `npm run db:start` and verify Docker exposes port `5432`.
 - Unapplied migrations: run `DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run db:migrate` before smoke tests or DB runtime.
 
-The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow unless `ORGANY_RUNTIME=db` is explicitly set.
+The development server starts the Organ Planner / Planning Lifecycle First page with an in-memory working service set flow unless `ORGANY_RUNTIME=db` is explicitly set. For the local Docker Compose DB runtime, `npm run dev:db` supplies both `ORGANY_RUNTIME=db` and the repository-local `DATABASE_URL`.
 
 The Development workspace includes a local role selector for `priest`, `organist`, `admin`, and `congregationMember` so the local version can exercise the permission matrix without authentication. The selected role is also shown compactly in the application header. This selector is a development-only mechanism and is not a session, account model, auth provider, or durable role source.
 
