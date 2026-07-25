@@ -42,6 +42,23 @@ assert(displays("52/1").every((number) => number === "52/1"));
 assert(!displays("52").includes("152") && !displays("52").includes("520"));
 assert(displays("347").includes("347") && displays("347").includes("347/8"));
 assert(displays("347/").includes("347/8") && !displays("347/").includes("347"));
+const corrected752 = catalog.list({ language: "czech", search: "752/1", pageSize: 2000 }).records;
+assert.equal(corrected752.length, 1);
+assert.equal(corrected752[0].canonicalNumber, 7521);
+assert.equal(corrected752[0].displayNumber, "752/1");
+assert.equal(corrected752[0].title, "Blíž Tobě, Bože můj");
+assert.equal(corrected752[0].sourceUrl, "https://www.evangelickykancional.cz/pisen/6017/bliz-tobe-boze-muj");
+assert(catalog.list({ language: "czech", search: "752", pageSize: 2000 }).records.some((record) => record.id === corrected752[0].id));
+assert(catalog.list({ language: "czech", search: "752/", pageSize: 2000 }).records.some((record) => record.id === corrected752[0].id));
+assert.deepEqual(catalog.list({ language: "czech", search: "7521" }).records.map((record) => record.id), corrected752.map((record) => record.id));
+assert.equal(catalog.list({ language: "czech", search: "752/2" }).total, 0);
+assert.equal(catalog.list({ language: "czech", search: "7522" }).total, 0);
+const around752 = createReferenceCatalogRecords([
+  { language: "czech", number: 753, title: "753", source_url: null },
+  { language: "czech", number: 7521, title: "752/1", source_url: null },
+  { language: "czech", number: 751, title: "751", source_url: null },
+]);
+assert.deepEqual(around752.map((record) => record.displayNumber), ["751", "752/1", "753"]);
 const firstPage = catalog.list({ page: 0, pageSize: 10 });
 const secondPage = catalog.list({ page: 1, pageSize: 10 });
 assert.equal(firstPage.records.length, 10); assert.equal(secondPage.records.length, 10); assert.notDeepEqual(firstPage.records.map((r) => r.id), secondPage.records.map((r) => r.id));

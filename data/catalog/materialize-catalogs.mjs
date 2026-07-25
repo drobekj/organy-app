@@ -12,15 +12,19 @@ const artifacts = [
     name: "Czech catalog",
     partPrefix: "catalog-czech-final.json.gz.b64.part",
     output: "catalog-czech-final.json",
-    sha256: "5aaf767a5cc7f21d2c428be6ef3d07f58ebf6f5e1303807177254283cd1896f9",
+    upstreamSha256: "5aaf767a5cc7f21d2c428be6ef3d07f58ebf6f5e1303807177254283cd1896f9",
+    finalSha256: "2f5af83546f9a5e89de2b089986cbd55ce754d306c3a994f4b21edc71f03e487",
     records: 808,
+    applyApprovedErratum: true,
   },
   {
     name: "Polish catalog",
     partPrefix: "catalog-polish-final.json.gz.b64.part",
     output: "catalog-polish-final.json",
-    sha256: "b06a3c452709213f4f60dcb0243e6a91bf00fd1881eac10b941b6bd05601cea9",
+    upstreamSha256: "b06a3c452709213f4f60dcb0243e6a91bf00fd1881eac10b941b6bd05601cea9",
+    finalSha256: "b06a3c452709213f4f60dcb0243e6a91bf00fd1881eac10b941b6bd05601cea9",
     records: 990,
+    applyApprovedErratum: false,
   },
 ];
 
@@ -41,7 +45,25 @@ function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
-async function materialize({ name, partPrefix, output, sha256: expectedHash, records }) {
+function applyApprovedCzechErratum(records) {
+  const matches = records.filter((record) => record.source_id === "6017");
+  if (matches.length !== 1) throw new Error(`Czech erratum: expected one source_id 6017 record, got ${matches.length}.`);
+  const record = matches[0];
+  const expected = {
+    source_id: "6017",
+    language: "czech",
+    number: 7522,
+    title: "Blíž Tobě, Bože můj",
+    source_url: "https://www.evangelickykancional.cz/pisen/6017/bliz-tobe-boze-muj",
+  };
+  if (JSON.stringify(record) !== JSON.stringify(expected)) {
+    throw new Error("Czech erratum: upstream source_id 6017 no longer matches the approved input record.");
+  }
+
+  return records.map((candidate) => candidate === record ? { ...candidate, number: 7521 } : candidate);
+}
+
+async function materialize({ name, partPrefix, output, upstreamSha256, finalSha256, records, applyApprovedErratum }) {
   const partNames = (await readdir(payloadDir))
     .filter((file) => file.startsWith(partPrefix))
     .sort();
@@ -55,27 +77,32 @@ async function materialize({ name, partPrefix, output, sha256: expectedHash, rec
   ).join("");
 
   // The frozen Czech transport in this handoff is missing one Base64 character,
-  // but the authoritative SHA-256 still proves the byte-exact materialized JSON.
+  // but the upstream SHA-256 still proves the byte-exact reconstructed JSON.
   if (partPrefix === "catalog-czech-final.json.gz.b64.part") {
     base64 = `${base64.slice(0, 4013)}J${base64.slice(4013)}`;
   }
 
-  const jsonBytes = gunzipSync(Buffer.from(base64, "base64"));
-  const actualHash = sha256(jsonBytes);
-
-  if (actualHash !== expectedHash) {
-    throw new Error(`${name}: SHA-256 mismatch; expected ${expectedHash}, got ${actualHash}.`);
+  const upstreamBytes = gunzipSync(Buffer.from(base64, "base64"));
+  const upstreamHash = sha256(upstreamBytes);
+  if (upstreamHash !== upstreamSha256) {
+    throw new Error(`${name}: upstream SHA-256 mismatch; expected ${upstreamSha256}, got ${upstreamHash}.`);
   }
 
-  const parsed = JSON.parse(jsonBytes.toString("utf8"));
-  if (!Array.isArray(parsed) || parsed.length !== records) {
-    throw new Error(`${name}: expected ${records} records, got ${Array.isArray(parsed) ? parsed.length : "non-array JSON"}.`);
+  const upstreamRecords = JSON.parse(upstreamBytes.toString("utf8"));
+  if (!Array.isArray(upstreamRecords) || upstreamRecords.length !== records) {
+    throw new Error(`${name}: expected ${records} records, got ${Array.isArray(upstreamRecords) ? upstreamRecords.length : "non-array JSON"}.`);
   }
 
-  await writeFile(join(catalogDir, output), jsonBytes);
-  console.log(`${name}: ${records} records, SHA-256 OK -> data/catalog/${output}`);
+  const finalRecords = applyApprovedErratum ? applyApprovedCzechErratum(upstreamRecords) : upstreamRecords;
+  const finalBytes = applyApprovedErratum ? Buffer.from(JSON.stringify(finalRecords, null, 2)) : upstreamBytes;
+  const finalHash = sha256(finalBytes);
+  if (finalHash !== finalSha256) {
+    throw new Error(`${name}: final-output SHA-256 mismatch; expected ${finalSha256}, got ${finalHash}.`);
+  }
+
+  await writeFile(join(catalogDir, output), finalBytes);
+  console.log(`${name}: ${records} records, upstream SHA-256 OK, final-output SHA-256 OK -> data/catalog/${output}`);
 }
-
 async function verifyFixedFile({ name, file, sha256: expectedHash }) {
   const bytes = await readFile(join(catalogDir, file));
   const actualHash = sha256(bytes);
