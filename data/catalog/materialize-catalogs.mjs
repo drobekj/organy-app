@@ -13,7 +13,7 @@ const artifacts = [
     partPrefix: "catalog-czech-final.json.gz.b64.part",
     output: "catalog-czech-final.json",
     upstreamSha256: "5aaf767a5cc7f21d2c428be6ef3d07f58ebf6f5e1303807177254283cd1896f9",
-    finalSha256: "2f5af83546f9a5e89de2b089986cbd55ce754d306c3a994f4b21edc71f03e487",
+    finalSha256: "9812d32e636542865dca471f318ab4df695d0bc2dc8054d4c340e47ffa25c1a7",
     records: 808,
     applyApprovedErratum: true,
   },
@@ -60,7 +60,7 @@ function applyApprovedCzechErratum(records) {
     throw new Error("Czech erratum: upstream source_id 6017 no longer matches the approved input record.");
   }
 
-  return records.map((candidate) => candidate === record ? { ...candidate, number: 7521 } : candidate);
+  return records.map((candidate) => candidate === record ? { ...candidate, number: 7512 } : candidate);
 }
 
 async function materialize({ name, partPrefix, output, upstreamSha256, finalSha256, records, applyApprovedErratum }) {

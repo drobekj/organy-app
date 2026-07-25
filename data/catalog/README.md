@@ -18,7 +18,7 @@ The script:
    - `data/catalog/catalog-czech-final.json`
    - `data/catalog/catalog-polish-final.json`
 4. verifies the unchanged upstream transport reconstruction;
-5. applies the single approved Czech erratum (`source_id` `6017`, number `7522` → `7521`);
+5. applies the single approved Czech erratum (`source_id` `6017`, upstream `7522` (`752/2`) → final `7512` (`751/2`));
 6. verifies the corrected final-output hash, Polish hash, and both validation hashes;
 7. checks the expected catalog record counts.
 
@@ -29,7 +29,7 @@ The payload split is only a lossless transport wrapper used to place the larger 
 | Artifact | Expected records / purpose | SHA-256 |
 |---|---:|---|
 | Czech upstream transport reconstruction | 808 Czech records before the approved erratum | `5aaf767a5cc7f21d2c428be6ef3d07f58ebf6f5e1303807177254283cd1896f9` |
-| `catalog-czech-final.json` | 808 Czech records after `source_id` `6017` changes only from `7522` to `7521` | `2f5af83546f9a5e89de2b089986cbd55ce754d306c3a994f4b21edc71f03e487` |
+| `catalog-czech-final.json` | 808 Czech records after `source_id` `6017` changes only from upstream `7522` (`752/2`) to final `7512` (`751/2`) | `9812d32e636542865dca471f318ab4df695d0bc2dc8054d4c340e47ffa25c1a7` |
 | `catalog-polish-final.json` | 990 Polish records | `b06a3c452709213f4f60dcb0243e6a91bf00fd1881eac10b941b6bd05601cea9` |
 | `catalog-czech-validation.json` | accepted Czech validation | `e47da19e263f1ba962cb8e2699c6e94125499438a3ff74ccf78bdb29517cab40` |
 | `catalog-polish-validation.json` | accepted Polish validation | `49a0accd4392ff9167707e2677d9edab9b5ed9ceb7d0d023a2251dfbca1b5559` |
