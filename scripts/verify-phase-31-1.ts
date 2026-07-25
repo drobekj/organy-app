@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { displayReferenceNumber, InMemoryReferenceCatalogProvider, normalizeReferenceNumberQuery, referenceCatalogRecords } from "../src/application/reference-catalog";
+import { createReferenceCatalogRecords, displayReferenceNumber, InMemoryReferenceCatalogProvider, normalizeReferenceNumberQuery, referenceCatalogRecords } from "../src/application/reference-catalog";
 
 const expected = {
   czechCatalog: "5aaf767a5cc7f21d2c428be6ef3d07f58ebf6f5e1303807177254283cd1896f9",
@@ -28,9 +28,23 @@ const catalog = new InMemoryReferenceCatalogProvider();
 assert.deepEqual(catalog.list({ search: "5210", pageSize: 2000 }).records.map((r) => r.id), catalog.list({ search: "52/1", pageSize: 2000 }).records.map((r) => r.id));
 assert(catalog.list({ search: "298" }).records.some((r) => r.title === "Otevři své srdce")); assert(catalog.list({ search: "żegnamy" }).records.some((r) => r.title === "Żegnamy was w Bogu naszym"));
 assert.equal(catalog.list({ language: "czech", pageSize: 2000 }).total, 808); assert.equal(catalog.list({ language: "polish", pageSize: 2000 }).total, 990); assert.equal(catalog.list({ language: "all", pageSize: 2000 }).total, 1798);
-const ordered = catalog.list({ pageSize: 2000 }).records.map((r) => r.canonicalNumber); assert.deepEqual(ordered, [...ordered].sort((a,b)=>a-b)); assert(ordered.indexOf(10) < ordered.indexOf(100));
+const naturalFixture = createReferenceCatalogRecords([
+  { language: "czech", number: 53, title: "53", source_url: null }, { language: "czech", number: 5220, title: "52/2", source_url: null },
+  { language: "czech", number: 51, title: "51", source_url: null }, { language: "czech", number: 5210, title: "52/1", source_url: null },
+  { language: "czech", number: 52, title: "52", source_url: null }, { language: "czech", number: 348, title: "348", source_url: null },
+  { language: "czech", number: 3478, title: "347/8", source_url: null }, { language: "czech", number: 347, title: "347", source_url: null },
+  { language: "czech", number: 346, title: "346", source_url: null },
+]);
+assert.deepEqual(naturalFixture.map((r) => r.displayNumber), ["51", "52", "52/1", "52/2", "53", "346", "347", "347/8", "348"]);
+const displays = (search: string) => catalog.list({ search, pageSize: 2000 }).records.map((r) => r.displayNumber);
+assert(displays("52").includes("52") && displays("52").includes("52/1") && displays("52").includes("52/2"));
+assert(displays("52/").includes("52/1") && displays("52/").includes("52/2") && !displays("52/").includes("52"));
+assert(displays("52/1").every((number) => number === "52/1")); assert(!displays("52").includes("152") && !displays("52").includes("520"));
+assert(displays("347").includes("347") && displays("347").includes("347/8")); assert(displays("347/").includes("347/8") && !displays("347/").includes("347"));
+const firstPage = catalog.list({ page: 0, pageSize: 10 }); const secondPage = catalog.list({ page: 1, pageSize: 10 }); assert.equal(firstPage.records.length, 10); assert.equal(secondPage.records.length, 10); assert.notDeepEqual(firstPage.records.map((r) => r.id), secondPage.records.map((r) => r.id));
 const cz298 = catalog.list({ language: "czech", search: "298" }).records.find((r) => r.canonicalNumber === 298)!; assert.equal(cz298.title, "Otevři své srdce"); assert.equal(cz298.sourceUrl, "https://www.evangelickykancional.cz/pisen/5593/otevri-sve-srdce");
 const pl955 = catalog.list({ language: "polish", search: "955" }).records.find((r) => r.canonicalNumber === 955)!; assert.equal(pl955.title, "Żegnamy was w Bogu naszym"); assert.equal(pl955.sourceUrl, "https://hymnary.org/hymn/SE2002/955");
 console.log(`Phase 31.1 data proof OK: Czech ${czech.length}, Polish ${polish.length}, total ${czech.length + polish.length}.`);
 console.log(`Hashes OK: Czech catalog ${expected.czechCatalog}; Polish catalog ${expected.polishCatalog}; Czech validation ${expected.czechValidation}; Polish validation ${expected.polishValidation}.`);
-console.log("Variants OK: 5210 -> 52/1; 3478 -> 347/8; 1100 -> 1/1. Searches OK: 5210 == 52/1, ordinary 298/955, title search. Numeric ordering OK.");
+console.log("Variants OK: 5210 -> 52/1; 3478 -> 347/8; 1100 -> 1/1. Natural ordering OK: 51, 52, 52/1, 52/2, 53 and 346, 347, 347/8, 348.");
+console.log("Progressive searches OK: 52 family, 52/ variants, 52/1 == 5210; 347 family and 347/ variants; unrelated 152/520 excluded. Title, filters, pagination, samples, and provenance OK.");

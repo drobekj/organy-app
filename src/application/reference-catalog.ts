@@ -49,8 +49,27 @@ export function createReferenceCatalogRecords(rawRecords: RawReferenceCatalogRec
   }).sort(compareReferenceCatalogRecords);
 }
 
+export function referenceNumberParts(encoded: number): { base: number; variant: number } {
+  const displayed = displayReferenceNumber(encoded);
+  const [base, variant] = displayed.split("/").map(Number);
+  return { base, variant: variant ?? 0 };
+}
+
 export function compareReferenceCatalogRecords(a: ReferenceCatalogRecord, b: ReferenceCatalogRecord): number {
-  return a.canonicalNumber - b.canonicalNumber || a.language.localeCompare(b.language) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
+  const aNumber = referenceNumberParts(a.canonicalNumber);
+  const bNumber = referenceNumberParts(b.canonicalNumber);
+  return aNumber.base - bNumber.base || aNumber.variant - bNumber.variant || a.language.localeCompare(b.language) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
+}
+
+function matchesReferenceNumber(record: ReferenceCatalogRecord, query: string): boolean {
+  if (/^[1-9]\d{3,}$/.test(query)) return record.canonicalNumber === Number(query);
+  const family = query.match(/^([1-9]\d*)\/?$/);
+  if (family) {
+    const { base, variant } = referenceNumberParts(record.canonicalNumber);
+    return base === Number(family[1]) && (query.endsWith("/") ? variant > 0 : true);
+  }
+  const canonical = normalizeReferenceNumberQuery(query);
+  return canonical !== undefined && record.canonicalNumber === canonical;
 }
 
 export class InMemoryReferenceCatalogProvider {
@@ -63,9 +82,9 @@ export class InMemoryReferenceCatalogProvider {
   list(input: ReferenceCatalogQuery = {}): ReferenceCatalogPage {
     const language = input.language ?? "all";
     const search = input.search?.trim() ?? "";
-    const numberQuery = normalizeReferenceNumberQuery(search);
+    const isNumberQuery = /^[1-9]\d*(?:\/[1-8]?)?$/.test(search);
     const titleQuery = search.toLocaleLowerCase();
-    const filtered = this.records.filter((record) => (language === "all" || record.language === language) && (!search || record.title.toLocaleLowerCase().includes(titleQuery) || record.canonicalNumber === numberQuery || record.displayNumber === search));
+    const filtered = this.records.filter((record) => (language === "all" || record.language === language) && (!search || (isNumberQuery ? matchesReferenceNumber(record, search) : record.title.toLocaleLowerCase().includes(titleQuery))));
     const pageSize = input.pageSize ?? 50;
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     const page = Math.min(Math.max(input.page ?? 0, 0), pageCount - 1);
