@@ -19,8 +19,8 @@ node data/catalog/materialize-catalogs.mjs
 Do not begin schema/import/runtime implementation until this command succeeds and prints:
 
 ```text
-Czech catalog: 808 records, SHA-256 OK
-Polish catalog: 990 records, SHA-256 OK
+Czech catalog: 808 records, upstream SHA-256 OK, final-output SHA-256 OK
+Polish catalog: 990 records, upstream SHA-256 OK, final-output SHA-256 OK
 Czech validation: SHA-256 OK
 Polish validation: SHA-256 OK
 Catalog handoff complete: 808 Czech + 990 Polish = 1,798 accepted records.
@@ -37,4 +37,4 @@ Then inspect issue #91 and implement its complete acceptance contract in this sa
 
 ## Data rule
 
-The reconstructed files are frozen inputs. Do not scrape them again, reformat them, normalize titles, or alter records silently. The final implementation should commit the reconstructed canonical JSON files and may delete the temporary `payload/*.part*` transport files only after all four SHA-256 checks pass.
+The transport payload remains frozen and unchanged. During materialization, one explicit user-approved Czech erratum changes only `source_id` `6017` from upstream `7522` (`752/2`) to final `7512` (`751/2`). The upstream hash proves the unchanged transport reconstruction; the corrected final-output hash documented in `README.md` proves the accepted result. Do not scrape the records again, reformat them, normalize titles, or alter any other record. The final implementation commits the materialized canonical JSON files and preserves every `payload/*.part*` transport file byte-for-byte.
