@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import { Pool } from "pg";
+import { resolveE1Executable } from "./engineering-e1-core";
 
 const LOCAL_URL = "postgres://organy_app:organy_app@127.0.0.1:5432/organy_app";
-const executable = (name: string) => process.platform === "win32" ? `${name}.cmd` : name;
-const run = (command: string, args: string[], env = process.env) => new Promise<number>((resolve, reject) => {
-  const child = spawn(executable(command), args, { env, stdio: "inherit" });
+const run = (command: "docker" | "npm", args: string[], env = process.env) => new Promise<number>((resolve, reject) => {
+  const child = spawn(resolveE1Executable(command, process.platform), args, { env, stdio: "inherit" });
   child.on("error", reject); child.on("close", (code) => resolve(code ?? 1));
 });
 

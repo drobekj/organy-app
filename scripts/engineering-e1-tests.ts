@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import {
   createDatabaseSql, deriveControlUrl, E1_DATABASE_PATTERN, generateE1DatabaseName,
-  dropDatabaseSql, parseGuardDatabaseUrl, quoteE1DatabaseName, withCleanup,
+  dropDatabaseSql, parseGuardDatabaseUrl, quoteE1DatabaseName, resolveE1Executable, withCleanup,
 } from "./engineering-e1-core";
 
 async function main(): Promise<void> {
+assert.equal(resolveE1Executable("docker", "win32"), "docker");
+assert.equal(resolveE1Executable("npm", "win32"), "npm.cmd");
+assert.equal(resolveE1Executable("docker", "linux"), "docker");
+assert.equal(resolveE1Executable("npm", "linux"), "npm");
+
 for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
   assert.doesNotThrow(() => parseGuardDatabaseUrl(`postgres://user:pass@${host}:5432/guard`));
 }

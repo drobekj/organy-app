@@ -3,6 +3,11 @@ import { randomBytes } from "node:crypto";
 export const E1_DATABASE_PATTERN = /^organy_e1_[a-z0-9_]+$/;
 const FORBIDDEN_GUARDS = new Set(["postgres", "template0", "template1"]);
 
+export function resolveE1Executable(command: "docker" | "npm", platform: NodeJS.Platform): string {
+  if (command === "npm" && platform === "win32") return "npm.cmd";
+  return command;
+}
+
 export function parseGuardDatabaseUrl(value: string): URL {
   let url: URL;
   try {
