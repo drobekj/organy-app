@@ -45,6 +45,17 @@ jobs:
           done
           docker logs ${{ job.services.postgres.id }} > postgres.log 2>&1 || true
           exit 1
+      - name: Engineering E1 isolated PostgreSQL acceptance
+        run: |
+          set -o pipefail
+          npm run verify:engineering-e1 2>&1 | tee engineering-e1.log
+      - name: Upload Engineering E1 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engineering-e1-log
+          path: engineering-e1.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail
