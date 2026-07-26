@@ -27,7 +27,10 @@
     "test:engineering-e1": "tsx scripts/engineering-e1-tests.ts",
     "verify:engineering-e1": "npm run test:engineering-e1 && tsx scripts/verify-engineering-e1.ts",
     "verify:engineering-e1:local": "tsx scripts/verify-engineering-e1-local.ts",
-    "verify:phase-31-1": "node data/catalog/materialize-catalogs.mjs && tsx scripts/verify-phase-31-1.ts && npm run typecheck && npm test && npm run test:reference-catalog && npm run build"
+    "verify:phase-31-1": "node data/catalog/materialize-catalogs.mjs && tsx scripts/verify-phase-31-1.ts && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
+    "db:sync:reference-catalog": "tsx scripts/db-sync-reference-catalog.ts",
+    "verify:phase-31-2": "node data/catalog/materialize-catalogs.mjs && tsx scripts/verify-phase-31-2.ts && npm run verify:engineering-e1 && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
+    "verify:phase-31-2:local": "tsx scripts/verify-phase-31-2-local.ts"
   },
   "dependencies": {
     "next": "16.2.10",
