@@ -1,14 +1,23 @@
 import assert from "node:assert/strict";
 import {
-  createDatabaseSql, deriveControlUrl, E1_DATABASE_PATTERN, generateE1DatabaseName,
-  dropDatabaseSql, parseGuardDatabaseUrl, quoteE1DatabaseName, resolveE1Executable, withCleanup,
+  createDatabaseSql, createNpmInvocation, deriveControlUrl, E1_DATABASE_PATTERN, generateE1DatabaseName,
+  dropDatabaseSql, parseGuardDatabaseUrl, quoteE1DatabaseName, resolveDockerExecutable, withCleanup,
 } from "./engineering-e1-core";
 
 async function main(): Promise<void> {
-assert.equal(resolveE1Executable("docker", "win32"), "docker");
-assert.equal(resolveE1Executable("npm", "win32"), "npm.cmd");
-assert.equal(resolveE1Executable("docker", "linux"), "docker");
-assert.equal(resolveE1Executable("npm", "linux"), "npm");
+assert.equal(resolveDockerExecutable(), "docker");
+assert.notEqual(resolveDockerExecutable(), "docker.cmd");
+
+const windowsNpm = createNpmInvocation("C:\\Program Files\\nodejs\\node.exe", "C:\\npm\\npm-cli.js", ["run", "verify:engineering-e1"]);
+assert.equal(windowsNpm.command, "C:\\Program Files\\nodejs\\node.exe");
+assert.deepEqual(windowsNpm.args, ["C:\\npm\\npm-cli.js", "run", "verify:engineering-e1"]);
+assert.notEqual(windowsNpm.command, "npm.cmd");
+
+const posixNpm = createNpmInvocation("/usr/local/bin/node", "/usr/local/lib/node_modules/npm/bin/npm-cli.js", ["run", "db:migrate", "--", "argument"]);
+assert.equal(posixNpm.command, "/usr/local/bin/node");
+assert.deepEqual(posixNpm.args, ["/usr/local/lib/node_modules/npm/bin/npm-cli.js", "run", "db:migrate", "--", "argument"]);
+assert.throws(() => createNpmInvocation("/usr/bin/node", undefined, ["run", "db:migrate"]), /requires npm_execpath/);
+assert.throws(() => createNpmInvocation("/usr/bin/node", "   ", ["run", "db:migrate"]), /requires npm_execpath/);
 
 for (const host of ["localhost", "127.0.0.1", "[::1]"]) {
   assert.doesNotThrow(() => parseGuardDatabaseUrl(`postgres://user:pass@${host}:5432/guard`));

@@ -3,9 +3,21 @@ import { randomBytes } from "node:crypto";
 export const E1_DATABASE_PATTERN = /^organy_e1_[a-z0-9_]+$/;
 const FORBIDDEN_GUARDS = new Set(["postgres", "template0", "template1"]);
 
-export function resolveE1Executable(command: "docker" | "npm", platform: NodeJS.Platform): string {
-  if (command === "npm" && platform === "win32") return "npm.cmd";
-  return command;
+export type E1ChildProcessInvocation = { command: string; args: string[] };
+
+export function createNpmInvocation(
+  nodeExecutable: string,
+  npmCliPath: string | undefined,
+  npmArguments: readonly string[],
+): E1ChildProcessInvocation {
+  if (!npmCliPath?.trim()) {
+    throw new Error("Engineering E1 requires npm_execpath to invoke a nested npm command.");
+  }
+  return { command: nodeExecutable, args: [npmCliPath, ...npmArguments] };
+}
+
+export function resolveDockerExecutable(): "docker" {
+  return "docker";
 }
 
 export function parseGuardDatabaseUrl(value: string): URL {

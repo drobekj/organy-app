@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { Pool, type PoolClient } from "pg";
 import {
   createDatabaseSql, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql,
-  generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup,
+  createNpmInvocation, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup,
 } from "./engineering-e1-core";
 
 class InjectedE1Failure extends Error { readonly code = "E1_INJECTED_FAILURE"; }
@@ -35,9 +35,9 @@ async function guardFingerprint(connectionString: string): Promise<string> {
 }
 
 async function runMigration(databaseUrl: string): Promise<void> {
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const migration = createNpmInvocation(process.execPath, process.env.npm_execpath, ["run", "db:migrate"]);
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(npm, ["run", "db:migrate"], { env: { ...process.env, DATABASE_URL: databaseUrl }, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(migration.command, migration.args, { env: { ...process.env, DATABASE_URL: databaseUrl }, stdio: ["ignore", "pipe", "pipe"] });
     let output = "";
     child.stdout.on("data", (chunk) => { output += chunk.toString(); });
     child.stderr.on("data", (chunk) => { output += chunk.toString(); });
