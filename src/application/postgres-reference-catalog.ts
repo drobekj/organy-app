@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { displayReferenceNumber, normalizeReferenceNumberQuery, type ReferenceCatalogPage, type ReferenceCatalogQuery, type ReferenceCatalogRecord } from "./reference-catalog";
+import { displayReferenceNumber, normalizeReferenceNumberQuery, type ReferenceCatalogPage, type ReferenceCatalogQuery, type ReferenceCatalogRecord } from "./reference-catalog-contract";
 
 type DatabaseRow = { id: string; language: "czech" | "polish"; canonical_number: number; title: string; source_url: string | null };
 const ORDER_BY_NATURAL_NUMBER = `

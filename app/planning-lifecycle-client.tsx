@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
-import { referenceCatalog, type ReferenceCatalogLanguageFilter } from "../src/application/reference-catalog";
+import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
+import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
 import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type CandidateQueryResult } from "../src/application/interaction-contracts";
 import {
   InMemoryCompletedServiceRecordRepository,
@@ -259,6 +260,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
   const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
+  const referenceClient = useMemo<ReferenceCatalogClient>(() => runtimeMode === "db" ? new DbReferenceCatalogClient() : new MemoryReferenceCatalogClient(), [runtimeMode]);
   const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
@@ -300,6 +302,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [referenceSearch, setReferenceSearch] = useState("");
   const [referencePage, setReferencePage] = useState(0);
   const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(null);
+  const [referencePageData, setReferencePageData] = useState<ReferenceCatalogPage | null>(null);
+  const [selectedReferenceRecord, setSelectedReferenceRecord] = useState<ReferenceCatalogRecord | undefined>();
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [referenceError, setReferenceError] = useState<string | null>(null);
+  const referenceListRequest = useRef(0);
+  const referenceDetailRequest = useRef(0);
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
@@ -364,8 +372,24 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const catalogPageCount = Math.max(1, Math.ceil(visibleCatalogSongs.length / catalogPageSize));
   const pagedCatalogSongs = visibleCatalogSongs.slice(catalogSongPage * catalogPageSize, (catalogSongPage + 1) * catalogPageSize);
   const selectedCatalogSong = selectedCatalogSongId ? catalogSongPool.find((song) => song.songId === selectedCatalogSongId) : undefined;
-  const referencePageData = useMemo(() => referenceCatalog.list({ language: referenceLanguage, search: referenceSearch, page: referencePage, pageSize: 50 }), [referenceLanguage, referenceSearch, referencePage]);
-  const selectedReferenceRecord = selectedReferenceId ? referenceCatalog.getById(selectedReferenceId) : undefined;
+  useEffect(() => {
+    if (selectedCatalogTab !== "reference") return;
+    const request = ++referenceListRequest.current;
+    setReferenceLoading(true); setReferenceError(null);
+    void referenceClient.list({ language: referenceLanguage, search: referenceSearch, page: referencePage, pageSize: 50 })
+      .then((data) => { if (request === referenceListRequest.current) { setReferencePageData(data); if (data.page !== referencePage) setReferencePage(data.page); } })
+      .catch((error: unknown) => { if (request === referenceListRequest.current) { setReferencePageData(null); setReferenceError(error instanceof Error ? error.message : "Reference catalog request failed."); } })
+      .finally(() => { if (request === referenceListRequest.current) setReferenceLoading(false); });
+  }, [selectedCatalogTab, referenceLanguage, referenceSearch, referencePage, referenceClient]);
+
+  useEffect(() => {
+    const request = ++referenceDetailRequest.current;
+    setSelectedReferenceRecord(undefined);
+    if (!selectedReferenceId) return;
+    void referenceClient.getById(selectedReferenceId)
+      .then((record) => { if (request === referenceDetailRequest.current) setSelectedReferenceRecord(record); })
+      .catch((error: unknown) => { if (request === referenceDetailRequest.current) setReferenceError(error instanceof Error ? error.message : "Reference record request failed."); });
+  }, [selectedReferenceId, referenceClient]);
 
   useEffect(() => {
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
@@ -1195,10 +1219,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               <fieldset className="field-group catalog-panel">
                 <legend>Reference catalog (read-only)</legend>
                 <p className="field-help">Authoritative frozen catalogs only. No demo, synthetic, preference, repertoire, activation, editing, or admin mutation controls are available here.</p>
-                <div className="row-actions" aria-label="Reference catalog counts"><strong>All {referencePageData.counts.all.toLocaleString()}</strong><strong>Czech {referencePageData.counts.czech.toLocaleString()}</strong><strong>Polish {referencePageData.counts.polish.toLocaleString()}</strong></div>
+                {referencePageData && <div className="row-actions" aria-label="Reference catalog counts"><strong>All {referencePageData.counts.all.toLocaleString()}</strong><strong>Czech {referencePageData.counts.czech.toLocaleString()}</strong><strong>Polish {referencePageData.counts.polish.toLocaleString()}</strong></div>}
                 <label>Language<select value={referenceLanguage} onChange={(event) => { setReferenceLanguage(event.target.value as ReferenceCatalogLanguageFilter); setReferencePage(0); setSelectedReferenceId(null); }}><option value="all">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
                 <label>Search<input value={referenceSearch} onChange={(event) => { setReferenceSearch(event.target.value); setReferencePage(0); setSelectedReferenceId(null); }} placeholder="Search by title, number, encoded number, or slash notation" /></label>
-                <p className="field-help">Showing {referencePageData.records.length} of {referencePageData.total.toLocaleString()} reference records in numeric order.</p>
+                {referenceLoading && <p className="field-help" role="status">Loading reference catalog…</p>}
+                {referenceError && <p className="field-help" role="alert">Reference catalog unavailable: {referenceError}</p>}
+                {referencePageData && !referenceLoading && <p className="field-help">Showing {referencePageData.records.length} of {referencePageData.total.toLocaleString()} reference records in numeric order.</p>}
                 {selectedReferenceRecord && (
                   <div className="detail-panel" aria-label="Reference catalog record detail">
                     <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
@@ -1206,8 +1232,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     {selectedReferenceRecord.sourceUrl && <a href={selectedReferenceRecord.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
                   </div>
                 )}
-                <ul className="saved-set-list catalog-song-list">{referencePageData.records.map((record) => <li key={record.id}><button type="button" onClick={() => setSelectedReferenceId(record.id)}>{record.displayNumber} · {record.title} ({record.language})</button></li>)}</ul>
-                <div className="row-actions"><button type="button" disabled={referencePageData.page === 0} onClick={() => setReferencePage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {referencePageData.page + 1} / {referencePageData.pageCount}</span><button type="button" disabled={referencePageData.page >= referencePageData.pageCount - 1} onClick={() => setReferencePage((page) => Math.min(referencePageData.pageCount - 1, page + 1))}>Next</button></div>
+                {referencePageData?.total === 0 && !referenceLoading && <p className="field-help">No reference records match these filters.</p>}
+                <ul className="saved-set-list catalog-song-list">{referencePageData?.records.map((record) => <li key={record.id}><button type="button" onClick={() => setSelectedReferenceId(record.id)}>{record.displayNumber} · {record.title} ({record.language})</button></li>)}</ul>
+                {referencePageData && <div className="row-actions"><button type="button" disabled={referenceLoading || referencePageData.page === 0} onClick={() => setReferencePage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {referencePageData.page + 1} / {referencePageData.pageCount}</span><button type="button" disabled={referenceLoading || referencePageData.page >= referencePageData.pageCount - 1} onClick={() => setReferencePage((page) => Math.min(referencePageData.pageCount - 1, page + 1))}>Next</button></div>}
               </fieldset>
             )}
             {selectedCatalogTab === "knowledge" && (
