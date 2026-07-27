@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
 import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
 import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
-import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult } from "../src/application/interaction-contracts";
+import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult, type ReferenceOwnPreference } from "../src/application/interaction-contracts";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -51,7 +51,7 @@ type WorkingSetSnapshot = {
 
 type CatalogClient = CatalogService | DbCatalogClient;
 type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
 const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
 
 type PlanningRepositories = {
@@ -175,6 +175,8 @@ class DbPlanningLifecycleClient {
 
 class DbInteractionClient implements InteractionClient {
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input, input.actor); }
+  async getReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string }) { return callInteractionApi("getReferenceOwnPreference", { referenceId: input.referenceId }, input.actor); }
+  async saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string; score: number }) { return callInteractionApi("saveReferenceOwnPreference", { referenceId: input.referenceId, score: input.score }, input.actor); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
@@ -185,6 +187,8 @@ class MemoryInteractionClient implements InteractionClient {
   private readonly service: InteractionService;
   constructor(private readonly repo: InMemoryInteractionRepository, catalog: CatalogClient) { this.service = new InteractionService(new InMemoryInteractionServiceRepository(repo), { listSongs: async () => { const songs = await catalog.listSongs(); return songs.success ? songs.value : []; } }); }
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return this.repo.saveOwnPreference(input.actor, input.songId, input.score); }
+  async getReferenceOwnPreference() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference preferences are available only in DB runtime." } }; }
+  async saveReferenceOwnPreference() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference preferences are available only in DB runtime." } }; }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await this.service.queryCandidates(buildCandidateQueryInput(input)); return result.success ? result.value : []; }
@@ -305,6 +309,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [selectedReferenceRecord, setSelectedReferenceRecord] = useState<ReferenceCatalogRecord | undefined>();
   const [referenceLoading, setReferenceLoading] = useState(false);
   const [referenceError, setReferenceError] = useState<string | null>(null);
+  const [referencePreference, setReferencePreference] = useState<ReferenceOwnPreference | null>(null);
+  const [referencePreferenceError, setReferencePreferenceError] = useState<PlanningServiceError | null>(null);
+  const [referencePreferenceSaving, setReferencePreferenceSaving] = useState(false);
   const referenceListRequest = useRef(0);
   const referenceDetailRequest = useRef(0);
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
@@ -405,6 +412,21 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       .then((record) => { if (request === referenceDetailRequest.current) setSelectedReferenceRecord(record); })
       .catch((error: unknown) => { if (request === referenceDetailRequest.current) setReferenceError(error instanceof Error ? error.message : "Reference record request failed."); });
   }, [selectedReferenceId, referenceClient]);
+
+  useEffect(() => {
+    setReferencePreference(null); setReferencePreferenceError(null);
+    if (runtimeMode !== "db" || !selectedReferenceId) return;
+    void interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceId: selectedReferenceId }).then((result) => {
+      if (result.success) setReferencePreference(result.value); else setReferencePreferenceError(result.error);
+    });
+  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, interactionClient]);
+
+  async function saveReferencePreference(score: number) {
+    if (!selectedReferenceId) return; setReferencePreferenceSaving(true); setReferencePreferenceError(null);
+    const result = await interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceId: selectedReferenceId, score });
+    if (result.success) setReferencePreference(result.value); else setReferencePreferenceError(result.error);
+    setReferencePreferenceSaving(false);
+  }
 
   useEffect(() => {
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
@@ -1237,8 +1259,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
             {selectedCatalogTab === "reference" && (
               <fieldset className="field-group catalog-panel">
-                <legend>Reference catalog (read-only)</legend>
-                <p className="field-help">Authoritative frozen catalogs only. No demo, synthetic, preference, repertoire, activation, editing, or admin mutation controls are available here.</p>
+                <legend>Reference catalog</legend>
+                <p className="field-help">Authoritative frozen catalog metadata is read-only. In DB runtime, eligible users may persist only their own preference.</p>
                 {referencePageData && <div className="row-actions" aria-label="Reference catalog counts"><strong>All {referencePageData.counts.all.toLocaleString()}</strong><strong>Czech {referencePageData.counts.czech.toLocaleString()}</strong><strong>Polish {referencePageData.counts.polish.toLocaleString()}</strong></div>}
                 <label>Language<select value={referenceLanguage} onChange={(event) => { setReferenceLanguage(event.target.value as ReferenceCatalogLanguageFilter); setReferencePage(0); setSelectedReferenceId(null); }}><option value="all">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
                 <label>Search<input value={referenceSearch} onChange={(event) => { setReferenceSearch(event.target.value); setReferencePage(0); setSelectedReferenceId(null); }} placeholder="Search by title, number, encoded number, or slash notation" /></label>
@@ -1250,6 +1272,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
                     <p className="field-help">{selectedReferenceRecord.language} · canonical {selectedReferenceRecord.canonicalNumber} · {selectedReferenceRecord.id} · read-only</p>
                     {selectedReferenceRecord.sourceUrl && <a href={selectedReferenceRecord.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
+                    {runtimeMode === "db" && referencePreference && <label>My preference ({referencePreference.category}; 0–{referencePreference.maxScore})<select aria-label="My reference preference" value={referencePreference.score} disabled={referencePreferenceSaving} onChange={(event) => { void saveReferencePreference(Number(event.target.value)); }}>{Array.from({ length: referencePreference.maxScore + 1 }, (_, score) => <option key={score} value={score}>{score}</option>)}</select></label>}
+                    {runtimeMode === "db" && referencePreferenceError && <p className="field-help" role="alert">Own preference unavailable: {referencePreferenceError.message}</p>}
                   </div>
                 )}
                 {referencePageData?.total === 0 && !referenceLoading && <p className="field-help">No reference records match these filters.</p>}

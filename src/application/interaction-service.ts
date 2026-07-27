@@ -1,4 +1,4 @@
-import { InMemoryInteractionRepository, type ActorIdentity, type AppUser, type CandidateHydrationInput, type CandidateQueryInput, type CandidateQueryResult, type KnowledgeMapping, type MelodyClass, type MelodyNonRepetitionConfig, type PreferenceProfile, type SongPreference } from "./interaction-contracts";
+import { InMemoryInteractionRepository, type ActorIdentity, type AppUser, type CandidateHydrationInput, type CandidateQueryInput, type CandidateQueryResult, type KnowledgeMapping, type MelodyClass, type MelodyNonRepetitionConfig, type PreferenceProfile, type ReferenceOwnPreference, type SongPreference } from "./interaction-contracts";
 import { canManageKnowledge, canManageRepertoire, getCandidateSignal, getPreferenceShade, languagesForServiceShim, preferenceScoreLimit, validateOwnPreferenceScore } from "./interaction-service-utils";
 import type { CatalogSong, CatalogRepository } from "./catalog";
 
@@ -7,6 +7,9 @@ export interface InteractionRepository {
   listProfiles(): Promise<PreferenceProfile[]>;
   listPreferences(): Promise<SongPreference[]>;
   upsertPreference(preference: SongPreference): Promise<SongPreference>;
+  referenceSongExists?(referenceId: string): Promise<boolean>;
+  getReferenceOwnPreference?(profileId: string, referenceId: string): Promise<number | undefined>;
+  upsertReferenceOwnPreference?(profileId: string, referenceId: string, score: number): Promise<number>;
   listRepertoire(organistPersonId: string): Promise<string[]>;
   setRepertoire(organistPersonId: string, songId: string, active: boolean): Promise<void>;
   listMelodyClasses(): Promise<MelodyClass[]>;
@@ -20,6 +23,15 @@ export class InteractionService {
   constructor(private readonly repo: InteractionRepository, private readonly catalog: Pick<CatalogRepository, "listSongs">) {}
   async resolveActor(userId: string, requestedRole?: ActorIdentity["role"]): Promise<InteractionResult<ActorIdentity>> { const users = await this.repo.listUsers(); const user = users.find((u) => u.id === userId && u.active); if (!user) return fail("notFound", "Actor was not found."); const role = requestedRole && user.roles.includes(requestedRole) ? requestedRole : user.roles[0]; if (!role) return fail("permissionDenied", "Actor has no active role."); return ok({ userId: user.id, displayName: user.displayName, role, ...(user.personId ? { personId: user.personId } : {}) }); }
   async saveOwnPreference(actor: ActorIdentity, songId: string, score: number): Promise<InteractionResult<SongPreference>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; const profile = (await this.repo.listProfiles()).find((p) => p.userId === actor.userId); if (!profile) return fail("notFound", "Preference profile was not found."); if (!validateOwnPreferenceScore(profile.category, score)) return fail("invalidInput", `Preference score must be between 0 and ${preferenceScoreLimit(profile.category)}.`); return ok(await this.repo.upsertPreference({ profileId: profile.id, songId, score })); }
+  async getReferenceOwnPreference(actor: ActorIdentity, referenceId: string): Promise<InteractionResult<ReferenceOwnPreference>> {
+    const context = await this.resolveReferencePreferenceContext(actor, referenceId); if (!context.success) return context;
+    return ok({ referenceId, category: context.value.profile.category, score: (await this.repo.getReferenceOwnPreference!(context.value.profile.id, referenceId)) ?? 0, maxScore: preferenceScoreLimit(context.value.profile.category) });
+  }
+  async saveReferenceOwnPreference(actor: ActorIdentity, referenceId: string, score: number): Promise<InteractionResult<ReferenceOwnPreference>> {
+    const context = await this.resolveReferencePreferenceContext(actor, referenceId); if (!context.success) return context;
+    const { profile } = context.value; if (!validateOwnPreferenceScore(profile.category, score)) return fail("invalidInput", `Preference score must be an integer between 0 and ${preferenceScoreLimit(profile.category)}.`);
+    return ok({ referenceId, category: profile.category, score: await this.repo.upsertReferenceOwnPreference!(profile.id, referenceId, score), maxScore: preferenceScoreLimit(profile.category) });
+  }
   async setRepertoire(actor: ActorIdentity, organistPersonId: string, songId: string, active: boolean): Promise<InteractionResult<{ organistPersonId: string; songId: string; active: boolean }>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; if (!canManageRepertoire(actor, organistPersonId)) return fail("permissionDenied", "Actor cannot manage this repertoire."); await this.repo.setRepertoire(organistPersonId, songId, active); return ok({ organistPersonId, songId, active }); }
   async setMelodyWindow(actor: ActorIdentity, config: MelodyNonRepetitionConfig): Promise<InteractionResult<MelodyNonRepetitionConfig>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; if (!canManageKnowledge(actor.role)) return fail("permissionDenied", "Only admin can manage Knowledge."); if (config.months < 0) return fail("invalidInput", "Melody non-repetition window must be non-negative."); return ok(await this.repo.setMelodyWindow({ months: Math.floor(config.months) })); }
   async listKnowledge() { return ok(await this.repo.listKnowledge()); }
@@ -29,6 +41,15 @@ export class InteractionService {
     if (resolved.value.role !== actor.role) return fail("permissionDenied", "Actor role is not assigned to the stored user.");
     if ((actor.personId ?? undefined) !== (resolved.value.personId ?? undefined)) return fail("permissionDenied", "Actor person link does not match the stored user.");
     return resolved;
+  }
+  private async resolveReferencePreferenceContext(actor: ActorIdentity, referenceId: string): Promise<InteractionResult<{ actor: ActorIdentity; profile: PreferenceProfile }>> {
+    const verified = await this.verifyActor(actor); if (!verified.success) return verified;
+    const category = verified.value.role === "congregationMember" ? "congregationMember" : verified.value.role === "priest" || verified.value.role === "organist" ? verified.value.role : undefined;
+    if (!category) return fail("permissionDenied", "The selected role cannot maintain own preferences.");
+    const profile = (await this.repo.listProfiles()).find((item) => item.userId === verified.value.userId && item.category === category);
+    if (!profile) return fail("permissionDenied", "The selected actor has no preference profile for this role.");
+    if (!this.repo.referenceSongExists || !this.repo.getReferenceOwnPreference || !this.repo.upsertReferenceOwnPreference || !await this.repo.referenceSongExists(referenceId)) return fail("notFound", "Reference catalog record was not found.");
+    return ok({ actor: verified.value, profile });
   }
 
   async hydrateCandidates(input: CandidateHydrationInput): Promise<InteractionResult<CandidateQueryResult[]>> {
@@ -45,6 +66,9 @@ export class InMemoryInteractionServiceRepository implements InteractionReposito
   async listProfiles() { return this.repo.profiles.map((profile) => ({ ...profile })); }
   async listPreferences() { return this.repo.listPreferences(); }
   async upsertPreference(preference: SongPreference) { const actor = this.repo.resolveActor(preference.profileId.includes("organist") ? "demo-organist-user" : preference.profileId.includes("member") ? "demo-member-user" : "demo-priest-user")!; return this.repo.saveOwnPreference(actor, preference.songId, preference.score) ?? preference; }
+  async referenceSongExists() { return false; }
+  async getReferenceOwnPreference() { return undefined; }
+  async upsertReferenceOwnPreference(_profileId: string, _referenceId: string, score: number) { return score; }
   async listRepertoire(organistPersonId: string) { return this.repo.listRepertoire(organistPersonId); }
   async setRepertoire(organistPersonId: string, songId: string, active: boolean) { const actor = this.repo.resolveActor("demo-admin-user")!; this.repo.setRepertoire(actor, organistPersonId, songId, active); }
   async listMelodyClasses() { return this.repo.listMelodyClasses(); }
