@@ -31,7 +31,9 @@
     "verify:phase-31-1": "node data/catalog/materialize-catalogs.mjs && tsx scripts/verify-phase-31-1.ts && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
     "db:sync:reference-catalog": "tsx scripts/db-sync-reference-catalog.ts",
     "verify:phase-31-2": "node data/catalog/materialize-catalogs.mjs && npm run test:catalog-line-endings && tsx scripts/verify-phase-31-2.ts && npm run verify:engineering-e1 && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
-    "verify:phase-31-2:local": "tsx scripts/verify-phase-31-2-local.ts"
+    "verify:phase-31-2:local": "tsx scripts/verify-phase-31-2-local.ts",
+    "verify:phase-31-3": "node data/catalog/materialize-catalogs.mjs && npm run test:catalog-line-endings && tsx scripts/verify-phase-31-3.ts && npm run verify:engineering-e1 && npm run verify:phase-31-2 && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
+    "verify:phase-31-3:local": "tsx scripts/verify-phase-31-3-local.ts"
   },
   "dependencies": {
     "next": "16.2.10",
