@@ -173,10 +173,12 @@ class DbPlanningLifecycleClient {
 }
 
 
-class DbInteractionClient implements InteractionClient {
+export type InteractionTransport = (action: string, input: unknown, actor?: LocalActorRequest) => ReturnType<typeof callInteractionApi>;
+export class DbInteractionClient implements InteractionClient {
+  constructor(private readonly transport: InteractionTransport = callInteractionApi) {}
   async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input, input.actor); }
-  async getReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string }) { return callInteractionApi("getReferenceOwnPreference", { referenceId: input.referenceId }, input.actor); }
-  async saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string; score: number }) { return callInteractionApi("saveReferenceOwnPreference", { referenceId: input.referenceId, score: input.score }, input.actor); }
+  async getReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string }) { return this.transport("getReferenceOwnPreference", { referenceId: input.referenceId }, input.actor); }
+  async saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceId: string; score: number }) { return this.transport("saveReferenceOwnPreference", { referenceId: input.referenceId, score: input.score }, input.actor); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
@@ -312,6 +314,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [referencePreference, setReferencePreference] = useState<ReferenceOwnPreference | null>(null);
   const [referencePreferenceError, setReferencePreferenceError] = useState<PlanningServiceError | null>(null);
   const [referencePreferenceSaving, setReferencePreferenceSaving] = useState(false);
+  const [referencePreferenceDraft, setReferencePreferenceDraft] = useState("");
+  const [referencePreferenceFeedback, setReferencePreferenceFeedback] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const referenceListRequest = useRef(0);
   const referenceDetailRequest = useRef(0);
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
@@ -414,17 +418,17 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }, [selectedReferenceId, referenceClient]);
 
   useEffect(() => {
-    setReferencePreference(null); setReferencePreferenceError(null);
+    setReferencePreference(null); setReferencePreferenceError(null); setReferencePreferenceDraft(""); setReferencePreferenceFeedback("idle");
     if (runtimeMode !== "db" || !selectedReferenceId) return;
     void interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceId: selectedReferenceId }).then((result) => {
-      if (result.success) setReferencePreference(result.value); else setReferencePreferenceError(result.error);
+      if (result.success) { setReferencePreference(result.value); setReferencePreferenceDraft(result.value.score === null ? "" : String(result.value.score)); } else { setReferencePreferenceError(result.error); setReferencePreferenceFeedback("error"); }
     });
   }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, interactionClient]);
 
   async function saveReferencePreference(score: number) {
-    if (!selectedReferenceId) return; setReferencePreferenceSaving(true); setReferencePreferenceError(null);
+    if (!selectedReferenceId) return; setReferencePreferenceSaving(true); setReferencePreferenceError(null); setReferencePreferenceFeedback("saving");
     const result = await interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceId: selectedReferenceId, score });
-    if (result.success) setReferencePreference(result.value); else setReferencePreferenceError(result.error);
+    if (result.success) { setReferencePreference(result.value); setReferencePreferenceDraft(String(result.value.score)); setReferencePreferenceFeedback("saved"); } else { setReferencePreferenceError(result.error); setReferencePreferenceFeedback("error"); }
     setReferencePreferenceSaving(false);
   }
 
@@ -1272,7 +1276,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
                     <p className="field-help">{selectedReferenceRecord.language} · canonical {selectedReferenceRecord.canonicalNumber} · {selectedReferenceRecord.id} · read-only</p>
                     {selectedReferenceRecord.sourceUrl && <a href={selectedReferenceRecord.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
-                    {runtimeMode === "db" && referencePreference && <label>My preference ({referencePreference.category}; 0–{referencePreference.maxScore})<select aria-label="My reference preference" value={referencePreference.score} disabled={referencePreferenceSaving} onChange={(event) => { void saveReferencePreference(Number(event.target.value)); }}>{Array.from({ length: referencePreference.maxScore + 1 }, (_, score) => <option key={score} value={score}>{score}</option>)}</select></label>}
+                    {runtimeMode === "db" && referencePreference && <div aria-label="My reference preference"><p className="field-help">Current: <strong>{referencePreference.score === null ? "not set" : referencePreference.score}</strong> · Profile: {referencePreference.category} · Allowed range: 0–{referencePreference.maxScore}</p><label>Draft value<input aria-label="Reference preference draft value" type="number" min={0} max={referencePreference.maxScore} step={1} value={referencePreferenceDraft} disabled={referencePreferenceSaving} onChange={(event) => { setReferencePreferenceDraft(event.target.value); setReferencePreferenceFeedback("idle"); }} /></label><button type="button" disabled={referencePreferenceSaving || !Number.isInteger(Number(referencePreferenceDraft)) || referencePreferenceDraft.trim() === "" || Number(referencePreferenceDraft) < 0 || Number(referencePreferenceDraft) > referencePreference.maxScore} onClick={() => { void saveReferencePreference(Number(referencePreferenceDraft)); }}>Save preference</button>{referencePreferenceFeedback === "saving" && <span className="field-help" role="status">Saving…</span>}{referencePreferenceFeedback === "saved" && <span className="field-help" role="status">Saved.</span>}</div>}
                     {runtimeMode === "db" && referencePreferenceError && <p className="field-help" role="alert">Own preference unavailable: {referencePreferenceError.message}</p>}
                   </div>
                 )}

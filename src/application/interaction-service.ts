@@ -25,7 +25,7 @@ export class InteractionService {
   async saveOwnPreference(actor: ActorIdentity, songId: string, score: number): Promise<InteractionResult<SongPreference>> { const verified = await this.verifyActor(actor); if (!verified.success) return verified; actor = verified.value; const profile = (await this.repo.listProfiles()).find((p) => p.userId === actor.userId); if (!profile) return fail("notFound", "Preference profile was not found."); if (!validateOwnPreferenceScore(profile.category, score)) return fail("invalidInput", `Preference score must be between 0 and ${preferenceScoreLimit(profile.category)}.`); return ok(await this.repo.upsertPreference({ profileId: profile.id, songId, score })); }
   async getReferenceOwnPreference(actor: ActorIdentity, referenceId: string): Promise<InteractionResult<ReferenceOwnPreference>> {
     const context = await this.resolveReferencePreferenceContext(actor, referenceId); if (!context.success) return context;
-    return ok({ referenceId, category: context.value.profile.category, score: (await this.repo.getReferenceOwnPreference!(context.value.profile.id, referenceId)) ?? 0, maxScore: preferenceScoreLimit(context.value.profile.category) });
+    return ok({ referenceId, category: context.value.profile.category, score: (await this.repo.getReferenceOwnPreference!(context.value.profile.id, referenceId)) ?? null, maxScore: preferenceScoreLimit(context.value.profile.category) });
   }
   async saveReferenceOwnPreference(actor: ActorIdentity, referenceId: string, score: number): Promise<InteractionResult<ReferenceOwnPreference>> {
     const context = await this.resolveReferencePreferenceContext(actor, referenceId); if (!context.success) return context;
@@ -44,10 +44,8 @@ export class InteractionService {
   }
   private async resolveReferencePreferenceContext(actor: ActorIdentity, referenceId: string): Promise<InteractionResult<{ actor: ActorIdentity; profile: PreferenceProfile }>> {
     const verified = await this.verifyActor(actor); if (!verified.success) return verified;
-    const category = verified.value.role === "congregationMember" ? "congregationMember" : verified.value.role === "priest" || verified.value.role === "organist" ? verified.value.role : undefined;
-    if (!category) return fail("permissionDenied", "The selected role cannot maintain own preferences.");
-    const profile = (await this.repo.listProfiles()).find((item) => item.userId === verified.value.userId && item.category === category);
-    if (!profile) return fail("permissionDenied", "The selected actor has no preference profile for this role.");
+    const profile = (await this.repo.listProfiles()).find((item) => item.userId === verified.value.userId);
+    if (!profile) return fail("notFound", "Preference profile was not found.");
     if (!this.repo.referenceSongExists || !this.repo.getReferenceOwnPreference || !this.repo.upsertReferenceOwnPreference || !await this.repo.referenceSongExists(referenceId)) return fail("notFound", "Reference catalog record was not found.");
     return ok({ actor: verified.value, profile });
   }
