@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
 import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
 import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
-import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type CandidateQueryResult } from "../src/application/interaction-contracts";
+import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult } from "../src/application/interaction-contracts";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -20,6 +20,7 @@ import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageCha
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
+import { apiFailure } from "../src/application/api-error";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -147,35 +148,35 @@ class DbPlanningLifecycleClient {
   }
 
   async saveWorkingSet(input: Parameters<PlanningLifecycleService["saveWorkingSet"]>[0]) {
-    return callPlanningLifecycleApi("saveWorkingSet", input);
+    return callPlanningLifecycleApi("saveWorkingSet", input, actorContextFrom(input));
   }
 
   async finalizeWorkingSet(input: Parameters<PlanningLifecycleService["finalizeWorkingSet"]>[0]) {
-    return callPlanningLifecycleApi("finalizeWorkingSet", input);
+    return callPlanningLifecycleApi("finalizeWorkingSet", input, actorContextFrom(input));
   }
 
   async completeFinalSet(input: Parameters<PlanningLifecycleService["completeFinalSet"]>[0]) {
-    return callPlanningLifecycleApi("completeFinalSet", input);
+    return callPlanningLifecycleApi("completeFinalSet", input, actorContextFrom(input));
   }
 
   async deletePlanningSet(input: Parameters<PlanningLifecycleService["deletePlanningSet"]>[0]) {
-    return callPlanningLifecycleApi("deletePlanningSet", input);
+    return callPlanningLifecycleApi("deletePlanningSet", input, actorContextFrom(input));
   }
 
   async updateCompletedRecord(input: Parameters<PlanningLifecycleService["updateCompletedRecord"]>[0]) {
-    return callPlanningLifecycleApi("updateCompletedRecord", input);
+    return callPlanningLifecycleApi("updateCompletedRecord", input, actorContextFrom(input));
   }
 
   async deleteCompletedRecord(input: Parameters<PlanningLifecycleService["deleteCompletedRecord"]>[0]) {
-    return callPlanningLifecycleApi("deleteCompletedRecord", input);
+    return callPlanningLifecycleApi("deleteCompletedRecord", input, actorContextFrom(input));
   }
 }
 
 
 class DbInteractionClient implements InteractionClient {
-  async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input); }
-  async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input); }
-  async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input); }
+  async saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }) { return callInteractionApi("saveOwnPreference", input, input.actor); }
+  async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
+  async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
   async hydrateCandidates(input: CandidateHydrationClientInput) { const result = await callInteractionApi("hydrateCandidates", input); return result.success ? result.value as CandidateQueryResult[] : []; }
 }
@@ -195,47 +196,45 @@ class DbCatalogClient {
   async getSong(input: { songId: string }) { return callCatalogApi("getSong", input); }
   async searchPeople(input: { role: PersonRole; query?: string }) { return callCatalogApi("searchPeople", input); }
   async listPeople() { return callCatalogApi("listPeople", {}); }
-  async savePerson(input: { role: PlanningRole; person: Omit<CatalogPerson, "id"> & { id?: string } }) { return callCatalogApi("savePerson", input); }
+  async savePerson(input: { role: PlanningRole; actorUserId?: string; person: Omit<CatalogPerson, "id"> & { id?: string } }) { return callCatalogApi("savePerson", input, input.actorUserId ? { userId: input.actorUserId, role: input.role } : undefined); }
   async searchSongs(input: { language: ServiceLanguage; query?: string }) { return callCatalogApi("searchSongs", input); }
   async listSongs() { return callCatalogApi("listSongs", {}); }
-  async setSongActive(input: { role: PlanningRole; songId: string; active: boolean }) { return callCatalogApi("setSongActive", input); }
+  async setSongActive(input: { role: PlanningRole; actorUserId?: string; songId: string; active: boolean }) { return callCatalogApi("setSongActive", input, input.actorUserId ? { userId: input.actorUserId, role: input.role } : undefined); }
 }
 
-async function callInteractionApi(action: string, input: unknown) {
-  const response = await fetch("/api/interaction", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, input }) });
+type LocalActorRequest = { userId: string; role?: PlanningRole };
+async function callInteractionApi(action: string, input: unknown, actor?: LocalActorRequest) {
+  const response = await fetch("/api/interaction", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ action, input, ...(actor ? { actor: { userId: actor.userId, role: actor.role } } : {}) }) });
   const payload = await response.json();
-  if (!response.ok) return { success: false as const, error: { code: "invalidInput" as const, message: typeof payload?.error === "string" ? payload.error : "Interaction API request failed." } };
+  if (!response.ok) return apiFailure(payload, "Interaction API request failed.");
   return payload;
 }
 
-async function callCatalogApi(action: string, input: unknown) {
-  const response = await fetch("/api/catalog", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, input }) });
+async function callCatalogApi(action: string, input: unknown, actor?: LocalActorRequest) {
+  const response = await fetch("/api/catalog", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ action, input, ...(actor ? { actor } : {}) }) });
   const payload = await response.json();
-  if (!response.ok) return { success: false as const, error: { code: "invalidInput" as const, message: typeof payload?.error === "string" ? payload.error : "Catalog API request failed." } };
+  if (!response.ok) return apiFailure(payload, "Catalog API request failed.");
   return payload;
 }
 
-async function callPlanningLifecycleApi(action: string, input: unknown) {
+async function callPlanningLifecycleApi(action: string, input: unknown, actor?: LocalActorRequest) {
   const response = await fetch("/api/planning-lifecycle", {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action, input }),
+    headers: jsonHeaders,
+    body: JSON.stringify({ action, input, ...(actor ? { actor } : {}) }),
   });
 
   const payload = await response.json();
 
   if (!response.ok) {
-    return {
-      success: false as const,
-      error: {
-        code: "invalidInput" as const,
-        message: typeof payload?.error === "string" ? payload.error : "Planning Lifecycle API request failed.",
-      },
-    };
+    return apiFailure(payload, "Planning Lifecycle API request failed.");
   }
 
   return payload;
 }
+
+const jsonHeaders = { "content-type": "application/json" };
+function actorContextFrom(input: unknown): LocalActorRequest | undefined { if (typeof input !== "object" || input === null || !("localActorUserId" in input)) return undefined; const value = input as { localActorUserId?: unknown; role?: unknown }; return typeof value.localActorUserId === "string" ? { userId: value.localActorUserId, ...(typeof value.role === "string" ? { role: value.role as PlanningRole } : {}) } : undefined; }
 
 export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecycleClientProps) {
   const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
@@ -311,15 +310,31 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
-  const demoUsers = useMemo(() => interactionRepository.listUsers().map((user) => ({ id: user.id, label: user.displayName, role: user.roles[0] })), [interactionRepository]);
+  const [dbUsers, setDbUsers] = useState<AppUser[]>([]);
+  const memoryUsers = useMemo(() => interactionRepository.listUsers(), [interactionRepository]);
+  const availableUsers = runtimeMode === "db" ? dbUsers : memoryUsers;
+  const demoUsers = availableUsers.map((user) => ({ id: user.id, label: user.displayName, roles: user.roles }));
   const [selectedUserId, setSelectedUserId] = useState("demo-priest-user");
-  const activeActor: ActorIdentity = interactionRepository.resolveActor(selectedUserId) ?? interactionRepository.resolveActor("demo-priest-user")!;
+  const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>("priest");
+  const storedUser = availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0];
+  const effectiveRole = storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0];
+  const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
   const selectedRole = activeActor.role;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
 
   useEffect(() => {
     void refreshDbSets();
   }, [runtimeMode]);
+
+  useEffect(() => {
+    if (runtimeMode !== "db") return;
+    void callInteractionApi("listLocalActors", {}).then((result) => {
+      if (!result.success || !Array.isArray(result.value)) return;
+      const users = result.value as AppUser[];
+      setDbUsers(users);
+      if (users.length > 0 && !users.some((user) => user.id === selectedUserId)) { setSelectedUserId(users[0].id); setSelectedAssignedRole(users[0].roles[0]); }
+    });
+  }, [runtimeMode, selectedUserId]);
 
   useEffect(() => {
     void refreshCatalogAdmin();
@@ -444,11 +459,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   async function saveAdminPerson(person: Omit<CatalogPerson, "id"> & { id?: string }) {
-    return applyAdminCatalogResult(await catalogClient.savePerson({ role: selectedRole, person }));
+    return applyAdminCatalogResult(await catalogClient.savePerson({ role: selectedRole, actorUserId: activeActor.userId, person }));
   }
 
   async function toggleAdminSong(song: CatalogSong) {
-    return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, songId: song.songId, active: !song.active }));
+    return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, actorUserId: activeActor.userId, songId: song.songId, active: !song.active }));
   }
 
   async function hydrateEditableRows(rowsToHydrate: EditableRow[], context: { organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string }): Promise<EditableRow[]> {
@@ -724,6 +739,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
     const result = await planningLifecycleService.saveWorkingSet({
       role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
       existingSetId: persistedSet?.status === "working" ? persistedSet.id : undefined,
       serviceContext: {
         serviceDate,
@@ -772,6 +788,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
     const result = await planningLifecycleService.finalizeWorkingSet({
       role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
       workingSetId: persistedSet.id,
     });
 
@@ -796,6 +813,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
     const result = await planningLifecycleService.completeFinalSet({
       role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
       finalSetId: persistedSet.id,
     });
 
@@ -830,6 +848,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
     const result = await planningLifecycleService.updateCompletedRecord({
       role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
       recordId: completedRecord.id,
       serviceContext: {
         serviceDate,
@@ -864,7 +883,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const confirmed = window.confirm(`Delete completed record for ${completedRecord.serviceContext.serviceDate} at ${completedRecord.serviceContext.serviceTime}?`);
     if (!confirmed) return;
     const deletedRecordId = completedRecord.id;
-    const result = await planningLifecycleService.deleteCompletedRecord({ role: selectedRole, recordId: deletedRecordId });
+    const result = await planningLifecycleService.deleteCompletedRecord({ role: selectedRole, ...({ localActorUserId: activeActor.userId } as Record<string, string>), recordId: deletedRecordId });
     if (!result.success) {
       setServiceError(result.error);
       setSaveState("errors");
@@ -886,6 +905,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const deletedSetId: PlanningSetId = persistedSet.id;
     const result = await planningLifecycleService.deletePlanningSet({
       role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
       setId: deletedSetId,
     });
 
@@ -1250,7 +1270,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) setSelectedUserId(user.id); }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><p>Development switches stable user IDs and effective roles until authentication exists.</p></div>
+            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => setSelectedAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Development switches stable user IDs and stored assigned roles until authentication exists.</p></div>
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}
