@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { PostgresReferenceCatalogProvider } from "../src/application/postgres-reference-catalog";
-import { loadAndValidateReferenceCatalog, synchronizeReferenceCatalog } from "../src/application/reference-catalog-sync";
+import { synchronizeReferenceCatalog } from "../src/application/reference-catalog-sync";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 async function fingerprint(url: string): Promise<string> {
@@ -32,6 +33,18 @@ async function snapshot(pool: Pool): Promise<Record<string, unknown>[]> {
   return (await pool.query("SELECT id, language, canonical_number, source_id, title, source_url FROM reference_catalog_songs ORDER BY language, canonical_number")).rows;
 }
 
+type IndependentJsonRecord = { source_id?: string | null; language: "czech" | "polish"; number: number; title: string; source_url: string | null };
+async function independentlyExpectedSnapshot(): Promise<Record<string, unknown>[]> {
+  const paths = ["data/catalog/catalog-czech-final.json", "data/catalog/catalog-polish-final.json"];
+  const catalogs = await Promise.all(paths.map(async (path) => JSON.parse(await readFile(path, "utf8")) as IndependentJsonRecord[]));
+  return catalogs.flat().map((record) => {
+    const terminalToken = record.source_url?.match(/\/([^/?#]+)$/)?.[1];
+    const sourceId = record.language === "czech" ? record.source_id ?? String(record.number) : terminalToken;
+    assert.equal(typeof sourceId, "string", `Independent JSON proof could not derive source_id for ${record.language}:${record.number}.`);
+    return { id: `${record.language}:${record.number}`, language: record.language, canonical_number: record.number, source_id: sourceId, title: record.title, source_url: record.source_url };
+  }).sort((a, b) => a.language.localeCompare(b.language) || a.canonical_number - b.canonical_number);
+}
+
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for Phase 31.2 verification.");
   const guard = parseGuardDatabaseUrl(process.env.DATABASE_URL); const originalGuard = await fingerprint(process.env.DATABASE_URL);
@@ -43,15 +56,29 @@ async function main(): Promise<void> {
       const pool = new Pool({ connectionString: databaseUrl });
       try {
         const table = await pool.query("SELECT column_name, is_nullable, udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name='reference_catalog_songs' ORDER BY ordinal_position");
-        assert.deepEqual(table.rows.map((row) => row.column_name), ["id", "language", "canonical_number", "source_id", "title", "source_url"]);
-        const constraints = await pool.query("SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_schema='public' AND table_name='reference_catalog_songs' ORDER BY constraint_name");
-        assert.deepEqual(constraints.rows.map((row) => row.constraint_name), ["reference_catalog_songs_canonical_number_positive", "reference_catalog_songs_id_non_empty", "reference_catalog_songs_pkey", "reference_catalog_songs_source_id_non_empty", "reference_catalog_songs_title_non_empty"]);
+        assert.deepEqual(table.rows, [
+          { column_name: "id", is_nullable: "NO", udt_name: "text" },
+          { column_name: "language", is_nullable: "NO", udt_name: "song_language" },
+          { column_name: "canonical_number", is_nullable: "NO", udt_name: "int4" },
+          { column_name: "source_id", is_nullable: "NO", udt_name: "text" },
+          { column_name: "title", is_nullable: "NO", udt_name: "text" },
+          { column_name: "source_url", is_nullable: "YES", udt_name: "text" },
+        ]);
+        const approvedConstraintNames = ["reference_catalog_songs_canonical_number_positive", "reference_catalog_songs_id_non_empty", "reference_catalog_songs_pkey", "reference_catalog_songs_source_id_non_empty", "reference_catalog_songs_title_non_empty"];
+        const constraints = await pool.query("SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_schema='public' AND table_name='reference_catalog_songs' AND constraint_name = ANY($1::text[]) ORDER BY constraint_name", [approvedConstraintNames]);
+        assert.deepEqual(constraints.rows, [
+          { constraint_name: "reference_catalog_songs_canonical_number_positive", constraint_type: "CHECK" },
+          { constraint_name: "reference_catalog_songs_id_non_empty", constraint_type: "CHECK" },
+          { constraint_name: "reference_catalog_songs_pkey", constraint_type: "PRIMARY KEY" },
+          { constraint_name: "reference_catalog_songs_source_id_non_empty", constraint_type: "CHECK" },
+          { constraint_name: "reference_catalog_songs_title_non_empty", constraint_type: "CHECK" },
+        ]);
         const indexes = await pool.query("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='reference_catalog_songs' ORDER BY indexname");
         assert.deepEqual(indexes.rows.map((row) => row.indexname), ["reference_catalog_songs_language_canonical_number_idx", "reference_catalog_songs_language_source_id_idx", "reference_catalog_songs_pkey"]);
         const firstCounts = await synchronizeReferenceCatalog(pool); const first = await snapshot(pool);
         const secondCounts = await synchronizeReferenceCatalog(pool); const second = await snapshot(pool);
         assert.deepEqual(firstCounts, { czech: 808, polish: 990, total: 1798 }); assert.deepEqual(secondCounts, firstCounts); assert.deepEqual(second, first);
-        const expected = (await loadAndValidateReferenceCatalog()).sort((a, b) => a.language.localeCompare(b.language) || a.canonicalNumber - b.canonicalNumber).map((record) => ({ id: record.id, language: record.language, canonical_number: record.canonicalNumber, source_id: record.sourceId, title: record.title, source_url: record.sourceUrl }));
+        const expected = await independentlyExpectedSnapshot();
         assert.deepEqual(second, expected);
         await pool.query("INSERT INTO reference_catalog_songs VALUES ('czech:999999','czech',999999,'stale','stale',NULL)");
         await synchronizeReferenceCatalog(pool); assert.equal((await pool.query("SELECT count(*)::integer count FROM reference_catalog_songs WHERE source_id='stale'")).rows[0]?.count, 0);
@@ -62,14 +89,20 @@ async function main(): Promise<void> {
         assert.equal((await pool.query("SELECT count(*)::integer count FROM reference_catalog_songs WHERE lower(id) LIKE '%demo%' OR lower(id) LIKE '%synthetic%' OR lower(title) LIKE '%demo%' OR lower(title) LIKE '%synthetic%'")).rows[0]?.count, 0);
         assert.equal((await pool.query("SELECT source_id FROM reference_catalog_songs WHERE language='polish' AND source_url='https://hymnary.org/hymn/SE2002/54a'")).rows[0]?.source_id, "54a");
         const provider = new PostgresReferenceCatalogProvider(pool); assert.deepEqual(await provider.counts(), { all: 1798, czech: 808, polish: 990 });
-        assert.equal((await provider.list({ language: "czech", pageSize: 2000 })).total, 808); assert.equal((await provider.list({ language: "polish", pageSize: 2000 })).total, 990);
+        assert.equal((await provider.list({ language: "czech", pageSize: 2000 })).total, 808); assert.equal((await provider.list({ language: "polish", pageSize: 2000 })).total, 990); assert.equal((await provider.list({ language: "all", pageSize: 2000 })).total, 1798);
         assert.equal((await provider.list({ search: "ŻEGNAMY" })).records[0]?.canonicalNumber, 955);
         assert.deepEqual((await provider.list({ search: "751/1" })).records.map((r) => r.id), ["czech:7511"]); assert.deepEqual((await provider.list({ search: "7512" })).records.map((r) => r.id), ["czech:7512"]);
         for (const rejected of ["7521", "752/1", "7522", "752/2"]) assert.equal((await provider.list({ search: rejected })).total, 0);
-        const ordinary = await provider.list({ search: "298" }); assert.equal(ordinary.records.find((r) => r.language === "czech")?.sourceUrl, "https://www.evangelickykancional.cz/pisen/5593/otevri-sve-srdce");
-        assert.equal((await provider.getById("polish:955"))?.sourceUrl, "https://hymnary.org/hymn/SE2002/955");
+        const czechFamily = await provider.list({ language: "czech", search: "52", pageSize: 20 }); assert.deepEqual(czechFamily.records.map((record) => record.displayNumber), ["52/1", "52/2"]);
+        assert.deepEqual((await provider.list({ language: "czech", search: "52/", pageSize: 20 })).records.map((record) => record.displayNumber), ["52/1", "52/2"]);
+        assert.deepEqual((await provider.list({ language: "polish", search: "347", pageSize: 20 })).records.map((record) => record.displayNumber), ["347/1", "347/2", "347/3", "347/4", "347/5", "347/6", "347/7", "347/8"]);
+        const czech298 = (await provider.list({ language: "czech", search: "298" })).records.find((record) => record.canonicalNumber === 298);
+        assert.equal(czech298?.title, "Otevři své srdce"); assert.equal(czech298?.sourceUrl, "https://www.evangelickykancional.cz/pisen/5593/otevri-sve-srdce");
+        const polish955 = await provider.getById("polish:955"); assert.equal(polish955?.title, "Żegnamy was w Bogu naszym"); assert.equal(polish955?.sourceUrl, "https://hymnary.org/hymn/SE2002/955");
         const page0 = await provider.list({ page: 0, pageSize: 10 }); const page1 = await provider.list({ page: 1, pageSize: 10 }); assert.notDeepEqual(page0.records.map((r) => r.id), page1.records.map((r) => r.id)); assert.equal(page0.records[0]?.displayNumber, "1");
-        await pool.query("UPDATE reference_catalog_songs SET title='DATABASE PROOF' WHERE id='czech:1'"); assert.equal((await provider.getById("czech:1"))?.title, "DATABASE PROOF");
+        await pool.query("UPDATE reference_catalog_songs SET title='DATABASE-ONLY PROOF' WHERE id='czech:1'");
+        const databaseOnlySearch = await provider.list({ language: "czech", search: "database-only proof" }); assert.deepEqual(databaseOnlySearch.records.map((record) => record.id), ["czech:1"]);
+        const databaseOnlyList = await provider.list({ language: "czech", pageSize: 2000 }); assert.equal(databaseOnlyList.records.find((record) => record.id === "czech:1")?.title, "DATABASE-ONLY PROOF");
       } finally { await pool.end(); }
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); assert.equal((await control.query("SELECT 1 FROM pg_database WHERE datname=$1", [name])).rows.length, 0); });
     assert.equal(await fingerprint(process.env.DATABASE_URL), originalGuard);
