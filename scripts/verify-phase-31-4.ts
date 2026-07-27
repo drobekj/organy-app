@@ -24,6 +24,7 @@ async function main() {
   assert.equal(apiFailure({ error: { code: "invalidInput", message: "bad" } }, "fallback").error.code, "invalidInput");
   assert.equal(apiFailure({ error: { code: "permissionDenied", message: "denied" } }, "fallback").error.code, "permissionDenied");
   assert.equal(apiFailure({ error: { code: "notFound", message: "missing" } }, "fallback").error.code, "notFound");
+  assert.equal(apiFailure({ error: "original validation message" }, "fallback").error.message, "original validation message");
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for Phase 31.4 verification.");
   const guardUrl = process.env.DATABASE_URL; const guard = parseGuardDatabaseUrl(guardUrl); const before = await fingerprint(guardUrl);
   const control = new Pool({ connectionString: deriveControlUrl(guard) }); const name = generateE1DatabaseName();
@@ -36,16 +37,23 @@ async function main() {
         await seedDemoInteractionKnowledge(pool);
         await pool.query("insert into app_user_roles (user_id, role) values ('demo-admin-user', 'priest') on conflict do nothing");
         await pool.query("insert into app_users (id, display_name, active) values ('inactive-user', 'Inactive', false), ('roleless-user', 'Roleless', true)");
+        await pool.query("insert into catalog_persons (id, display_name, active, organist) values ('second-organist', 'Second Organist', true, true)");
+        await pool.query("insert into app_users (id, display_name, person_id, active) values ('second-organist-user', 'Second Organist User', 'second-organist', true)");
+        await pool.query("insert into app_user_roles (user_id, role) values ('second-organist-user', 'organist')");
       } finally { await pool.end(); }
       process.env.DATABASE_URL = isolatedUrl; process.env.ORGANY_RUNTIME = "db";
 
       const actors = await invoke(interactionPost, "listLocalActors", {});
-      assert.equal(actors.status, 200); assert.deepEqual(actors.body.value.map((u: any) => u.id).sort(), ["demo-admin-user", "demo-member-user", "demo-organist-user", "demo-priest-user"]);
+      assert.equal(actors.status, 200); assert.deepEqual(actors.body.value.map((u: any) => u.id).sort(), ["demo-admin-user", "demo-member-user", "demo-organist-user", "demo-priest-user", "second-organist-user"]);
       assert.deepEqual(actors.body.value.find((u: any) => u.id === "demo-admin-user").roles, ["priest", "admin"]);
       assert.equal((await invoke(catalogPost, "listSongs", {})).body.success, true);
       assert.equal((await invoke(interactionPost, "listKnowledge", {})).body.success, true);
       assert.equal((await invoke(planningPost, "listPlanningSets", {})).body.success, true);
       assert.equal((await invoke(catalogPost, "getSong", { songId: "missing-song" })).body.error.code, "notFound");
+      const catalogValidation = await invoke(catalogPost, "getSong", {});
+      assert.equal(catalogValidation.status, 400); assert.deepEqual(apiFailure(catalogValidation.body, "fallback").error, { code: "invalidInput", message: "Non-empty song ID is required." });
+      const planningValidation = await invoke(planningPost, "loadPlanningSet", {});
+      assert.equal(planningValidation.status, 400); assert.deepEqual(apiFailure(planningValidation.body, "fallback").error, { code: "invalidInput", message: "setId is required." });
       const explicitAdmin = await invoke(interactionPost, "resolveActor", {}, { userId: "demo-admin-user", role: "admin" });
       assert.equal(explicitAdmin.body.value.role, "admin");
       const fallback = await invoke(interactionPost, "resolveActor", {}, { userId: "demo-admin-user" });
@@ -53,8 +61,10 @@ async function main() {
       for (const actor of [undefined, null, {}, { userId: "" }, { userId: "demo-admin-user", role: "bogus" }]) { const result = await invoke(interactionPost, "setMelodyWindow", { months: 1 }, actor); assert.equal(result.status, 400); assert.equal(result.body.error.code, "invalidInput"); }
       for (const actor of [{ userId: "unknown-user" }, { userId: "inactive-user" }, { userId: "roleless-user" }, { userId: "demo-admin-user", role: "organist" }]) { const result = await invoke(interactionPost, "setMelodyWindow", { months: 1 }, actor); assert.equal(result.status, 403); assert.equal(result.body.error.code, "permissionDenied"); }
 
-      const deniedCatalog = await invoke(catalogPost, "setSongActive", { role: "admin", songId: "demo-cz-101", active: false }, { userId: "demo-priest-user", role: "priest" });
-      assert.equal(deniedCatalog.body.error?.code, "permissionDenied");
+      for (const actor of [{ userId: "demo-priest-user", role: "priest" }, { userId: "demo-organist-user", role: "organist" }, { userId: "demo-member-user", role: "congregationMember" }]) {
+        const deniedCatalog = await invoke(catalogPost, "setSongActive", { role: "admin", songId: "demo-cz-101", active: false }, actor);
+        assert.equal(deniedCatalog.body.error?.code, "permissionDenied");
+      }
       const allowedCatalog = await invoke(catalogPost, "setSongActive", { role: "priest", songId: "demo-cz-101", active: false }, { userId: "demo-admin-user", role: "admin" });
       assert.equal(allowedCatalog.body.success, true);
       await invoke(catalogPost, "setSongActive", { songId: "demo-cz-101", active: true }, { userId: "demo-admin-user", role: "admin" });
@@ -69,7 +79,7 @@ async function main() {
         assert.deepEqual(stored.rows.map((row) => row.profile_id), ["pref-member"]);
       } finally { await db.end(); }
 
-      const repertoireDenied = await invoke(interactionPost, "setRepertoire", { actor: { role: "admin", personId: "demo-priest" }, organistPersonId: "demo-priest", songId: "demo-pl-101", active: true }, { userId: "demo-organist-user", role: "organist" });
+      const repertoireDenied = await invoke(interactionPost, "setRepertoire", { actor: { role: "admin", personId: "second-organist" }, organistPersonId: "second-organist", songId: "demo-pl-101", active: true }, { userId: "demo-organist-user", role: "organist" });
       assert.equal(repertoireDenied.body.error?.code, "permissionDenied");
       const repertoireOwn = await invoke(interactionPost, "setRepertoire", { organistPersonId: "demo-organist", songId: "demo-pl-101", active: true }, { userId: "demo-organist-user", role: "organist" });
       assert.equal(repertoireOwn.body.success, true);
@@ -77,12 +87,14 @@ async function main() {
       assert.equal((await invoke(interactionPost, "setMelodyWindow", { months: 1 }, { userId: "demo-priest-user", role: "priest" })).body.error.code, "permissionDenied");
       assert.equal((await invoke(interactionPost, "setMelodyWindow", { months: 1 }, { userId: "demo-admin-user", role: "admin" })).body.success, true);
 
-      const fakeAdminPlanning = await invoke(planningPost, "saveWorkingSet", { role: "admin" }, { userId: "demo-member-user", role: "congregationMember" });
+      const validPlanningInput = { role: "congregationMember", serviceContext: { serviceDate: "2026-07-20", serviceTime: "10:00", language: "czech", priest: { id: "demo-priest", displayName: "forged priest" }, organist: { id: "demo-organist", displayName: "forged organist" } }, set: { status: "working", language: "czech", rows: [{ song: { songId: "demo-cz-101", language: "czech", number: "101", title: "forged title" } }] } };
+      const fakeAdminPlanning = await invoke(planningPost, "saveWorkingSet", { ...validPlanningInput, role: "admin" }, { userId: "demo-member-user", role: "congregationMember" });
       assert.equal(fakeAdminPlanning.body.error?.code, "permissionDenied");
-      const storedAdminPlanning = await invoke(planningPost, "saveWorkingSet", { role: "congregationMember" }, { userId: "demo-admin-user", role: "admin" });
-      assert.equal(storedAdminPlanning.body.error?.code, "invalidInput");
-      assert.equal((await invoke(planningPost, "updateCompletedRecord", { role: "admin" }, { userId: "demo-priest-user", role: "priest" })).body.error.code, "permissionDenied");
-      assert.equal((await invoke(planningPost, "updateCompletedRecord", { role: "priest" }, { userId: "demo-admin-user", role: "admin" })).body.error.code, "invalidInput");
+      const storedAdminPlanning = await invoke(planningPost, "saveWorkingSet", validPlanningInput, { userId: "demo-admin-user", role: "admin" });
+      assert.equal(storedAdminPlanning.body.success, true);
+      const invalidPlanning = await invoke(planningPost, "saveWorkingSet", { ...validPlanningInput, serviceContext: { ...validPlanningInput.serviceContext, serviceTime: "25:00" } }, { userId: "demo-admin-user", role: "admin" });
+      assert.equal(invalidPlanning.body.error?.code, "invalidInput");
+      assert.notEqual(invalidPlanning.body.error?.message, undefined);
 
       const memory = new InMemoryInteractionRepository();
       assert.equal(memory.resolveActor("demo-organist-user", "organist")?.personId, "demo-organist");

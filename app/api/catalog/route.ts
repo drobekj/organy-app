@@ -9,14 +9,14 @@ const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMembe
 const serviceLanguages: ServiceLanguage[] = ["czech", "polish", "mixed"];
 
 export async function POST(request: Request) {
-  if (process.env.ORGANY_RUNTIME !== "db") return NextResponse.json({ error: "Catalog DB runtime is not enabled." }, { status: 400 });
-  if (!process.env.DATABASE_URL) return NextResponse.json({ error: "DATABASE_URL is required." }, { status: 500 });
+  if (process.env.ORGANY_RUNTIME !== "db") return invalidInput("Catalog DB runtime is not enabled.");
+  if (!process.env.DATABASE_URL) return NextResponse.json({ error: { code: "internalError", message: "DATABASE_URL is required." } }, { status: 500 });
 
   let body: { action?: CatalogAction; input?: unknown; actor?: unknown };
   try { body = (await request.json()) as typeof body; } catch { return NextResponse.json({ error: { code: "invalidInput", message: "Malformed JSON body." } }, { status: 400 }); }
-  if (!body.action || !["getPerson", "getSong", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(body.action)) return NextResponse.json({ error: "Unsupported catalog action." }, { status: 400 });
+  if (!body.action || !["getPerson", "getSong", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(body.action)) return invalidInput("Unsupported catalog action.");
   const validationError = validateActionInput(body.action, body.input);
-  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
+  if (validationError) return invalidInput(validationError);
 
   const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -65,3 +65,4 @@ function validateActionInput(action: CatalogAction, input: unknown): string | un
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
+function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }

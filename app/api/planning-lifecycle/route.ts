@@ -26,20 +26,18 @@ type PlanningLifecycleRequest = {
 
 export async function POST(request: Request) {
   if (process.env.ORGANY_RUNTIME !== "db") {
-    return NextResponse.json(
-      { error: "Planning Lifecycle DB runtime is not enabled. Set ORGANY_RUNTIME=db to opt in." },
-      { status: 400 },
-    );
+    return invalidInput("Planning Lifecycle DB runtime is not enabled. Set ORGANY_RUNTIME=db to opt in.");
   }
 
   if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ error: "DATABASE_URL is required when ORGANY_RUNTIME=db." }, { status: 500 });
+    return NextResponse.json({ error: { code: "internalError", message: "DATABASE_URL is required when ORGANY_RUNTIME=db." } }, { status: 500 });
   }
 
-  const body = (await request.json()) as PlanningLifecycleRequest;
+  let body: PlanningLifecycleRequest;
+  try { body = (await request.json()) as PlanningLifecycleRequest; } catch { return invalidInput("Malformed JSON body."); }
 
   if (!body.action || !isPlanningLifecycleAction(body.action)) {
-    return NextResponse.json({ error: "Unsupported Planning Lifecycle action." }, { status: 400 });
+    return invalidInput("Unsupported Planning Lifecycle action.");
   }
 
   const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
@@ -61,7 +59,7 @@ export async function POST(request: Request) {
     }
     if (body.action === "loadCompletedRecord") {
       const recordId = isObjectWithRecordId(body.input) ? body.input.recordId : undefined;
-      if (!recordId) return NextResponse.json({ error: "recordId is required." }, { status: 400 });
+      if (!recordId) return invalidInput("recordId is required.");
       const records = new (await import("../../../src/application/planning-lifecycle")).DrizzleCompletedServiceRecordRepository(adapterDependencies);
       const record = await records.findById(recordId);
       return NextResponse.json(record ? { success: true, value: record } : { success: false, error: { code: "notFound", message: "Completed record was not found." } });
@@ -69,7 +67,7 @@ export async function POST(request: Request) {
     if (body.action === "loadPlanningSet") {
       const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;
       if (!setId) {
-        return NextResponse.json({ error: "setId is required." }, { status: 400 });
+        return invalidInput("setId is required.");
       }
       const set = await planningSets.findById(setId);
       return NextResponse.json(set ? { success: true, value: set } : { success: false, error: { code: "notFound", message: "Planning set was not found." } });
@@ -77,6 +75,8 @@ export async function POST(request: Request) {
 
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
     const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
+    if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");
+    if (body.action === "saveWorkingSet" && (!isRecord(body.input.serviceContext) || !isRecord(body.input.set))) return invalidInput("saveWorkingSet requires serviceContext and set objects.");
     const input = isRecord(body.input) ? { ...body.input, role: actor.role } : { role: actor.role };
     const result = await service[body.action](input as never);
 
@@ -94,6 +94,7 @@ export async function POST(request: Request) {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
+function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
   return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
