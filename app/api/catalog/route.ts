@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { CatalogService, DrizzleCatalogRepository, type CatalogPerson } from "../../../src/application/catalog";
 import type { PlanningRole, ServiceLanguage } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
+import { LocalActorError, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 
 type CatalogAction = "getPerson" | "getSong" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
 const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
@@ -21,9 +22,14 @@ export async function POST(request: Request) {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const service = new CatalogService(new DrizzleCatalogRepository(drizzle(pool, { schema })));
-    return NextResponse.json(await service[body.action](body.input as never));
+    let input = body.input as Record<string, unknown>;
+    if (body.action === "savePerson" || body.action === "setSongActive") {
+      const actor = await new PostgresLocalActorResolver(pool).resolve(request);
+      input = { ...input, role: actor.role };
+    }
+    return NextResponse.json(await service[body.action](input as never));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Catalog API failed." }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Catalog API failed." }, { status: error instanceof LocalActorError ? 403 : 500 });
   } finally { await pool.end(); }
 }
 
@@ -43,13 +49,11 @@ function validateActionInput(action: CatalogAction, input: unknown): string | un
     return undefined;
   }
   if (action === "setSongActive") {
-    if (!roles.includes(input.role as PlanningRole)) return "Valid local role is required.";
     if (typeof input.songId !== "string" || !input.songId.trim()) return "songId is required.";
     if (typeof input.active !== "boolean") return "active boolean is required.";
     return undefined;
   }
   if (action === "savePerson") {
-    if (!roles.includes(input.role as PlanningRole)) return "Valid local role is required.";
     const person = input.person;
     if (!isRecord(person)) return "Malformed person payload.";
     if ("id" in person && person.id !== undefined && (typeof person.id !== "string" || !person.id.trim())) return "Person id must be a non-empty string when provided.";

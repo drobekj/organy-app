@@ -4,6 +4,7 @@ import {
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
+import { LocalActorError, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 
 type PlanningLifecycleAction =
   | "listPlanningSets"
@@ -74,19 +75,23 @@ export async function POST(request: Request) {
     }
 
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
-    const result = await service[body.action](body.input as never);
+    const actor = await new PostgresLocalActorResolver(pool).resolve(request);
+    const input = isRecord(body.input) ? { ...body.input, role: actor.role } : { role: actor.role };
+    const result = await service[body.action](input as never);
 
     return NextResponse.json(result);
   } catch (error) {
     const message = formatDbRuntimeError(error);
     return NextResponse.json(
       { error: message },
-      { status: 500 },
+      { status: error instanceof LocalActorError ? 403 : 500 },
     );
   } finally {
     await pool.end();
   }
 }
+
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
   return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
