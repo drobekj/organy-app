@@ -7,12 +7,17 @@ import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabas
 
 async function fingerprint(url: string): Promise<string> {
   const pool = new Pool({ connectionString: url, max: 1 });
+  const client = await pool.connect();
   try {
-    const tables = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name");
+    await client.query("BEGIN READ ONLY");
+    const tables = await client.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name");
+    const columns = await client.query("SELECT table_name, column_name, ordinal_position, data_type, udt_name, is_nullable, column_default FROM information_schema.columns WHERE table_schema = 'public' ORDER BY table_name, ordinal_position");
     const counts: unknown[] = [];
-    for (const row of tables.rows) counts.push([row.table_name, (await pool.query(`SELECT count(*)::text count FROM public.\"${String(row.table_name).replaceAll('"', '""')}\"`)).rows[0]?.count]);
-    return JSON.stringify([tables.rows, counts]);
-  } finally { await pool.end(); }
+    for (const row of tables.rows) counts.push([row.table_name, (await client.query(`SELECT count(*)::text count FROM public.\"${String(row.table_name).replaceAll('"', '""')}\"`)).rows[0]?.count]);
+    await client.query("COMMIT");
+    return JSON.stringify({ tables: tables.rows.map((row) => row.table_name), columns: columns.rows, counts });
+  } catch (error) { await client.query("ROLLBACK").catch(() => undefined); throw error; }
+  finally { client.release(); await pool.end(); }
 }
 
 async function npmRun(name: string, databaseUrl: string): Promise<void> {
@@ -37,6 +42,12 @@ async function main(): Promise<void> {
       await npmRun("db:migrate", databaseUrl); await npmRun("db:migrate", databaseUrl);
       const pool = new Pool({ connectionString: databaseUrl });
       try {
+        const table = await pool.query("SELECT column_name, is_nullable, udt_name FROM information_schema.columns WHERE table_schema='public' AND table_name='reference_catalog_songs' ORDER BY ordinal_position");
+        assert.deepEqual(table.rows.map((row) => row.column_name), ["id", "language", "canonical_number", "source_id", "title", "source_url"]);
+        const constraints = await pool.query("SELECT constraint_name, constraint_type FROM information_schema.table_constraints WHERE table_schema='public' AND table_name='reference_catalog_songs' ORDER BY constraint_name");
+        assert.deepEqual(constraints.rows.map((row) => row.constraint_name), ["reference_catalog_songs_canonical_number_positive", "reference_catalog_songs_id_non_empty", "reference_catalog_songs_pkey", "reference_catalog_songs_source_id_non_empty", "reference_catalog_songs_title_non_empty"]);
+        const indexes = await pool.query("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND tablename='reference_catalog_songs' ORDER BY indexname");
+        assert.deepEqual(indexes.rows.map((row) => row.indexname), ["reference_catalog_songs_language_canonical_number_idx", "reference_catalog_songs_language_source_id_idx", "reference_catalog_songs_pkey"]);
         const firstCounts = await synchronizeReferenceCatalog(pool); const first = await snapshot(pool);
         const secondCounts = await synchronizeReferenceCatalog(pool); const second = await snapshot(pool);
         assert.deepEqual(firstCounts, { czech: 808, polish: 990, total: 1798 }); assert.deepEqual(secondCounts, firstCounts); assert.deepEqual(second, first);
@@ -46,7 +57,10 @@ async function main(): Promise<void> {
         await synchronizeReferenceCatalog(pool); assert.equal((await pool.query("SELECT count(*)::integer count FROM reference_catalog_songs WHERE source_id='stale'")).rows[0]?.count, 0);
         const valid = await snapshot(pool); await assert.rejects(synchronizeReferenceCatalog(pool, { failBeforeCommit: true }), /Injected/); assert.deepEqual(await snapshot(pool), valid);
         assert.equal((await pool.query("SELECT count(*)::integer count FROM reference_catalog_songs WHERE language='czech' AND source_url IS NULL")).rows[0]?.count, 7);
-        assert.equal((await pool.query("SELECT count(DISTINCT id)::integer ids, count(DISTINCT (language, canonical_number))::integer numbers, count(DISTINCT (language, source_id))::integer sources FROM reference_catalog_songs")).rows[0]?.ids, 1798);
+        const identities = (await pool.query("SELECT count(DISTINCT id)::integer ids, count(DISTINCT (language, canonical_number))::integer numbers, count(DISTINCT (language, source_id))::integer sources FROM reference_catalog_songs")).rows[0];
+        assert.deepEqual(identities, { ids: 1798, numbers: 1798, sources: 1798 });
+        assert.equal((await pool.query("SELECT count(*)::integer count FROM reference_catalog_songs WHERE lower(id) LIKE '%demo%' OR lower(id) LIKE '%synthetic%' OR lower(title) LIKE '%demo%' OR lower(title) LIKE '%synthetic%'")).rows[0]?.count, 0);
+        assert.equal((await pool.query("SELECT source_id FROM reference_catalog_songs WHERE language='polish' AND source_url='https://hymnary.org/hymn/SE2002/54a'")).rows[0]?.source_id, "54a");
         const provider = new PostgresReferenceCatalogProvider(pool); assert.deepEqual(await provider.counts(), { all: 1798, czech: 808, polish: 990 });
         assert.equal((await provider.list({ language: "czech", pageSize: 2000 })).total, 808); assert.equal((await provider.list({ language: "polish", pageSize: 2000 })).total, 990);
         assert.equal((await provider.list({ search: "ŻEGNAMY" })).records[0]?.canonicalNumber, 955);

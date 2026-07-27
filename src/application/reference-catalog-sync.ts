@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Pool, PoolClient } from "pg";
 
-type InputRecord = { source_id: unknown; language: unknown; number: unknown; title: unknown; source_url: unknown };
+type InputRecord = { source_id?: unknown; language: unknown; number: unknown; title: unknown; source_url: unknown };
 export type PersistedReferenceCatalogRecord = { id: string; language: "czech" | "polish"; canonicalNumber: number; sourceId: string; title: string; sourceUrl: string | null };
 
 async function readFinalCatalog(path: string): Promise<unknown> {
@@ -17,12 +17,23 @@ export async function loadAndValidateReferenceCatalog(): Promise<PersistedRefere
   if (!inputs.every(Array.isArray)) throw new Error("Authoritative reference catalogs must be JSON arrays.");
   const ids = new Set<string>(); const numbers = new Set<string>(); const sources = new Set<string>();
   const records = (inputs.flat() as InputRecord[]).map((raw) => {
-    if ((raw.language !== "czech" && raw.language !== "polish") || !Number.isInteger(raw.number) || Number(raw.number) <= 0 || typeof raw.source_id !== "string" || !raw.source_id.trim() || typeof raw.title !== "string" || !raw.title.trim() || (raw.source_url !== null && (typeof raw.source_url !== "string" || !raw.source_url.trim()))) throw new Error("Invalid authoritative reference catalog record.");
+    if ((raw.language !== "czech" && raw.language !== "polish") || !Number.isInteger(raw.number) || Number(raw.number) <= 0 || typeof raw.title !== "string" || !raw.title.trim() || (raw.source_url !== null && (typeof raw.source_url !== "string" || !raw.source_url.trim()))) throw new Error("Invalid authoritative reference catalog record.");
     const language = raw.language as "czech" | "polish"; const canonicalNumber = Number(raw.number); const id = `${language}:${canonicalNumber}`;
-    const numberKey = `${language}:${canonicalNumber}`; const sourceKey = `${language}:${raw.source_id}`;
+    let sourceId: string;
+    if (language === "czech") {
+      if (raw.source_id !== null && (typeof raw.source_id !== "string" || !raw.source_id.trim())) throw new Error("Czech reference source_id must be non-empty when supplied.");
+      // Seven accepted Czech records have no upstream identity; their accepted catalog number is the only stable source token.
+      sourceId = typeof raw.source_id === "string" ? raw.source_id : String(canonicalNumber);
+    } else {
+      if (typeof raw.source_url !== "string") throw new Error("Polish reference records require a Hymnary source URL.");
+      const match = raw.source_url.match(/^https:\/\/hymnary\.org\/hymn\/SE2002\/([^/?#]+)$/);
+      if (!match?.[1]) throw new Error("Polish reference source_id must be derived from the terminal Hymnary URL token.");
+      sourceId = match[1];
+    }
+    const numberKey = `${language}:${canonicalNumber}`; const sourceKey = `${language}:${sourceId}`;
     if (ids.has(id) || numbers.has(numberKey) || sources.has(sourceKey)) throw new Error("Duplicate authoritative reference catalog identity.");
     ids.add(id); numbers.add(numberKey); sources.add(sourceKey);
-    return { id, language, canonicalNumber, sourceId: raw.source_id, title: raw.title, sourceUrl: raw.source_url as string | null };
+    return { id, language, canonicalNumber, sourceId, title: raw.title, sourceUrl: raw.source_url as string | null };
   });
   const czech = records.filter((record) => record.language === "czech").length;
   const polish = records.filter((record) => record.language === "polish").length;
