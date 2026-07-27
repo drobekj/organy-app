@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
+import { canonicalizeValidationBytes, sha256 } from "./validation-file-bytes.mjs";
 
 const catalogDir = dirname(fileURLToPath(import.meta.url));
 const payloadDir = join(catalogDir, "payload");
@@ -40,10 +40,6 @@ const fixedFiles = [
     sha256: "49a0accd4392ff9167707e2677d9edab9b5ed9ceb7d0d023a2251dfbca1b5559",
   },
 ];
-
-function sha256(buffer) {
-  return createHash("sha256").update(buffer).digest("hex");
-}
 
 function applyApprovedCzechErratum(records) {
   const matches = records.filter((record) => record.source_id === "6017");
@@ -104,12 +100,9 @@ async function materialize({ name, partPrefix, output, upstreamSha256, finalSha2
   console.log(`${name}: ${records} records, upstream SHA-256 OK, final-output SHA-256 OK -> data/catalog/${output}`);
 }
 async function verifyFixedFile({ name, file, sha256: expectedHash }) {
-  const bytes = await readFile(join(catalogDir, file));
-  const actualHash = sha256(bytes);
-  if (actualHash !== expectedHash) {
-    throw new Error(`${name}: SHA-256 mismatch; expected ${expectedHash}, got ${actualHash}.`);
-  }
-  JSON.parse(bytes.toString("utf8"));
+  const checked = canonicalizeValidationBytes(await readFile(join(catalogDir, file)), expectedHash, name);
+  JSON.parse(checked.bytes.toString("utf8"));
+  if (checked.convertedCrlf) await writeFile(join(catalogDir, file), checked.bytes);
   console.log(`${name}: SHA-256 OK -> data/catalog/${file}`);
 }
 

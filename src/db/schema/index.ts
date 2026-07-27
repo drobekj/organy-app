@@ -18,6 +18,22 @@ export const serviceSetStatus = pgEnum("service_set_status", ["working", "final"
 export const serviceLanguage = pgEnum("service_language", ["czech", "polish", "mixed"]);
 export const songLanguage = pgEnum("song_language", ["czech", "polish"]);
 
+export const referenceCatalogSongs = pgTable("reference_catalog_songs", {
+  id: text("id").primaryKey(),
+  language: songLanguage("language").notNull(),
+  canonicalNumber: integer("canonical_number").notNull(),
+  sourceId: text("source_id").notNull(),
+  title: text("title").notNull(),
+  sourceUrl: text("source_url"),
+}, (table) => ({
+  languageCanonicalNumber: uniqueIndex("reference_catalog_songs_language_canonical_number_idx").on(table.language, table.canonicalNumber),
+  languageSourceId: uniqueIndex("reference_catalog_songs_language_source_id_idx").on(table.language, table.sourceId),
+  positiveCanonicalNumber: check("reference_catalog_songs_canonical_number_positive", sql`${table.canonicalNumber} > 0`),
+  nonEmptyId: check("reference_catalog_songs_id_non_empty", sql`btrim(${table.id}) <> ''`),
+  nonEmptySourceId: check("reference_catalog_songs_source_id_non_empty", sql`btrim(${table.sourceId}) <> ''`),
+  nonEmptyTitle: check("reference_catalog_songs_title_non_empty", sql`btrim(${table.title}) <> ''`),
+}));
+
 export const catalogPersons = pgTable("catalog_persons", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
