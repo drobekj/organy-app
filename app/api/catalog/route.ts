@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { CatalogService, DrizzleCatalogRepository, type CatalogPerson } from "../../../src/application/catalog";
 import type { PlanningRole, ServiceLanguage } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
-import { LocalActorError, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 
 type CatalogAction = "getPerson" | "getSong" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
 const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
@@ -12,8 +12,8 @@ export async function POST(request: Request) {
   if (process.env.ORGANY_RUNTIME !== "db") return NextResponse.json({ error: "Catalog DB runtime is not enabled." }, { status: 400 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: "DATABASE_URL is required." }, { status: 500 });
 
-  let body: { action?: CatalogAction; input?: unknown };
-  try { body = (await request.json()) as { action?: CatalogAction; input?: unknown }; } catch { return NextResponse.json({ error: "Malformed JSON body." }, { status: 400 }); }
+  let body: { action?: CatalogAction; input?: unknown; actor?: unknown };
+  try { body = (await request.json()) as typeof body; } catch { return NextResponse.json({ error: { code: "invalidInput", message: "Malformed JSON body." } }, { status: 400 }); }
   if (!body.action || !["getPerson", "getSong", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(body.action)) return NextResponse.json({ error: "Unsupported catalog action." }, { status: 400 });
   const validationError = validateActionInput(body.action, body.input);
   if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
@@ -24,12 +24,13 @@ export async function POST(request: Request) {
     const service = new CatalogService(new DrizzleCatalogRepository(drizzle(pool, { schema })));
     let input = body.input as Record<string, unknown>;
     if (body.action === "savePerson" || body.action === "setSongActive") {
-      const actor = await new PostgresLocalActorResolver(pool).resolve(request);
+      const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
       input = { ...input, role: actor.role };
     }
     return NextResponse.json(await service[body.action](input as never));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Catalog API failed." }, { status: error instanceof LocalActorError ? 403 : 500 });
+    if (error instanceof LocalActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : 403 });
+    return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Catalog API failed." } }, { status: 500 });
   } finally { await pool.end(); }
 }
 

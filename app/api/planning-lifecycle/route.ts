@@ -4,7 +4,7 @@ import {
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
-import { LocalActorError, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 
 type PlanningLifecycleAction =
   | "listPlanningSets"
@@ -21,6 +21,7 @@ type PlanningLifecycleAction =
 type PlanningLifecycleRequest = {
   action?: PlanningLifecycleAction;
   input?: unknown;
+  actor?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -75,16 +76,17 @@ export async function POST(request: Request) {
     }
 
     const service = createDbBackedPlanningLifecycleService(adapterDependencies);
-    const actor = await new PostgresLocalActorResolver(pool).resolve(request);
+    const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
     const input = isRecord(body.input) ? { ...body.input, role: actor.role } : { role: actor.role };
     const result = await service[body.action](input as never);
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof LocalActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : 403 });
     const message = formatDbRuntimeError(error);
     return NextResponse.json(
-      { error: message },
-      { status: error instanceof LocalActorError ? 403 : 500 },
+      { error: { code: "internalError", message } },
+      { status: 500 },
     );
   } finally {
     await pool.end();
