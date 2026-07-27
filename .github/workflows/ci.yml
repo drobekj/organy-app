@@ -89,6 +89,17 @@ jobs:
           name: phase-31-4-log
           path: phase-31-4.log
           if-no-files-found: ignore
+      - name: Phase 31.5 persistent reference preferences acceptance
+        run: |
+          set -o pipefail
+          npm run verify:phase-31-5 2>&1 | tee phase-31-5.log
+      - name: Upload Phase 31.5 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-5-log
+          path: phase-31-5.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail
