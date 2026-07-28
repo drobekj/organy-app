@@ -23,16 +23,32 @@ async function npmRun(name: string, url: string) {
 }
 async function fingerprint(url: string) { const pool = new Pool({ connectionString: url }); try { return JSON.stringify((await pool.query("select datname from pg_database where datname=current_database()")).rows); } finally { await pool.end(); } }
 function exact(result: Result, id: string, person: string, active: boolean) { assert.equal(result.status, 200); assert.deepEqual(result.body.value, { referenceSongId: id, organistPersonId: person, active }); assert.deepEqual(Object.keys(result.body.value).sort(), ["active", "organistPersonId", "referenceSongId"]); }
-async function expectErrorBoth(actor: Actor, readInput: unknown, writeInput: unknown, code: string) {
+async function expectErrorBoth(actor: unknown, readInput: unknown, writeInput: unknown, code: string) {
   for (const [action, input] of [[GET, readInput], [SET, writeInput]] as const) { const result = await invoke(action, input, actor); assert.equal(result.body.error?.code, code, `${action} expected ${code}: ${JSON.stringify(result.body)}`); }
 }
-async function stalePair(label: string, olderActual: Result, currentActual: Result, expectedCurrent: unknown) {
-  // Both values came through the real route/service/repository. Resolution is deliberately reversed.
+type DeferredRequest = { actual: Promise<Result>; resolve: (payload: unknown) => void };
+async function deferredStale(
+  label: string,
+  older: (client: DbInteractionClient) => Promise<any>,
+  current: (client: DbInteractionClient) => Promise<any>,
+  expectedCurrent: unknown,
+  between: () => Promise<void> = async () => undefined,
+) {
+  const pending: DeferredRequest[] = [];
+  const client = new DbInteractionClient(((action: string, input: unknown, actor?: Actor) => new Promise((resolve) => {
+    // The real DB request starts immediately, but its browser transport promise remains unresolved.
+    pending.push({ actual: invoke(action, input, actor), resolve });
+  })) as any);
   const tracker = new ReferencePreferenceRequestTracker(); const applied: unknown[] = [];
-  const olderToken = tracker.begin(); const currentToken = tracker.begin();
-  await Promise.resolve().then(() => { if (tracker.isCurrent(currentToken)) applied.push(currentActual.body.value ?? currentActual.body.error); });
-  await new Promise((resolve) => setTimeout(resolve, 2));
-  if (tracker.isCurrent(olderToken)) applied.push(olderActual.body.value ?? olderActual.body.error);
+  const olderToken = tracker.begin(); const olderPromise = older(client);
+  const olderActual = await pending[0].actual;
+  await between();
+  const currentToken = tracker.begin(); const currentPromise = current(client);
+  const currentActual = await pending[1].actual;
+  pending[1].resolve(currentActual.body); const currentResult = await currentPromise;
+  if (tracker.isCurrent(currentToken)) applied.push(currentResult.success ? currentResult.value : currentResult.error);
+  pending[0].resolve(olderActual.body); const olderResult = await olderPromise;
+  if (tracker.isCurrent(olderToken)) applied.push(olderResult.success ? olderResult.value : olderResult.error);
   assert.deepEqual(applied, [expectedCurrent], `${label} stale response overwrote current scope`);
 }
 
@@ -62,17 +78,17 @@ async function main() {
       // Full lifecycle, idempotence, exact row count, isolation, and updated_at policy.
       exact(await invoke(GET, { referenceSongId: "czech:1" }, organist), "czech:1", "demo-organist", false);
       exact(await invoke(SET, { referenceSongId: "czech:1", active: true }, organist), "czech:1", "demo-organist", true);
-      let check = new Pool({ connectionString: isolatedUrl }); let firstUpdatedAt: Date;
-      try { const row = (await check.query("select updated_at from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id='czech:1'")).rows[0]; firstUpdatedAt = new Date(String(row.updated_at)); } finally { await check.end(); }
+      let check = new Pool({ connectionString: isolatedUrl }); let firstUpdatedAtEpoch: number;
+      try { const row = (await check.query("select extract(epoch from updated_at)::double precision updated_at_epoch from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id='czech:1'")).rows[0]; firstUpdatedAtEpoch = Number(row.updated_at_epoch); assert.ok(Number.isFinite(firstUpdatedAtEpoch)); } finally { await check.end(); }
       exact(await invoke(SET, { referenceSongId: "czech:1", active: true }, organist), "czech:1", "demo-organist", true);
-      check = new Pool({ connectionString: isolatedUrl }); try { const rows = await check.query("select updated_at from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id='czech:1'"); assert.equal(rows.rows.length, 1); assert.equal(new Date(String(rows.rows[0].updated_at)).getTime(), firstUpdatedAt!.getTime(), "idempotent add preserves updated_at because no write occurs"); } finally { await check.end(); }
+      check = new Pool({ connectionString: isolatedUrl }); try { const rows = await check.query("select extract(epoch from updated_at)::double precision updated_at_epoch from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id='czech:1'"); assert.equal(rows.rows.length, 1); assert.equal(Number(rows.rows[0].updated_at_epoch), firstUpdatedAtEpoch!, "idempotent add preserves the native PostgreSQL timestamp because no write occurs"); } finally { await check.end(); }
       exact(await invoke(GET, { referenceSongId: "czech:2" }, organist), "czech:2", "demo-organist", false);
       exact(await invoke(GET, { referenceSongId: "czech:1", organistPersonId: "other-organist" }, admin), "czech:1", "other-organist", false);
       exact(await invoke(SET, { referenceSongId: "czech:1", active: false }, organist), "czech:1", "demo-organist", false);
       exact(await invoke(SET, { referenceSongId: "czech:1", active: false }, organist), "czech:1", "demo-organist", false);
       check = new Pool({ connectionString: isolatedUrl }); try { await check.query("select pg_sleep(0.01)"); } finally { await check.end(); }
       exact(await invoke(SET, { referenceSongId: "czech:1", active: true }, organist), "czech:1", "demo-organist", true);
-      check = new Pool({ connectionString: isolatedUrl }); try { const rows = await check.query("select updated_at from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id='czech:1'"); assert.equal(rows.rows.length, 1); assert.ok(new Date(String(rows.rows[0].updated_at)).getTime() > firstUpdatedAt!.getTime(), "remove/re-add receives a later updated_at"); } finally { await check.end(); }
+      check = new Pool({ connectionString: isolatedUrl }); try { const rows = await check.query("select extract(epoch from updated_at)::double precision updated_at_epoch from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id='czech:1'"); assert.equal(rows.rows.length, 1); assert.ok(Number(rows.rows[0].updated_at_epoch) > firstUpdatedAtEpoch!, "remove/re-add receives a strictly later native PostgreSQL timestamp"); } finally { await check.end(); }
 
       // Every required error category is exercised through both real actions.
       for (const pair of [[{}, {}], [{ referenceSongId: 1 }, { referenceSongId: 1, active: true }], [{ referenceSongId: "czech:1", extra: true }, { referenceSongId: "czech:1", active: true, extra: true }]] as const) await expectErrorBoth(organist, pair[0], pair[1], "invalidInput");
@@ -82,20 +98,24 @@ async function main() {
       for (const userId of ["unlinked-organist", "inactive-link-user", "wrong-link-user"]) await expectErrorBoth({ userId, role: "organist" }, { referenceSongId: "czech:1" }, { referenceSongId: "czech:1", active: true }, "permissionDenied");
       for (const actor of [priest, member]) await expectErrorBoth(actor, { referenceSongId: "czech:1" }, { referenceSongId: "czech:1", active: true }, "permissionDenied");
       assert.equal((await invoke(GET, { referenceSongId: "czech:1" }, admin)).body.error.code, "invalidInput"); assert.equal((await invoke(SET, { referenceSongId: "czech:1", active: true }, admin)).body.error.code, "invalidInput");
+      for (const actor of [null, {}, { userId: "" }, { userId: "demo-organist-user", role: "organist", extra: true }, { userId: "demo-organist-user", role: "malformed" }]) await expectErrorBoth(actor, { referenceSongId: "czech:1" }, { referenceSongId: "czech:1", active: true }, "invalidInput");
+      for (const actor of [{ userId: "missing-user", role: "organist" }, { userId: "inactive-user", role: "organist" }, { userId: "roleless-user" }, { userId: "demo-priest-user", role: "organist" }]) await expectErrorBoth(actor, { referenceSongId: "czech:1" }, { referenceSongId: "czech:1", active: true }, "permissionDenied");
 
       // Browser DB client calls both actual actions.
       const client = new DbInteractionClient(async (action, input, actor) => (await invoke(action, input, actor)).body);
       exact({ status: 200, body: await client.getReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1" }) }, "czech:1", "demo-organist", true);
       exact({ status: 200, body: await client.setReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1", active: true }) }, "czech:1", "demo-organist", true);
 
-      // Deterministic delayed real-response tests cover every invalidation dimension.
-      await stalePair("song", await invoke(GET, { referenceSongId: "czech:1" }, organist), await invoke(GET, { referenceSongId: "czech:2" }, organist), { referenceSongId: "czech:2", organistPersonId: "demo-organist", active: false });
-      await stalePair("actor", await invoke(GET, { referenceSongId: "czech:1" }, organist), await invoke(GET, { referenceSongId: "czech:1" }, otherOrganist), { referenceSongId: "czech:1", organistPersonId: "other-organist", active: false });
-      await stalePair("role", await invoke(GET, { referenceSongId: "czech:1" }, organist), await invoke(GET, { referenceSongId: "czech:1", organistPersonId: "other-organist" }, { userId: "demo-organist-user", role: "admin" }), { referenceSongId: "czech:1", organistPersonId: "other-organist", active: false });
-      check = new Pool({ connectionString: isolatedUrl }); const oldLinkRead = await invoke(GET, { referenceSongId: "czech:1" }, otherOrganist); try { await check.query("update app_users set person_id='demo-organist' where id='other-organist-user'"); } finally { await check.end(); } const newLinkRead = await invoke(GET, { referenceSongId: "czech:1" }, otherOrganist); await stalePair("person link", oldLinkRead, newLinkRead, { referenceSongId: "czech:1", organistPersonId: "demo-organist", active: true });
-      await stalePair("admin target", await invoke(GET, { referenceSongId: "czech:1", organistPersonId: "demo-organist" }, admin), await invoke(GET, { referenceSongId: "czech:1", organistPersonId: "other-organist" }, admin), { referenceSongId: "czech:1", organistPersonId: "other-organist", active: false });
-      const dbRead = await invoke(GET, { referenceSongId: "czech:1" }, organist); process.env.ORGANY_RUNTIME = "memory"; const memoryRead = await invoke(GET, { referenceSongId: "czech:1" }, organist); process.env.ORGANY_RUNTIME = "db"; await stalePair("runtime", dbRead, memoryRead, memoryRead.body.error);
-      const oldRemove = await invoke(SET, { referenceSongId: "czech:1", active: false }, organist); const currentAdd = await invoke(SET, { referenceSongId: "czech:1", active: true }, organist); await stalePair("competing writes", oldRemove, currentAdd, { referenceSongId: "czech:1", organistPersonId: "demo-organist", active: true }); exact(await invoke(GET, { referenceSongId: "czech:1" }, organist), "czech:1", "demo-organist", true);
+      // Genuinely deferred browser transport promises cover every invalidation dimension.
+      const ownRead = (c: DbInteractionClient) => c.getReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1" });
+      await deferredStale("song", ownRead, (c) => c.getReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:2" }), { referenceSongId: "czech:2", organistPersonId: "demo-organist", active: false });
+      await deferredStale("actor", ownRead, (c) => c.getReferenceRepertoireMembership({ actor: otherOrganist as never, referenceSongId: "czech:1" }), { referenceSongId: "czech:1", organistPersonId: "other-organist", active: false });
+      await deferredStale("role", ownRead, (c) => c.getReferenceRepertoireMembership({ actor: { userId: "demo-organist-user", role: "admin" } as never, referenceSongId: "czech:1", organistPersonId: "other-organist" }), { referenceSongId: "czech:1", organistPersonId: "other-organist", active: false });
+      await deferredStale("person link", (c) => c.getReferenceRepertoireMembership({ actor: otherOrganist as never, referenceSongId: "czech:1" }), (c) => c.getReferenceRepertoireMembership({ actor: otherOrganist as never, referenceSongId: "czech:1" }), { referenceSongId: "czech:1", organistPersonId: "demo-organist", active: true }, async () => { const pool = new Pool({ connectionString: isolatedUrl }); try { await pool.query("update app_users set person_id='demo-organist' where id='other-organist-user'"); } finally { await pool.end(); } });
+      await deferredStale("admin target", (c) => c.getReferenceRepertoireMembership({ actor: admin as never, referenceSongId: "czech:1", organistPersonId: "demo-organist" }), (c) => c.getReferenceRepertoireMembership({ actor: admin as never, referenceSongId: "czech:1", organistPersonId: "other-organist" }), { referenceSongId: "czech:1", organistPersonId: "other-organist", active: false });
+      await deferredStale("runtime", ownRead, (c) => c.getReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1" }), { code: "invalidInput", message: "Interaction DB runtime is not enabled." }, async () => { process.env.ORGANY_RUNTIME = "memory"; }); process.env.ORGANY_RUNTIME = "db";
+      await deferredStale("competing writes", (c) => c.setReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1", active: false }), (c) => c.setReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1", active: true }), { referenceSongId: "czech:1", organistPersonId: "demo-organist", active: true });
+      exact(await invoke(GET, { referenceSongId: "czech:1" }, organist), "czech:1", "demo-organist", true);
 
       // Deterministic UI contract evidence: role gates, no-target gate, memory gate, and no hardcoded target.
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
