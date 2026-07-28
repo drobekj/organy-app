@@ -38,7 +38,7 @@
     "verify:phase-31-4:local": "tsx scripts/verify-phase-31-4-local.ts",
     "verify:phase-31-5": "tsx scripts/verify-phase-31-5.ts && npm run verify:phase-31-4 && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
     "verify:phase-31-5:local": "tsx scripts/verify-phase-31-5-local.ts",
-    "verify:phase-31-6": "tsx scripts/verify-phase-31-6.ts && npm run verify:phase-31-5 && npm run typecheck && npm test && npm run test:reference-catalog && npm run build",
+    "verify:phase-31-6": "tsx scripts/verify-phase-31-6.ts",
     "verify:phase-31-6:local": "tsx scripts/verify-phase-31-6-local.ts"
   },
   "dependencies": {

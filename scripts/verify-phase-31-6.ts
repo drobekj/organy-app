@@ -4,6 +4,8 @@ import { spawn } from "node:child_process";
 import { Pool } from "pg";
 import { POST } from "../app/api/interaction/route";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
+import { DbInteractionClient } from "../app/planning-lifecycle-client";
+import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 type Result = { status: number; body: any };
@@ -18,19 +20,33 @@ async function main() {
   try {
     await withCleanup(async () => {
       await npmRun("db:migrate", isolatedUrl); await npmRun("db:sync:reference-catalog", isolatedUrl);
-      const seed = new Pool({ connectionString: isolatedUrl }); try { await seedDemoInteractionKnowledge(seed); } finally { await seed.end(); }
+      const seed = new Pool({ connectionString: isolatedUrl }); try { await seedDemoInteractionKnowledge(seed); await seed.query("insert into app_users (id, display_name, active) values ('aggregate-no-profile', 'Aggregate Reader', true), ('aggregate-inactive', 'Inactive Reader', false)"); await seed.query("insert into app_user_roles (user_id, role) values ('aggregate-no-profile', 'priest'), ('aggregate-no-profile', 'organist'), ('aggregate-no-profile', 'congregation_member'), ('aggregate-no-profile', 'admin'), ('aggregate-inactive', 'priest')"); } finally { await seed.end(); }
       process.env.DATABASE_URL = isolatedUrl; process.env.ORGANY_RUNTIME = "db";
-      const priest = { userId: "demo-priest-user", role: "priest" }; const organist = { userId: "demo-organist-user", role: "organist" }; const member = { userId: "demo-member-user", role: "congregationMember" };
-      const empty = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, priest); assert.equal(empty.status, 200); assert.equal(empty.body.value.score, null); assert.equal(empty.body.value.aggregatePreferenceScore, 0);
-      assert.equal((await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 3 }, priest)).body.value.aggregatePreferenceScore, 3);
-      assert.equal((await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 2 }, organist)).body.value.aggregatePreferenceScore, 5);
-      assert.equal((await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 1 }, member)).body.value.aggregatePreferenceScore, 6);
-      const otherActor = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, priest); assert.equal(otherActor.body.value.score, 3); assert.equal(otherActor.body.value.aggregatePreferenceScore, 6);
-      const replaced = await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 0 }, priest); assert.equal(replaced.body.value.score, 0); assert.equal(replaced.body.value.aggregatePreferenceScore, 3);
-      const unrelated = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:2" }, priest); assert.equal(unrelated.body.value.aggregatePreferenceScore, 0);
+      const priest = { userId: "demo-priest-user", role: "priest" }; const organist = { userId: "demo-organist-user", role: "organist" }; const member = { userId: "demo-member-user", role: "congregationMember" }; const admin = { userId: "demo-admin-user", role: "admin" };
+      const beforeCandidates = await invoke("queryCandidates", { serviceDate: "2026-07-27", serviceLanguage: "czech", preferenceThreshold: 0, candidateUsages: [] }, priest);
+      for (const actor of [priest, organist, member, admin]) { const empty = await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, actor); assert.equal(empty.status, 200); assert.deepEqual(empty.body.value, { referenceSongId: "czech:1", aggregateScore: 0 }); }
+      for (const role of ["priest", "organist", "congregationMember", "admin"]) { const result = await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, { userId: "aggregate-no-profile", role }); assert.equal(result.status, 200); assert.equal(result.body.value.aggregateScore, 0); }
+      // The aggregate contract exposes neither a profile nor any actor's individual vote.
+      assert.deepEqual(Object.keys((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, admin)).body.value).sort(), ["aggregateScore", "referenceSongId"]);
+      const own = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, priest); assert.deepEqual(own.body.value, { referenceSongId: "czech:1", category: "priest", score: null, limit: 3 });
+      assert.deepEqual((await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 3 }, priest)).body.value, { referenceSongId: "czech:1", category: "priest", score: 3, limit: 3 });
+      await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 2 }, organist); await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 1 }, member);
+      assert.deepEqual((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, admin)).body.value, { referenceSongId: "czech:1", aggregateScore: 6 });
+      await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:1", score: 0 }, priest);
+      assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, member)).body.value.aggregateScore, 3);
+      assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:2" }, admin)).body.value.aggregateScore, 0);
+      const client = new DbInteractionClient(async (action, input, actor) => { const result = await invoke(action, input, actor); return result.body; });
+      assert.deepEqual((await client.getReferencePreferenceAggregate({ actor: admin as never, referenceSongId: "czech:1" })).value, { referenceSongId: "czech:1", aggregateScore: 3 });
+      for (const actor of [undefined, null, {}, { userId: "" }, { userId: "demo-priest-user", role: "bogus" }]) { const result = await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, actor); assert.equal(result.status, 400); assert.equal(result.body.error.code, "invalidInput"); }
+      for (const actor of [{ userId: "missing-user", role: "priest" }, { userId: "aggregate-inactive", role: "priest" }]) { const result = await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, actor); assert.equal(result.status, 403); assert.equal(result.body.error.code, "permissionDenied"); }
+      assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:999999999" }, admin)).status, 404);
+      assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "bad" }, admin)).status, 400);
+      assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1", profileId: "pref-priest" }, admin)).status, 400);
       const db = new Pool({ connectionString: isolatedUrl }); try { assert.equal((await db.query("select sum(score)::integer total from reference_song_preferences where reference_song_id='czech:1'")).rows[0].total, 3); } finally { await db.end(); }
-      const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8"); assert.match(ui, /Aggregate preference:/); assert.match(ui, /aggregatePreferenceScore/);
-      console.log("Phase 31.6 evidence: authoritative zero, cross-profile sum, replacement, record isolation, own-value separation, actual route, PostgreSQL, and UI projection passed.");
+      assert.deepEqual(await invoke("queryCandidates", { serviceDate: "2026-07-27", serviceLanguage: "czech", preferenceThreshold: 0, candidateUsages: [] }, priest), beforeCandidates);
+      const tracker = new ReferencePreferenceRequestTracker(); const applied: number[] = []; const stale = tracker.begin(); const current = tracker.begin(); if (tracker.isCurrent(stale)) applied.push(6); if (tracker.isCurrent(current)) applied.push(3); assert.deepEqual(applied, [3]);
+      const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8"); assert.match(ui, /Reference preference aggregate/); assert.match(ui, /selectedRole !== "admin" && referencePreference/); assert.match(ui, /refreshReferenceAggregate\(selectedReferenceId, activeActor\)/);
+      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, candidate regression, and UI projection passed.");
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); });
     process.env.DATABASE_URL = guardUrl; assert.equal(await fingerprint(guardUrl), before); assert.equal((await control.query("select 1 from pg_database where datname=$1", [name])).rows.length, 0);
     console.log("Phase 31.6 cleanup evidence: guard database fingerprint unchanged and temporary database removed.");
