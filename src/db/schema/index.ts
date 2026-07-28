@@ -210,6 +210,12 @@ export const referenceSongPreferences = pgTable("reference_song_preferences", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({ onePreferencePerProfileReference: uniqueIndex("reference_song_preferences_profile_reference_song_idx").on(table.profileId, table.referenceSongId), scoreRange: check("reference_song_preferences_score_range", sql`${table.score} >= 0 and ${table.score} <= 3`) }));
 
+export const referenceOrganistRepertoire = pgTable("reference_organist_repertoire", {
+  organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
+  referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ oneMembership: uniqueIndex("reference_organist_repertoire_person_song_idx").on(table.organistPersonId, table.referenceSongId) }));
+
 export const organistRepertoire = pgTable("organist_repertoire", {
   organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
   songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
