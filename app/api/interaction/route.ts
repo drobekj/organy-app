@@ -4,6 +4,7 @@ import { PgInteractionRepository } from "../../../src/application/db-interaction
 import { InteractionService } from "../../../src/application/interaction-service";
 import type { ActorIdentity } from "../../../src/application/interaction-contracts";
 import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { PgReferenceRepertoireRepository, ReferenceRepertoireService } from "../../../src/application/reference-repertoire";
 
 const pgCatalog = (pool: Pool) => ({ listSongs: async () => {
   const { rows } = await pool.query("select song_id, language, number, title, active, sheet_music_url from catalog_songs order by language, number");
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
   if (!body?.action) return NextResponse.json({ error: { code: "invalidInput", message: "Interaction action is required." } }, { status: 400 });
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const service = new InteractionService(new PgInteractionRepository(pool), pgCatalog(pool));
+  const referenceRepertoire = new ReferenceRepertoireService(new PgReferenceRepertoireRepository(pool));
   try {
     const resolver = new PostgresLocalActorResolver(pool);
     switch (body.action) {
@@ -28,6 +30,8 @@ export async function POST(request: Request) {
       case "saveOwnReferencePreference":
       case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.score!)); }
       case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
+      case "getReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId)); }
+      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId, input.active!)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
       case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(await resolver.resolve(parseLocalActorContext(body.actor)), { months: Number(input.months) })); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
@@ -46,5 +50,16 @@ function referencePreferenceInput(value: unknown, includeScore: boolean): { refe
   if (Object.keys(input).some((key) => !allowed.includes(key)) || typeof input.referenceSongId !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId)) throw new LocalActorError("invalidInput", "A valid referenceSongId is required.");
   if (includeScore && (typeof input.score !== "number" || !Number.isInteger(input.score))) throw new LocalActorError("invalidInput", "Preference score must be an integer.");
   return { referenceSongId: input.referenceSongId, ...(includeScore ? { score: input.score as number } : {}) };
+}
+function referenceRepertoireInput(value: unknown, includeActive: boolean): { referenceSongId: string; organistPersonId?: string; active?: boolean } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Repertoire input is required.");
+  const input = value as Record<string, unknown>; const allowed = new Set(["referenceSongId", "organistPersonId", ...(includeActive ? ["active"] : [])]);
+  if (Object.keys(input).some((key) => !allowed.has(key)) || typeof input.referenceSongId !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId)) throw new LocalActorError("invalidInput", "A valid referenceSongId is required.");
+  if (input.organistPersonId !== undefined && (typeof input.organistPersonId !== "string" || !input.organistPersonId.trim())) throw new LocalActorError("invalidInput", "organistPersonId must be a non-empty string.");
+  if (includeActive && typeof input.active !== "boolean") throw new LocalActorError("invalidInput", "active must be boolean.");
+  return { referenceSongId: input.referenceSongId, ...(input.organistPersonId !== undefined ? { organistPersonId: input.organistPersonId as string } : {}), ...(includeActive ? { active: input.active as boolean } : {}) };
+}
+function validateRepertoireActor(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some((key) => key !== "userId" && key !== "role")) throw new LocalActorError("invalidInput", "Local actor context is malformed.");
 }
 function respond<T>(result: { success: true; value: T } | { success: false; error: { code: string; message: string } }) { if (result.success) return NextResponse.json(result); const status = result.error.code === "invalidInput" ? 400 : result.error.code === "notFound" ? 404 : 403; return NextResponse.json(result, { status }); }

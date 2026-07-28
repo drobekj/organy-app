@@ -5,6 +5,7 @@ import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type Cat
 import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
 import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
 import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
+import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -52,7 +53,8 @@ type WorkingSetSnapshot = {
 
 type CatalogClient = CatalogService | DbCatalogClient;
 type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
+type RepertoireResult = { success: true; value: ReferenceRepertoireMembership } | { success: false; error: PlanningServiceError };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
 const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
 
 type PlanningRepositories = {
@@ -181,6 +183,8 @@ export class DbInteractionClient implements InteractionClient {
   async getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }) { return this.transport("getReferenceOwnPreference", { referenceSongId: input.referenceSongId }, input.actor); }
   async saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }) { return this.transport("saveReferenceOwnPreference", { referenceSongId: input.referenceSongId, score: input.score }, input.actor); }
   async getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }) { return this.transport("getReferencePreferenceAggregate", { referenceSongId: input.referenceSongId }, input.actor); }
+  async getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }) { return this.transport("getReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}) }, input.actor); }
+  async setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }) { return this.transport("setReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}), active: input.active }, input.actor); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
@@ -194,6 +198,8 @@ export class MemoryInteractionClient implements InteractionClient {
   async getReferenceOwnPreference() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference preferences are available only in DB runtime." } }; }
   async saveReferenceOwnPreference() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference preferences are available only in DB runtime." } }; }
   async getReferencePreferenceAggregate() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference preferences are available only in DB runtime." } }; }
+  async getReferenceRepertoireMembership() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference repertoire is available only in DB runtime." } }; }
+  async setReferenceRepertoireMembership() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference repertoire is available only in DB runtime." } }; }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await this.service.queryCandidates(buildCandidateQueryInput(input)); return result.success ? result.value : []; }
@@ -320,10 +326,15 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [referencePreferenceSaving, setReferencePreferenceSaving] = useState(false);
   const [referencePreferenceDraft, setReferencePreferenceDraft] = useState("");
   const [referencePreferenceFeedback, setReferencePreferenceFeedback] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [referenceRepertoire, setReferenceRepertoire] = useState<ReferenceRepertoireMembership | null>(null);
+  const [referenceRepertoireTarget, setReferenceRepertoireTarget] = useState("");
+  const [referenceRepertoireError, setReferenceRepertoireError] = useState<PlanningServiceError | null>(null);
+  const [referenceRepertoireSaving, setReferenceRepertoireSaving] = useState(false);
   const referenceListRequest = useRef(0);
   const referenceDetailRequest = useRef(0);
   const referencePreferenceRequests = useRef(new ReferencePreferenceRequestTracker());
   const referenceAggregateRequests = useRef(new ReferencePreferenceRequestTracker());
+  const referenceRepertoireRequests = useRef(new ReferencePreferenceRequestTracker());
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
@@ -457,6 +468,37 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       if (result.success) { setReferencePreference(result.value); setReferencePreferenceDraft(String(result.value.score)); setReferencePreferenceFeedback("saved"); await refreshReferenceAggregate(selectedReferenceId, activeActor); } else { setReferencePreferenceError(result.error); setReferencePreferenceFeedback("error"); }
     } catch (error) { if (referencePreferenceRequests.current.isCurrent(request)) { setReferencePreferenceError({ code: "invalidInput", message: error instanceof Error ? error.message : "Preference save failed." }); setReferencePreferenceFeedback("error"); } }
     finally { if (referencePreferenceRequests.current.isCurrent(request)) setReferencePreferenceSaving(false); }
+  }
+
+  useEffect(() => {
+    setReferenceRepertoireTarget("");
+    referenceRepertoireRequests.current.invalidate();
+  }, [runtimeMode, activeActor.userId, activeActor.role, activeActor.personId]);
+
+  useEffect(() => {
+    setReferenceRepertoire(null); setReferenceRepertoireError(null); setReferenceRepertoireSaving(false);
+    referenceRepertoireRequests.current.invalidate();
+    const target = selectedRole === "admin" ? referenceRepertoireTarget || undefined : undefined;
+    if (runtimeMode !== "db" || !selectedReferenceId || (selectedRole !== "organist" && selectedRole !== "admin") || (selectedRole === "admin" && !target)) return;
+    const request = referenceRepertoireRequests.current.begin();
+    void interactionClient.getReferenceRepertoireMembership({ actor: activeActor, referenceSongId: selectedReferenceId, ...(target ? { organistPersonId: target } : {}) }).then((result) => {
+      if (!referenceRepertoireRequests.current.isCurrent(request)) return;
+      if (result.success) setReferenceRepertoire(result.value); else setReferenceRepertoireError(result.error);
+    }).catch((error: unknown) => { if (referenceRepertoireRequests.current.isCurrent(request)) setReferenceRepertoireError({ code: "invalidInput", message: error instanceof Error ? error.message : "Repertoire load failed." }); });
+    return () => referenceRepertoireRequests.current.invalidate();
+  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, activeActor.personId, selectedRole, referenceRepertoireTarget, interactionClient]);
+
+  async function setAuthoritativeReferenceRepertoire(active: boolean) {
+    if (!selectedReferenceId) return;
+    const target = selectedRole === "admin" ? referenceRepertoireTarget || undefined : undefined;
+    if (selectedRole === "admin" && !target) return;
+    const request = referenceRepertoireRequests.current.begin(); setReferenceRepertoireSaving(true); setReferenceRepertoireError(null);
+    try {
+      const result = await interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId: selectedReferenceId, ...(target ? { organistPersonId: target } : {}), active });
+      if (!referenceRepertoireRequests.current.isCurrent(request)) return;
+      if (result.success) setReferenceRepertoire(result.value); else setReferenceRepertoireError(result.error);
+    } catch (error) { if (referenceRepertoireRequests.current.isCurrent(request)) setReferenceRepertoireError({ code: "invalidInput", message: error instanceof Error ? error.message : "Repertoire update failed." }); }
+    finally { if (referenceRepertoireRequests.current.isCurrent(request)) setReferenceRepertoireSaving(false); }
   }
 
   useEffect(() => {
@@ -1291,7 +1333,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             {selectedCatalogTab === "reference" && (
               <fieldset className="field-group catalog-panel">
                 <legend>Reference catalog</legend>
-                <p className="field-help">Authoritative frozen catalog metadata is read-only. In DB runtime, eligible users may persist only their own preference.</p>
+                <p className="field-help">Authoritative frozen catalog metadata is read-only. In DB runtime, eligible users may persist preferences and separate repertoire membership.</p>
                 {referencePageData && <div className="row-actions" aria-label="Reference catalog counts"><strong>All {referencePageData.counts.all.toLocaleString()}</strong><strong>Czech {referencePageData.counts.czech.toLocaleString()}</strong><strong>Polish {referencePageData.counts.polish.toLocaleString()}</strong></div>}
                 <label>Language<select value={referenceLanguage} onChange={(event) => { setReferenceLanguage(event.target.value as ReferenceCatalogLanguageFilter); setReferencePage(0); setSelectedReferenceId(null); }}><option value="all">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
                 <label>Search<input value={referenceSearch} onChange={(event) => { setReferenceSearch(event.target.value); setReferencePage(0); setSelectedReferenceId(null); }} placeholder="Search by title, number, encoded number, or slash notation" /></label>
@@ -1306,6 +1348,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     {runtimeMode === "db" && referencePreferenceAggregate && <p className="field-help" aria-label="Reference preference aggregate">Aggregate preference: <strong>{referencePreferenceAggregate.aggregateScore}</strong></p>}
                     {runtimeMode === "db" && selectedRole !== "admin" && referencePreference && <div aria-label="My reference preference"><p className="field-help">My current: <strong>{referencePreference.score === null ? "not set" : referencePreference.score}</strong> · Profile: {referencePreference.category} · Allowed range: 0–{referencePreference.limit}</p><label>Draft value<input aria-label="Reference preference draft value" type="number" min={0} max={referencePreference.limit} step={1} value={referencePreferenceDraft} disabled={referencePreferenceSaving} onChange={(event) => { setReferencePreferenceDraft(event.target.value); setReferencePreferenceFeedback("idle"); }} /></label><button type="button" disabled={referencePreferenceSaving || !Number.isInteger(Number(referencePreferenceDraft)) || referencePreferenceDraft.trim() === "" || Number(referencePreferenceDraft) < 0 || Number(referencePreferenceDraft) > referencePreference.limit} onClick={() => { void saveReferencePreference(Number(referencePreferenceDraft)); }}>Save preference</button>{referencePreferenceFeedback === "saving" && <span className="field-help" role="status">Saving…</span>}{referencePreferenceFeedback === "saved" && <span className="field-help" role="status">Saved.</span>}</div>}
                     {runtimeMode === "db" && referencePreferenceError && <p className="field-help" role="alert">Own preference unavailable: {referencePreferenceError.message}</p>}
+                    {runtimeMode === "db" && selectedRole === "admin" && <label>Organist target<select aria-label="Authoritative repertoire organist target" value={referenceRepertoireTarget} onChange={(event) => setReferenceRepertoireTarget(event.target.value)}><option value="">Select an organist</option>{peopleAdmin.filter((person) => person.active && person.organist).map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>}
+                    {runtimeMode === "db" && selectedRole === "organist" && referenceRepertoire && <div aria-label="My authoritative reference repertoire"><p className="field-help">My repertoire: <strong>{referenceRepertoire.active ? "yes" : "no"}</strong></p><button type="button" disabled={referenceRepertoireSaving} onClick={() => void setAuthoritativeReferenceRepertoire(!referenceRepertoire.active)}>{referenceRepertoire.active ? "Remove from my repertoire" : "Add to my repertoire"}</button></div>}
+                    {runtimeMode === "db" && selectedRole === "admin" && referenceRepertoireTarget && referenceRepertoire && <div aria-label="Selected organist authoritative reference repertoire"><p className="field-help">Selected organist repertoire: <strong>{referenceRepertoire.active ? "yes" : "no"}</strong></p><button type="button" disabled={referenceRepertoireSaving} onClick={() => void setAuthoritativeReferenceRepertoire(!referenceRepertoire.active)}>{referenceRepertoire.active ? "Remove" : "Add"}</button></div>}
+                    {runtimeMode === "db" && referenceRepertoireError && <p className="field-help" role="alert">Reference repertoire unavailable: {referenceRepertoireError.message}</p>}
                   </div>
                 )}
                 {referencePageData?.total === 0 && !referenceLoading && <p className="field-help">No reference records match these filters.</p>}
