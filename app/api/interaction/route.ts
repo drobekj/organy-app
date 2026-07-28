@@ -27,6 +27,7 @@ export async function POST(request: Request) {
       case "getReferenceOwnPreference": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
       case "saveOwnReferencePreference":
       case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.score!)); }
+      case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
       case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(await resolver.resolve(parseLocalActorContext(body.actor)), { months: Number(input.months) })); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());

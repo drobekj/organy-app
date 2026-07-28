@@ -8,6 +8,7 @@ export type ActorIdentity = { userId: string; displayName: string; role: Plannin
 export type PreferenceProfile = { id: string; userId: string; category: PreferenceProfileCategory };
 export type SongPreference = { profileId: string; songId: string; score: number };
 export type ReferenceOwnPreference = { referenceSongId: string; category: PreferenceProfileCategory; score: number | null; limit: number };
+export type ReferencePreferenceAggregate = { referenceSongId: string; aggregateScore: number };
 export type MelodyClass = { id: string; label: string; songIds: string[]; synthetic: boolean };
 export type KnowledgeMapping = { id: string; key: string; songId: string; synthetic: boolean };
 export type MelodyNonRepetitionConfig = { months: number };
