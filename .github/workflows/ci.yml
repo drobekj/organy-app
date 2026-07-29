@@ -169,7 +169,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.draft == true &&
-      github.head_ref == 'codex/data-gate-a1-czech-antiphon-catalog'
+      github.head_ref == 'codex/implement-github-issue-#115-in-organy-app'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
