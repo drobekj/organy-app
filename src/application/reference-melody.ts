@@ -18,7 +18,7 @@ const memberSql = `select m.reference_song_id, m.class_id, s.language, s.canonic
   order by case s.language when 'czech' then 0 else 1 end, s.canonical_number`;
 
 export class PgReferenceMelodyRepository implements ReferenceMelodyRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool, private readonly options: { failAfterMembershipMove?: boolean } = {}) {}
   async referenceSongExists(id: string) { return (await this.pool.query("select 1 from reference_catalog_songs where id=$1", [id])).rows.length === 1; }
   async getReferenceMelodyClass(id: string) { return readClass(this.pool, id); }
   async mergeReferenceMelodyClasses(anchor: string, target: string) {
@@ -37,6 +37,7 @@ export class PgReferenceMelodyRepository implements ReferenceMelodyRepository {
         await client.query("select id from reference_melody_classes where id=any($1::text[]) order by id for update", [ordered]);
         await client.query("select reference_song_id from reference_song_melody_memberships where class_id=any($1::text[]) order by class_id,reference_song_id for update", [ordered]);
         await client.query("update reference_song_melody_memberships set class_id=$1,updated_at=now() where class_id=$2", [anchorClass, targetClass]);
+        if (this.options.failAfterMembershipMove) throw new Error("Injected reference melody merge failure.");
         await client.query("update reference_melody_classes set updated_at=now() where id=$1", [anchorClass]);
         await client.query("delete from reference_melody_classes where id=$1", [targetClass]);
       }

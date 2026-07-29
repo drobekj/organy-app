@@ -41,8 +41,14 @@ export async function loadAndValidateReferenceCatalog(): Promise<PersistedRefere
   return records;
 }
 
-export async function synchronizeReferenceCatalog(pool: Pool, options: { failBeforeCommit?: boolean } = {}): Promise<{ czech: number; polish: number; total: number }> {
-  const records = await loadAndValidateReferenceCatalog();
+export type ReferenceCatalogReconcileOptions = {
+  failBeforeCommit?: boolean;
+  /** Acceptance-only seam: callers may reconcile a derived catalog without changing frozen JSON. */
+  records?: PersistedReferenceCatalogRecord[];
+  expectedCounts?: { czech: number; polish: number; total: number };
+};
+export async function synchronizeReferenceCatalog(pool: Pool, options: ReferenceCatalogReconcileOptions = {}): Promise<{ czech: number; polish: number; total: number }> {
+  const records = options.records ?? await loadAndValidateReferenceCatalog();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -63,7 +69,8 @@ export async function synchronizeReferenceCatalog(pool: Pool, options: { failBef
     await client.query("DELETE FROM reference_melody_classes c WHERE NOT EXISTS (SELECT 1 FROM reference_song_melody_memberships m WHERE m.class_id=c.id)");
     if (options.failBeforeCommit) throw new Error("Injected reference catalog synchronization failure.");
     const counts = await databaseReferenceCatalogCounts(client);
-    if (counts.czech !== 808 || counts.polish !== 990 || counts.total !== 1798) throw new Error("Synchronized reference catalog counts are invalid.");
+    const expected = options.expectedCounts ?? { czech: 808, polish: 990, total: 1798 };
+    if (counts.czech !== expected.czech || counts.polish !== expected.polish || counts.total !== expected.total) throw new Error("Synchronized reference catalog counts are invalid.");
     await client.query("COMMIT");
     return counts;
   } catch (error) { await client.query("ROLLBACK").catch(() => undefined); throw error; }
