@@ -41,7 +41,9 @@
     "verify:phase-31-6": "tsx scripts/verify-phase-31-6.ts",
     "verify:phase-31-6:local": "tsx scripts/verify-phase-31-6-local.ts",
     "verify:phase-31-7": "tsx scripts/verify-phase-31-7.ts",
-    "verify:phase-31-7:local": "tsx scripts/verify-phase-31-7-local.ts"
+    "verify:phase-31-7:local": "tsx scripts/verify-phase-31-7-local.ts",
+    "verify:phase-31-8": "tsx scripts/verify-phase-31-8.ts",
+    "verify:phase-31-8:local": "tsx scripts/verify-phase-31-8-local.ts"
   },
   "dependencies": {
     "next": "16.2.10",

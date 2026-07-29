@@ -6,6 +6,8 @@ import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCat
 import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
 import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
 import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
+import type { ReferenceMelodyClass } from "../src/application/reference-melody";
+import { ReferenceMelodyRequestStateController } from "../src/application/reference-melody-request-state";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -53,8 +55,9 @@ type WorkingSetSnapshot = {
 
 type CatalogClient = CatalogService | DbCatalogClient;
 type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
+type MelodyResult = { success: true; value: ReferenceMelodyClass } | { success: false; error: PlanningServiceError };
 type RepertoireResult = { success: true; value: ReferenceRepertoireMembership } | { success: false; error: PlanningServiceError };
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }): Promise<MelodyResult>; mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }): Promise<MelodyResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
 const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
 
 type PlanningRepositories = {
@@ -185,6 +188,8 @@ export class DbInteractionClient implements InteractionClient {
   async getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }) { return this.transport("getReferencePreferenceAggregate", { referenceSongId: input.referenceSongId }, input.actor); }
   async getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }) { return this.transport("getReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}) }, input.actor); }
   async setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }) { return this.transport("setReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}), active: input.active }, input.actor); }
+  async getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }) { return this.transport("getReferenceMelodyClass", { referenceSongId: input.referenceSongId }, input.actor); }
+  async mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }) { return this.transport("mergeReferenceMelodyClasses", { referenceSongId: input.referenceSongId, mergeWithReferenceSongId: input.mergeWithReferenceSongId }, input.actor); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await callInteractionApi("queryCandidates", buildCandidateQueryInput(input)); return result.success ? result.value as CandidateQueryResult[] : []; }
@@ -200,6 +205,8 @@ export class MemoryInteractionClient implements InteractionClient {
   async getReferencePreferenceAggregate() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference preferences are available only in DB runtime." } }; }
   async getReferenceRepertoireMembership() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference repertoire is available only in DB runtime." } }; }
   async setReferenceRepertoireMembership() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference repertoire is available only in DB runtime." } }; }
+  async getReferenceMelodyClass() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference melody classes are available only in DB runtime." } }; }
+  async mergeReferenceMelodyClasses() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference melody classes are available only in DB runtime." } }; }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { const result = await this.service.queryCandidates(buildCandidateQueryInput(input)); return result.success ? result.value : []; }
@@ -330,6 +337,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [referenceRepertoireTarget, setReferenceRepertoireTarget] = useState("");
   const [referenceRepertoireError, setReferenceRepertoireError] = useState<PlanningServiceError | null>(null);
   const [referenceRepertoireSaving, setReferenceRepertoireSaving] = useState(false);
+  const [referenceMelody, setReferenceMelody] = useState<ReferenceMelodyClass | null>(null);
+  const [referenceMelodyTarget, setReferenceMelodyTarget] = useState("");
+  const [referenceMelodySearch, setReferenceMelodySearch] = useState("");
+  const [referenceMelodySearchResults, setReferenceMelodySearchResults] = useState<ReferenceCatalogRecord[]>([]);
+  const referenceMelodyState = useRef(new ReferenceMelodyRequestStateController());
   const referenceListRequest = useRef(0);
   const referenceDetailRequest = useRef(0);
   const referencePreferenceRequests = useRef(new ReferencePreferenceRequestTracker());
@@ -469,6 +481,34 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     } catch (error) { if (referencePreferenceRequests.current.isCurrent(request)) { setReferencePreferenceError({ code: "invalidInput", message: error instanceof Error ? error.message : "Preference save failed." }); setReferencePreferenceFeedback("error"); } }
     finally { if (referencePreferenceRequests.current.isCurrent(request)) setReferencePreferenceSaving(false); }
   }
+
+  useEffect(() => {
+    setReferenceMelody(null); setReferenceMelodyTarget(""); referenceMelodyState.current.contextChanged();
+    if (runtimeMode !== "db" || !selectedReferenceId) return;
+    const request = referenceMelodyState.current.beginRead();
+    void interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId: selectedReferenceId }).then((result) => {
+      if (result.success && referenceMelodyState.current.complete(request, { melody: result.value })) setReferenceMelody(result.value);
+    });
+    return () => referenceMelodyState.current.invalidateRead();
+  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, interactionClient]);
+
+  async function mergeReferenceMelody() {
+    if (!selectedReferenceId || !referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId) return;
+    const request = referenceMelodyState.current.beginMerge();
+    const result = await interactionClient.mergeReferenceMelodyClasses({ actor: activeActor, referenceSongId: selectedReferenceId, mergeWithReferenceSongId: referenceMelodyTarget });
+    if (result.success && referenceMelodyState.current.complete(request, { melody: result.value, mergeResult: result.value })) setReferenceMelody(result.value);
+  }
+
+  useEffect(() => {
+    setReferenceMelodySearchResults([]); setReferenceMelodyTarget("");
+    const query = referenceMelodySearch.trim();
+    const request = referenceMelodyState.current.beginSearch();
+    if (runtimeMode !== "db" || selectedRole !== "admin" || !selectedReferenceId || !query) return;
+    void referenceClient.list({ language: "all", search: query, page: 0, pageSize: 50 }).then((page) => {
+      const results = page.records.filter((record) => record.id !== selectedReferenceId); if (referenceMelodyState.current.complete(request, { searchResults: results, selectedTarget: "" })) setReferenceMelodySearchResults(results);
+    }).catch(() => { if (referenceMelodyState.current.complete(request, { searchResults: [] })) setReferenceMelodySearchResults([]); });
+    return () => referenceMelodyState.current.invalidateSearch();
+  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, selectedRole, referenceMelodySearch, referenceClient]);
 
   useEffect(() => {
     setReferenceRepertoireTarget("");
@@ -1345,6 +1385,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
                     <p className="field-help">{selectedReferenceRecord.language} · canonical {selectedReferenceRecord.canonicalNumber} · {selectedReferenceRecord.id} · read-only</p>
                     {selectedReferenceRecord.sourceUrl && <a href={selectedReferenceRecord.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
+                    {runtimeMode === "db" && referenceMelody && <section aria-label="Same melody"><h3>Same melody</h3><ul>{referenceMelody.members.map((member) => <li key={member.referenceSongId}>{member.displayNumber} · {member.title} ({member.language})</li>)}</ul>{selectedRole === "admin" && <><label>Find merge target<input aria-label="Reference melody target search" value={referenceMelodySearch} onChange={(event) => { setReferenceMelodySearch(event.target.value); setReferenceMelodyTarget(""); referenceMelodyState.current.beginSearch(); }} /></label><select aria-label="Reference melody merge target" value={referenceMelodyTarget} onChange={(event) => { const selectedTarget = event.target.value; setReferenceMelodyTarget(selectedTarget); referenceMelodyState.current.selectTarget(selectedTarget); }}><option value="">Select a Reference song</option>{referenceMelodySearchResults.map((record) => <option key={record.id} value={record.id}>{record.displayNumber} · {record.title}{referenceMelody.members.some((member) => member.referenceSongId === record.id) ? " (already linked)" : ""}</option>)}</select><button type="button" disabled={!referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId || referenceMelody.members.some((member) => member.referenceSongId === referenceMelodyTarget)} onClick={() => void mergeReferenceMelody()}>Merge melody classes</button></>}</section>}
                     {runtimeMode === "db" && referencePreferenceAggregate && <p className="field-help" aria-label="Reference preference aggregate">Aggregate preference: <strong>{referencePreferenceAggregate.aggregateScore}</strong></p>}
                     {runtimeMode === "db" && selectedRole !== "admin" && referencePreference && <div aria-label="My reference preference"><p className="field-help">My current: <strong>{referencePreference.score === null ? "not set" : referencePreference.score}</strong> · Profile: {referencePreference.category} · Allowed range: 0–{referencePreference.limit}</p><label>Draft value<input aria-label="Reference preference draft value" type="number" min={0} max={referencePreference.limit} step={1} value={referencePreferenceDraft} disabled={referencePreferenceSaving} onChange={(event) => { setReferencePreferenceDraft(event.target.value); setReferencePreferenceFeedback("idle"); }} /></label><button type="button" disabled={referencePreferenceSaving || !Number.isInteger(Number(referencePreferenceDraft)) || referencePreferenceDraft.trim() === "" || Number(referencePreferenceDraft) < 0 || Number(referencePreferenceDraft) > referencePreference.limit} onClick={() => { void saveReferencePreference(Number(referencePreferenceDraft)); }}>Save preference</button>{referencePreferenceFeedback === "saving" && <span className="field-help" role="status">Saving…</span>}{referencePreferenceFeedback === "saved" && <span className="field-help" role="status">Saved.</span>}</div>}
                     {runtimeMode === "db" && referencePreferenceError && <p className="field-help" role="alert">Own preference unavailable: {referencePreferenceError.message}</p>}
