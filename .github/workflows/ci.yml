@@ -182,11 +182,10 @@ jobs:
         run: npm run acquire:czech-antiphons
       - name: Validate acquisition artifact
         run: npm run verify:acquired-czech-antiphons
-      - name: Upload Czech antiphon GraphQL diagnostics
-        if: always()
+      - name: Upload Czech antiphon acquisition evidence
         uses: actions/upload-artifact@v4
         with:
-          name: czech-antiphon-acquisition-diagnostic
-          path: artifacts/czech-antiphon-acquisition/graphql-schema-diagnostic.json
+          name: czech-antiphon-acquisition
+          path: artifacts/czech-antiphon-acquisition/
           if-no-files-found: error
           retention-days: 14

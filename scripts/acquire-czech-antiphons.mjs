@@ -18,71 +18,22 @@ async function graphql(query, variables = {}) {
   return body;
 }
 
-const namedType = (type) => type?.name ?? namedType(type?.ofType);
-const kind = (type) => type?.kind === "NON_NULL" ? kind(type.ofType) : type?.kind;
-const fieldMap = (type) => new Map((type?.fields ?? []).map((field) => [field.name, field]));
-const firstField = (fields, names) => names.map((name) => fields.get(name)).find(Boolean);
-const scalarSelection = (field, alias) => `${alias}: ${field.name}`;
-
-const introspection = await graphql(`query AcquisitionSchema {
-  __schema {
-    queryType { name }
-    types {
-      kind name
-      description
-      fields(includeDeprecated: true) {
-        name description isDeprecated deprecationReason
-        args {
-          name description defaultValue
-          type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
-        }
-        type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
+const sourceResponse = await graphql(`query CzechAntiphonAcquisition {
+  songbook(id: 63) {
+    records {
+      number
+      song_name
+      song_lyric {
+        id
+        public_url
+        public_route
+        name
       }
     }
   }
 }`);
-await mkdir(outputDir, { recursive: true });
-await writeFile(join(outputDir, "graphql-schema-diagnostic.json"), `${JSON.stringify({
-  endpoint,
-  songbook_id: songbookId,
-  evidence: introspection.data,
-}, null, 2)}\n`);
-const types = new Map(introspection.data.__schema.types.map((type) => [type.name, type]));
-const queryType = types.get(introspection.data.__schema.queryType.name);
-const root = firstField(fieldMap(queryType), ["songbook", "songBook"]);
-if (!root) throw new Error("The structured source exposes no songbook query field.");
-const rootArgument = firstField(new Map(root.args.map((arg) => [arg.name, arg])), ["id", "songbookId", "songbook_id"]);
-if (!rootArgument) throw new Error("The songbook query exposes no supported id argument.");
-const songbookType = types.get(namedType(root.type));
-const songsField = firstField(fieldMap(songbookType), ["songs", "items", "records"]);
-if (!songsField) throw new Error("The songbook type exposes no supported complete song collection.");
-const songType = types.get(namedType(songsField.type));
-const songs = fieldMap(songType);
-const title = firstField(songs, ["title", "name"]);
-const id = firstField(songs, ["id"]);
-const route = firstField(songs, ["url", "publicUrl", "public_url", "path", "route", "slug"]);
-const directNumber = firstField(songs, ["number", "songbookNumber", "songbook_number"]);
-const pivot = firstField(songs, ["pivot", "songbookPivot", "songbook_pivot"]);
-const pivotType = pivot && types.get(namedType(pivot.type));
-const pivotNumber = pivotType && firstField(fieldMap(pivotType), ["number", "songNumber", "song_number"]);
-if (!title || !route || (!directNumber && !pivotNumber)) {
-  throw new Error(`The public structured source cannot provide required fields (title=${title?.name ?? "missing"}, route=${route?.name ?? "missing"}, number=${directNumber?.name ?? pivotNumber?.name ?? "missing"}).`);
-}
-const selections = [scalarSelection(title, "sourceTitle"), scalarSelection(route, "sourceRoute")];
-if (id) selections.push(scalarSelection(id, "sourceId"));
-if (directNumber) selections.push(scalarSelection(directNumber, "sourceNumber"));
-else selections.push(`sourcePivot: ${pivot.name} { ${scalarSelection(pivotNumber, "sourceNumber")} }`);
-const variableType = (() => {
-  const render = (type) => type.kind === "NON_NULL" ? `${render(type.ofType)}!` : type.name;
-  return render(rootArgument.type);
-})();
-const sourceResponse = await graphql(`query CzechAntiphonAcquisition($songbookId: ${variableType}) {
-  sourceSongbook: ${root.name}(${rootArgument.name}: $songbookId) {
-    sourceSongs: ${songsField.name} { ${selections.join(" ")} }
-  }
-}`, { songbookId });
-const sourceSongs = sourceResponse.data?.sourceSongbook?.sourceSongs;
-if (!Array.isArray(sourceSongs)) throw new Error("The songbook response is not a complete array.");
+const sourceSongs = sourceResponse.data?.songbook?.records;
+if (!Array.isArray(sourceSongs)) throw new Error("The songbook response is not a complete records array.");
 
 function exactInteger(value) {
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
@@ -92,28 +43,27 @@ function exactInteger(value) {
   }
   return null;
 }
-function publicUrl(song) {
-  const value = String(song.sourceRoute ?? "").trim();
-  let url;
-  if (/^https?:\/\//i.test(value)) url = new URL(value);
-  else if (value.startsWith("/")) url = new URL(value, "https://www.evangelickykancional.cz");
-  else if (song.sourceId != null && value) url = new URL(`/pisen/${song.sourceId}/${value}`, "https://www.evangelickykancional.cz");
-  else throw new Error(`Cannot derive a public URL from source route ${JSON.stringify(song.sourceRoute)}.`);
+function publicUrl(record) {
+  const publicUrl = String(record.song_lyric?.public_url ?? "").trim();
+  const publicRoute = String(record.song_lyric?.public_route ?? "").trim();
+  const sourceValue = publicUrl || publicRoute;
+  if (!sourceValue) throw new Error(`Missing structured public URL and route for antiphon ${JSON.stringify(record.number)}.`);
+  const url = new URL(sourceValue, "https://www.evangelickykancional.cz");
   if (url.protocol !== "https:" || url.origin !== "https://www.evangelickykancional.cz") throw new Error(`Wrong public URL origin: ${url.href}`);
   return url.href;
 }
 const ambiguousIncluded = [];
 const catalog = [];
 for (const song of sourceSongs) {
-  const rawNumber = directNumber ? song.sourceNumber : song.sourcePivot?.sourceNumber;
+  const rawNumber = song.number;
   const number = exactInteger(rawNumber);
   if (number === null) {
-    const numericPrefix = Number.parseInt(String(rawNumber), 10);
-    if (Number.isFinite(numericPrefix) && numericPrefix >= 800) ambiguousIncluded.push(rawNumber);
+    const numericFragments = String(rawNumber).match(/\d+/g) ?? [];
+    if (numericFragments.some((fragment) => Number(fragment) >= 800)) ambiguousIncluded.push(rawNumber);
     continue;
   }
   if (number < 800) continue;
-  const titleValue = String(song.sourceTitle ?? "").trim();
+  const titleValue = String(song.song_name ?? "").trim();
   if (!titleValue) throw new Error(`Empty title for antiphon ${number}.`);
   catalog.push({ number, title: titleValue, url: publicUrl(song) });
 }
