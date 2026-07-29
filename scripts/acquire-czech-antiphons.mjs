@@ -29,14 +29,24 @@ const introspection = await graphql(`query AcquisitionSchema {
     queryType { name }
     types {
       kind name
+      description
       fields(includeDeprecated: true) {
-        name
-        args { name type { kind name ofType { kind name ofType { kind name } } } }
+        name description isDeprecated deprecationReason
+        args {
+          name description defaultValue
+          type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
+        }
         type { kind name ofType { kind name ofType { kind name ofType { kind name } } } }
       }
     }
   }
 }`);
+await mkdir(outputDir, { recursive: true });
+await writeFile(join(outputDir, "graphql-schema-diagnostic.json"), `${JSON.stringify({
+  endpoint,
+  songbook_id: songbookId,
+  evidence: introspection.data,
+}, null, 2)}\n`);
 const types = new Map(introspection.data.__schema.types.map((type) => [type.name, type]));
 const queryType = types.get(introspection.data.__schema.queryType.name);
 const root = firstField(fieldMap(queryType), ["songbook", "songBook"]);
