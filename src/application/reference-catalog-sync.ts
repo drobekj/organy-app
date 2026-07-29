@@ -46,14 +46,21 @@ export async function synchronizeReferenceCatalog(pool: Pool, options: { failBef
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query("DELETE FROM reference_catalog_songs");
+    await client.query("CREATE TEMP TABLE incoming_reference_catalog (LIKE reference_catalog_songs INCLUDING DEFAULTS) ON COMMIT DROP");
     const values: unknown[] = []; const tuples: string[] = [];
     for (const record of records) {
       const offset = values.length;
       values.push(record.id, record.language, record.canonicalNumber, record.sourceId, record.title, record.sourceUrl);
       tuples.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6})`);
     }
-    await client.query(`INSERT INTO reference_catalog_songs (id, language, canonical_number, source_id, title, source_url) VALUES ${tuples.join(",")}`, values);
+    await client.query(`INSERT INTO incoming_reference_catalog (id, language, canonical_number, source_id, title, source_url) VALUES ${tuples.join(",")}`, values);
+    await client.query(`INSERT INTO reference_catalog_songs (id, language, canonical_number, source_id, title, source_url)
+      SELECT id,language,canonical_number,source_id,title,source_url FROM incoming_reference_catalog
+      ON CONFLICT (id) DO UPDATE SET language=excluded.language,canonical_number=excluded.canonical_number,source_id=excluded.source_id,title=excluded.title,source_url=excluded.source_url`);
+    await client.query("INSERT INTO reference_melody_classes(id) SELECT 'reference-melody:'||i.id FROM incoming_reference_catalog i LEFT JOIN reference_song_melody_memberships m ON m.reference_song_id=i.id WHERE m.reference_song_id IS NULL ON CONFLICT DO NOTHING");
+    await client.query("INSERT INTO reference_song_melody_memberships(reference_song_id,class_id) SELECT i.id,'reference-melody:'||i.id FROM incoming_reference_catalog i LEFT JOIN reference_song_melody_memberships m ON m.reference_song_id=i.id WHERE m.reference_song_id IS NULL ON CONFLICT DO NOTHING");
+    await client.query("DELETE FROM reference_catalog_songs s WHERE NOT EXISTS (SELECT 1 FROM incoming_reference_catalog i WHERE i.id=s.id)");
+    await client.query("DELETE FROM reference_melody_classes c WHERE NOT EXISTS (SELECT 1 FROM reference_song_melody_memberships m WHERE m.class_id=c.id)");
     if (options.failBeforeCommit) throw new Error("Injected reference catalog synchronization failure.");
     const counts = await databaseReferenceCatalogCounts(client);
     if (counts.czech !== 808 || counts.polish !== 990 || counts.total !== 1798) throw new Error("Synchronized reference catalog counts are invalid.");

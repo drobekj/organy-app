@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  index,
   varchar,
   boolean,
 } from "drizzle-orm/pg-core";
@@ -215,6 +216,18 @@ export const referenceOrganistRepertoire = pgTable("reference_organist_repertoir
   referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({ oneMembership: uniqueIndex("reference_organist_repertoire_person_song_idx").on(table.organistPersonId, table.referenceSongId) }));
+
+export const referenceMelodyClasses = pgTable("reference_melody_classes", {
+  id: text("id").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const referenceSongMelodyMemberships = pgTable("reference_song_melody_memberships", {
+  referenceSongId: text("reference_song_id").primaryKey().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  classId: text("class_id").notNull().references(() => referenceMelodyClasses.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ classLookup: index("reference_song_melody_memberships_class_id_idx").on(table.classId) }));
 
 export const organistRepertoire = pgTable("organist_repertoire", {
   organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
