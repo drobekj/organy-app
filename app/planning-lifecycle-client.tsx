@@ -7,6 +7,7 @@ import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceC
 import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
 import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
 import type { ReferenceMelodyClass } from "../src/application/reference-melody";
+import { ReferenceMelodyRequestStateController } from "../src/application/reference-melody-request-state";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -340,8 +341,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [referenceMelodyTarget, setReferenceMelodyTarget] = useState("");
   const [referenceMelodySearch, setReferenceMelodySearch] = useState("");
   const [referenceMelodySearchResults, setReferenceMelodySearchResults] = useState<ReferenceCatalogRecord[]>([]);
-  const referenceMelodySearchRequests = useRef(new ReferencePreferenceRequestTracker());
-  const referenceMelodyRequests = useRef(new ReferencePreferenceRequestTracker());
+  const referenceMelodyState = useRef(new ReferenceMelodyRequestStateController());
   const referenceListRequest = useRef(0);
   const referenceDetailRequest = useRef(0);
   const referencePreferenceRequests = useRef(new ReferencePreferenceRequestTracker());
@@ -483,31 +483,31 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   useEffect(() => {
-    setReferenceMelody(null); setReferenceMelodyTarget(""); referenceMelodyRequests.current.invalidate();
+    setReferenceMelody(null); setReferenceMelodyTarget(""); referenceMelodyState.current.reset();
     if (runtimeMode !== "db" || !selectedReferenceId) return;
-    const request = referenceMelodyRequests.current.begin();
+    const request = referenceMelodyState.current.begin();
     void interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId: selectedReferenceId }).then((result) => {
-      if (referenceMelodyRequests.current.isCurrent(request) && result.success) setReferenceMelody(result.value);
+      if (result.success && referenceMelodyState.current.apply(request, { melody: result.value })) setReferenceMelody(result.value);
     });
-    return () => referenceMelodyRequests.current.invalidate();
+    return () => referenceMelodyState.current.invalidate();
   }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, interactionClient]);
 
   async function mergeReferenceMelody() {
     if (!selectedReferenceId || !referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId) return;
-    const request = referenceMelodyRequests.current.begin();
+    const request = referenceMelodyState.current.begin();
     const result = await interactionClient.mergeReferenceMelodyClasses({ actor: activeActor, referenceSongId: selectedReferenceId, mergeWithReferenceSongId: referenceMelodyTarget });
-    if (referenceMelodyRequests.current.isCurrent(request) && result.success) setReferenceMelody(result.value);
+    if (result.success && referenceMelodyState.current.apply(request, { melody: result.value, mergeResult: result.value })) setReferenceMelody(result.value);
   }
 
   useEffect(() => {
-    setReferenceMelodySearchResults([]); setReferenceMelodyTarget(""); referenceMelodySearchRequests.current.invalidate();
+    setReferenceMelodySearchResults([]); setReferenceMelodyTarget(""); referenceMelodyState.current.reset();
     const query = referenceMelodySearch.trim();
     if (runtimeMode !== "db" || selectedRole !== "admin" || !selectedReferenceId || !query) return;
-    const request = referenceMelodySearchRequests.current.begin();
+    const request = referenceMelodyState.current.begin();
     void referenceClient.list({ language: "all", search: query, page: 0, pageSize: 50 }).then((page) => {
-      if (referenceMelodySearchRequests.current.isCurrent(request)) setReferenceMelodySearchResults(page.records.filter((record) => record.id !== selectedReferenceId));
-    }).catch(() => { if (referenceMelodySearchRequests.current.isCurrent(request)) setReferenceMelodySearchResults([]); });
-    return () => referenceMelodySearchRequests.current.invalidate();
+      const results = page.records.filter((record) => record.id !== selectedReferenceId); if (referenceMelodyState.current.apply(request, { searchResults: results, selectedTarget: "" })) setReferenceMelodySearchResults(results);
+    }).catch(() => { if (referenceMelodyState.current.apply(request, { searchResults: [] })) setReferenceMelodySearchResults([]); });
+    return () => referenceMelodyState.current.invalidate();
   }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, selectedRole, referenceMelodySearch, referenceClient]);
 
   useEffect(() => {
@@ -1385,7 +1385,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
                     <p className="field-help">{selectedReferenceRecord.language} · canonical {selectedReferenceRecord.canonicalNumber} · {selectedReferenceRecord.id} · read-only</p>
                     {selectedReferenceRecord.sourceUrl && <a href={selectedReferenceRecord.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
-                    {runtimeMode === "db" && referenceMelody && <section aria-label="Same melody"><h3>Same melody</h3><ul>{referenceMelody.members.map((member) => <li key={member.referenceSongId}>{member.displayNumber} · {member.title} ({member.language})</li>)}</ul>{selectedRole === "admin" && <><label>Find merge target<input aria-label="Reference melody target search" value={referenceMelodySearch} onChange={(event) => { setReferenceMelodySearch(event.target.value); setReferenceMelodyTarget(""); referenceMelodyRequests.current.invalidate(); }} /></label><select aria-label="Reference melody merge target" value={referenceMelodyTarget} onChange={(event) => { setReferenceMelodyTarget(event.target.value); referenceMelodyRequests.current.invalidate(); }}><option value="">Select a Reference song</option>{referenceMelodySearchResults.map((record) => <option key={record.id} value={record.id}>{record.displayNumber} · {record.title}{referenceMelody.members.some((member) => member.referenceSongId === record.id) ? " (already linked)" : ""}</option>)}</select><button type="button" disabled={!referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId || referenceMelody.members.some((member) => member.referenceSongId === referenceMelodyTarget)} onClick={() => void mergeReferenceMelody()}>Merge melody classes</button></>}</section>}
+                    {runtimeMode === "db" && referenceMelody && <section aria-label="Same melody"><h3>Same melody</h3><ul>{referenceMelody.members.map((member) => <li key={member.referenceSongId}>{member.displayNumber} · {member.title} ({member.language})</li>)}</ul>{selectedRole === "admin" && <><label>Find merge target<input aria-label="Reference melody target search" value={referenceMelodySearch} onChange={(event) => { setReferenceMelodySearch(event.target.value); setReferenceMelodyTarget(""); referenceMelodyState.current.reset(); }} /></label><select aria-label="Reference melody merge target" value={referenceMelodyTarget} onChange={(event) => { const selectedTarget = event.target.value; setReferenceMelodyTarget(selectedTarget); referenceMelodyState.current.reset({ selectedTarget }); }}><option value="">Select a Reference song</option>{referenceMelodySearchResults.map((record) => <option key={record.id} value={record.id}>{record.displayNumber} · {record.title}{referenceMelody.members.some((member) => member.referenceSongId === record.id) ? " (already linked)" : ""}</option>)}</select><button type="button" disabled={!referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId || referenceMelody.members.some((member) => member.referenceSongId === referenceMelodyTarget)} onClick={() => void mergeReferenceMelody()}>Merge melody classes</button></>}</section>}
                     {runtimeMode === "db" && referencePreferenceAggregate && <p className="field-help" aria-label="Reference preference aggregate">Aggregate preference: <strong>{referencePreferenceAggregate.aggregateScore}</strong></p>}
                     {runtimeMode === "db" && selectedRole !== "admin" && referencePreference && <div aria-label="My reference preference"><p className="field-help">My current: <strong>{referencePreference.score === null ? "not set" : referencePreference.score}</strong> · Profile: {referencePreference.category} · Allowed range: 0–{referencePreference.limit}</p><label>Draft value<input aria-label="Reference preference draft value" type="number" min={0} max={referencePreference.limit} step={1} value={referencePreferenceDraft} disabled={referencePreferenceSaving} onChange={(event) => { setReferencePreferenceDraft(event.target.value); setReferencePreferenceFeedback("idle"); }} /></label><button type="button" disabled={referencePreferenceSaving || !Number.isInteger(Number(referencePreferenceDraft)) || referencePreferenceDraft.trim() === "" || Number(referencePreferenceDraft) < 0 || Number(referencePreferenceDraft) > referencePreference.limit} onClick={() => { void saveReferencePreference(Number(referencePreferenceDraft)); }}>Save preference</button>{referencePreferenceFeedback === "saving" && <span className="field-help" role="status">Saving…</span>}{referencePreferenceFeedback === "saved" && <span className="field-help" role="status">Saved.</span>}</div>}
                     {runtimeMode === "db" && referencePreferenceError && <p className="field-help" role="alert">Own preference unavailable: {referencePreferenceError.message}</p>}
