@@ -63,8 +63,8 @@ for (const song of sourceSongs) {
     continue;
   }
   if (number < 800) continue;
-  const titleValue = String(song.song_name ?? "").trim();
-  if (!titleValue) throw new Error(`Empty title for antiphon ${number}.`);
+  const titleValue = String(song.song_name ?? "").trim() || String(song.song_lyric?.name ?? "").trim();
+  if (!titleValue) throw new Error(`Both primary title fields are empty for antiphon ${number}.`);
   catalog.push({ number, title: titleValue, url: publicUrl(song) });
 }
 if (ambiguousIncluded.length) throw new Error(`Ambiguous included 800+ printed source numbers: ${JSON.stringify(ambiguousIncluded)}`);
