@@ -45,7 +45,8 @@
     "verify:phase-31-8": "tsx scripts/verify-phase-31-8.ts",
     "verify:phase-31-8:local": "tsx scripts/verify-phase-31-8-local.ts",
     "acquire:czech-antiphons": "node scripts/acquire-czech-antiphons.mjs",
-    "verify:acquired-czech-antiphons": "node scripts/verify-acquired-czech-antiphons.mjs"
+    "materialize:czech-antiphons": "node scripts/materialize-czech-antiphons.mjs",
+    "verify:czech-antiphons": "node scripts/verify-czech-antiphons.mjs"
   },
   "dependencies": {
     "next": "16.2.10",
