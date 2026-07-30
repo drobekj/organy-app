@@ -35,6 +35,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Data Gate A1 offline Czech antiphon catalog
+        run: npm run verify:czech-antiphons
       - name: Wait for PostgreSQL
         run: |
           for attempt in {1..30}; do
@@ -163,29 +165,3 @@ jobs:
           path: test.log
       - name: Build
         run: npm run build
-
-  # Temporary live-network job for issue #115 acquisition only. Remove before final review.
-  acquire-czech-antiphons:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.draft == true &&
-      github.head_ref == 'codex/implement-github-issue-#115-in-organy-app'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Acquire complete Evangelický kancionál songbook 63 source set
-        run: npm run acquire:czech-antiphons
-      - name: Validate acquisition artifact
-        run: npm run verify:acquired-czech-antiphons
-      - name: Upload Czech antiphon acquisition evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: czech-antiphon-acquisition
-          path: artifacts/czech-antiphon-acquisition/
-          if-no-files-found: error
-          retention-days: 14
