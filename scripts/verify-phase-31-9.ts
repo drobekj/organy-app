@@ -9,13 +9,14 @@ const EXPECTED_REFERENCE_ANTIPHON_CHECK_CONSTRAINTS = [
 async function verifyCatalogLineEndingContract(bytes: Buffer): Promise<void> {
   const attributes = await readFile(".gitattributes", "utf8");
   assert.ok(attributes.split(/\r?\n/).includes("data/catalog/catalog-czech-antiphons.json text eol=lf"));
+  const canonicalLf = bytes.toString("utf8").replace(/\r\n/g, "\n");
   const directory = await mkdtemp(join(tmpdir(), "organy-antiphons-"));
   try {
     const crlfPath = join(directory, "catalog-crlf.json");
-    await writeFile(crlfPath, bytes.toString("utf8").replace(/\n/g, "\r\n"));
+    await writeFile(crlfPath, canonicalLf.replace(/\n/g, "\r\n"));
     assert.deepEqual(await loadAndValidateReferenceAntiphons(crlfPath), await loadAndValidateReferenceAntiphons());
     const mutatedPath = join(directory, "catalog-mutated.json");
-    await writeFile(mutatedPath, bytes.toString("utf8").replace("Slavnostní introit", "Mutated introit"));
+    await writeFile(mutatedPath, canonicalLf.replace("Slavnostní introit", "Mutated introit"));
     await assert.rejects(() => loadAndValidateReferenceAntiphons(mutatedPath), /SHA-256 mismatch/);
   } finally {
     await rm(directory, { recursive: true, force: true });
