@@ -1,0 +1,6 @@
+import type { ReferenceAntiphonPage, ReferenceAntiphonProvider, ReferenceAntiphonQuery, ReferenceAntiphonRecord } from "./reference-antiphon-contract";
+import { MemoryReferenceAntiphonProvider } from "./reference-antiphon";
+type Transport=(action:"list"|"getById",input:unknown)=>Promise<unknown>;
+async function transport(action:"list"|"getById",input:unknown){const response=await fetch("/api/reference-antiphons",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,input})});const body=await response.json();if(!response.ok)throw new Error(body.error??"Reference antiphon request failed.");return body;}
+export class DbReferenceAntiphonClient implements ReferenceAntiphonProvider {constructor(private readonly send:Transport=transport){}async list(input:ReferenceAntiphonQuery={}){return this.send("list",input) as Promise<ReferenceAntiphonPage>;}async getById(id:string){return this.send("getById",{id}) as Promise<ReferenceAntiphonRecord|undefined>;}}
+export class MemoryReferenceAntiphonClient implements ReferenceAntiphonProvider {constructor(private readonly provider=new MemoryReferenceAntiphonProvider()){}async list(input:ReferenceAntiphonQuery={}){return this.provider.list(input);}async getById(id:string){return this.provider.getById(id);}}

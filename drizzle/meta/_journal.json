@@ -85,6 +85,13 @@
       "when": 1785300000000,
       "tag": "0011_phase_31_8_reference_melodies",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785400000000,
+      "tag": "0012_phase_31_9_reference_antiphons",
+      "breakpoints": true
     }
   ]
 }

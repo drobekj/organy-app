@@ -135,6 +135,8 @@ jobs:
           name: phase-31-8-log
           path: phase-31-8.log
           if-no-files-found: ignore
+      - name: Phase 31.9 authoritative reference antiphon acceptance
+        run: npm run verify:phase-31-9
       - name: Database migration
         run: |
           set -o pipefail

@@ -47,6 +47,9 @@
     "acquire:czech-antiphons": "node scripts/acquire-czech-antiphons.mjs",
     "materialize:czech-antiphons": "node scripts/materialize-czech-antiphons.mjs",
     "verify:czech-antiphons": "node scripts/verify-czech-antiphons.mjs"
+    ,"db:sync:reference-antiphons": "tsx scripts/db-sync-reference-antiphons.ts"
+    ,"verify:phase-31-9": "tsx scripts/verify-phase-31-9.ts"
+    ,"verify:phase-31-9:local": "tsx scripts/verify-phase-31-9-local.ts"
   },
   "dependencies": {
     "next": "16.2.10",
