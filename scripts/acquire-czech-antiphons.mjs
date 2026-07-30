@@ -32,6 +32,8 @@ const sourceResponse = await graphql(`query CzechAntiphonAcquisition {
     }
   }
 }`);
+await mkdir(outputDir, { recursive: true });
+await writeFile(join(outputDir, "source-response.json"), `${JSON.stringify(sourceResponse, null, 2)}\n`);
 const sourceSongs = sourceResponse.data?.songbook?.records;
 if (!Array.isArray(sourceSongs)) throw new Error("The songbook response is not a complete records array.");
 
@@ -45,11 +47,18 @@ function exactInteger(value) {
 }
 function publicUrl(record) {
   const publicUrl = String(record.song_lyric?.public_url ?? "").trim();
+  if (publicUrl) {
+    try {
+      const candidate = new URL(publicUrl);
+      if (candidate.protocol === "https:" && candidate.origin === "https://www.evangelickykancional.cz") return candidate.href;
+    } catch {
+      // A non-URL public_url is not authoritative; require the structured route below.
+    }
+  }
   const publicRoute = String(record.song_lyric?.public_route ?? "").trim();
-  const sourceValue = publicUrl || publicRoute;
-  if (!sourceValue) throw new Error(`Missing structured public URL and route for antiphon ${JSON.stringify(record.number)}.`);
-  const url = new URL(sourceValue, "https://www.evangelickykancional.cz");
-  if (url.protocol !== "https:" || url.origin !== "https://www.evangelickykancional.cz") throw new Error(`Wrong public URL origin: ${url.href}`);
+  if (!publicRoute) throw new Error(`No acceptable public URL or structured public route for antiphon ${JSON.stringify(record.number)}.`);
+  const url = new URL(publicRoute, "https://www.evangelickykancional.cz");
+  if (url.protocol !== "https:" || url.origin !== "https://www.evangelickykancional.cz") throw new Error(`Wrong public route origin: ${url.href}`);
   return url.href;
 }
 const ambiguousIncluded = [];
@@ -76,8 +85,6 @@ for (let index = 1; index < catalog.length; index++) {
 const catalogBytes = Buffer.from(`${JSON.stringify(catalog, null, 2)}\n`);
 const sha256 = createHash("sha256").update(catalogBytes).digest("hex");
 const manifest = { endpoint, songbook_id: songbookId, source_record_count: sourceSongs.length, record_count: catalog.length, first_number: catalog[0].number, last_number: catalog.at(-1).number, sha256 };
-await mkdir(outputDir, { recursive: true });
 await writeFile(join(outputDir, "catalog-czech-antiphons.json"), catalogBytes);
-await writeFile(join(outputDir, "source-response.json"), `${JSON.stringify(sourceResponse, null, 2)}\n`);
 await writeFile(join(outputDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`Acquired ${catalog.length} Czech antiphons (${catalog[0].number}–${catalog.at(-1).number}), SHA-256 ${sha256}.`);
