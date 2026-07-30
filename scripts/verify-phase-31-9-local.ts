@@ -1,1 +1,69 @@
-import { spawn } from "node:child_process";import { Pool } from "pg";import { createNpmInvocation,resolveDockerExecutable } from "./engineering-e1-core";const URL="postgres://organy_app:organy_app@127.0.0.1:5432/organy_app";const run=(c:string,a:string[],env=process.env)=>new Promise<number>((resolve,reject)=>{const p=spawn(c,a,{env,stdio:"inherit"});p.on("error",reject);p.on("close",n=>resolve(n??1));});async function main(){const docker=resolveDockerExecutable();let started=false;try{if(await run(docker,["compose","up","-d","postgres"]))throw new Error("Could not start PostgreSQL.");started=true;for(let i=0;i<30;i++){const p=new Pool({connectionString:URL,connectionTimeoutMillis:1000});try{await p.query("select 1");break;}catch{if(i===29)throw new Error("PostgreSQL not ready.");await new Promise(r=>setTimeout(r,2000));}finally{await p.end().catch(()=>undefined);}}const n=createNpmInvocation(process.execPath,process.env.npm_execpath,["run","verify:phase-31-9"]);process.exitCode=await run(n.command,n.args,{...process.env,DATABASE_URL:URL});}finally{if(started&&await run(docker,["compose","down"]))process.exitCode=1;}}void main().catch(e=>{console.error(e);process.exitCode=1;});
+import { spawn } from "node:child_process";
+import { Pool } from "pg";
+import { createNpmInvocation, resolveDockerExecutable } from "./engineering-e1-core";
+
+const DATABASE_URL = "postgres://organy_app:organy_app@127.0.0.1:5432/organy_app";
+const REQUIRED_COMMANDS = [
+  "db:migrate",
+  "db:sync:reference-antiphons",
+  "verify:phase-31-9",
+  "db:smoke",
+  "db:phase-30-1-smoke",
+  "verify:engineering-e1",
+  "verify:phase-31-2",
+  "verify:phase-31-3",
+  "verify:phase-31-4",
+  "verify:phase-31-5",
+  "verify:phase-31-6",
+  "verify:phase-31-7",
+  "verify:phase-31-8",
+  "typecheck",
+  "test",
+  "build",
+] as const;
+
+function run(command: string, args: string[], env = process.env): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { env, stdio: "inherit" });
+    child.on("error", reject);
+    child.on("close", (code) => code === 0 ? resolve() : reject(new Error(`${command} exited with code ${code ?? 1}.`)));
+  });
+}
+
+async function waitForPostgres(): Promise<void> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const pool = new Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 1_000 });
+    try {
+      await pool.query("select 1");
+      return;
+    } catch {
+      if (attempt === 29) throw new Error("PostgreSQL did not become ready within 60 seconds.");
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    } finally {
+      await pool.end().catch(() => undefined);
+    }
+  }
+}
+
+async function runNpmScript(name: string): Promise<void> {
+  const invocation = createNpmInvocation(process.execPath, process.env.npm_execpath, ["run", name]);
+  await run(invocation.command, invocation.args, { ...process.env, DATABASE_URL });
+}
+
+async function main(): Promise<void> {
+  const docker = resolveDockerExecutable();
+  let started = false;
+  try {
+    await run(docker, ["compose", "up", "-d", "postgres"]);
+    started = true;
+    await waitForPostgres();
+    for (const command of REQUIRED_COMMANDS) await runNpmScript(command);
+  } finally {
+    if (started) await run(docker, ["compose", "down"]);
+  }
+}
+
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
