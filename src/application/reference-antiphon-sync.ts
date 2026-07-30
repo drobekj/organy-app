@@ -10,8 +10,9 @@ export type PersistedReferenceAntiphon = { id: string; language: "czech"; canoni
 
 export async function loadAndValidateReferenceAntiphons(path = PATH): Promise<PersistedReferenceAntiphon[]> {
   const bytes = await readFile(resolve(process.cwd(), path));
-  if (createHash("sha256").update(bytes).digest("hex") !== SHA256) throw new Error("Frozen antiphon catalog SHA-256 mismatch.");
-  const input: unknown = JSON.parse(bytes.toString("utf8"));
+  const normalized = bytes.toString("utf8").replace(/\r\n/g, "\n");
+  if (createHash("sha256").update(normalized).digest("hex") !== SHA256) throw new Error("Frozen antiphon catalog SHA-256 mismatch.");
+  const input: unknown = JSON.parse(normalized);
   if (!Array.isArray(input)) throw new Error("Authoritative antiphon catalog must be an array.");
   let previous = 799;
   const records = (input as Raw[]).map((raw) => {
