@@ -6,6 +6,7 @@ import type { ActorIdentity } from "../../../src/application/interaction-contrac
 import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 import { PgReferenceRepertoireRepository, ReferenceRepertoireService } from "../../../src/application/reference-repertoire";
 import { PgReferenceMelodyRepository, ReferenceMelodyService } from "../../../src/application/reference-melody";
+import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommendationService } from "../../../src/application/reference-antiphon-recommendation";
 
 const pgCatalog = (pool: Pool) => ({ listSongs: async () => {
   const { rows } = await pool.query("select song_id, language, number, title, active, sheet_music_url from catalog_songs order by language, number");
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
   const service = new InteractionService(new PgInteractionRepository(pool), pgCatalog(pool));
   const referenceRepertoire = new ReferenceRepertoireService(new PgReferenceRepertoireRepository(pool));
   const referenceMelody = new ReferenceMelodyService(new PgReferenceMelodyRepository(pool));
+  const referenceRecommendations = new ReferenceAntiphonRecommendationService(new PgReferenceAntiphonRecommendationRepository(pool));
   try {
     const resolver = new PostgresLocalActorResolver(pool);
     switch (body.action) {
@@ -36,6 +38,8 @@ export async function POST(request: Request) {
       case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId, input.active!)); }
       case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
       case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.mergeWithReferenceSongId!)); }
+      case "listReferenceAntiphonRecommendations": { const input = recommendationListInput(body.input); validateRepertoireActor(body.actor); return respond(await referenceRecommendations.list(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
+      case "setReferenceAntiphonRecommendation": { const input = recommendationSetInput(body.input); validateRepertoireActor(body.actor); return respond(await referenceRecommendations.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId, input.referenceSongId)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
       case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(await resolver.resolve(parseLocalActorContext(body.actor)), { months: Number(input.months) })); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
@@ -74,3 +78,5 @@ function referenceMelodyInput(value: unknown, merge: boolean): { referenceSongId
   return { referenceSongId: input.referenceSongId as string, ...(merge ? { mergeWithReferenceSongId: input.mergeWithReferenceSongId as string } : {}) };
 }
 function respond<T>(result: { success: true; value: T } | { success: false; error: { code: string; message: string } }) { if (result.success) return NextResponse.json(result); const status = result.error.code === "invalidInput" ? 400 : result.error.code === "notFound" ? 404 : 403; return NextResponse.json(result, { status }); }
+function recommendationListInput(value: unknown) { const input=asRecord(value); if(Object.keys(input).length!==1||typeof input.referenceSongId!=="string"||!/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId)) throw new LocalActorError("invalidInput","A valid referenceSongId is required."); return {referenceSongId:input.referenceSongId}; }
+function recommendationSetInput(value: unknown) { const input=asRecord(value); if(Object.keys(input).length!==2||typeof input.antiphonId!=="string"||!/^czech:(?:8\d\d|9(?:0\d|1[0-5]))$/.test(input.antiphonId)||(input.referenceSongId!==null&&(typeof input.referenceSongId!=="string"||!/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId)))) throw new LocalActorError("invalidInput","Valid antiphonId and referenceSongId are required."); return {antiphonId:input.antiphonId,referenceSongId:input.referenceSongId as string|null}; }

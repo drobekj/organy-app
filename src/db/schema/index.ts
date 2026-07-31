@@ -50,6 +50,12 @@ export const referenceAntiphons = pgTable("reference_antiphons", {
   validSourceUrl: check("reference_antiphons_source_url_valid", sql`${table.sourceUrl} ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'`),
 }));
 
+export const referenceAntiphonRecommendations = pgTable("reference_antiphon_recommendations", {
+  antiphonId: text("antiphon_id").primaryKey().references(() => referenceAntiphons.id, { onDelete: "cascade" }),
+  referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ bySong: index("reference_antiphon_recommendations_song_idx").on(table.referenceSongId) }));
+
 export const catalogPersons = pgTable("catalog_persons", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
