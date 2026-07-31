@@ -13,12 +13,28 @@ const pgCatalog = (pool: Pool) => ({ listSongs: async () => {
   return rows.map((row) => ({ songId: String(row.song_id), language: row.language as "czech" | "polish", number: String(row.number), title: String(row.title), active: Boolean(row.active), ...(row.sheet_music_url ? { sheetMusicUrl: String(row.sheet_music_url) } : {}) }));
 } });
 
+type InteractionPoolLease = { pool: Pool; release: () => Promise<void> };
+type InteractionPoolLeaseFactory = (databaseUrl: string) => InteractionPoolLease;
+const productionPoolLease: InteractionPoolLeaseFactory = (databaseUrl) => {
+  const pool = new Pool({ connectionString: databaseUrl });
+  return { pool, release: () => pool.end() };
+};
+let acquirePoolLease = productionPoolLease;
+
+/** Narrow acceptance seam. Production continues to own and close one Pool per request. */
+export function useInteractionPoolForAcceptance(pool: Pool): () => void {
+  const previous = acquirePoolLease;
+  acquirePoolLease = () => ({ pool, release: async () => undefined });
+  return () => { acquirePoolLease = previous; };
+}
+
 export async function POST(request: Request) {
   if (process.env.ORGANY_RUNTIME !== "db") return NextResponse.json({ error: { code: "invalidInput", message: "Interaction DB runtime is not enabled." } }, { status: 400 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: { code: "internalError", message: "DATABASE_URL is required for interaction API." } }, { status: 500 });
   const body = await request.json().catch(() => undefined) as { action?: string; input?: unknown; actor?: unknown } | undefined;
   if (!body?.action) return NextResponse.json({ error: { code: "invalidInput", message: "Interaction action is required." } }, { status: 400 });
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const lease = acquirePoolLease(process.env.DATABASE_URL);
+  const pool = lease.pool;
   const service = new InteractionService(new PgInteractionRepository(pool), pgCatalog(pool));
   const referenceRepertoire = new ReferenceRepertoireService(new PgReferenceRepertoireRepository(pool));
   const referenceMelody = new ReferenceMelodyService(new PgReferenceMelodyRepository(pool));
@@ -50,7 +66,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof LocalActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : 403 });
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Interaction API request failed." } }, { status: 500 });
-  } finally { await pool.end(); }
+  } finally { await lease.release(); }
 }
 function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === "object" ? value as Record<string, unknown> : {}; }
 function referencePreferenceInput(value: unknown, includeScore: boolean): { referenceSongId: string; score?: number } {

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { Pool } from "pg";
-import { POST } from "../app/api/interaction/route";
+import { POST, useInteractionPoolForAcceptance } from "../app/api/interaction/route";
 import { DbReferenceAntiphonRecommendationClient } from "../src/application/reference-antiphon-recommendation-client";
 import { PgReferenceAntiphonRecommendationRepository } from "../src/application/reference-antiphon-recommendation";
 import { loadAndValidateReferenceAntiphons, synchronizeReferenceAntiphons } from "../src/application/reference-antiphon-sync";
 import { loadAndValidateReferenceCatalog, synchronizeReferenceCatalog } from "../src/application/reference-catalog-sync";
 import type { PlanningRole } from "../src/planning-lifecycle";
-import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
+import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl } from "./engineering-e1-core";
 
 const PASS_LINE = "Phase 31.10A authoritative antiphon recommendation backend: PASS";
 type Actor = { userId: string; role: PlanningRole };
@@ -32,6 +32,10 @@ async function databaseFingerprint(pool: Pool): Promise<string> {
   const tables = (await pool.query("select tablename from pg_tables where schemaname='public' order by tablename")).rows.map((row) => String(row.tablename));
   return JSON.stringify(await Promise.all(tables.map(async (table) => [table, Number((await pool.query(`select count(*) n from ${table}`)).rows[0].n)])));
 }
+async function databaseFingerprintAt(databaseUrl: string): Promise<string> {
+  const pool = new Pool({ connectionString: databaseUrl });
+  try { return await databaseFingerprint(pool); } finally { await pool.end(); }
+}
 
 async function verifySchema(pool: Pool): Promise<void> {
   const columns = await pool.query("select column_name,is_nullable from information_schema.columns where table_name='reference_antiphon_recommendations' order by ordinal_position");
@@ -41,8 +45,17 @@ async function verifySchema(pool: Pool): Promise<void> {
     { column_name: "updated_at", is_nullable: "NO" },
   ]);
   assert.equal(Number((await pool.query("select count(*) n from pg_constraint where conrelid='reference_antiphon_recommendations'::regclass and contype='p'")).rows[0].n), 1);
-  assert.equal(Number((await pool.query("select count(*) n from pg_constraint where conrelid='reference_antiphon_recommendations'::regclass and contype='f'")).rows[0].n), 2);
-  assert.equal((await pool.query("select 1 from pg_indexes where indexname='reference_antiphon_recommendations_song_id_idx'")).rows.length, 1);
+  const foreignKeys = await pool.query(`select a.attname column_name, c.confrelid::regclass::text target, c.confdeltype
+    from pg_constraint c join unnest(c.conkey) with ordinality k(attnum,ord) on true join pg_attribute a on a.attrelid=c.conrelid and a.attnum=k.attnum
+    where c.conrelid='reference_antiphon_recommendations'::regclass and c.contype='f' order by a.attname`);
+  assert.deepEqual(foreignKeys.rows, [
+    { column_name: "antiphon_id", target: "reference_antiphons", confdeltype: "c" },
+    { column_name: "reference_song_id", target: "reference_catalog_songs", confdeltype: "c" },
+  ]);
+  assert.match(String((await pool.query("select column_default from information_schema.columns where table_name='reference_antiphon_recommendations' and column_name='updated_at'")).rows[0].column_default), /^now\(\)$/);
+  assert.deepEqual((await pool.query(`select i.indisunique, array_agg(a.attname order by k.ord) columns
+    from pg_class x join pg_index i on i.indexrelid=x.oid join unnest(i.indkey) with ordinality k(attnum,ord) on true join pg_attribute a on a.attrelid=i.indrelid and a.attnum=k.attnum
+    where x.relname='reference_antiphon_recommendations_song_id_idx' group by i.indisunique`)).rows, [{ indisunique: false, columns: ["reference_song_id"] }]);
 }
 
 async function verifyReadWriteAndExactShape(pool: Pool): Promise<void> {
@@ -141,10 +154,15 @@ async function verifyUnrelatedBackendBehaviorIsUnchanged(pool: Pool): Promise<vo
   const candidateBefore = await invoke("queryCandidates", candidateInput);
   assert.equal(candidateBefore.status, 200);
   assert.equal(candidateBefore.body.success && candidateBefore.body.value[0].antiphonMatch, true);
+  const hydrationInput = { songs: [{ songId: "legacy-song", language: "czech", number: "101", title: "Legacy song" }], antiphonKey: "legacy-key" };
+  const hydrationBefore = await invoke("hydrateCandidates", hydrationInput);
+  assert.equal(hydrationBefore.status, 200);
+  assert.equal(hydrationBefore.body.success && hydrationBefore.body.value[0].antiphonMatch, true);
   const before = await unaffectedFingerprint(pool);
   await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858", referenceSongId: "czech:1" });
   assert.equal(await unaffectedFingerprint(pool), before, "legacy mappings, candidates/antiphonMatch knowledge, preferences, repertoire, melody, Service Context and lifecycle tables must remain unchanged");
   assert.deepEqual(await invoke("queryCandidates", candidateInput), candidateBefore);
+  assert.deepEqual(await invoke("hydrateCandidates", hydrationInput), hydrationBefore);
   await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858", referenceSongId: null });
   assert.equal(await unaffectedFingerprint(pool), before);
 }
@@ -179,6 +197,9 @@ async function runAcceptance(databaseUrl: string): Promise<void> {
   await runNpm("db:migrate", databaseUrl);
   await runNpm("db:migrate", databaseUrl);
   const pool = new Pool({ connectionString: databaseUrl });
+  let poolError: Error | undefined;
+  (pool as Pool & { on(event: "error", listener: (error: Error) => void): void }).on("error", (error) => { poolError ??= error; });
+  const restoreRoutePoolLease = useInteractionPoolForAcceptance(pool);
   try {
     await verifySchema(pool);
     await synchronizeReferenceCatalog(pool);
@@ -192,26 +213,42 @@ async function runAcceptance(databaseUrl: string): Promise<void> {
     await verifyIsolationRollbackAndConcurrency(pool);
     await verifyUnrelatedBackendBehaviorIsUnchanged(pool);
     await verifySynchronizationSafety(pool);
-  } finally { await pool.end(); }
+    if (poolError) throw poolError;
+  } finally {
+    restoreRoutePoolLease();
+    await pool.end();
+  }
 }
 
 async function main(): Promise<void> {
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for Phase 31.10a verification.");
   const guardUrl = process.env.DATABASE_URL;
   const guard = parseGuardDatabaseUrl(guardUrl);
+  const before = await databaseFingerprintAt(guardUrl);
   const control = new Pool({ connectionString: deriveControlUrl(guard) });
-  const guardPool = new Pool({ connectionString: guardUrl });
-  const before = await databaseFingerprint(guardPool); await guardPool.end();
   const databaseName = generateE1DatabaseName();
   const databaseUrl = deriveDatabaseUrl(guard, databaseName);
   const originalRuntime = process.env.ORGANY_RUNTIME;
-  await control.query(createDatabaseSql(databaseName));
+  let databaseCreated = false;
+  let databaseDropped = false;
   try {
-    await withCleanup(() => runAcceptance(databaseUrl), async () => {
-      const [terminate, drop] = dropDatabaseSql(databaseName); await control.query(terminate, [databaseName]); await control.query(drop);
-    });
-    const finalGuardPool = new Pool({ connectionString: guardUrl }); assert.equal(await databaseFingerprint(finalGuardPool), before); await finalGuardPool.end();
+    await control.query(createDatabaseSql(databaseName));
+    databaseCreated = true;
+    await runAcceptance(databaseUrl);
+    const [, drop] = dropDatabaseSql(databaseName);
+    await control.query(drop);
+    databaseDropped = true;
+    assert.equal(await databaseFingerprintAt(guardUrl), before);
     console.log(PASS_LINE);
+  } catch (acceptanceError) {
+    if (databaseCreated && !databaseDropped) {
+      const [terminate, drop] = dropDatabaseSql(databaseName);
+      const cleanupErrors: unknown[] = [];
+      try { await control.query(terminate, [databaseName]); } catch (cleanupError) { cleanupErrors.push(cleanupError); }
+      try { await control.query(drop); } catch (cleanupError) { cleanupErrors.push(cleanupError); }
+      if (cleanupErrors.length) throw new AggregateError([acceptanceError, ...cleanupErrors], "Acceptance and deterministic database cleanup failed.");
+    }
+    throw acceptanceError;
   } finally {
     process.env.DATABASE_URL = guardUrl;
     if (originalRuntime === undefined) delete process.env.ORGANY_RUNTIME; else process.env.ORGANY_RUNTIME = originalRuntime;

@@ -61,4 +61,5 @@ void main().catch(async (error) => {
   console.error(error instanceof Error ? error.message : error);
   if (log) console.error(log.trimEnd().split("\n").slice(-12).join("\n"));
   console.error(`LOG_PATH=${LOG_PATH}`);
+  console.error("EXIT_CODE=1");
 });
