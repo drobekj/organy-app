@@ -81,4 +81,4 @@ function respond<T>(result: { success: true; value: T } | { success: false; erro
 function recommendationGetInput(value: unknown) { const input=asRecord(value); if(Object.keys(input).length!==1||!validAntiphonId(input.antiphonId)) throw new LocalActorError("invalidInput","A valid antiphonId is required."); return {antiphonId:input.antiphonId}; }
 function recommendationSetInput(value: unknown) { const input=asRecord(value); if(Object.keys(input).length!==2||!validAntiphonId(input.antiphonId)||(input.referenceSongId!==null&&(typeof input.referenceSongId!=="string"||!/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId)))) throw new LocalActorError("invalidInput","Valid antiphonId and referenceSongId are required."); return {antiphonId:input.antiphonId,referenceSongId:input.referenceSongId as string|null}; }
 
-function validAntiphonId(value:unknown):value is string{return typeof value==="string"&&(/^(?:czech:(?:8\d\d|9(?:0\d|1[0-5]))|polish:[1-9]\d*)$/).test(value);}
+function validAntiphonId(value:unknown):value is string{return typeof value==="string"&&(/^czech:(?:8\d\d|9(?:0\d|1[0-5]))$/).test(value);}

@@ -351,6 +351,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [selectedReferenceAntiphonId, setSelectedReferenceAntiphonId] = useState("");
   const [recommendationSongSearch, setRecommendationSongSearch] = useState("");
   const [recommendationSongResults, setRecommendationSongResults] = useState<ReferenceCatalogRecord[]>([]);
+  const [selectedRecommendationTargetId, setSelectedRecommendationTargetId] = useState("");
+  const antiphonSearchRequests = useRef(new ReferenceAntiphonRecommendationRequestState());
   const [referenceAntiphonSearch, setReferenceAntiphonSearch] = useState("");
   const [referenceAntiphonResults, setReferenceAntiphonResults] = useState<ReferenceAntiphonRecord[]>([]);
   const recommendationRequests = useRef(new ReferenceAntiphonRecommendationRequestState());
@@ -501,7 +503,15 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   useEffect(() => {
-    setReferenceRecommendation(null); recommendationRequests.current.contextChanged();
+    const request=antiphonSearchRequests.current.begin(); setReferenceAntiphonResults([]);
+    const query=referenceAntiphonSearch.trim();
+    if(runtimeMode!=="db"||!query)return;
+    void referenceAntiphonClient.list({search:query,pageSize:50}).then(page=>{antiphonSearchRequests.current.complete(request,page.records,setReferenceAntiphonResults);});
+    return()=>{antiphonSearchRequests.current.contextChanged();};
+  },[runtimeMode,referenceAntiphonSearch,referenceAntiphonClient]);
+
+  useEffect(() => {
+    setReferenceRecommendation(null); setSelectedRecommendationTargetId(""); setRecommendationSongSearch(""); recommendationRequests.current.contextChanged(); recommendationSearchRequests.current.contextChanged();
     if (runtimeMode !== "db" || !selectedReferenceAntiphonId) return;
     const token = recommendationRequests.current.begin();
     void interactionClient.getReferenceAntiphonRecommendation({ actor: activeActor, antiphonId: selectedReferenceAntiphonId }).then((result) => {
@@ -518,7 +528,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function saveReferenceRecommendation(referenceSongId:string|null) {
     if(!selectedReferenceAntiphonId)return; const token=recommendationRequests.current.begin();
     const result=await interactionClient.setReferenceAntiphonRecommendation({actor:activeActor,antiphonId:selectedReferenceAntiphonId,referenceSongId});
-    if(result.success)recommendationRequests.current.complete(token,result.value as ReferenceAntiphonRecommendation,setReferenceRecommendation);
+    if(result.success)recommendationRequests.current.complete(token,result.value as ReferenceAntiphonRecommendation,value=>{setReferenceRecommendation(value);setSelectedRecommendationTargetId("");setRecommendationSongSearch("");setRecommendationSongResults([]);});
   }
 
   useEffect(() => {
@@ -1419,7 +1429,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 {referenceLoading && <p className="field-help" role="status">Loading reference catalog…</p>}
                 {referenceError && <p className="field-help" role="alert">Reference catalog unavailable: {referenceError}</p>}
                 {referencePageData && !referenceLoading && <p className="field-help">Showing {referencePageData.records.length} of {referencePageData.total.toLocaleString()} reference records in numeric order.</p>}
-                {runtimeMode === "db" && <section className="detail-panel" aria-label="Reference antiphon recommendation"><h2>Antiphon recommendation</h2><label>Find antiphon<input aria-label="Reference antiphon search" value={referenceAntiphonSearch} onChange={(event)=>{setReferenceAntiphonSearch(event.target.value);setSelectedReferenceAntiphonId("");referenceAntiphonClient.list({search:event.target.value,pageSize:50}).then(page=>setReferenceAntiphonResults(page.records));}} /></label><select aria-label="Selected Reference antiphon" value={selectedReferenceAntiphonId} onChange={(event)=>setSelectedReferenceAntiphonId(event.target.value)}><option value="">Select an antiphon</option>{referenceAntiphonResults.map(item=><option key={item.id} value={item.id}>{item.displayNumber} · {item.title}</option>)}</select>{referenceRecommendation && <p className="field-help">Recommended song: {referenceRecommendation.recommendedSong ? `${referenceRecommendation.recommendedSong.displayNumber} · ${referenceRecommendation.recommendedSong.title} (${referenceRecommendation.recommendedSong.language})` : "none"}</p>}{selectedRole === "admin" && selectedReferenceAntiphonId && <><label>Find recommended Reference song<input aria-label="Recommended Reference song search" value={recommendationSongSearch} onChange={(event)=>setRecommendationSongSearch(event.target.value)} /></label><ul>{recommendationSongResults.map(song=><li key={song.id}><button type="button" onClick={()=>void saveReferenceRecommendation(song.id)}>{song.displayNumber} · {song.title}</button></li>)}</ul><button type="button" disabled={!referenceRecommendation?.recommendedSong} onClick={()=>void saveReferenceRecommendation(null)}>Remove recommendation</button></>}</section>}
+                {runtimeMode === "db" && <section className="detail-panel" aria-label="Reference antiphon recommendation"><h2>Antiphon recommendation</h2><label>Find antiphon<input aria-label="Reference antiphon search" value={referenceAntiphonSearch} onChange={(event)=>{setReferenceAntiphonSearch(event.target.value);setSelectedReferenceAntiphonId("");}} /></label><select aria-label="Selected Reference antiphon" value={selectedReferenceAntiphonId} onChange={(event)=>setSelectedReferenceAntiphonId(event.target.value)}><option value="">Select an antiphon</option>{referenceAntiphonResults.map(item=><option key={item.id} value={item.id}>{item.displayNumber} · {item.title}</option>)}</select>{selectedReferenceAntiphonId && (()=>{const antiphon=referenceAntiphonResults.find(item=>item.id===selectedReferenceAntiphonId);return antiphon?<p className="field-help">Selected antiphon: <strong>{antiphon.displayNumber} · {antiphon.title}</strong> · <a href={antiphon.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a></p>:null;})()}{selectedReferenceAntiphonId && referenceRecommendation && <p className="field-help">Current recommendation: {referenceRecommendation.recommendedSong ? `${referenceRecommendation.recommendedSong.displayNumber} · ${referenceRecommendation.recommendedSong.title} (${referenceRecommendation.recommendedSong.language})` : "No recommendation set."}</p>}{selectedRole === "admin" && selectedReferenceAntiphonId && referenceRecommendation && <><label>Find recommended Reference song<input aria-label="Recommended Reference song search" value={recommendationSongSearch} onChange={(event)=>{setRecommendationSongSearch(event.target.value);setSelectedRecommendationTargetId("");}} /></label><select aria-label="Selected recommended Reference song" value={selectedRecommendationTargetId} onChange={(event)=>setSelectedRecommendationTargetId(event.target.value)}><option value="">Select a target song</option>{recommendationSongResults.map(song=><option key={song.id} value={song.id}>{song.displayNumber} · {song.title} ({song.language})</option>)}</select><p className="field-help">Selected target: {selectedRecommendationTargetId ? recommendationSongResults.find(song=>song.id===selectedRecommendationTargetId)?.title ?? selectedRecommendationTargetId : "none"}</p><button type="button" disabled={!selectedRecommendationTargetId&&!referenceRecommendation.recommendedSong} onClick={()=>void saveReferenceRecommendation(selectedRecommendationTargetId||null)}>{selectedRecommendationTargetId ? (referenceRecommendation.recommendedSong ? "Replace recommendation" : "Set recommendation") : "Remove recommendation"}</button></>}</section>}
                 {selectedReferenceRecord && (
                   <div className="detail-panel" aria-label="Reference catalog record detail">
                     <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
