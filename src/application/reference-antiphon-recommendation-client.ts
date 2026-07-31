@@ -13,6 +13,6 @@ async function transport(action: "getReferenceAntiphonRecommendation" | "setRefe
 /** Framework-independent DB transport client; safe to use outside React rendering. */
 export class DbReferenceAntiphonRecommendationClient {
   constructor(private readonly actor: ReferenceAntiphonRecommendationActor, private readonly send: Transport = transport) {}
-  get(referenceAntiphonId: string) { return this.send("getReferenceAntiphonRecommendation", { referenceAntiphonId }, this.actor); }
-  set(referenceAntiphonId: string, referenceSongId: string | null) { return this.send("setReferenceAntiphonRecommendation", { referenceAntiphonId, referenceSongId }, this.actor); }
+  get(antiphonId: string) { return this.send("getReferenceAntiphonRecommendation", { antiphonId }, this.actor); }
+  set(antiphonId: string, referenceSongId: string | null) { return this.send("setReferenceAntiphonRecommendation", { antiphonId, referenceSongId }, this.actor); }
 }
