@@ -35,6 +35,21 @@ export const referenceCatalogSongs = pgTable("reference_catalog_songs", {
   nonEmptyTitle: check("reference_catalog_songs_title_non_empty", sql`btrim(${table.title}) <> ''`),
 }));
 
+export const referenceAntiphons = pgTable("reference_antiphons", {
+  id: text("id").primaryKey(),
+  language: songLanguage("language").notNull(),
+  canonicalNumber: integer("canonical_number").notNull(),
+  title: text("title").notNull(),
+  sourceUrl: text("source_url").notNull(),
+}, (table) => ({
+  languageCanonicalNumber: uniqueIndex("reference_antiphons_language_canonical_number_idx").on(table.language, table.canonicalNumber),
+  positiveNumber: check("reference_antiphons_number_positive", sql`${table.canonicalNumber} > 0`),
+  idMatchesNumber: check("reference_antiphons_id_matches_number", sql`${table.id} = ${table.language}::text || ':' || ${table.canonicalNumber}::text`),
+  nonEmptyId: check("reference_antiphons_id_non_empty", sql`btrim(${table.id}) <> ''`),
+  nonEmptyTitle: check("reference_antiphons_title_non_empty", sql`btrim(${table.title}) <> ''`),
+  validSourceUrl: check("reference_antiphons_source_url_valid", sql`${table.sourceUrl} ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'`),
+}));
+
 export const catalogPersons = pgTable("catalog_persons", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
