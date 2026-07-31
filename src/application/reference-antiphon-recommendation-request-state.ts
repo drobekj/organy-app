@@ -1,9 +1,3 @@
 import type { ReferenceAntiphonRecommendation } from "./reference-antiphon-recommendation";
-export type RecommendationRequestToken = { context: number; generation: number };
-export class ReferenceAntiphonRecommendationRequestState {
-  private context = 0; private generation = 0;
-  contextChanged() { this.context++; this.generation++; }
-  begin(): RecommendationRequestToken { return { context: this.context, generation: ++this.generation }; }
-  isCurrent(token: RecommendationRequestToken) { return token.context === this.context && token.generation === this.generation; }
-  complete(token: RecommendationRequestToken, value: ReferenceAntiphonRecommendation[], apply: (value: ReferenceAntiphonRecommendation[]) => void) { if (!this.isCurrent(token)) return false; apply(value); return true; }
-}
+export type RecommendationRequestToken={context:number;generation:number};
+export class ReferenceAntiphonRecommendationRequestState{private context=0;private generation=0;contextChanged(){this.context++;this.generation++;}begin():RecommendationRequestToken{return{context:this.context,generation:++this.generation};}isCurrent(token:RecommendationRequestToken){return token.context===this.context&&token.generation===this.generation;}complete(token:RecommendationRequestToken,value:ReferenceAntiphonRecommendation,apply:(value:ReferenceAntiphonRecommendation)=>void){if(!this.isCurrent(token))return false;apply(value);return true;}}
