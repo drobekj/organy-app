@@ -6,21 +6,39 @@ import type { ActorIdentity } from "../../../src/application/interaction-contrac
 import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 import { PgReferenceRepertoireRepository, ReferenceRepertoireService } from "../../../src/application/reference-repertoire";
 import { PgReferenceMelodyRepository, ReferenceMelodyService } from "../../../src/application/reference-melody";
+import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommendationService } from "../../../src/application/reference-antiphon-recommendation";
 
 const pgCatalog = (pool: Pool) => ({ listSongs: async () => {
   const { rows } = await pool.query("select song_id, language, number, title, active, sheet_music_url from catalog_songs order by language, number");
   return rows.map((row) => ({ songId: String(row.song_id), language: row.language as "czech" | "polish", number: String(row.number), title: String(row.title), active: Boolean(row.active), ...(row.sheet_music_url ? { sheetMusicUrl: String(row.sheet_music_url) } : {}) }));
 } });
 
+type InteractionPoolLease = { pool: Pool; release: () => Promise<void> };
+type InteractionPoolLeaseFactory = (databaseUrl: string) => InteractionPoolLease;
+const productionPoolLease: InteractionPoolLeaseFactory = (databaseUrl) => {
+  const pool = new Pool({ connectionString: databaseUrl });
+  return { pool, release: () => pool.end() };
+};
+let acquirePoolLease = productionPoolLease;
+
+/** Narrow acceptance seam. Production continues to own and close one Pool per request. */
+export function useInteractionPoolForAcceptance(pool: Pool): () => void {
+  const previous = acquirePoolLease;
+  acquirePoolLease = () => ({ pool, release: async () => undefined });
+  return () => { acquirePoolLease = previous; };
+}
+
 export async function POST(request: Request) {
   if (process.env.ORGANY_RUNTIME !== "db") return NextResponse.json({ error: { code: "invalidInput", message: "Interaction DB runtime is not enabled." } }, { status: 400 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: { code: "internalError", message: "DATABASE_URL is required for interaction API." } }, { status: 500 });
   const body = await request.json().catch(() => undefined) as { action?: string; input?: unknown; actor?: unknown } | undefined;
   if (!body?.action) return NextResponse.json({ error: { code: "invalidInput", message: "Interaction action is required." } }, { status: 400 });
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const lease = acquirePoolLease(process.env.DATABASE_URL);
+  const pool = lease.pool;
   const service = new InteractionService(new PgInteractionRepository(pool), pgCatalog(pool));
   const referenceRepertoire = new ReferenceRepertoireService(new PgReferenceRepertoireRepository(pool));
   const referenceMelody = new ReferenceMelodyService(new PgReferenceMelodyRepository(pool));
+  const referenceAntiphonRecommendation = new ReferenceAntiphonRecommendationService(new PgReferenceAntiphonRecommendationRepository(pool));
   try {
     const resolver = new PostgresLocalActorResolver(pool);
     switch (body.action) {
@@ -36,6 +54,8 @@ export async function POST(request: Request) {
       case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId, input.active!)); }
       case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
       case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.mergeWithReferenceSongId!)); }
+      case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId)); }
+      case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId, input.referenceSongId!)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
       case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(await resolver.resolve(parseLocalActorContext(body.actor)), { months: Number(input.months) })); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
@@ -46,7 +66,7 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof LocalActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : 403 });
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Interaction API request failed." } }, { status: 500 });
-  } finally { await pool.end(); }
+  } finally { await lease.release(); }
 }
 function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === "object" ? value as Record<string, unknown> : {}; }
 function referencePreferenceInput(value: unknown, includeScore: boolean): { referenceSongId: string; score?: number } {
@@ -72,5 +92,12 @@ function referenceMelodyInput(value: unknown, merge: boolean): { referenceSongId
   if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key))) throw new LocalActorError("invalidInput", "Reference melody input is malformed.");
   for (const key of allowed) if (typeof input[key] !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input[key] as string)) throw new LocalActorError("invalidInput", `A valid ${key} is required.`);
   return { referenceSongId: input.referenceSongId as string, ...(merge ? { mergeWithReferenceSongId: input.mergeWithReferenceSongId as string } : {}) };
+}
+function referenceAntiphonRecommendationInput(value: unknown, mutation: boolean): { antiphonId: string; referenceSongId?: string | null } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is required.");
+  const input = value as Record<string, unknown>; const allowed = mutation ? ["antiphonId", "referenceSongId"] : ["antiphonId"];
+  if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key)) || typeof input.antiphonId !== "string" || !/^czech:(?:8\d\d|9(?:0\d|1[0-5]))$/.test(input.antiphonId)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is malformed.");
+  if (mutation && input.referenceSongId !== null && (typeof input.referenceSongId !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId))) throw new LocalActorError("invalidInput", "referenceSongId must be a valid Reference song id or null.");
+  return { antiphonId: input.antiphonId, ...(mutation ? { referenceSongId: input.referenceSongId as string | null } : {}) };
 }
 function respond<T>(result: { success: true; value: T } | { success: false; error: { code: string; message: string } }) { if (result.success) return NextResponse.json(result); const status = result.error.code === "invalidInput" ? 400 : result.error.code === "notFound" ? 404 : 403; return NextResponse.json(result, { status }); }

@@ -92,6 +92,13 @@
       "when": 1785400000000,
       "tag": "0012_phase_31_9_reference_antiphons",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785500000000,
+      "tag": "0013_phase_31_10a_antiphon_recommendations",
+      "breakpoints": true
     }
   ]
 }

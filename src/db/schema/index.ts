@@ -244,6 +244,12 @@ export const referenceSongMelodyMemberships = pgTable("reference_song_melody_mem
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({ classLookup: index("reference_song_melody_memberships_class_id_idx").on(table.classId) }));
 
+export const referenceAntiphonRecommendations = pgTable("reference_antiphon_recommendations", {
+  antiphonId: text("antiphon_id").primaryKey().references(() => referenceAntiphons.id, { onDelete: "cascade" }),
+  referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ songLookup: index("reference_antiphon_recommendations_song_id_idx").on(table.referenceSongId) }));
+
 export const organistRepertoire = pgTable("organist_repertoire", {
   organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
   songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
