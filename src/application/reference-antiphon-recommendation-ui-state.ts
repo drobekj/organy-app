@@ -66,6 +66,7 @@ export class ReferenceAntiphonRecommendationUiState {
   }
   mutationSucceeded(token: RecommendationUiToken, recommendation: ReferenceAntiphonRecommendation): boolean {
     if (!this.isCurrent(token)) return false;
+    ++this.generations.songSearch;
     this.value = { ...this.value, recommendation, songs: [], selectedSong: null, saved: true, requests: { ...this.value.requests, mutation: idle(), songSearch: idle() } };
     return true;
   }
