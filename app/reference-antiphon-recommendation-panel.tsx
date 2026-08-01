@@ -1,105 +1,143 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DbReferenceAntiphonClient, MemoryReferenceAntiphonClient } from "../src/application/reference-antiphon-client";
+import { DbReferenceAntiphonClient } from "../src/application/reference-antiphon-client";
 import type { ReferenceAntiphonRecord } from "../src/application/reference-antiphon-contract";
 import { DbReferenceAntiphonRecommendationClient, type ReferenceAntiphonRecommendationActor } from "../src/application/reference-antiphon-recommendation-client";
-import type { ReferenceAntiphonRecommendation } from "../src/application/reference-antiphon-recommendation";
-import { ReferenceAntiphonRecommendationUiState } from "../src/application/reference-antiphon-recommendation-ui-state";
-import { DbReferenceCatalogClient, MemoryReferenceCatalogClient } from "../src/application/reference-catalog-client";
+import { DbReferenceCatalogClient } from "../src/application/reference-catalog-client";
 import type { ReferenceCatalogRecord } from "../src/application/reference-catalog-contract";
+import {
+  ReferenceAntiphonRecommendationUiState,
+  type RecommendationUiRole,
+  type RecommendationUiSnapshot,
+} from "../src/application/reference-antiphon-recommendation-ui-state";
 
-export type ReferenceAntiphonRecommendationPanelProps = { runtime: "memory" | "db"; actor: ReferenceAntiphonRecommendationActor };
+export type RecommendationPanelClients = {
+  antiphons: Pick<DbReferenceAntiphonClient, "list">;
+  catalog: Pick<DbReferenceCatalogClient, "list">;
+  recommendations: Pick<DbReferenceAntiphonRecommendationClient, "get" | "set">;
+};
+export type RecommendationPanelClientFactories = {
+  antiphons: () => RecommendationPanelClients["antiphons"];
+  catalog: () => RecommendationPanelClients["catalog"];
+  recommendations: (actor: ReferenceAntiphonRecommendationActor) => RecommendationPanelClients["recommendations"];
+};
+const defaultFactories: RecommendationPanelClientFactories = {
+  antiphons: () => new DbReferenceAntiphonClient(),
+  catalog: () => new DbReferenceCatalogClient(),
+  recommendations: (actor) => new DbReferenceAntiphonRecommendationClient(actor),
+};
+export function createRecommendationPanelClients(runtime: "memory" | "db", actor: ReferenceAntiphonRecommendationActor, factories = defaultFactories): RecommendationPanelClients | null {
+  if (runtime === "memory") return null;
+  return { antiphons: factories.antiphons(), catalog: factories.catalog(), recommendations: factories.recommendations(actor) };
+}
 
-export function ReferenceAntiphonRecommendationPanel({ runtime, actor }: ReferenceAntiphonRecommendationPanelProps) {
-  const machine = useRef(new ReferenceAntiphonRecommendationUiState());
-  const antiphons = useMemo(() => runtime === "db" ? new DbReferenceAntiphonClient() : new MemoryReferenceAntiphonClient(), [runtime]);
-  const catalog = useMemo(() => runtime === "db" ? new DbReferenceCatalogClient() : new MemoryReferenceCatalogClient(), [runtime]);
-  const recommendations = useMemo(() => new DbReferenceAntiphonRecommendationClient(actor), [actor.userId, actor.role]);
-  const [antiphonSearch, setAntiphonSearch] = useState("");
-  const [antiphonResults, setAntiphonResults] = useState<ReferenceAntiphonRecord[]>([]);
-  const [selectedAntiphon, setSelectedAntiphon] = useState<ReferenceAntiphonRecord | null>(null);
-  const [recommendation, setRecommendation] = useState<ReferenceAntiphonRecommendation | null>(null);
-  const [songSearch, setSongSearch] = useState("");
-  const [songResults, setSongResults] = useState<ReferenceCatalogRecord[]>([]);
-  const [selectedSong, setSelectedSong] = useState<ReferenceCatalogRecord | null>(null);
-  const [loading, setLoading] = useState<null | "antiphons" | "recommendation" | "songs" | "saving">(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+export type ReferenceAntiphonRecommendationPanelProps = {
+  runtime: "memory" | "db";
+  actor: ReferenceAntiphonRecommendationActor;
+  clientFactories?: RecommendationPanelClientFactories;
+};
 
-  useEffect(() => {
-    machine.current.contextChanged(); setAntiphonResults([]); setSelectedAntiphon(null); setRecommendation(null); setSongResults([]); setSelectedSong(null); setError(null); setSaved(false); setLoading(null);
-  }, [runtime, actor.userId, actor.role]);
+type ViewProps = {
+  runtime: "memory" | "db"; role: RecommendationUiRole; snapshot: RecommendationUiSnapshot;
+  antiphonSearch: string; songSearch: string;
+  setAntiphonSearch: (value: string) => void; setSongSearch: (value: string) => void;
+  chooseAntiphon: (record: ReferenceAntiphonRecord) => void; deselectAntiphon: () => void;
+  chooseSong: (record: ReferenceCatalogRecord) => void; mutate: (referenceSongId: string | null) => void;
+};
 
-  useEffect(() => {
-    const query = antiphonSearch.trim(); const token = machine.current.begin("antiphonSearch"); setAntiphonResults([]); setError(null);
-    if (!query) return;
-    setLoading("antiphons");
-    void antiphons.list({ language: "all", search: query, page: 0, pageSize: 25 }).then((page) => {
-      if (machine.current.complete(token, { antiphons: page.records })) setAntiphonResults(page.records);
-    }).catch((cause: unknown) => { if (machine.current.isCurrent(token)) setError(cause instanceof Error ? cause.message : "Antiphon search failed."); })
-      .finally(() => { if (machine.current.isCurrent(token)) setLoading(null); });
-  }, [antiphonSearch, antiphons]);
-
-  useEffect(() => {
-    const token = machine.current.begin("recommendationRead"); setRecommendation(null); setError(null); setSaved(false);
-    if (runtime !== "db" || !selectedAntiphon) return;
-    setLoading("recommendation");
-    void recommendations.get(selectedAntiphon.id).then((result) => {
-      if (!machine.current.isCurrent(token)) return;
-      if (result.success) { machine.current.complete(token, { recommendation: result.value }); setRecommendation(result.value); }
-      else setError(result.error.message);
-    }).catch((cause: unknown) => { if (machine.current.isCurrent(token)) setError(cause instanceof Error ? cause.message : "Recommendation load failed."); })
-      .finally(() => { if (machine.current.isCurrent(token)) setLoading(null); });
-  }, [runtime, selectedAntiphon, recommendations]);
-
-  useEffect(() => {
-    const query = songSearch.trim(); const token = machine.current.begin("songSearch"); setSongResults([]); setSelectedSong(null); machine.current.selectSong(null); setSaved(false);
-    if (runtime !== "db" || actor.role !== "admin" || !selectedAntiphon || !query) return;
-    setLoading("songs");
-    void catalog.list({ language: "all", search: query, page: 0, pageSize: 25 }).then((page) => {
-      if (machine.current.complete(token, { songs: page.records })) setSongResults(page.records);
-    }).catch((cause: unknown) => { if (machine.current.isCurrent(token)) setError(cause instanceof Error ? cause.message : "Reference song search failed."); })
-      .finally(() => { if (machine.current.isCurrent(token)) setLoading(null); });
-  }, [runtime, actor.role, selectedAntiphon, songSearch, catalog]);
-
-  function chooseAntiphon(record: ReferenceAntiphonRecord) { machine.current.selectAntiphon(record); setSelectedAntiphon(record); setRecommendation(null); setSongSearch(""); setSongResults([]); setSelectedSong(null); setError(null); setSaved(false); }
-  function chooseSong(id: string) { const record = songResults.find((item) => item.id === id) ?? null; machine.current.selectSong(record); setSelectedSong(record); setSaved(false); }
-  async function mutate(referenceSongId: string | null) {
-    if (runtime !== "db" || actor.role !== "admin" || !selectedAntiphon) return;
-    const token = machine.current.begin("mutation"); setLoading("saving"); setError(null); setSaved(false);
-    try {
-      const result = await recommendations.set(selectedAntiphon.id, referenceSongId);
-      if (!machine.current.isCurrent(token)) return;
-      if (result.success) { machine.current.complete(token, { recommendation: result.value }); setRecommendation(result.value); setSelectedSong(null); setSongSearch(""); setSongResults([]); setSaved(true); }
-      else setError(result.error.message);
-    } catch (cause) { if (machine.current.isCurrent(token)) setError(cause instanceof Error ? cause.message : "Recommendation save failed."); }
-    finally { if (machine.current.isCurrent(token)) setLoading(null); }
-  }
-
+export function ReferenceAntiphonRecommendationPanelView(props: ViewProps) {
+  const { runtime, role, snapshot: s } = props;
+  if (runtime === "memory") return <section className="detail-panel" aria-label="Reference antiphon recommendation"><h2>Antiphon recommendation</h2><p className="field-help">Antiphon recommendations are available only in DB runtime.</p></section>;
+  const selected = s.selectedAntiphon;
+  const read = s.requests.recommendationRead;
+  const mutation = s.requests.mutation;
+  const currentSong = s.recommendation?.recommendedSong ?? null;
+  const sameSong = Boolean(currentSong && s.selectedSong?.id === currentSong.referenceSongId);
+  const mutationDisabled = mutation.loading;
   return <section className="detail-panel" aria-label="Reference antiphon recommendation">
     <h2>Antiphon recommendation</h2>
-    {runtime === "memory" ? <p className="field-help">Recommendations are available only in DB runtime.</p> : <>
-      <label>Find antiphon<input aria-label="Reference antiphon search" value={antiphonSearch} onChange={(event) => setAntiphonSearch(event.target.value)} placeholder="Search by title or number" /></label>
-      {loading === "antiphons" && <p role="status" className="field-help">Loading antiphons…</p>}
-      {antiphonSearch.trim() && loading !== "antiphons" && antiphonResults.length === 0 && <p className="field-help">No antiphons match this search.</p>}
-      <ul className="saved-set-list catalog-song-list">{antiphonResults.map((record) => <li key={record.id}><button type="button" onClick={() => chooseAntiphon(record)}>{record.displayNumber} · {record.title} ({record.language})</button></li>)}</ul>
-      {selectedAntiphon && <div aria-label="Selected reference antiphon">
-        <h3>{selectedAntiphon.displayNumber} · {selectedAntiphon.title}</h3>
-        <p className="field-help">{selectedAntiphon.language} · canonical {selectedAntiphon.canonicalNumber} · {selectedAntiphon.id} · read-only</p>
-        {loading === "recommendation" ? <p role="status" className="field-help">Loading recommendation…</p> : recommendation && (recommendation.recommendedSong ? <p>Recommended: <strong>{recommendation.recommendedSong.displayNumber} · {recommendation.recommendedSong.title}</strong> ({recommendation.recommendedSong.language})</p> : <p>No recommendation.</p>)}
-        {actor.role === "admin" && recommendation && <>
-          <label>Find Reference song<input aria-label="Recommended Reference song search" value={songSearch} disabled={loading === "saving"} onChange={(event) => setSongSearch(event.target.value)} /></label>
-          {loading === "songs" && <p role="status" className="field-help">Loading Reference songs…</p>}
-          {songSearch.trim() && loading !== "songs" && songResults.length === 0 && <p className="field-help">No Reference songs match this search.</p>}
-          <select aria-label="Recommended Reference song" value={selectedSong?.id ?? ""} disabled={loading === "saving"} onChange={(event) => chooseSong(event.target.value)}><option value="">Select a Reference song</option>{songResults.map((record) => <option key={record.id} value={record.id}>{record.displayNumber} · {record.title} ({record.language})</option>)}</select>
-          <button type="button" disabled={!selectedSong || loading === "saving"} onClick={() => void mutate(selectedSong!.id)}>{recommendation.recommendedSong ? "Replace" : "Set"}</button>
-          {recommendation.recommendedSong && <button type="button" disabled={loading === "saving"} onClick={() => void mutate(null)}>Remove</button>}
-          {loading === "saving" && <span role="status" className="field-help">Saving…</span>}
-          {saved && <span role="status" className="field-help">Saved.</span>}
-        </>}
+    <label>Find antiphon<input aria-label="Reference antiphon search" value={props.antiphonSearch} onChange={(event) => props.setAntiphonSearch(event.target.value)} placeholder="Search by title or number" /></label>
+    {s.requests.antiphonSearch.loading && <p role="status" className="field-help">Loading antiphons…</p>}
+    {s.requests.antiphonSearch.error && <p role="alert" className="field-help">Antiphon search unavailable: {s.requests.antiphonSearch.error}</p>}
+    {props.antiphonSearch.trim() && !s.requests.antiphonSearch.loading && !s.requests.antiphonSearch.error && s.antiphons.length === 0 && <p className="field-help">No antiphons match this search.</p>}
+    <ul className="saved-set-list catalog-song-list">{s.antiphons.map((record) => <li key={record.id}><button type="button" onClick={() => props.chooseAntiphon(record)}>{record.displayNumber} · {record.title}</button></li>)}</ul>
+    {!selected ? <p>No antiphon selected</p> : <div aria-label="Selected reference antiphon">
+      <h3>{selected.displayNumber} · {selected.title}</h3>
+      <button type="button" onClick={props.deselectAntiphon}>Clear antiphon selection</button>
+      {(read.loading || (!s.recommendation && !read.error)) && <p role="status" className="field-help">Loading recommendation…</p>}
+      {read.error && <p role="alert" className="field-help">Recommendation unavailable: {read.error}</p>}
+      {s.recommendation && !currentSong && <p>No recommended song</p>}
+      {currentSong && <div aria-label="Recommended Reference song">
+        <p><strong>{currentSong.displayNumber} · {currentSong.title}</strong></p>
+        <dl><dt>language</dt><dd>{currentSong.language}</dd><dt>canonicalNumber</dt><dd>{currentSong.canonicalNumber}</dd><dt>referenceSongId</dt><dd>{currentSong.referenceSongId}</dd></dl>
       </div>}
-      {error && <p role="alert" className="field-help">Recommendation unavailable: {error}</p>}
-    </>}
+      {role === "admin" && s.recommendation && <div aria-label="Manage antiphon recommendation">
+        <label>Find Reference song<input aria-label="Recommended Reference song search" value={props.songSearch} disabled={mutationDisabled} onChange={(event) => props.setSongSearch(event.target.value)} /></label>
+        {s.requests.songSearch.loading && <p role="status" className="field-help">Loading Reference songs…</p>}
+        {s.requests.songSearch.error && <p role="alert" className="field-help">Reference song search unavailable: {s.requests.songSearch.error}</p>}
+        {props.songSearch.trim() && !s.requests.songSearch.loading && !s.requests.songSearch.error && s.songs.length === 0 && <p className="field-help">No Reference songs match this search.</p>}
+        <ul className="saved-set-list catalog-song-list">{s.songs.map((record) => <li key={record.id}><button type="button" disabled={mutationDisabled} onClick={() => props.chooseSong(record)}>{record.displayNumber} · {record.title} ({record.language})</button></li>)}</ul>
+        {s.selectedSong && <p>Selected target: <strong>{s.selectedSong.displayNumber} · {s.selectedSong.title}</strong></p>}
+        {!currentSong
+          ? <button type="button" disabled={!s.selectedSong || mutationDisabled} onClick={() => props.mutate(s.selectedSong!.id)}>Set recommendation</button>
+          : <><button type="button" disabled={!s.selectedSong || sameSong || mutationDisabled} onClick={() => props.mutate(s.selectedSong!.id)}>Replace recommendation</button><button type="button" disabled={mutationDisabled} onClick={() => props.mutate(null)}>Remove recommendation</button></>}
+        {mutation.loading && <span role="status" className="field-help">Saving…</span>}
+        {mutation.error && <p role="alert" className="field-help">{mutation.error}</p>}
+        {s.saved && <span role="status" className="field-help">Saved.</span>}
+      </div>}
+    </div>}
   </section>;
+}
+
+export function ReferenceAntiphonRecommendationPanel({ runtime, actor, clientFactories = defaultFactories }: ReferenceAntiphonRecommendationPanelProps) {
+  const role = actor.role as RecommendationUiRole;
+  const machineRef = useRef<ReferenceAntiphonRecommendationUiState | null>(null);
+  if (!machineRef.current) machineRef.current = new ReferenceAntiphonRecommendationUiState({ runtimeMode: runtime, userId: actor.userId, role, selectedAntiphonId: null });
+  const machine = machineRef.current;
+  const [snapshot, setSnapshot] = useState(() => machine.snapshot());
+  const [antiphonSearch, setAntiphonSearch] = useState("");
+  const [songSearch, setSongSearch] = useState("");
+  const clients = useMemo(() => createRecommendationPanelClients(runtime, actor, clientFactories), [runtime, actor.userId, actor.role, clientFactories]);
+  const sync = () => setSnapshot(machine.snapshot());
+
+  useEffect(() => { machine.changeRuntimeActor(runtime, actor.userId, role); if (runtime === "memory") { setAntiphonSearch(""); setSongSearch(""); } sync(); }, [runtime, actor.userId, actor.role]);
+  useEffect(() => {
+    if (!clients) return;
+    const query = antiphonSearch.trim();
+    if (!query) { machine.cancel("antiphonSearch", { antiphons: [] }); sync(); return; }
+    const token = machine.begin("antiphonSearch"); sync();
+    void clients.antiphons.list({ language: "all", search: query, page: 0, pageSize: 25 }).then((page) => { if (machine.complete(token, { antiphons: page.records })) sync(); }).catch((cause: unknown) => { if (machine.fail(token, cause instanceof Error ? cause.message : "Antiphon search failed.")) sync(); });
+  }, [clients, antiphonSearch]);
+  useEffect(() => {
+    const selected = snapshot.selectedAntiphon;
+    if (!clients || !selected) return;
+    const token = machine.begin("recommendationRead"); sync();
+    void clients.recommendations.get(selected.id).then((result) => {
+      if (result.success ? machine.complete(token, { recommendation: result.value }) : machine.fail(token, result.error.message)) sync();
+    }).catch((cause: unknown) => { if (machine.fail(token, cause instanceof Error ? cause.message : "Recommendation load failed.")) sync(); });
+  }, [clients, snapshot.selectedAntiphon?.id, actor.userId, actor.role]);
+  useEffect(() => {
+    if (!clients || role !== "admin" || !snapshot.selectedAntiphon) return;
+    const query = songSearch.trim();
+    if (!query) { machine.cancel("songSearch", { songs: [] }); sync(); return; }
+    const token = machine.begin("songSearch"); sync();
+    void clients.catalog.list({ language: "all", search: query, page: 0, pageSize: 25 }).then((page) => { if (machine.complete(token, { songs: page.records })) sync(); }).catch((cause: unknown) => { if (machine.fail(token, cause instanceof Error ? cause.message : "Reference song search failed.")) sync(); });
+  }, [clients, role, snapshot.selectedAntiphon?.id, songSearch]);
+
+  const chooseAntiphon = (record: ReferenceAntiphonRecord) => { machine.selectAntiphon(record); setSongSearch(""); sync(); };
+  const deselectAntiphon = () => { machine.selectAntiphon(null); setSongSearch(""); sync(); };
+  const chooseSong = (record: ReferenceCatalogRecord) => { machine.selectSong(record); sync(); };
+  const mutate = async (referenceSongId: string | null) => {
+    const selected = machine.snapshot().selectedAntiphon;
+    if (!clients || role !== "admin" || !selected) return;
+    const token = machine.begin("mutation"); sync();
+    try {
+      const result = await clients.recommendations.set(selected.id, referenceSongId);
+      if (result.success) { if (machine.mutationSucceeded(token, result.value)) { setSongSearch(""); sync(); } }
+      else if (machine.fail(token, result.error.message)) sync();
+    } catch (cause) { if (machine.fail(token, cause instanceof Error ? cause.message : "Recommendation save failed.")) sync(); }
+  };
+
+  return <ReferenceAntiphonRecommendationPanelView runtime={runtime} role={role} snapshot={snapshot} antiphonSearch={antiphonSearch} songSearch={songSearch} setAntiphonSearch={setAntiphonSearch} setSongSearch={setSongSearch} chooseAntiphon={chooseAntiphon} deselectAntiphon={deselectAntiphon} chooseSong={chooseSong} mutate={(id) => void mutate(id)} />;
 }
