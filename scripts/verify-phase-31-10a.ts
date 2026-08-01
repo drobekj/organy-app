@@ -38,24 +38,27 @@ async function databaseFingerprintAt(databaseUrl: string): Promise<string> {
 }
 
 async function verifySchema(pool: Pool): Promise<void> {
-  const columns = await pool.query("select column_name,is_nullable from information_schema.columns where table_name='reference_antiphon_recommendations' order by ordinal_position");
+  const columns = await pool.query("select column_name,data_type,is_nullable,column_default from information_schema.columns where table_schema='public' and table_name='reference_antiphon_recommendations' order by ordinal_position");
   assert.deepEqual(columns.rows, [
-    { column_name: "antiphon_id", is_nullable: "NO" },
-    { column_name: "reference_song_id", is_nullable: "NO" },
-    { column_name: "updated_at", is_nullable: "NO" },
+    { column_name: "antiphon_id", data_type: "text", is_nullable: "NO", column_default: null },
+    { column_name: "reference_song_id", data_type: "text", is_nullable: "NO", column_default: null },
+    { column_name: "updated_at", data_type: "timestamp with time zone", is_nullable: "NO", column_default: "now()" },
   ]);
   assert.equal(Number((await pool.query("select count(*) n from pg_constraint where conrelid='reference_antiphon_recommendations'::regclass and contype='p'")).rows[0].n), 1);
-  const foreignKeys = await pool.query(`select a.attname column_name, c.confrelid::regclass::text target, c.confdeltype
-    from pg_constraint c join unnest(c.conkey) with ordinality k(attnum,ord) on true join pg_attribute a on a.attrelid=c.conrelid and a.attnum=k.attnum
-    where c.conrelid='reference_antiphon_recommendations'::regclass and c.contype='f' order by a.attname`);
+  const foreignKeys = await pool.query(`select source.attname::text source_column, c.confrelid::regclass::text target_table,
+      target.attname::text target_column, case c.confdeltype when 'c' then 'CASCADE' else c.confdeltype::text end on_delete
+    from pg_constraint c
+    join unnest(c.conkey, c.confkey) with ordinality k(source_attnum,target_attnum,ord) on true
+    join pg_attribute source on source.attrelid=c.conrelid and source.attnum=k.source_attnum
+    join pg_attribute target on target.attrelid=c.confrelid and target.attnum=k.target_attnum
+    where c.conrelid='reference_antiphon_recommendations'::regclass and c.contype='f' order by source.attname::text`);
   assert.deepEqual(foreignKeys.rows, [
-    { column_name: "antiphon_id", target: "reference_antiphons", confdeltype: "c" },
-    { column_name: "reference_song_id", target: "reference_catalog_songs", confdeltype: "c" },
+    { source_column: "antiphon_id", target_table: "reference_antiphons", target_column: "id", on_delete: "CASCADE" },
+    { source_column: "reference_song_id", target_table: "reference_catalog_songs", target_column: "id", on_delete: "CASCADE" },
   ]);
-  assert.match(String((await pool.query("select column_default from information_schema.columns where table_name='reference_antiphon_recommendations' and column_name='updated_at'")).rows[0].column_default), /^now\(\)$/);
-  assert.deepEqual((await pool.query(`select i.indisunique, array_agg(a.attname order by k.ord) columns
+  assert.deepEqual((await pool.query(`select i.indisunique, json_agg(a.attname::text order by k.ord)::text columns_json
     from pg_class x join pg_index i on i.indexrelid=x.oid join unnest(i.indkey) with ordinality k(attnum,ord) on true join pg_attribute a on a.attrelid=i.indrelid and a.attnum=k.attnum
-    where x.relname='reference_antiphon_recommendations_song_id_idx' group by i.indisunique`)).rows, [{ indisunique: false, columns: ["reference_song_id"] }]);
+    where x.relname='reference_antiphon_recommendations_song_id_idx' group by i.indisunique`)).rows, [{ indisunique: false, columns_json: '["reference_song_id"]' }]);
 }
 
 async function verifyReadWriteAndExactShape(pool: Pool): Promise<void> {
