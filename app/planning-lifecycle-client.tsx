@@ -25,6 +25,7 @@ import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSel
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
+import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recommendation-panel";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -1373,6 +1374,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             {selectedCatalogTab === "reference" && (
               <fieldset className="field-group catalog-panel">
                 <legend>Reference catalog</legend>
+                <ReferenceAntiphonRecommendationPanel runtime={runtimeMode} actor={activeActor} />
                 <p className="field-help">Authoritative frozen catalog metadata is read-only. In DB runtime, eligible users may persist preferences and separate repertoire membership.</p>
                 {referencePageData && <div className="row-actions" aria-label="Reference catalog counts"><strong>All {referencePageData.counts.all.toLocaleString()}</strong><strong>Czech {referencePageData.counts.czech.toLocaleString()}</strong><strong>Polish {referencePageData.counts.polish.toLocaleString()}</strong></div>}
                 <label>Language<select value={referenceLanguage} onChange={(event) => { setReferenceLanguage(event.target.value as ReferenceCatalogLanguageFilter); setReferencePage(0); setSelectedReferenceId(null); }}><option value="all">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
