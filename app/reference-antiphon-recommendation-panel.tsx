@@ -29,7 +29,8 @@ const defaultFactories: RecommendationPanelClientFactories = {
 };
 export function createRecommendationPanelClients(runtime: "memory" | "db", actor: ReferenceAntiphonRecommendationActor, factories = defaultFactories): RecommendationPanelClients | null {
   if (runtime === "memory") return null;
-  return { antiphons: factories.antiphons(), catalog: factories.catalog(), recommendations: factories.recommendations(actor) };
+  const recommendationActor: ReferenceAntiphonRecommendationActor = { userId: actor.userId, role: actor.role };
+  return { antiphons: factories.antiphons(), catalog: factories.catalog(), recommendations: factories.recommendations(recommendationActor) };
 }
 
 export type ReferenceAntiphonRecommendationPanelProps = {
