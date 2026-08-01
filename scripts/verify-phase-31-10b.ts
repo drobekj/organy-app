@@ -6,5 +6,5 @@ const child = spawn(invocation.command, invocation.args, { env: process.env, std
 child.on("error", (error) => { console.error(error); process.exitCode = 1; });
 child.on("close", (code) => {
   if (code !== 0) { process.exitCode = code ?? 1; return; }
-  console.log("Phase 31.10B authoritative reference antiphon recommendation UI: PASS");
+  console.log("Phase 31.10B authoritative antiphon recommendation UI: PASS");
 });
