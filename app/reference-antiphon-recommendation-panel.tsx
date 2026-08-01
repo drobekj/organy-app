@@ -101,7 +101,12 @@ export function ReferenceAntiphonRecommendationPanel({ runtime, actor, clientFac
   const clients = useMemo(() => createRecommendationPanelClients(runtime, actor, clientFactories), [runtime, actor.userId, actor.role, clientFactories]);
   const sync = () => setSnapshot(machine.snapshot());
 
-  useEffect(() => { machine.changeRuntimeActor(runtime, actor.userId, role); if (runtime === "memory") { setAntiphonSearch(""); setSongSearch(""); } sync(); }, [runtime, actor.userId, actor.role]);
+  useEffect(() => {
+    const changed = machine.changeRuntimeActor(runtime, actor.userId, role);
+    if (changed) setSongSearch("");
+    if (runtime === "memory") setAntiphonSearch("");
+    sync();
+  }, [runtime, actor.userId, actor.role]);
   useEffect(() => {
     if (!clients) return;
     const query = antiphonSearch.trim();
