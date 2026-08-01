@@ -80,9 +80,13 @@ function stateMachineCoverage() {
   mutation.fail(failed, "save failed");
   assert.equal(mutation.snapshot().recommendation?.recommendedSong?.referenceSongId, "czech:1");
   assert.equal(mutation.snapshot().selectedSong?.id, "polish:1"); assert.equal(mutation.snapshot().saved, false);
+  const staleTargetSearch = mutation.begin("songSearch");
   const success = mutation.begin("mutation"); const serverResult = recommendation("polish:1"); mutation.mutationSucceeded(success, serverResult);
   assert.deepEqual(mutation.snapshot().recommendation, serverResult);
   assert.equal(mutation.snapshot().selectedSong, null); assert.equal(mutation.snapshot().songs.length, 0); assert.equal(mutation.snapshot().saved, true);
+  assert.equal(mutation.isCurrent(staleTargetSearch), false, "successful mutation retained an in-flight target search");
+  assert.equal(mutation.complete(staleTargetSearch, { songs: [song("czech:2")] }), false, "late target search repopulated cleared results");
+  assert.equal(mutation.snapshot().songs.length, 0);
 }
 
 function memoryZeroCallCoverage() {
