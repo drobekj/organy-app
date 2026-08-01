@@ -10,18 +10,9 @@ async function transport(action: "getReferenceAntiphonRecommendation" | "setRefe
   return response.json() as Promise<Result>;
 }
 
-export function narrowReferenceAntiphonRecommendationActor(actor: ReferenceAntiphonRecommendationActor): ReferenceAntiphonRecommendationActor {
-  return { userId: actor.userId, role: actor.role };
-}
-
 /** Framework-independent DB transport client; safe to use outside React rendering. */
 export class DbReferenceAntiphonRecommendationClient {
-  private readonly actor: ReferenceAntiphonRecommendationActor;
-
-  constructor(actor: ReferenceAntiphonRecommendationActor, private readonly send: Transport = transport) {
-    this.actor = narrowReferenceAntiphonRecommendationActor(actor);
-  }
-
+  constructor(private readonly actor: ReferenceAntiphonRecommendationActor, private readonly send: Transport = transport) {}
   get(antiphonId: string) { return this.send("getReferenceAntiphonRecommendation", { antiphonId }, this.actor); }
   set(antiphonId: string, referenceSongId: string | null) { return this.send("setReferenceAntiphonRecommendation", { antiphonId, referenceSongId }, this.actor); }
 }
