@@ -14,16 +14,10 @@ const GUARD_URL = process.env.DATABASE_URL ?? "postgres://organy_app:organy_app@
 const LOG_PATH = resolve(process.cwd(), "phase-31-10b-human.log");
 const PASS = "Phase 31.10B authoritative antiphon recommendation UI: HUMAN PASS";
 const FAIL = "Phase 31.10B authoritative antiphon recommendation UI: HUMAN FAIL";
-const checklist = [
-  "1. As admin select czech:800.",
-  "2. Verify No recommended song.",
-  "3. Set czech:1.",
-  "4. Refresh and verify persistence.",
-  "5. Replace with polish:1.",
-  "6. Switch to priest and verify read-only.",
-  "7. Switch back to admin and remove.",
-  "8. Refresh and verify No recommended song.",
-];
+const REQUIRED_CHECKPOINT_ACTORS = [
+  { userId: "demo-admin-user", role: "admin" },
+  { userId: "demo-priest-user", role: "priest" },
+] as const;
 
 async function log(line: string) { await appendFile(LOG_PATH, `${line}\n`, "utf8"); }
 function capture(command: string, args: string[], env = process.env): Promise<{ code: number; text: string }> {
@@ -65,6 +59,31 @@ async function guardFingerprint(url: string) {
     return JSON.stringify({ tables: tables.rows.map((row) => row.table_name), columns: columns.rows, counts });
   } finally { await pool.end(); }
 }
+async function verifyCheckpointActors(databaseUrl: string) {
+  const pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  try {
+    const result = await pool.query(
+      `select u.id as user_id, r.role
+       from app_users u
+       join app_user_roles r on r.user_id = u.id
+       where u.active = true
+         and ((u.id = $1 and r.role = $2) or (u.id = $3 and r.role = $4))
+       order by u.id, r.role`,
+      [
+        REQUIRED_CHECKPOINT_ACTORS[0].userId,
+        REQUIRED_CHECKPOINT_ACTORS[0].role,
+        REQUIRED_CHECKPOINT_ACTORS[1].userId,
+        REQUIRED_CHECKPOINT_ACTORS[1].role,
+      ],
+    );
+    const available = new Set(result.rows.map((row) => `${String(row.user_id)}:${String(row.role)}`));
+    for (const actor of REQUIRED_CHECKPOINT_ACTORS) {
+      const identity = `${actor.userId}:${actor.role}`;
+      if (!available.has(identity)) throw new Error(`Checkpoint database is missing required active actor ${identity}.`);
+    }
+    await log(`Verified checkpoint actors: ${REQUIRED_CHECKPOINT_ACTORS.map((actor) => `${actor.userId}:${actor.role}`).join(", ")}`);
+  } finally { await pool.end(); }
+}
 function freePort(): Promise<number> {
   return new Promise((resolvePort, reject) => {
     const server = net.createServer();
@@ -94,7 +113,7 @@ async function stopApp(child: ChildProcess | null) {
 }
 async function askResult() {
   const rl = createInterface({ input, output });
-  try { return (await rl.question("Type PASS after all eight checks, otherwise type FAIL: ")).trim().toUpperCase(); }
+  try { return (await rl.question("Konečný výsledek (PASS/FAIL): ")).trim().toUpperCase(); }
   finally { rl.close(); }
 }
 
@@ -122,7 +141,8 @@ async function main() {
     await control.query(createDatabaseSql(databaseName));
     const databaseUrl = deriveDatabaseUrl(guard, databaseName);
     await log(`Created ${databaseName}`);
-    for (const command of ["db:migrate", "db:sync:reference-catalog", "db:sync:reference-antiphons"] as const) await runNpm(command, databaseUrl);
+    for (const command of ["db:migrate", "db:sync:reference-catalog", "db:sync:reference-antiphons", "db:seed:catalog"] as const) await runNpm(command, databaseUrl);
+    await verifyCheckpointActors(databaseUrl);
     const port = await freePort();
     const call = createNpmInvocation(process.execPath, process.env.npm_execpath, ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", String(port)]);
     app = spawn(call.command, call.args, { env: { ...process.env, DATABASE_URL: databaseUrl, ORGANY_RUNTIME: "db" }, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
@@ -130,11 +150,11 @@ async function main() {
     app.stderr?.on("data", (chunk) => void log(String(chunk).trimEnd()));
     const url = `http://127.0.0.1:${port}`;
     await waitForHttp(url);
-    console.log(url);
-    for (const item of checklist) console.log(item);
+    console.log(`CHECKPOINT_URL=${url}`);
+    console.log("Kontrolní prostředí je připraveno. Postupujte podle kroků v chatu. PASS zadejte až po výslovném potvrzení v chatu; jinak zadejte FAIL.");
     if (process.platform === "win32") spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
     const answer = await askResult();
-    if (answer !== "PASS") throw new Error("Human browser checklist was not confirmed.");
+    if (answer !== "PASS") throw new Error("Human browser checkpoint was not confirmed.");
     await stopApp(app); app = null;
     if (databaseName) {
       const [terminate, drop] = dropDatabaseSql(databaseName);
