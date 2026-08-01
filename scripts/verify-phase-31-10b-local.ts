@@ -55,13 +55,14 @@ async function guardFingerprint(url: string) {
   const pool = new Pool({ connectionString: url, max: 1 });
   try {
     const tables = await pool.query("select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by table_name");
+    const columns = await pool.query("select table_name,column_name,ordinal_position,data_type,udt_name,is_nullable,column_default from information_schema.columns where table_schema='public' order by table_name,ordinal_position");
     const counts: Array<[string, string]> = [];
     for (const row of tables.rows) {
       const name = String(row.table_name);
       const result = await pool.query(`select count(*)::text count from public.${quoteIdentifier(name)}`);
       counts.push([name, String(result.rows[0].count)]);
     }
-    return JSON.stringify({ tables: tables.rows.map((row) => row.table_name), counts });
+    return JSON.stringify({ tables: tables.rows.map((row) => row.table_name), columns: columns.rows, counts });
   } finally { await pool.end(); }
 }
 function freePort(): Promise<number> {
@@ -83,9 +84,13 @@ async function waitForHttp(url: string) {
   throw new Error("Application did not become ready within 90 seconds.");
 }
 async function stopApp(child: ChildProcess | null) {
-  if (!child?.pid) return;
-  if (process.platform === "win32") await capture("taskkill", ["/PID", String(child.pid), "/T", "/F"]);
-  else { try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); } }
+  if (!child?.pid || child.exitCode !== null) return;
+  if (process.platform === "win32") {
+    const result = await capture("taskkill", ["/PID", String(child.pid), "/T", "/F"]);
+    if (result.code !== 0) throw new Error(`taskkill exited with ${result.code}: ${result.text.trim()}`);
+  } else {
+    try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
+  }
 }
 async function askResult() {
   const rl = createInterface({ input, output });
@@ -130,23 +135,30 @@ async function main() {
     if (process.platform === "win32") spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" }).unref();
     const answer = await askResult();
     if (answer !== "PASS") throw new Error("Human browser checklist was not confirmed.");
-    success = true;
     await stopApp(app); app = null;
     if (databaseName) {
       const [terminate, drop] = dropDatabaseSql(databaseName);
       await control.query(terminate, [databaseName]); await control.query(drop); databaseName = null;
     }
     if (await guardFingerprint(GUARD_URL) !== fingerprint) throw new Error("Guard database fingerprint changed.");
+    success = true;
   } catch (error) {
+    success = false;
     await log(`FAIL: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
   } finally {
-    await stopApp(app).catch(() => undefined);
+    try { await stopApp(app); } catch (error) { success = false; await log(`CLEANUP FAIL: ${error instanceof Error ? error.message : String(error)}`); }
     if (control && databaseName) {
-      const [terminate, drop] = dropDatabaseSql(databaseName);
-      await control.query(terminate, [databaseName]).catch(() => undefined); await control.query(drop).catch(() => undefined);
+      try {
+        const [terminate, drop] = dropDatabaseSql(databaseName);
+        await control.query(terminate, [databaseName]); await control.query(drop); databaseName = null;
+      } catch (error) { success = false; await log(`DATABASE CLEANUP FAIL: ${error instanceof Error ? error.message : String(error)}`); }
     }
-    await control?.end().catch(() => undefined);
-    if (startedPostgres) await capture(docker, ["compose", "stop", "postgres"]);
+    try { await control?.end(); } catch (error) { success = false; await log(`CONTROL CLEANUP FAIL: ${error instanceof Error ? error.message : String(error)}`); }
+    if (startedPostgres) {
+      const stop = await capture(docker, ["compose", "stop", "postgres"]);
+      await log(`$ docker compose stop postgres\n${stop.text.trimEnd()}`);
+      if (stop.code !== 0) success = false;
+    }
   }
   console.log(success ? PASS : FAIL);
   console.log(`LOG_PATH=${LOG_PATH}`);
