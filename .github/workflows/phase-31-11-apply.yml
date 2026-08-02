@@ -2,8 +2,6 @@ name: Temporary Phase 31.11 patch apply
 
 on:
   pull_request:
-    types:
-      - reopened
 
 permissions:
   contents: write
