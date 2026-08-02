@@ -6,9 +6,11 @@ import {
   type PlanningRole,
   type PlanningRow,
   type PlanningSet,
+  type ServiceAntiphonReference,
   type ServiceContext,
 } from "../../planning-lifecycle";
 import type { CatalogRepository } from "../catalog";
+import type { ReferenceAntiphonProvider, ReferenceAntiphonRecord } from "../reference-antiphon-contract";
 import { isEligiblePerson, languagesForService } from "../catalog";
 import type {
   CompletedServiceRecord,
@@ -23,6 +25,7 @@ export type PlanningLifecycleServiceDependencies = {
   planningSets: PlanningSetRepository;
   completedServiceRecords: CompletedServiceRecordRepository;
   catalog: CatalogRepository;
+  referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
   now?: () => Date;
   enforceCatalogSelections?: boolean;
 };
@@ -77,12 +80,14 @@ export class PlanningLifecycleService {
   private readonly planningSets: PlanningSetRepository;
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
   private readonly catalog: CatalogRepository;
+  private readonly referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
   private readonly enforceCatalogSelections: boolean;
 
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
     this.planningSets = dependencies.planningSets;
     this.completedServiceRecords = dependencies.completedServiceRecords;
     this.catalog = dependencies.catalog;
+    this.referenceAntiphons = dependencies.referenceAntiphons;
     this.enforceCatalogSelections = dependencies.enforceCatalogSelections ?? true;
     this.now = dependencies.now ?? (() => new Date());
   }
@@ -111,8 +116,8 @@ export class PlanningLifecycleService {
       return failure({ code: "permissionDenied", message: "Role cannot save a working planning set." });
     }
 
-    const serviceContext: SaveWorkingSetServiceContext = normalizeServiceContext(input.serviceContext);
-    const serviceContextIssues = validateSaveWorkingSetServiceContext(serviceContext, input.set);
+    const rawServiceContext: SaveWorkingSetServiceContext = normalizeServiceContext(input.serviceContext);
+    const serviceContextIssues = validateSaveWorkingSetServiceContext(rawServiceContext, input.set);
     if (serviceContextIssues.length > 0) {
       return failure({
         code: "invalidInput",
@@ -122,6 +127,9 @@ export class PlanningLifecycleService {
     }
 
     const existingSet = input.existingSetId ? await this.planningSets.findById(input.existingSetId) : undefined;
+    const antiphonContext = await this.validateAndNormalizeReferenceAntiphon(rawServiceContext, existingSet);
+    if (!antiphonContext.success) return antiphonContext;
+    const serviceContext = antiphonContext.value;
     const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existingSet, input.allowLanguageDeviations === true);
     if (normalized.issues.length > 0) {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
@@ -253,12 +261,15 @@ export class PlanningLifecycleService {
       return failure({ code: "notFound", message: "Completed record was not found." });
     }
 
-    const serviceContext: ServiceContext = normalizeServiceContext(input.serviceContext);
-    const serviceContextIssues = validateSaveWorkingSetServiceContext(serviceContext, input.set);
+    const rawServiceContext: ServiceContext = normalizeServiceContext(input.serviceContext);
+    const serviceContextIssues = validateSaveWorkingSetServiceContext(rawServiceContext, input.set);
     if (serviceContextIssues.length > 0) {
       return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
     }
 
+    const antiphonContext = await this.validateAndNormalizeReferenceAntiphon(rawServiceContext, existing);
+    if (!antiphonContext.success) return antiphonContext;
+    const serviceContext = antiphonContext.value;
     const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existing, input.allowLanguageDeviations === true);
     if (normalized.issues.length > 0) {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
@@ -325,6 +336,48 @@ export class PlanningLifecycleService {
     return success(completedRecord);
   }
 
+  private async validateAndNormalizeReferenceAntiphon(
+    serviceContext: ServiceContext,
+    existing?: PersistedPlanningSet | CompletedServiceRecord,
+  ): Promise<PlanningServiceResult<ServiceContext>> {
+    const candidate = (serviceContext as ServiceContext & { referenceAntiphon?: unknown }).referenceAntiphon;
+    if (candidate === undefined) {
+      return success({ ...serviceContext, referenceAntiphon: undefined });
+    }
+
+    if (!isServiceAntiphonReference(candidate)) {
+      return failure({
+        code: "invalidInput",
+        message: "Authoritative antiphon selection is malformed.",
+        issues: [{ path: "serviceContext.referenceAntiphon", message: "Select an antiphon from the authoritative catalog." }],
+      });
+    }
+
+    const previous = existing?.serviceContext.referenceAntiphon;
+    if (previous && sameServiceAntiphonReference(previous, candidate)) {
+      return success({ ...serviceContext, referenceAntiphon: { ...previous } });
+    }
+
+    if (!isAcceptedReferenceAntiphonId(candidate.id)) {
+      return failure({
+        code: "invalidInput",
+        message: "Authoritative antiphon identity is invalid.",
+        issues: [{ path: "serviceContext.referenceAntiphon.id", message: "Antiphon id must be czech:800 through czech:915." }],
+      });
+    }
+
+    if (!this.referenceAntiphons) {
+      return failure({ code: "invalidInput", message: "Authoritative antiphon selection is unavailable in this runtime." });
+    }
+
+    const authoritative = await this.referenceAntiphons.getById(candidate.id);
+    if (!authoritative || authoritative.language !== "czech") {
+      return failure({ code: "notFound", message: "Authoritative antiphon was not found." });
+    }
+
+    return success({ ...serviceContext, referenceAntiphon: serviceAntiphonSnapshot(authoritative) });
+  }
+
   private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord, allowLanguageDeviations = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
     const issues: { path: string; message: string }[] = [];
     if (!this.enforceCatalogSelections) {
@@ -387,9 +440,40 @@ function normalizeServiceContext(context: ServiceContext): ServiceContext {
     ...context,
     serviceTime: normalizeServiceTime(context.serviceTime),
     ...(context.note?.trim() ? { note: context.note.trim() } : { note: undefined }),
+    ...(isServiceAntiphonReference(context.referenceAntiphon)
+      ? { referenceAntiphon: { ...context.referenceAntiphon } }
+      : context.referenceAntiphon === undefined
+        ? { referenceAntiphon: undefined }
+        : { referenceAntiphon: context.referenceAntiphon as never }),
     ...(context.antiphonKey?.trim() ? { antiphonKey: context.antiphonKey.trim() } : { antiphonKey: undefined }),
     ...(context.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: context.liturgicalSeasonKey.trim() } : { liturgicalSeasonKey: undefined }),
   };
+}
+
+function isServiceAntiphonReference(value: unknown): value is ServiceAntiphonReference {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join(",") !== "displayNumber,id,sourceUrl,title") return false;
+  return typeof record.id === "string" && typeof record.displayNumber === "string" &&
+    typeof record.title === "string" && typeof record.sourceUrl === "string" &&
+    record.id.trim() === record.id && record.displayNumber.trim().length > 0 &&
+    record.title.trim().length > 0 && record.sourceUrl.trim().length > 0;
+}
+
+function isAcceptedReferenceAntiphonId(id: string): boolean {
+  const match = /^czech:(\d+)$/.exec(id);
+  if (!match) return false;
+  const number = Number(match[1]);
+  return Number.isInteger(number) && number >= 800 && number <= 915 && String(number) === match[1];
+}
+
+function sameServiceAntiphonReference(left: ServiceAntiphonReference, right: ServiceAntiphonReference): boolean {
+  return left.id === right.id && left.displayNumber === right.displayNumber &&
+    left.title === right.title && left.sourceUrl === right.sourceUrl;
+}
+
+function serviceAntiphonSnapshot(record: ReferenceAntiphonRecord): ServiceAntiphonReference {
+  return { id: record.id, displayNumber: record.displayNumber, title: record.title, sourceUrl: record.sourceUrl };
 }
 
 function getRowsFromExisting(existing: PersistedPlanningSet | CompletedServiceRecord): PlanningRow[] {

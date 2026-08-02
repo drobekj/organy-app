@@ -17,7 +17,7 @@ import {
   type PlanningSetId,
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
-import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
+import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
@@ -26,6 +26,7 @@ import { InteractionService, InMemoryInteractionServiceRepository } from "../src
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
 import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recommendation-panel";
+import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -297,6 +298,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
   const [serviceNote, setServiceNote] = useState("");
+  const [referenceAntiphon, setReferenceAntiphon] = useState<ServiceAntiphonReference | undefined>();
+  const [serviceContextGeneration, setServiceContextGeneration] = useState(0);
   const [candidateAntiphonKey, setCandidateAntiphonKey] = useState("");
   const [candidateSeasonKey, setCandidateSeasonKey] = useState("");
   const [rows, setRows] = useState<EditableRow[]>(() => [createEmptyRow(1, initialServiceLanguage)]);
@@ -402,6 +405,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const isFinalSetOpen = persistedSet?.status === "final";
   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
+  const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
@@ -624,6 +628,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(set.serviceContext.organist.displayName);
     setOrganistId(set.serviceContext.organist.id);
     setServiceNote(set.serviceContext.note ?? "");
+    setReferenceAntiphon(set.serviceContext.referenceAntiphon ? { ...set.serviceContext.referenceAntiphon } : undefined);
+    setServiceContextGeneration((current) => current + 1);
     setCandidateAntiphonKey(set.serviceContext.antiphonKey ?? "");
     setCandidateSeasonKey(set.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
@@ -645,6 +651,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(record.serviceContext.organist.displayName);
     setOrganistId(record.serviceContext.organist.id);
     setServiceNote(record.serviceContext.note ?? "");
+    setReferenceAntiphon(record.serviceContext.referenceAntiphon ? { ...record.serviceContext.referenceAntiphon } : undefined);
+    setServiceContextGeneration((current) => current + 1);
     setCandidateAntiphonKey(record.serviceContext.antiphonKey ?? "");
     setCandidateSeasonKey(record.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
@@ -691,6 +699,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
     setServiceNote("");
+    setReferenceAntiphon(undefined);
+    setServiceContextGeneration((current) => current + 1);
     setCandidateAntiphonKey("");
     setCandidateSeasonKey("");
     setRows([createEmptyRow(1, initialServiceLanguage)]);
@@ -710,6 +720,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
     setServiceNote("");
+    setReferenceAntiphon(undefined);
+    setServiceContextGeneration((current) => current + 1);
     setCandidateAntiphonKey("");
     setCandidateSeasonKey("");
     setRows([createEmptyRow(1, initialServiceLanguage)]);
@@ -884,6 +896,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
         ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
         ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
@@ -993,6 +1006,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
         ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
         ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
@@ -1188,9 +1202,17 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               Service note
               <textarea rows={4} disabled={isEditorLocked} value={serviceNote} onChange={(event) => guardedEditorUpdate(() => setServiceNote(event.target.value))} placeholder="Gospel readings, links, or planning information" />
             </label>
+            <ServiceContextReferenceAntiphonField
+              runtime={runtimeMode}
+              editable={!isEditorLocked}
+              contextKey={serviceContextRecordKey}
+              selected={referenceAntiphon}
+              onChange={(value) => guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined))}
+            />
             <label>
               Candidate antiphon key
               <input type="text" disabled={isEditorLocked} value={candidateAntiphonKey} onChange={(event) => guardedEditorUpdate(() => setCandidateAntiphonKey(event.target.value))} placeholder="Optional synthetic/demo antiphon key" />
+              <span className="field-help">Legacy synthetic/demo candidate signal; it is not populated from the authoritative Antiphon selection.</span>
             </label>
             <label>
               Candidate season key

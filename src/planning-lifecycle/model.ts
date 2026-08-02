@@ -23,6 +23,14 @@ export type ServicePersonReference = {
   displayName: string;
 };
 
+/** Stable authoritative antiphon identity plus the historical snapshot saved with a service. */
+export type ServiceAntiphonReference = {
+  id: string;
+  displayNumber: string;
+  title: string;
+  sourceUrl: string;
+};
+
 export type ServiceContext = {
   serviceDate: string;
   serviceTime: string;
@@ -31,6 +39,8 @@ export type ServiceContext = {
   organist: ServicePersonReference;
   /** Optional service-level note. Whitespace-only values are normalized away before persistence. */
   note?: string;
+  /** Optional authoritative Czech antiphon snapshot selected for this concrete service. */
+  referenceAntiphon?: ServiceAntiphonReference;
   /** Optional synthetic/demo antiphon key used to rehydrate candidate metadata. */
   antiphonKey?: string;
   /** Optional synthetic/demo liturgical season key used to rehydrate candidate metadata. */
