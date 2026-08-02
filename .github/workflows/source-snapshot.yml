@@ -1,0 +1,33 @@
+name: Temporary source snapshot
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-11-source-snapshot
+          include-hidden-files: true
+          retention-days: 1
+          path: |
+            .github/workflows/ci.yml
+            AGENTS.md
+            README.md
+            app
+            data
+            docs
+            drizzle
+            next.config.ts
+            package-lock.json
+            package.json
+            scripts
+            src
+            tsconfig.json
