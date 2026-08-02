@@ -1,15 +1,16 @@
 name: Temporary Phase 31.11 patch apply
 
 on:
-  push:
-    branches:
-      - codex/phase-31-11-service-context-antiphon
+  pull_request:
+    types:
+      - reopened
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'codex/phase-31-11-service-context-antiphon'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout implementation branch
