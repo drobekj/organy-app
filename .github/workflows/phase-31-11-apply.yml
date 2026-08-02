@@ -1,0 +1,39 @@
+name: Temporary Phase 31.11 patch apply
+
+on:
+  push:
+    branches:
+      - codex/phase-31-11-service-context-antiphon
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-11-service-context-antiphon
+          fetch-depth: 0
+      - name: Reconstruct and apply reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/phase-31-11.patch.part{1,2,3,4} | tr -d '\n\r' | base64 --decode | gzip --decompress > /tmp/phase-31-11.patch
+          echo '96079c1ab48d832e8946dd00c0e315837bb35a6e0964758c97a63bc770d03a7e  /tmp/phase-31-11.patch' | sha256sum --check --strict
+          git apply --index --whitespace=error-all /tmp/phase-31-11.patch
+          rm -f \
+            .github/phase-31-11.patch.part1 \
+            .github/phase-31-11.patch.part2 \
+            .github/phase-31-11.patch.part3 \
+            .github/phase-31-11.patch.part4 \
+            .github/workflows/phase-31-11-apply.yml \
+            .github/workflows/source-snapshot.yml
+          git add -A
+          git diff --cached --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m 'Implement Phase 31.11 Service Context antiphon'
+          git push origin HEAD:codex/phase-31-11-service-context-antiphon
