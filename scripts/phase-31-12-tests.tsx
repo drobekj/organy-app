@@ -109,9 +109,11 @@ async function clientCoverage() {
 function renderCoverage() {
   const candidate = queryReferenceCandidatesFromData(data("czech:1"), query({ referenceAntiphonId: "czech:800" }))[0];
   const html = renderToStaticMarkup(<CandidateLine candidate={candidate} variant="popup" onSelect={() => undefined} />);
-  assert.match(html, /Authoritative Alpha · czech · antiphon/);
-  assert.match(html, />1<\/strong>/);
-  assert.match(html, /negative candidate; in organist repertoire/);
+  const visibleText = html.replace(/<[^>]+>/g, "");
+  assert.match(visibleText, /1 · czech · in repertoire/);
+  assert.match(visibleText, /equivalent 1 · polish · not in repertoire/);
+  assert.match(visibleText, /Authoritative Alpha · czech · antiphon/);
+  assert.match(html, /negative candidate; primary 1 czech; in organist repertoire; equivalent 1 polish; not in organist repertoire/);
 }
 
 async function staticBoundaryCoverage() {
