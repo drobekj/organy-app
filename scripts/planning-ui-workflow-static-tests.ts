@@ -6,6 +6,7 @@ const css = readFileSync("app/globals.css", "utf8");
 
 // DB candidate calls use the injected transport so structured failures remain observable to the Planning client.
 // Authoritative highlighting is passed separately and never inferred from the legacy synthetic antiphon key.
+// The production Reference candidate boundary is checked separately for absence of every legacy table identifier.
 for (const required of [
   "role=\"listbox\"",
   "Cancel lookup",
