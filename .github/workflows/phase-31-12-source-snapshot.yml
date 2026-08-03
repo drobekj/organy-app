@@ -1,9 +1,9 @@
 name: Phase 31.12 source snapshot
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/phase-31-12-authoritative-candidates
+      - main
   workflow_dispatch:
 
 permissions:
