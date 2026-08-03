@@ -1,0 +1,34 @@
+name: Phase 31.12 third remediation
+
+on:
+  push:
+    branches:
+      - codex/phase-31-12-authoritative-candidates
+    paths:
+      - scripts/apply-phase-31-12-third-remediation.mjs
+      - .github/workflows/phase-31-12-third-remediation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-12-authoritative-candidates
+          fetch-depth: 0
+      - name: Apply remediation
+        run: node scripts/apply-phase-31-12-third-remediation.mjs
+      - name: Commit remediation
+        run: |
+          if git diff --quiet; then
+            echo "No remediation changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/planning-lifecycle/route.ts src/application/planning-lifecycle/service.ts src/application/planning-lifecycle/drizzle-repository-adapters.ts scripts/verify-phase-31-12.ts scripts/phase-31-12-tests.tsx
+          git commit -m "fix: persist authoritative Planning candidates"
+          git push origin HEAD:codex/phase-31-12-authoritative-candidates
