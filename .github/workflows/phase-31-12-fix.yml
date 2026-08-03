@@ -19,11 +19,41 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
-      - name: Apply verifier alignment
+      - name: Align Phase 31.8 verifier
         run: |
           set -euo pipefail
-          # The patch narrows an obsolete Phase 31.8 isolation assertion to the activated Phase 31.12 boundary.
-          git apply --index .phase-31-12-fix.patch
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/verify-phase-31-8.ts")
+          text = path.read_text()
+          start = text.index("  direct=new Pool({connectionString:url}); const legacyBefore=")
+          end = text.index("  const ui=await readFile(", start)
+          replacement = '''  direct=new Pool({connectionString:url}); const legacyBefore=JSON.stringify({classes:(await direct.query('select * from melody_equivalence_classes order by id')).rows,memberships:(await direct.query('select * from song_melody_equivalence order by song_id,class_id')).rows}); await direct.end();
+          const candidateInput={serviceDate:'2026-07-29',serviceLanguage:'czech',candidateUsages:[]};
+          const candidateBefore=await invoke('queryCandidates',candidateInput,roles[0]);
+          const preferenceBefore=await invoke('getReferencePreferenceAggregate',{referenceSongId:'czech:1'},admin);
+          const repertoireBefore=await invoke('getReferenceRepertoireMembership',{referenceSongId:'czech:1'},roles[1]);
+          assert.equal(candidateBefore.status,200);
+          assert.ok(candidateBefore.body.value.some((candidate:any)=>candidate.songId==='czech:20'));
+          assert.ok(candidateBefore.body.value.some((candidate:any)=>candidate.songId==='czech:21'));
+          await invoke(MERGE,{referenceSongId:'czech:20',mergeWithReferenceSongId:'czech:21'},admin);
+          const candidateAfter=await invoke('queryCandidates',candidateInput,roles[0]);
+          assert.equal(candidateAfter.status,200);
+          assert.equal(candidateAfter.body.value.length,candidateBefore.body.value.length-1);
+          const mergedCandidate=candidateAfter.body.value.find((candidate:any)=>candidate.songId==='czech:20');
+          assert.ok(mergedCandidate);
+          assert.deepEqual(mergedCandidate.equivalentNumbers,[{songId:'czech:21',number:'21',repertoire:false}]);
+          assert.equal(candidateAfter.body.value.some((candidate:any)=>candidate.songId==='czech:21'),false);
+          const unaffectedBefore=new Map(candidateBefore.body.value.filter((candidate:any)=>!['czech:20','czech:21'].includes(candidate.songId)).map((candidate:any)=>[candidate.songId,candidate]));
+          const unaffectedAfter=new Map(candidateAfter.body.value.filter((candidate:any)=>candidate.songId!=='czech:20').map((candidate:any)=>[candidate.songId,candidate]));
+          assert.deepEqual(unaffectedAfter,unaffectedBefore);
+          assert.deepEqual(await invoke('getReferencePreferenceAggregate',{referenceSongId:'czech:1'},admin),preferenceBefore);
+          assert.deepEqual(await invoke('getReferenceRepertoireMembership',{referenceSongId:'czech:1'},roles[1]),repertoireBefore);
+          direct=new Pool({connectionString:url}); const legacyAfter=JSON.stringify({classes:(await direct.query('select * from melody_equivalence_classes order by id')).rows,memberships:(await direct.query('select * from song_melody_equivalence order by song_id,class_id')).rows}); await direct.end(); assert.equal(legacyAfter,legacyBefore);
+          // 21, 23-25: deterministic UI gates, memory denial, unchanged legacy/preference/repertoire boundaries, and authoritative candidate melody projection.
+          '''
+          path.write_text(text[:start] + replacement + text[end:])
+          PY
           rm -f .phase-31-12-fix.patch .github/workflows/phase-31-12-fix.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
