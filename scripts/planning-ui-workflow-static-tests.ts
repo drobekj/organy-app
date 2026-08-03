@@ -20,7 +20,7 @@ for (const required of [
   "interactionClient.setMelodyWindow",
   "const selectedRole = activeActor.role",
   "interactionClient.queryCandidates",
-  `callInteractionApi("queryCandidates"`,
+  `this.transport("queryCandidates"`,
 ]) {
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }
