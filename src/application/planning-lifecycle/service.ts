@@ -11,6 +11,7 @@ import {
 } from "../../planning-lifecycle";
 import type { CatalogRepository } from "../catalog";
 import type { ReferenceAntiphonProvider, ReferenceAntiphonRecord } from "../reference-antiphon-contract";
+import type { ReferenceCatalogRecord } from "../reference-catalog-contract";
 import { isEligiblePerson, languagesForService } from "../catalog";
 import type {
   CompletedServiceRecord,
@@ -26,6 +27,7 @@ export type PlanningLifecycleServiceDependencies = {
   completedServiceRecords: CompletedServiceRecordRepository;
   catalog: CatalogRepository;
   referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
+  referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
   now?: () => Date;
   enforceCatalogSelections?: boolean;
 };
@@ -81,6 +83,7 @@ export class PlanningLifecycleService {
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
   private readonly catalog: CatalogRepository;
   private readonly referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
+  private readonly referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
   private readonly enforceCatalogSelections: boolean;
 
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
@@ -88,6 +91,7 @@ export class PlanningLifecycleService {
     this.completedServiceRecords = dependencies.completedServiceRecords;
     this.catalog = dependencies.catalog;
     this.referenceAntiphons = dependencies.referenceAntiphons;
+    this.referenceSongs = dependencies.referenceSongs;
     this.enforceCatalogSelections = dependencies.enforceCatalogSelections ?? true;
     this.now = dependencies.now ?? (() => new Date());
   }
@@ -414,6 +418,12 @@ export class PlanningLifecycleService {
         if (!allowLanguageDeviations && !languagesForService(normalizedContext.language).includes(row.song.language)) {
           issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
         }
+        continue;
+      }
+      const referenceSong = await this.referenceSongs?.getById(row.song.songId);
+      if (referenceSong) {
+        if (!allowLanguageDeviations && !languagesForService(normalizedContext.language).includes(referenceSong.language)) { issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." }); continue; }
+        row.song = { songId: referenceSong.id, language: referenceSong.language, number: referenceSong.displayNumber, title: referenceSong.title };
         continue;
       }
       const song = await this.catalog.findSongById(row.song.songId);

@@ -43,10 +43,26 @@ async function main() {
       assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "bad" }, admin)).status, 400);
       assert.equal((await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1", profileId: "pref-priest" }, admin)).status, 400);
       const db = new Pool({ connectionString: isolatedUrl }); try { assert.equal((await db.query("select sum(score)::integer total from reference_song_preferences where reference_song_id='czech:1'")).rows[0].total, 3); } finally { await db.end(); }
-      assert.deepEqual(await invoke("queryCandidates", { serviceDate: "2026-07-27", serviceLanguage: "czech", preferenceThreshold: 0, candidateUsages: [] }, priest), beforeCandidates);
+      const afterCandidates = await invoke("queryCandidates", { serviceDate: "2026-07-27", serviceLanguage: "czech", preferenceThreshold: 0, candidateUsages: [] }, priest);
+      assert.equal(beforeCandidates.status, 200); assert.equal(afterCandidates.status, 200);
+      const beforeById = new Map(beforeCandidates.body.value.map((candidate: any) => [candidate.songId, candidate]));
+      const afterById = new Map(afterCandidates.body.value.map((candidate: any) => [candidate.songId, candidate]));
+      assert.deepEqual([...afterById.keys()].sort(), [...beforeById.keys()].sort());
+      for (const [songId, beforeCandidate] of beforeById) {
+        const afterCandidate = afterById.get(songId); assert(afterCandidate);
+        if (songId === "czech:1") {
+          const { aggregatePreferenceScore: beforeScore, preferenceShade: beforeShade, orderKey: beforeOrder, ...beforeRest } = beforeCandidate as any;
+          const { aggregatePreferenceScore: afterScore, preferenceShade: afterShade, orderKey: afterOrder, ...afterRest } = afterCandidate as any;
+          assert.equal(beforeScore, 0); assert.equal(beforeShade, "none");
+          assert.equal(afterScore, 3); assert.equal(afterShade, "medium"); assert.notEqual(afterOrder, beforeOrder);
+          assert.deepEqual(afterRest, beforeRest);
+        } else {
+          assert.deepEqual(afterCandidate, beforeCandidate);
+        }
+      }
       const tracker = new ReferencePreferenceRequestTracker(); const applied: number[] = []; const stale = tracker.begin(); const current = tracker.begin(); if (tracker.isCurrent(stale)) applied.push(6); if (tracker.isCurrent(current)) applied.push(3); assert.deepEqual(applied, [3]);
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8"); assert.match(ui, /Reference preference aggregate/); assert.match(ui, /selectedRole !== "admin" && referencePreference/); assert.match(ui, /refreshReferenceAggregate\(selectedReferenceId, activeActor\)/);
-      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, candidate regression, and UI projection passed.");
+      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, authoritative candidate aggregate projection without candidate-set mutation, and UI projection passed.");
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); });
     process.env.DATABASE_URL = guardUrl; assert.equal(await fingerprint(guardUrl), before); assert.equal((await control.query("select 1 from pg_database where datname=$1", [name])).rows.length, 0);
     console.log("Phase 31.6 cleanup evidence: guard database fingerprint unchanged and temporary database removed.");

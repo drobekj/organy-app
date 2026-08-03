@@ -39,6 +39,19 @@ export function getSongLookupScope(rowId: number): string {
   return `song:${rowId}`;
 }
 
+export type OpenSongLookup = { rowId: number; queryText: string };
+
+export function getOpenSongLookupsForContextRefresh(rows: readonly { id: number; songSearch: string; lookupOpen?: boolean }[]): OpenSongLookup[] {
+  return rows.flatMap((row) => row.lookupOpen && row.songSearch.trim() ? [{ rowId: row.id, queryText: row.songSearch }] : []);
+}
+
+export async function refreshOpenSongLookupsOnContextChange(
+  rows: readonly { id: number; songSearch: string; lookupOpen?: boolean }[],
+  refresh: (rowId: number, queryText: string) => Promise<void> | void,
+): Promise<void> {
+  await Promise.all(getOpenSongLookupsForContextRefresh(rows).map(({ rowId, queryText }) => refresh(rowId, queryText)));
+}
+
 export function confirmLanguageDeviationSave(rows: PlanningRow[], serviceLanguage: ServiceLanguage, confirm: (message: string) => boolean): { allowLanguageDeviations: boolean; cancelled: boolean; deviationRows: number[] } {
   const deviationRows = getCatalogLanguageDeviationRowNumbers(rows, serviceLanguage);
   if (deviationRows.length === 0) return { allowLanguageDeviations: false, cancelled: false, deviationRows };

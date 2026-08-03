@@ -104,12 +104,16 @@ async function staticBoundaryCoverage() {
   ]);
   assert.equal((planning.match(/<ServiceContextReferenceAntiphonField/g) ?? []).length, 1, "selector must be rendered exactly once");
   assert.match(planning, /referenceAntiphon \? \{ referenceAntiphon:/);
+  assert.match(planning, /referenceAntiphonId: (?:set|record)\.serviceContext\.referenceAntiphon\?\.id|referenceAntiphonId: referenceAntiphon\?\.id/);
   assert.match(planning, /Legacy synthetic\/demo candidate signal/);
   assert.match(model, /referenceAntiphon\?: ServiceAntiphonReference/);
   assert.match(migration, /reference_antiphon_id/);
   assert.doesNotMatch(migration, /REFERENCES\s+"reference_antiphons"/i, "historical snapshot must not have a foreign key");
   assert.match(schema, /serviceContexts_reference_antiphon|service_contexts_reference_antiphon/);
-  assert.doesNotMatch(candidateFlow, /referenceAntiphon/, "candidate flow was coupled to the new authoritative selection");
+  assert.match(candidateFlow, /referenceAntiphonId\?: string/);
+  assert.match(candidateFlow, /input\.referenceAntiphonId\?\.trim\(\)/);
+  assert.match(candidateFlow, /input\.antiphonKey\?\.trim\(\)/);
+  assert.doesNotMatch(candidateFlow, /\breferenceAntiphon\b/, "candidate flow must accept only the authoritative id, never the Service Context snapshot");
   assert.doesNotMatch(recommendationPanel, /ServiceContextReferenceAntiphonField/, "recommendation panel was coupled to Service Context selection");
 }
 
