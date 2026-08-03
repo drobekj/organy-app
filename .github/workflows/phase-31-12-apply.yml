@@ -22,7 +22,9 @@ jobs:
       - name: Apply Phase 31.12 implementation
         run: |
           set -euo pipefail
-          cat .phase-31-12/part-* | base64 -d | gzip -d > /tmp/phase-31-12.patch
+          cat .phase-31-12/small-* > /tmp/phase-31-12.patch.gz.b64
+          echo "0a408fb3e3af3595adf377ae5c69d736cda0b5e0f2ee526164cb8c12f4dfd1d4  /tmp/phase-31-12.patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/phase-31-12.patch.gz.b64 | gzip -d > /tmp/phase-31-12.patch
           git apply --index /tmp/phase-31-12.patch
           rm -rf .phase-31-12
           rm -f .github/workflows/phase-31-12-apply.yml
