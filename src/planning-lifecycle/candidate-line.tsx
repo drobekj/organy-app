@@ -6,9 +6,17 @@ type CandidateLineProps =
   | { candidate: CandidateQueryResult; variant: "popup"; onSelect: () => void }
   | { candidate: CandidateQueryResult; variant: "selected"; note: string; readOnly?: boolean; onOpenDetail: () => void; onNoteChange?: (note: string) => void };
 
+type CandidateNumberOption = {
+  songId: string;
+  number: string;
+  language?: CandidateQueryResult["language"];
+  repertoire: boolean;
+  primary: boolean;
+};
+
 export type CandidateLineViewModel = {
   candidate: CandidateQueryResult;
-  numberOptions: { songId: string; number: string; repertoire: boolean; primary: boolean }[];
+  numberOptions: CandidateNumberOption[];
   tone: "positive" | "neutral" | "negative";
   backgroundClass: string;
   contentTextClass: string;
@@ -16,14 +24,15 @@ export type CandidateLineViewModel = {
 };
 
 export function getCandidateLineViewModel(candidate: CandidateQueryResult): CandidateLineViewModel {
-  const numberOptions = [
-    { songId: candidate.songId, number: candidate.number, repertoire: candidate.repertoire, primary: true },
-    ...candidate.equivalentNumbers.map((item) => ({ ...item, primary: false })),
+  const numberOptions: CandidateNumberOption[] = [
+    { songId: candidate.songId, number: candidate.number, language: candidate.language, repertoire: candidate.repertoire, primary: true },
+    ...candidate.equivalentNumbers.map((item) => ({ ...item, language: referenceLanguageFromSongId(item.songId), primary: false })),
   ].sort((a, b) => `${a.primary ? 0 : a.repertoire ? 1 : 2}:${a.number}`.localeCompare(`${b.primary ? 0 : b.repertoire ? 1 : 2}:${b.number}`));
   const tone: CandidateLineViewModel["tone"] = candidate.suppressedByMelodyWindow || candidate.antiphonMatch ? "negative" : candidate.seasonMatch ? "positive" : "neutral";
   const backgroundClass = `candidate-tone-${tone} candidate-preference-${candidate.preferenceShade}`;
   const contentTextClass = `candidate-content-text candidate-text-${tone}`;
-  const accessibleMeaning = `${tone === "positive" ? "green positive" : tone === "negative" ? "red negative" : "neutral"} candidate; ${candidate.repertoire ? "in organist repertoire" : "not in organist repertoire"}`;
+  const optionMeaning = numberOptions.map((item) => `${item.primary ? "primary" : "equivalent"} ${item.number}${item.language ? ` ${item.language}` : ""}; ${item.repertoire ? "in organist repertoire" : "not in organist repertoire"}`).join("; ");
+  const accessibleMeaning = `${tone === "positive" ? "green positive" : tone === "negative" ? "red negative" : "neutral"} candidate; ${optionMeaning}`;
   return { candidate, numberOptions, tone, backgroundClass, contentTextClass, accessibleMeaning };
 }
 
@@ -55,5 +64,21 @@ export function CandidateLine(props: CandidateLineProps) {
 }
 
 function CandidateSummary({ viewModel }: { viewModel: CandidateLineViewModel }) {
-  return <span className="candidate-number-options">{viewModel.numberOptions.map((item) => item.primary ? <strong key={item.songId} className="sticky-song-number">{item.number}</strong> : item.repertoire ? <strong key={item.songId}>{item.number}</strong> : <span key={item.songId}>{item.number}</span>)}</span>;
+  return (
+    <span className="candidate-number-options">
+      {viewModel.numberOptions.map((item) => (
+        <span key={item.songId} className={item.primary ? "candidate-number-primary" : "candidate-number-equivalent"}>
+          {!item.primary && <span>equivalent </span>}
+          {item.primary ? <strong className="sticky-song-number">{item.number}</strong> : item.repertoire ? <strong>{item.number}</strong> : <span>{item.number}</span>}
+          <span> · {item.language ? `${item.language} · ` : ""}{item.repertoire ? "in repertoire" : "not in repertoire"}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function referenceLanguageFromSongId(songId: string): CandidateQueryResult["language"] | undefined {
+  if (songId.startsWith("czech:")) return "czech";
+  if (songId.startsWith("polish:")) return "polish";
+  return undefined;
 }
