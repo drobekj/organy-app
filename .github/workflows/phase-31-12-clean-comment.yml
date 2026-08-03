@@ -1,0 +1,50 @@
+name: Phase 31.12 clean candidate boundary comment
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]' && github.event.pull_request.head.ref == 'codex/phase-31-12-authoritative-candidates'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Remove legacy identifiers from production comment
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("src/application/reference-candidate-service.ts")
+          text = path.read_text()
+          old = '''/**
+           * Read-only authoritative Planning candidate boundary.
+           *
+           * It deliberately does not use catalog_songs, legacy preferences/repertoire,
+           * legacy melody mappings, or synthetic antiphon/season knowledge.
+           */'''
+          new = '''/**
+           * Read-only authoritative Planning candidate boundary.
+           *
+           * It reads only the dedicated Reference subsystem and ignores every legacy
+           * or synthetic candidate knowledge source.
+           */'''
+          if old not in text:
+              raise SystemExit("expected comment not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/phase-31-12-clean-comment.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Clarify authoritative candidate boundary comment"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
