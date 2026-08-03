@@ -3,6 +3,7 @@ import { readdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { Pool } from "pg";
 import { POST, useInteractionPoolForAcceptance } from "../app/api/interaction/route";
+import { POST as planningLifecyclePOST } from "../app/api/planning-lifecycle/route";
 import type { CandidateQueryInput, CandidateQueryResult } from "../src/application/interaction-contracts";
 import {
   createDatabaseSql,
@@ -16,6 +17,7 @@ import {
 } from "./engineering-e1-core";
 
 const PASS_LINE = "Phase 31.12 authoritative Planning candidates: PASS";
+const ACTOR = { userId: "demo-admin-user", role: "admin" } as const;
 
 function runNpm(name: string, databaseUrl: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -31,6 +33,15 @@ async function invoke(action: string, input: unknown) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ action, input }),
+  }));
+  return { status: response.status, body: await response.json() as any };
+}
+
+async function invokePlanning(action: string, input: unknown) {
+  const response = await planningLifecyclePOST(new Request("http://localhost/api/planning-lifecycle", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action, input, actor: ACTOR }),
   }));
   return { status: response.status, body: await response.json() as any };
 }
@@ -121,6 +132,29 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   assert.equal(highlighted[0].songId, "czech:1");
   assert.equal(highlighted[0].antiphonMatch, true);
   assert.equal(highlighted[0].signal, "antiphon");
+
+  assert.equal(Number((await pool.query("select count(*)::int n from catalog_songs where song_id=\'czech:1\'")).rows[0].n), 0, "focused Reference song unexpectedly existed in the legacy catalog");
+  const savedReferenceCandidate = await invokePlanning("saveWorkingSet", {
+    serviceContext: {
+      serviceDate: "2026-08-09",
+      serviceTime: "13:12",
+      language: "czech",
+      priest: { id: "demo-priest", displayName: "Demo Priest" },
+      organist: { id: "demo-organist", displayName: "Demo Organist" },
+      antiphonKey: "legacy-test",
+    },
+    set: {
+      status: "working",
+      language: "czech",
+      rows: [{ song: { songId: highlighted[0].songId, language: highlighted[0].language, number: highlighted[0].number, title: highlighted[0].title } }],
+    },
+  });
+  assert.equal(savedReferenceCandidate.status, 200);
+  assert.equal(savedReferenceCandidate.body.success, true, JSON.stringify(savedReferenceCandidate.body));
+  assert.deepEqual(savedReferenceCandidate.body.value.rows[0].song, { songId: "czech:1", language: "czech", number: "1", title: "Phase 31.12 Authoritative Candidate" });
+  const loadedReferenceCandidate = await invokePlanning("loadPlanningSet", { setId: String(savedReferenceCandidate.body.value.id) });
+  assert.equal(loadedReferenceCandidate.body.success, true);
+  assert.deepEqual(loadedReferenceCandidate.body.value.rows[0].song, savedReferenceCandidate.body.value.rows[0].song, "Reference song snapshot did not persist through Working save/reload");
 
   const legacyOnly = await query(baseQuery({ antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent", queryText: "1" }));
   assert.equal(legacyOnly[0].signal, "none");

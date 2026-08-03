@@ -156,6 +156,13 @@ async function staticBoundaryCoverage() {
   assert.match(flow, /referenceAntiphonId/);
   assert.match(schema, /referenceAntiphonRecommendations/);
   assert.doesNotMatch(migrationJournal, /phase_31_12/);
+  const [lifecycleRoute, lifecycleService] = await Promise.all([
+    readFile("app/api/planning-lifecycle/route.ts", "utf8"),
+    readFile("src/application/planning-lifecycle/service.ts", "utf8"),
+  ]);
+  assert.match(lifecycleRoute, /referenceSongs: new PostgresReferenceCatalogProvider\(pool\)/);
+  assert.match(lifecycleService, /const referenceSong = await this\.referenceSongs\?\.getById\(row\.song\.songId\)/);
+  assert.match(lifecycleService, /number: referenceSong\.displayNumber, title: referenceSong\.title/);
 }
 
 async function main() {
