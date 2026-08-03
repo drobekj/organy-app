@@ -70,16 +70,4 @@ if old not in text:
     raise SystemExit("strict route assertion marker not found")
 verify.write_text(text.replace(old, old + '\n    { ...baseQuery(), serviceDate: "2026-02-31" },', 1))
 
-Path(".github/workflows/phase-31-12-review-fixes.yml").unlink(missing_ok=True)
-
-ci = Path(".github/workflows/ci.yml")
-text = ci.read_text()
-text = text.replace("\npermissions:\n  contents: write\n", "\n", 1)
-start_marker = "      # BEGIN TEMP PHASE 31.12 REVIEW FIX\n"
-end_marker = "      # END TEMP PHASE 31.12 REVIEW FIX\n"
-start = text.find(start_marker)
-end = text.find(end_marker)
-if start < 0 or end < 0:
-    raise SystemExit("temporary CI block markers not found")
-end += len(end_marker)
-ci.write_text(text[:start] + text[end:])
+Path(__file__).unlink()
