@@ -90,6 +90,7 @@ function staleLookupCoverage() {
 }
 
 async function contextRefreshCoverage() {
+  // HUMAN regression: removing the authoritative antiphon must re-run the unchanged lookup text.
   const calls: Array<{ rowId: number; queryText: string }> = [];
   await refreshOpenSongLookupsOnContextChange([
     { id: 1, songSearch: "1", lookupOpen: true },
