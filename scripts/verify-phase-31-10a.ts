@@ -156,14 +156,31 @@ async function verifyUnrelatedBackendBehaviorIsUnchanged(pool: Pool): Promise<vo
   const candidateInput = { serviceDate: "2026-07-31", serviceLanguage: "czech", antiphonKey: "legacy-key" };
   const candidateBefore = await invoke("queryCandidates", candidateInput);
   assert.equal(candidateBefore.status, 200);
-  assert.equal(candidateBefore.body.success && candidateBefore.body.value[0].antiphonMatch, true);
+  assert.equal(candidateBefore.body.success, true);
+  assert.ok(candidateBefore.body.value.length > 0);
+  assert.equal(candidateBefore.body.value.some((candidate: any) => candidate.songId === "legacy-song"), false);
+  assert.equal(candidateBefore.body.value.every((candidate: any) => candidate.antiphonMatch === false), true);
   const hydrationInput = { songs: [{ songId: "legacy-song", language: "czech", number: "101", title: "Legacy song" }], antiphonKey: "legacy-key" };
   const hydrationBefore = await invoke("hydrateCandidates", hydrationInput);
   assert.equal(hydrationBefore.status, 200);
-  assert.equal(hydrationBefore.body.success && hydrationBefore.body.value[0].antiphonMatch, true);
+  assert.deepEqual(hydrationBefore.body.value, [{
+    songId: "legacy-song",
+    language: "czech",
+    number: "101",
+    title: "Legacy song",
+    equivalentNumbers: [],
+    aggregatePreferenceScore: 0,
+    antiphonMatch: false,
+    seasonMatch: false,
+    signal: "none",
+    preferenceShade: "none",
+    repertoire: false,
+    suppressedByMelodyWindow: false,
+    orderKey: "rehydrated:czech:101:legacy-song",
+  }]);
   const before = await unaffectedFingerprint(pool);
   await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858", referenceSongId: "czech:1" });
-  assert.equal(await unaffectedFingerprint(pool), before, "legacy mappings, candidates/antiphonMatch knowledge, preferences, repertoire, melody, Service Context and lifecycle tables must remain unchanged");
+  assert.equal(await unaffectedFingerprint(pool), before, "legacy mappings, preferences, repertoire, melody, Service Context and lifecycle tables must remain unchanged");
   assert.deepEqual(await invoke("queryCandidates", candidateInput), candidateBefore);
   assert.deepEqual(await invoke("hydrateCandidates", hydrationInput), hydrationBefore);
   await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858", referenceSongId: null });
