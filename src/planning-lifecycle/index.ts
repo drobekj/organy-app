@@ -3,6 +3,7 @@ export type {
   PlanningRole,
   PlanningRow,
   PlanningSet,
+  ServiceAntiphonReference,
   ServiceContext,
   ServiceLanguage,
   ServicePersonReference,

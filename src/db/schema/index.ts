@@ -86,6 +86,10 @@ export const serviceContexts = pgTable(
     organistId: text("organist_id"),
     organistDisplayName: text("organist_display_name").notNull().default(""),
     note: text("note"),
+    referenceAntiphonId: text("reference_antiphon_id"),
+    referenceAntiphonDisplayNumber: text("reference_antiphon_display_number"),
+    referenceAntiphonTitle: text("reference_antiphon_title"),
+    referenceAntiphonSourceUrl: text("reference_antiphon_source_url"),
     antiphonKey: text("antiphon_key"),
     liturgicalSeasonKey: text("liturgical_season_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,6 +97,36 @@ export const serviceContexts = pgTable(
   },
   (table) => ({
     serviceDateTime: uniqueIndex("service_contexts_service_date_time_idx").on(table.serviceDate, table.serviceTime),
+    referenceAntiphonSnapshotComplete: check(
+      "service_contexts_reference_antiphon_snapshot_complete",
+      sql`(
+        ${table.referenceAntiphonId} is null and
+        ${table.referenceAntiphonDisplayNumber} is null and
+        ${table.referenceAntiphonTitle} is null and
+        ${table.referenceAntiphonSourceUrl} is null
+      ) or (
+        ${table.referenceAntiphonId} is not null and
+        ${table.referenceAntiphonDisplayNumber} is not null and
+        ${table.referenceAntiphonTitle} is not null and
+        ${table.referenceAntiphonSourceUrl} is not null
+      )`,
+    ),
+    referenceAntiphonIdentity: check(
+      "service_contexts_reference_antiphon_identity",
+      sql`${table.referenceAntiphonId} is null or ${table.referenceAntiphonId} ~ '^czech:(8[0-9]{2}|90[0-9]|91[0-5])$'`,
+    ),
+    referenceAntiphonSnapshotNonEmpty: check(
+      "service_contexts_reference_antiphon_snapshot_non_empty",
+      sql`${table.referenceAntiphonId} is null or (
+        btrim(${table.referenceAntiphonDisplayNumber}) <> '' and
+        btrim(${table.referenceAntiphonTitle}) <> '' and
+        btrim(${table.referenceAntiphonSourceUrl}) <> ''
+      )`,
+    ),
+    referenceAntiphonSourceUrlValid: check(
+      "service_contexts_reference_antiphon_source_url_valid",
+      sql`${table.referenceAntiphonSourceUrl} is null or ${table.referenceAntiphonSourceUrl} ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'`,
+    ),
   }),
 );
 

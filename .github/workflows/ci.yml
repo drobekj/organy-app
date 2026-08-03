@@ -159,6 +159,17 @@ jobs:
           name: phase-31-10b-log
           path: phase-31-10b.log
           if-no-files-found: ignore
+      - name: Phase 31.11 authoritative Service Context antiphon acceptance
+        run: |
+          set -o pipefail
+          npm run verify:phase-31-11 2>&1 | tee phase-31-11.log
+      - name: Upload Phase 31.11 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-11-log
+          path: phase-31-11.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail

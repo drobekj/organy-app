@@ -54,6 +54,10 @@ type ServiceContextRecord = {
   organistId: string | null;
   organistDisplayName: string;
   note: string | null;
+  referenceAntiphonId: string | null;
+  referenceAntiphonDisplayNumber: string | null;
+  referenceAntiphonTitle: string | null;
+  referenceAntiphonSourceUrl: string | null;
   antiphonKey: string | null;
   liturgicalSeasonKey: string | null;
 };
@@ -367,12 +371,13 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
 }
 
 export function createDbBackedPlanningLifecycleService(
-  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now">>,
+  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now" | "referenceAntiphons">>,
 ): PlanningLifecycleService {
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
     catalog: new DrizzleCatalogRepository(dependencies.db),
+    referenceAntiphons: dependencies.referenceAntiphons,
     now: dependencies.now,
   });
 }
@@ -462,6 +467,14 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
     priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
     organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
     ...(context.note ? { note: context.note } : {}),
+    ...(context.referenceAntiphonId && context.referenceAntiphonDisplayNumber && context.referenceAntiphonTitle && context.referenceAntiphonSourceUrl
+      ? { referenceAntiphon: {
+          id: context.referenceAntiphonId,
+          displayNumber: context.referenceAntiphonDisplayNumber,
+          title: context.referenceAntiphonTitle,
+          sourceUrl: context.referenceAntiphonSourceUrl,
+        } }
+      : {}),
     ...(context.antiphonKey ? { antiphonKey: context.antiphonKey } : {}),
     ...(context.liturgicalSeasonKey ? { liturgicalSeasonKey: context.liturgicalSeasonKey } : {}),
   };
@@ -476,6 +489,10 @@ function mapServiceContextToContextValues(context: ServiceContext) {
     organistId: context.organist.id,
     organistDisplayName: context.organist.displayName,
     note: context.note?.trim() || null,
+    referenceAntiphonId: context.referenceAntiphon?.id ?? null,
+    referenceAntiphonDisplayNumber: context.referenceAntiphon?.displayNumber ?? null,
+    referenceAntiphonTitle: context.referenceAntiphon?.title ?? null,
+    referenceAntiphonSourceUrl: context.referenceAntiphon?.sourceUrl ?? null,
     antiphonKey: context.antiphonKey?.trim() || null,
     liturgicalSeasonKey: context.liturgicalSeasonKey?.trim() || null,
   };
