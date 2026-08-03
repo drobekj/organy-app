@@ -59,6 +59,15 @@ async function focusedSnapshot(pool: Pool): Promise<string> {
   return JSON.stringify(await Promise.all(queries.map(async (sql) => (await pool.query(sql)).rows)));
 }
 
+async function waitForDatabaseConnectionsToClose(control: Pool, databaseName: string): Promise<void> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const result = await control.query("select count(*)::int count from pg_stat_activity where datname=$1 and pid <> pg_backend_pid()", [databaseName]);
+    if (Number(result.rows[0].count) === 0) return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  throw new Error(`Acceptance pool connections to ${databaseName} did not close within 2 seconds.`);
+}
+
 async function seedFocusedAuthority(pool: Pool) {
   await pool.query("update reference_catalog_songs set title='Phase 31.12 Authoritative Candidate' where id='czech:1'");
   const profiles = (await pool.query("select id,category from preference_profiles order by category,id")).rows;
@@ -209,7 +218,11 @@ async function main() {
         await verifyAuthoritativeCandidates(pool);
         await verifyStrictRoute();
         assert.equal(await focusedSnapshot(pool), beforeReads, "read-only candidate operations mutated authoritative or legacy state");
-      } finally { restore(); await pool.end(); }
+      } finally {
+        restore();
+        await pool.end();
+        await waitForDatabaseConnectionsToClose(control, name);
+      }
     }, async () => {
       const [terminate, drop] = dropDatabaseSql(name);
       await control.query(terminate, [name]);
