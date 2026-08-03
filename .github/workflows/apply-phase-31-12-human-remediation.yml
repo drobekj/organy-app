@@ -1,0 +1,45 @@
+name: Apply Phase 31.12 HUMAN remediation
+
+on:
+  push:
+    branches:
+      - codex/phase-31-12-authoritative-candidates
+    paths:
+      - .github/workflows/apply-phase-31-12-human-remediation.yml
+      - scripts/phase-31-12-human-remediation.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply-remediation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify pre-remediation blobs
+        shell: bash
+        run: |
+          test "$(git hash-object app/planning-lifecycle-client.tsx)" = "bacd466ad6fd9c7aa6058ec5368a819d8bee1bf2"
+          test "$(git hash-object src/planning-lifecycle/catalog-ui.ts)" = "37dc6dc627840b606737c208fb8e54968059d3d8"
+          test "$(git hash-object scripts/phase-31-12-tests.tsx)" = "b5c9deab2d6bc7cc5ae5c9c267f517cbe7e88ab6"
+
+      - name: Apply reviewed remediation
+        shell: bash
+        run: |
+          git apply --check scripts/phase-31-12-human-remediation.patch
+          git apply scripts/phase-31-12-human-remediation.patch
+          rm scripts/phase-31-12-human-remediation.patch
+          rm .github/workflows/apply-phase-31-12-human-remediation.yml
+
+      - name: Commit remediation and remove temporary transport
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix candidate refresh after context changes"
+          git push origin HEAD:codex/phase-31-12-authoritative-candidates
