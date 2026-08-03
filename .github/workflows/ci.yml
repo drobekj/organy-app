@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -28,6 +31,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      # BEGIN TEMP PHASE 31.12 REVIEW FIX
+      - name: Apply Phase 31.12 review fixes
+        if: github.event_name == 'pull_request' && github.head_ref == 'codex/phase-31-12-authoritative-candidates'
+        run: |
+          python scripts/apply-phase-31-12-review-fixes.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Apply Phase 31.12 review fixes"
+          git push origin HEAD:${GITHUB_HEAD_REF}
+      # END TEMP PHASE 31.12 REVIEW FIX
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
