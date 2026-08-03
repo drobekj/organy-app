@@ -9,7 +9,7 @@ import {
   type ReferenceCandidateData,
   type ReferenceCandidateSong,
 } from "../src/application/reference-candidate-service";
-import { CatalogLookupRequestTracker, getSongLookupScope } from "../src/planning-lifecycle/catalog-ui";
+import { CatalogLookupRequestTracker, getSongLookupScope, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { buildCandidateQueryInput } from "../src/planning-lifecycle/candidate-flow";
 
@@ -89,6 +89,16 @@ function staleLookupCoverage() {
   assert.equal(tracker.isCurrent(newer, newer.query), true);
 }
 
+async function contextRefreshCoverage() {
+  const calls: Array<{ rowId: number; queryText: string }> = [];
+  await refreshOpenSongLookupsOnContextChange([
+    { id: 1, songSearch: "1", lookupOpen: true },
+    { id: 2, songSearch: "   ", lookupOpen: true },
+    { id: 3, songSearch: "2", lookupOpen: false },
+  ], async (rowId, queryText) => { calls.push({ rowId, queryText }); });
+  assert.deepEqual(calls, [{ rowId: 1, queryText: "1" }], "context change did not automatically refresh the active non-empty candidate lookup");
+}
+
 async function clientCoverage() {
   const calls: Array<{ action: string; input: unknown }> = [];
   const client = new DbInteractionClient(async (action, input) => {
@@ -139,6 +149,7 @@ async function staticBoundaryCoverage() {
   assert.doesNotMatch(service, /\borganist_repertoire\b/);
   assert.doesNotMatch(service, /antiphon_mappings|liturgical_season_mappings/);
   assert.match(client, /referenceAntiphonId: referenceAntiphon\?\.id/);
+  assert.match(client, /refreshOpenSongLookupsOnContextChange\(rows, queryCandidateResults\)/);
   assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length > 0, true);
   assert.match(contracts, /referenceAntiphonId\?: string/);
   assert.match(flow, /referenceAntiphonId/);
@@ -149,6 +160,7 @@ async function staticBoundaryCoverage() {
 async function main() {
   pureCandidateCoverage();
   staleLookupCoverage();
+  await contextRefreshCoverage();
   await clientCoverage();
   renderCoverage();
   await staticBoundaryCoverage();

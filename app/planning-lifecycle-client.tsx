@@ -19,7 +19,7 @@ import {
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
-import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
+import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
@@ -416,7 +416,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
   const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
-  useEffect(() => { lookupTracker.invalidatePrefix("song:"); setCandidateResults({}); }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker]);
+  useEffect(() => {
+    lookupTracker.invalidatePrefix("song:");
+    setCandidateResults({});
+    void refreshOpenSongLookupsOnContextChange(rows, queryCandidateResults);
+  }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker]);
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
@@ -793,12 +797,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     });
   }
 
-  async function updateSongSearch(rowId: number, value: string) {
+  async function queryCandidateResults(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
     const languageAtRequest = serviceLanguage;
     const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
     try {
       const candidates = await interactionClient.queryCandidates({ serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, referenceAntiphonId: referenceAntiphon?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
@@ -810,6 +813,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       setCandidateResults((current) => ({ ...current, [rowId]: [] }));
       setServiceError({ code: candidateError.code ?? "invalidInput", message: candidateError.message || "Candidate lookup failed." });
     }
+  }
+
+  async function updateSongSearch(rowId: number, value: string) {
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
+    await queryCandidateResults(rowId, value);
   }
 
   function selectCandidate(rowId: number, candidate: CandidateQueryResult) {
