@@ -22,6 +22,7 @@ jobs:
       - name: Apply verifier alignment
         run: |
           set -euo pipefail
+          # The patch narrows an obsolete Phase 31.8 isolation assertion to the activated Phase 31.12 boundary.
           git apply --index .phase-31-12-fix.patch
           rm -f .phase-31-12-fix.patch .github/workflows/phase-31-12-fix.yml
           git config user.name github-actions[bot]
