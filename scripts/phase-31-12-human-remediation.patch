@@ -1,0 +1,116 @@
+--- a/app/planning-lifecycle-client.tsx
++++ b/app/planning-lifecycle-client.tsx
+@@ -19,7 +19,7 @@
+ } from "../src/application/planning-lifecycle";
+ import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
+ import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
+-import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
++import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
+ import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
+ import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+ import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
+@@ -416,7 +416,11 @@
+   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
+   const isEditorLocked = !canMutateEditor;
+   const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
+-  useEffect(() => { lookupTracker.invalidatePrefix("song:"); setCandidateResults({}); }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker]);
++  useEffect(() => {
++    lookupTracker.invalidatePrefix("song:");
++    setCandidateResults({});
++    void refreshOpenSongLookupsOnContextChange(rows, queryCandidateResults);
++  }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker]);
+   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
+     selectedRole,
+     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
+@@ -793,12 +797,11 @@
+     });
+   }
+ 
+-  async function updateSongSearch(rowId: number, value: string) {
++  async function queryCandidateResults(rowId: number, value: string) {
+     const scope = getSongLookupScope(rowId);
+     const languageAtRequest = serviceLanguage;
+     const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", value].join("|");
+     const token = lookupTracker.begin(scope, requestIdentity);
+-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
+     try {
+       const candidates = await interactionClient.queryCandidates({ serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, referenceAntiphonId: referenceAntiphon?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
+       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
+@@ -812,6 +815,11 @@
+     }
+   }
+ 
++  async function updateSongSearch(rowId: number, value: string) {
++    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
++    await queryCandidateResults(rowId, value);
++  }
++
+   function selectCandidate(rowId: number, candidate: CandidateQueryResult) {
+     lookupTracker.invalidate(getSongLookupScope(rowId));
+     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
+--- a/src/planning-lifecycle/catalog-ui.ts
++++ b/src/planning-lifecycle/catalog-ui.ts
+@@ -39,6 +39,19 @@
+   return `song:${rowId}`;
+ }
+ 
++export type OpenSongLookup = { rowId: number; queryText: string };
++
++export function getOpenSongLookupsForContextRefresh(rows: readonly { id: number; songSearch: string; lookupOpen?: boolean }[]): OpenSongLookup[] {
++  return rows.flatMap((row) => row.lookupOpen && row.songSearch.trim() ? [{ rowId: row.id, queryText: row.songSearch }] : []);
++}
++
++export async function refreshOpenSongLookupsOnContextChange(
++  rows: readonly { id: number; songSearch: string; lookupOpen?: boolean }[],
++  refresh: (rowId: number, queryText: string) => Promise<void> | void,
++): Promise<void> {
++  await Promise.all(getOpenSongLookupsForContextRefresh(rows).map(({ rowId, queryText }) => refresh(rowId, queryText)));
++}
++
+ export function confirmLanguageDeviationSave(rows: PlanningRow[], serviceLanguage: ServiceLanguage, confirm: (message: string) => boolean): { allowLanguageDeviations: boolean; cancelled: boolean; deviationRows: number[] } {
+   const deviationRows = getCatalogLanguageDeviationRowNumbers(rows, serviceLanguage);
+   if (deviationRows.length === 0) return { allowLanguageDeviations: false, cancelled: false, deviationRows };
+--- a/scripts/phase-31-12-tests.tsx
++++ b/scripts/phase-31-12-tests.tsx
+@@ -9,7 +9,7 @@
+   type ReferenceCandidateData,
+   type ReferenceCandidateSong,
+ } from "../src/application/reference-candidate-service";
+-import { CatalogLookupRequestTracker, getSongLookupScope } from "../src/planning-lifecycle/catalog-ui";
++import { CatalogLookupRequestTracker, getSongLookupScope, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
+ import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
+ import { buildCandidateQueryInput } from "../src/planning-lifecycle/candidate-flow";
+ 
+@@ -89,6 +89,16 @@
+   assert.equal(tracker.isCurrent(newer, newer.query), true);
+ }
+ 
++async function contextRefreshCoverage() {
++  const calls: Array<{ rowId: number; queryText: string }> = [];
++  await refreshOpenSongLookupsOnContextChange([
++    { id: 1, songSearch: "1", lookupOpen: true },
++    { id: 2, songSearch: "   ", lookupOpen: true },
++    { id: 3, songSearch: "2", lookupOpen: false },
++  ], async (rowId, queryText) => { calls.push({ rowId, queryText }); });
++  assert.deepEqual(calls, [{ rowId: 1, queryText: "1" }], "context change did not automatically refresh the active non-empty candidate lookup");
++}
++
+ async function clientCoverage() {
+   const calls: Array<{ action: string; input: unknown }> = [];
+   const client = new DbInteractionClient(async (action, input) => {
+@@ -139,6 +149,7 @@
+   assert.doesNotMatch(service, /\borganist_repertoire\b/);
+   assert.doesNotMatch(service, /antiphon_mappings|liturgical_season_mappings/);
+   assert.match(client, /referenceAntiphonId: referenceAntiphon\?\.id/);
++  assert.match(client, /refreshOpenSongLookupsOnContextChange\(rows, queryCandidateResults\)/);
+   assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length > 0, true);
+   assert.match(contracts, /referenceAntiphonId\?: string/);
+   assert.match(flow, /referenceAntiphonId/);
+@@ -149,6 +160,7 @@
+ async function main() {
+   pureCandidateCoverage();
+   staleLookupCoverage();
++  await contextRefreshCoverage();
+   await clientCoverage();
+   renderCoverage();
+   await staticBoundaryCoverage();
