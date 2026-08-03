@@ -416,7 +416,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
   const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
-  useEffect(() => { lookupTracker.invalidatePrefix("song:"); setCandidateResults({}); }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, lookupTracker]);
+  useEffect(() => { lookupTracker.invalidatePrefix("song:"); setCandidateResults({}); }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker]);
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
@@ -796,7 +796,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function updateSongSearch(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
     const languageAtRequest = serviceLanguage;
-    const requestIdentity = [runtimeMode, serviceContextRecordKey, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", value].join("|");
+    const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
     try {

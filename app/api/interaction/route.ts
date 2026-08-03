@@ -115,7 +115,7 @@ export function referenceCandidateQueryInput(value: unknown): CandidateQueryInpu
   const input = value as Record<string, unknown>;
   const allowed = new Set(["serviceDate", "serviceLanguage", "organistPersonId", "referenceAntiphonId", "antiphonKey", "liturgicalSeasonKey", "queryText", "preferenceThreshold", "currentPlanId", "candidateUsages"]);
   if (Object.keys(input).some((key) => !allowed.has(key))) throw new LocalActorError("invalidInput", "Candidate query input contains unsupported fields.");
-  if (typeof input.serviceDate !== "string" || !ISO_DATE.test(input.serviceDate) || !Number.isFinite(Date.parse(`${input.serviceDate}T00:00:00Z`))) throw new LocalActorError("invalidInput", "A valid serviceDate is required.");
+  if (typeof input.serviceDate !== "string" || !isValidIsoDate(input.serviceDate)) throw new LocalActorError("invalidInput", "A valid serviceDate is required.");
   if (input.serviceLanguage !== "czech" && input.serviceLanguage !== "polish" && input.serviceLanguage !== "mixed") throw new LocalActorError("invalidInput", "A valid serviceLanguage is required.");
   validateOptionalNonEmptyString(input, "organistPersonId");
   validateOptionalString(input, "antiphonKey");
@@ -171,11 +171,18 @@ function parseCandidateUsages(value: unknown): CandidateUsage[] {
   return value.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) throw new LocalActorError("invalidInput", `candidateUsages[${index}] is malformed.`);
     const usage = item as Record<string, unknown>; const allowed = new Set(["songId", "serviceDate", "source", "planId", "rowId"]);
-    if (Object.keys(usage).some((key) => !allowed.has(key)) || typeof usage.songId !== "string" || !usage.songId.trim() || typeof usage.serviceDate !== "string" || !ISO_DATE.test(usage.serviceDate) || !["completed", "working", "final", "current"].includes(String(usage.source))) throw new LocalActorError("invalidInput", `candidateUsages[${index}] is malformed.`);
+    if (Object.keys(usage).some((key) => !allowed.has(key)) || typeof usage.songId !== "string" || !usage.songId.trim() || typeof usage.serviceDate !== "string" || !isValidIsoDate(usage.serviceDate) || !["completed", "working", "final", "current"].includes(String(usage.source))) throw new LocalActorError("invalidInput", `candidateUsages[${index}] is malformed.`);
     if (usage.planId !== undefined && (typeof usage.planId !== "string" || !usage.planId.trim())) throw new LocalActorError("invalidInput", `candidateUsages[${index}].planId is invalid.`);
     if (usage.rowId !== undefined && (typeof usage.rowId !== "number" || !Number.isInteger(usage.rowId) || usage.rowId <= 0)) throw new LocalActorError("invalidInput", `candidateUsages[${index}].rowId is invalid.`);
     return { songId: usage.songId, serviceDate: usage.serviceDate, source: usage.source as CandidateUsage["source"], ...(usage.planId !== undefined ? { planId: usage.planId as string } : {}), ...(usage.rowId !== undefined ? { rowId: usage.rowId as number } : {}) };
   });
+}
+
+function isValidIsoDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 function validateOptionalString(input: Record<string, unknown>, key: string): void {

@@ -194,6 +194,8 @@ export function hydrateReferenceCandidatesFromData(
       .map((song) => ({ songId: song.id, number: song.displayNumber, repertoire: song.repertoire }));
     return {
       ...toCandidate(stored, equivalents, antiphonMatch, false),
+      number: reference.number,
+      title: reference.title ?? stored.title,
       orderKey: `hydrated:${stored.language}:${String(stored.canonicalNumber).padStart(8, "0")}:${stored.id}`,
     };
   });

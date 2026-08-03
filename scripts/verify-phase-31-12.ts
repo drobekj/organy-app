@@ -146,7 +146,9 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
 
   const hydrated = await invoke("hydrateCandidates", { songs: [{ songId: "czech:1", language: "czech", number: "OLD", title: "Historical" }], organistPersonId: "demo-organist", referenceAntiphonId: "czech:800" });
   assert.equal(hydrated.status, 200);
-  assert.equal(hydrated.body.value[0].title, "Phase 31.12 Authoritative Candidate");
+  assert.equal(hydrated.body.value[0].title, "Historical");
+  assert.equal(hydrated.body.value[0].number, "OLD");
+  assert.equal(hydrated.body.value[0].aggregatePreferenceScore, 3);
   assert.equal(hydrated.body.value[0].signal, "antiphon");
   const historical = await invoke("hydrateCandidates", { songs: [{ songId: "historical:czech:999", language: "czech", number: "999", title: "Historical only" }] });
   assert.equal(historical.body.value[0].title, "Historical only");
@@ -161,6 +163,7 @@ async function verifyStrictRoute() {
     { ...baseQuery(), referenceAntiphonId: "polish:800" },
     { ...baseQuery(), extra: true },
     { ...baseQuery(), serviceLanguage: "english" },
+    { ...baseQuery(), serviceDate: "2026-02-31" },
     { ...baseQuery(), candidateUsages: "bad" },
   ];
   for (const input of invalidValues) {

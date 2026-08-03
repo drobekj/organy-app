@@ -69,8 +69,8 @@ function pureCandidateCoverage() {
   assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ queryText: "Slash" })).map((candidate) => candidate.songId), ["czech:5210"]);
 
   const hydrated = hydrateReferenceCandidatesFromData(data("czech:1"), { songs: [{ songId: "czech:1", language: "czech", number: "OLD", title: "Historical title" }], organistPersonId: "demo-organist", referenceAntiphonId: "czech:800" });
-  assert.equal(hydrated[0].title, "Authoritative Alpha");
-  assert.equal(hydrated[0].number, "1");
+  assert.equal(hydrated[0].title, "Historical title");
+  assert.equal(hydrated[0].number, "OLD");
   assert.equal(hydrated[0].signal, "antiphon");
   const missing = hydrateReferenceCandidatesFromData(data(), { songs: [{ songId: "historical:czech:999", language: "czech", number: "999", title: "Historical only" }] });
   assert.equal(missing[0].title, "Historical only");
