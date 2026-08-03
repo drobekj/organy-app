@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 
+// DB candidate calls use the injected transport so structured failures remain observable to the Planning client.
 for (const required of [
   "role=\"listbox\"",
   "Cancel lookup",
