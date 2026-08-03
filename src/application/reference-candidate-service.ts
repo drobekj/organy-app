@@ -49,8 +49,8 @@ type CandidateRow = {
 /**
  * Read-only authoritative Planning candidate boundary.
  *
- * It deliberately does not use catalog_songs, legacy preferences/repertoire,
- * legacy melody mappings, or synthetic antiphon/season knowledge.
+ * It reads only the dedicated Reference subsystem and ignores every legacy
+ * or synthetic candidate knowledge source.
  */
 export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
