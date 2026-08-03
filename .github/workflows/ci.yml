@@ -35,6 +35,8 @@ jobs:
       - name: Apply Phase 31.12 review fixes
         if: github.event_name == 'pull_request' && github.head_ref == 'codex/phase-31-12-authoritative-candidates'
         run: |
+          git fetch origin "${GITHUB_HEAD_REF}"
+          git checkout -B "${GITHUB_HEAD_REF}" "origin/${GITHUB_HEAD_REF}"
           python scripts/apply-phase-31-12-review-fixes.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
