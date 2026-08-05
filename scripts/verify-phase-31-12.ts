@@ -19,6 +19,19 @@ import {
 const PASS_LINE = "Phase 31.12 authoritative Planning candidates: PASS";
 const ACTOR = { userId: "demo-admin-user", role: "admin" } as const;
 
+type ExtendedCandidate = CandidateQueryResult & {
+  melodyClassId: string;
+  melodyMembers: Array<{
+    songId: string;
+    language: "czech" | "polish";
+    number: string;
+    title: string;
+    repertoire: boolean;
+    aggregatePreferenceScore: number;
+    sheetMusicUrl?: string;
+  }>;
+};
+
 function runNpm(name: string, databaseUrl: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const invocation = createNpmInvocation(process.execPath, process.env.npm_execpath, ["run", name]);
@@ -108,11 +121,11 @@ function baseQuery(changes: Partial<CandidateQueryInput> = {}): CandidateQueryIn
   };
 }
 
-async function query(input: CandidateQueryInput): Promise<CandidateQueryResult[]> {
+async function query(input: CandidateQueryInput): Promise<ExtendedCandidate[]> {
   const result = await invoke("queryCandidates", input);
   assert.equal(result.status, 200, JSON.stringify(result.body));
   assert.equal(result.body.success, true);
-  return result.body.value as CandidateQueryResult[];
+  return result.body.value as ExtendedCandidate[];
 }
 
 async function verifyAuthoritativeCandidates(pool: Pool) {
@@ -126,7 +139,10 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   assert.equal(noSignal[0].signal, "none");
   assert.equal(noSignal[0].seasonMatch, false);
   assert.deepEqual(noSignal[0].equivalentNumbers, [{ songId: "polish:1", number: "1", repertoire: false }]);
-  assert.equal(noSignal[0].sheetMusicUrl, undefined, "Reference provenance was exposed as sheet music");
+  const sourceUrl = (await pool.query("select source_url from reference_catalog_songs where id='czech:1'")).rows[0].source_url as string | null;
+  assert.equal(noSignal[0].sheetMusicUrl, sourceUrl ?? undefined);
+  assert.equal(noSignal[0].melodyMembers[0].sheetMusicUrl, sourceUrl ?? undefined);
+  assert.deepEqual(noSignal[0].melodyMembers.map((member) => member.songId), ["czech:1", "polish:1"]);
 
   const highlighted = await query(baseQuery({ referenceAntiphonId: "czech:800", queryText: "1" }));
   assert.equal(highlighted[0].songId, "czech:1");
@@ -143,11 +159,14 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   assert.equal(unknownAntiphon[0].signal, "none");
 
   const polish = await query(baseQuery({ serviceLanguage: "polish", queryText: "1" }));
-  assert.equal(polish[0].songId, "polish:1");
+  assert.deepEqual(polish.map((candidate) => candidate.songId), ["polish:1"]);
   assert.equal(polish[0].repertoire, false);
   const mixed = await query(baseQuery({ serviceLanguage: "mixed", referenceAntiphonId: "czech:800", queryText: "1" }));
-  assert.equal(mixed[0].songId, "czech:1");
+  assert.deepEqual(mixed.map((candidate) => candidate.songId), ["czech:1", "polish:1"]);
   assert.deepEqual(mixed[0].equivalentNumbers, [{ songId: "polish:1", number: "1", repertoire: false }]);
+  assert.deepEqual(mixed[1].equivalentNumbers, [{ songId: "czech:1", number: "1", repertoire: true }]);
+  assert.equal(mixed[0].signal, "antiphon");
+  assert.equal(mixed[1].signal, "none");
 
   const blocked = await query(baseQuery({ referenceAntiphonId: "czech:800", queryText: "1", candidateUsages: [{ songId: "polish:1", serviceDate: "2026-07-01", source: "completed" }] }));
   assert.equal(blocked.length, 0, "recommended class bypassed authoritative melody non-repetition");
@@ -170,9 +189,13 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   assert.equal(hydrated.body.value[0].number, "OLD");
   assert.equal(hydrated.body.value[0].aggregatePreferenceScore, 3);
   assert.equal(hydrated.body.value[0].signal, "antiphon");
+  assert.deepEqual(hydrated.body.value[0].melodyMembers.map((member: { songId: string }) => member.songId), ["czech:1", "polish:1"]);
   const historical = await invoke("hydrateCandidates", { songs: [{ songId: "historical:czech:999", language: "czech", number: "999", title: "Historical only" }] });
   assert.equal(historical.body.value[0].title, "Historical only");
   assert.equal(historical.body.value[0].songId, "historical:czech:999");
+  assert.equal(historical.body.value[0].melodyClassId, undefined);
+  assert.equal(historical.body.value[0].melodyMembers, undefined);
+  assert.equal(historical.body.value[0].orderKey, "rehydrated:czech:999:historical:czech:999");
 }
 
 async function verifyReferenceCandidateLifecycle(pool: Pool) {

@@ -29,6 +29,21 @@ export type ReferenceCandidateSong = ReferenceCatalogRecord & {
   repertoire: boolean;
 };
 
+export type ReferenceCandidateMelodyMember = {
+  songId: string;
+  language: "czech" | "polish";
+  number: string;
+  title: string;
+  repertoire: boolean;
+  aggregatePreferenceScore: number;
+  sheetMusicUrl?: string;
+};
+
+export type ReferenceCandidateQueryResult = CandidateQueryResult & {
+  melodyClassId: string;
+  melodyMembers: ReferenceCandidateMelodyMember[];
+};
+
 export type ReferenceCandidateData = {
   songs: ReferenceCandidateSong[];
   melodyWindowMonths: number;
@@ -55,7 +70,7 @@ type CandidateRow = {
 export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
 
-  async queryCandidates(input: CandidateQueryInput): Promise<CandidateQueryResult[]> {
+  async queryCandidates(input: CandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId);
     return queryReferenceCandidatesFromData(data, input);
   }
@@ -125,16 +140,15 @@ export class ReferenceCandidateService {
       ...(recommendationRow?.reference_song_id ? { recommendedReferenceSongId: String(recommendationRow.reference_song_id) } : {}),
     };
   }
-
 }
 
 export function queryReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateQueryInput,
-): CandidateQueryResult[] {
+): ReferenceCandidateQueryResult[] {
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
-  const allMembersByClass = groupSongsByClass(data.songs);
+  const membersByClass = groupSongsByClass(data.songs);
   const blockedClasses = getBlockedClassIds(
     classBySongId,
     input.candidateUsages ?? [],
@@ -142,39 +156,23 @@ export function queryReferenceCandidatesFromData(
     data.melodyWindowMonths,
     input.currentPlanId,
   );
-  const visibleGroups = new Map<string, ReferenceCandidateSong[]>();
+  const threshold = input.preferenceThreshold ?? 0;
+  const query = input.queryText?.trim() ?? "";
+  const candidates: ReferenceCandidateQueryResult[] = [];
 
   for (const song of data.songs) {
-    if (!languageSet.has(song.language) || blockedClasses.has(song.classId)) continue;
-    visibleGroups.set(song.classId, [...(visibleGroups.get(song.classId) ?? []), song]);
+    if (!languageSet.has(song.language)) continue;
+    if (blockedClasses.has(song.classId)) continue;
+    const allMembers = membersByClass.get(song.classId) ?? [song];
+    if (input.organistPersonId && !allMembers.some((member) => member.repertoire)) continue;
+    if (song.aggregatePreferenceScore < threshold) continue;
+    if (query && !matchesReferenceCandidateSearch(song, query)) continue;
+
+    const antiphonMatch = song.id === data.recommendedReferenceSongId;
+    candidates.push(toCandidate(song, allMembers, antiphonMatch, false));
   }
 
-  const query = input.queryText?.trim() ?? "";
-  const threshold = input.preferenceThreshold ?? 0;
-  const candidates: CandidateQueryResult[] = [];
-
-  for (const [classId, visibleSongs] of visibleGroups) {
-    const allMembers = allMembersByClass.get(classId) ?? visibleSongs;
-    if (input.organistPersonId && !allMembers.some((song) => song.repertoire)) continue;
-    if (Math.max(...visibleSongs.map((song) => song.aggregatePreferenceScore), 0) < threshold) continue;
-    if (query && !visibleSongs.some((song) => matchesReferenceCandidateSearch(song, query))) continue;
-
-    const scored = visibleSongs.map((song) => {
-      const antiphonMatch = song.id === data.recommendedReferenceSongId;
-      const seasonMatch = false;
-      return { song, antiphonMatch, seasonMatch, signal: getCandidateSignal({ antiphonMatch, seasonMatch }) };
-    });
-    scored.sort(compareConcreteCandidate);
-    const primary = scored[0];
-    const equivalentNumbers = allMembers
-      .filter((song) => song.id !== primary.song.id)
-      .sort(compareEquivalentSong)
-      .map((song) => ({ songId: song.id, number: song.displayNumber, repertoire: song.repertoire }));
-
-    candidates.push(toCandidate(primary.song, equivalentNumbers, primary.antiphonMatch, false));
-  }
-
-  return candidates.sort((left, right) => left.orderKey.localeCompare(right.orderKey));
+  return candidates.sort(compareConcreteResults);
 }
 
 export function hydrateReferenceCandidatesFromData(
@@ -188,25 +186,26 @@ export function hydrateReferenceCandidatesFromData(
     const stored = reference.songId ? songsById.get(reference.songId) : undefined;
     if (!stored) return historicalCandidate(reference);
     const antiphonMatch = stored.id === data.recommendedReferenceSongId;
-    const equivalents = (membersByClass.get(stored.classId) ?? [stored])
-      .filter((song) => song.id !== stored.id)
-      .sort(compareEquivalentSong)
-      .map((song) => ({ songId: song.id, number: song.displayNumber, repertoire: song.repertoire }));
+    const allMembers = membersByClass.get(stored.classId) ?? [stored];
     return {
-      ...toCandidate(stored, equivalents, antiphonMatch, false),
+      ...toCandidate(stored, allMembers, antiphonMatch, false),
       number: reference.number,
       title: reference.title ?? stored.title,
-      orderKey: `hydrated:${stored.language}:${String(stored.canonicalNumber).padStart(8, "0")}:${stored.id}`,
+      orderKey: concreteOrderKey(stored),
     };
   });
 }
 
 function toCandidate(
   song: ReferenceCandidateSong,
-  equivalentNumbers: CandidateQueryResult["equivalentNumbers"],
+  allMembers: ReferenceCandidateSong[],
   antiphonMatch: boolean,
   seasonMatch: boolean,
-): CandidateQueryResult {
+): ReferenceCandidateQueryResult {
+  const melodyMembers = orderMelodyMembers(song, allMembers).map(toMelodyMember);
+  const equivalentNumbers = melodyMembers
+    .filter((member) => member.songId !== song.id)
+    .map((member) => ({ songId: member.songId, number: member.number, repertoire: member.repertoire }));
   const signal = getCandidateSignal({ antiphonMatch, seasonMatch });
   return {
     songId: song.id,
@@ -214,6 +213,8 @@ function toCandidate(
     number: song.displayNumber,
     title: song.title,
     equivalentNumbers,
+    melodyClassId: song.classId,
+    melodyMembers,
     aggregatePreferenceScore: song.aggregatePreferenceScore,
     antiphonMatch,
     seasonMatch,
@@ -221,7 +222,20 @@ function toCandidate(
     preferenceShade: getPreferenceShade(song.aggregatePreferenceScore),
     repertoire: song.repertoire,
     suppressedByMelodyWindow: false,
-    orderKey: `${signal === "antiphon" ? 0 : signal === "season" ? 1 : 2}:${song.repertoire ? 0 : 1}:${String(999999 - song.aggregatePreferenceScore).padStart(6, "0")}:${song.language}:${String(song.canonicalNumber).padStart(8, "0")}:${song.id}`,
+    ...(song.sourceUrl ? { sheetMusicUrl: song.sourceUrl } : {}),
+    orderKey: concreteOrderKey(song),
+  };
+}
+
+function toMelodyMember(song: ReferenceCandidateSong): ReferenceCandidateMelodyMember {
+  return {
+    songId: song.id,
+    language: song.language,
+    number: song.displayNumber,
+    title: song.title,
+    repertoire: song.repertoire,
+    aggregatePreferenceScore: song.aggregatePreferenceScore,
+    ...(song.sourceUrl ? { sheetMusicUrl: song.sourceUrl } : {}),
   };
 }
 
@@ -250,19 +264,24 @@ function groupSongsByClass(songs: ReferenceCandidateSong[]): Map<string, Referen
   return groups;
 }
 
-function compareConcreteCandidate(
-  left: { song: ReferenceCandidateSong; signal: CandidateQueryResult["signal"] },
-  right: { song: ReferenceCandidateSong; signal: CandidateQueryResult["signal"] },
-): number {
-  const signalRank = (signal: CandidateQueryResult["signal"]) => signal === "antiphon" ? 0 : signal === "season" ? 1 : 2;
-  return signalRank(left.signal) - signalRank(right.signal)
-    || Number(right.song.repertoire) - Number(left.song.repertoire)
-    || right.song.aggregatePreferenceScore - left.song.aggregatePreferenceScore
-    || compareReferenceCatalogRecords(left.song, right.song);
+function orderMelodyMembers(primary: ReferenceCandidateSong, members: ReferenceCandidateSong[]): ReferenceCandidateSong[] {
+  return [
+    primary,
+    ...members.filter((member) => member.id !== primary.id).sort(compareReferenceCatalogRecords),
+  ];
 }
 
-function compareEquivalentSong(left: ReferenceCandidateSong, right: ReferenceCandidateSong): number {
-  return Number(right.repertoire) - Number(left.repertoire) || compareReferenceCatalogRecords(left, right);
+function compareConcreteResults(left: ReferenceCandidateQueryResult, right: ReferenceCandidateQueryResult): number {
+  return left.orderKey.localeCompare(right.orderKey);
+}
+
+function concreteOrderKey(song: ReferenceCandidateSong): string {
+  const parts = referenceNumberParts(song.canonicalNumber);
+  return `${languageRank(song.language)}:${String(parts.base).padStart(8, "0")}:${String(parts.variant).padStart(3, "0")}:${song.id}`;
+}
+
+function languageRank(language: "czech" | "polish"): number {
+  return language === "czech" ? 0 : 1;
 }
 
 function matchesReferenceCandidateSearch(song: ReferenceCandidateSong, query: string): boolean {

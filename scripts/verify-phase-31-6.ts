@@ -51,18 +51,33 @@ async function main() {
       for (const [songId, beforeCandidate] of beforeById) {
         const afterCandidate = afterById.get(songId); assert(afterCandidate);
         if (songId === "czech:1") {
-          const { aggregatePreferenceScore: beforeScore, preferenceShade: beforeShade, orderKey: beforeOrder, ...beforeRest } = beforeCandidate as any;
-          const { aggregatePreferenceScore: afterScore, preferenceShade: afterShade, orderKey: afterOrder, ...afterRest } = afterCandidate as any;
+          const { aggregatePreferenceScore: beforeScore, preferenceShade: beforeShade, orderKey: beforeOrder, melodyMembers: beforeMembers, ...beforeRest } = beforeCandidate as any;
+          const { aggregatePreferenceScore: afterScore, preferenceShade: afterShade, orderKey: afterOrder, melodyMembers: afterMembers, ...afterRest } = afterCandidate as any;
           assert.equal(beforeScore, 0); assert.equal(beforeShade, "none");
-          assert.equal(afterScore, 3); assert.equal(afterShade, "medium"); assert.notEqual(afterOrder, beforeOrder);
+          assert.equal(afterScore, 3); assert.equal(afterShade, "medium"); assert.equal(afterOrder, beforeOrder);
           assert.deepEqual(afterRest, beforeRest);
+          const beforeMemberById = new Map((beforeMembers as any[]).map((entry) => [entry.songId, entry]));
+          const afterMemberById = new Map((afterMembers as any[]).map((entry) => [entry.songId, entry]));
+          assert.deepEqual([...afterMemberById.keys()], [...beforeMemberById.keys()]);
+          for (const [memberId, beforeMember] of beforeMemberById) {
+            const afterMember = afterMemberById.get(memberId); assert(afterMember);
+            if (memberId === "czech:1") {
+              assert.equal((beforeMember as any).aggregatePreferenceScore, 0);
+              assert.equal((afterMember as any).aggregatePreferenceScore, 3);
+              const { aggregatePreferenceScore: _before, ...beforeMemberRest } = beforeMember as any;
+              const { aggregatePreferenceScore: _after, ...afterMemberRest } = afterMember as any;
+              assert.deepEqual(afterMemberRest, beforeMemberRest);
+            } else {
+              assert.deepEqual(afterMember, beforeMember);
+            }
+          }
         } else {
           assert.deepEqual(afterCandidate, beforeCandidate);
         }
       }
       const tracker = new ReferencePreferenceRequestTracker(); const applied: number[] = []; const stale = tracker.begin(); const current = tracker.begin(); if (tracker.isCurrent(stale)) applied.push(6); if (tracker.isCurrent(current)) applied.push(3); assert.deepEqual(applied, [3]);
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8"); assert.match(ui, /Reference preference aggregate/); assert.match(ui, /selectedRole !== "admin" && referencePreference/); assert.match(ui, /refreshReferenceAggregate\(selectedReferenceId, activeActor\)/);
-      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, authoritative candidate aggregate projection without candidate-set mutation, and UI projection passed.");
+      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, authoritative candidate aggregate projection without candidate-set or candidate-order mutation, and UI projection passed.");
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); });
     process.env.DATABASE_URL = guardUrl; assert.equal(await fingerprint(guardUrl), before); assert.equal((await control.query("select 1 from pg_database where datname=$1", [name])).rows.length, 0);
     console.log("Phase 31.6 cleanup evidence: guard database fingerprint unchanged and temporary database removed.");

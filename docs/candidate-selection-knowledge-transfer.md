@@ -2,11 +2,9 @@
 
 ## Purpose
 
-This document transfers detailed candidate-selection knowledge from the project analysis conversation into the repository so that future ChatGPT/Codex work can continue from the accepted understanding instead of reconstructing the rules from scattered context.
+This document is the authoritative functional specification for candidate selection and song detail behavior. It consolidates the accepted product decisions from the 2026-08-05 design discussion so later implementation work does not reconstruct or silently alter them.
 
-It is intended as study material for the next implementation-planning thread. It is not yet an implementation task, not a UI design, and not a database schema proposal.
-
-Use this document together with:
+Use it together with:
 
 - `docs/decisions.md`
 - `docs/roadmap.md`
@@ -14,175 +12,82 @@ Use this document together with:
 - `docs/workflows.md`
 - `docs/domain-model.md`
 - `docs/planning-lifecycle-confirmed-rules.md`
+- `docs/phase-31-14-contract.md`
 
-## Status
+## Status and phase history
 
-Status: knowledge transfer / pre-implementation material.
+- Phase 31.13, authoritative Czech and Polish thematic-section knowledge, is merged on `main` as commit `50fae1326534d4058157bab6fca6c7f9e2a26948`.
+- Phase 31.14 is authorized by issue #133 and implemented in PR #134.
+- This file supersedes the documentation-only draft PR #129.
+- Later phases remain separately gated and must not be pulled into Phase 31.14.
 
-The rules below summarize accepted or strongly established product knowledge from the analysis conversation. Where a detail still needs implementation-level precision, it is explicitly marked as an open point.
+The system supports human decisions. It must not automatically choose hymns or override the priest or organist.
 
-Do not implement candidate selection directly from memory in a later thread. First turn this material into a precise implementation contract for the candidate-selection milestone.
+## Core identity and melody rules
 
-## Current implementation context
+A concrete song is identified by its authoritative song ID, language and number. Song numbers are not globally unique across languages.
 
-The repository currently implements the Planning Lifecycle First slice. Recent work has focused on:
+A melody is an equivalence class of concrete songs. Singleton classes are valid.
 
-- service-set lifecycle;
-- in-memory and DB-backed repository paths;
-- `ORGANY_RUNTIME=db` opt-in;
-- local DB setup and migrations;
-- DB-free lifecycle regression tests;
-- service date/time identity;
-- active planning sets versus completed records;
-- completed-record administration.
+Candidate selection reasons at two levels:
 
-Candidate selection, repertoire management, preference management, melody non-repetition engine, antiphon highlighting, and liturgical-season highlighting are still future work. They should attach to the existing planning lifecycle rather than replace it.
+- concrete song: language, preference, search, display, selection and persistence;
+- melody class: repertoire reachability, non-repetition, occupancy and collision validation.
 
-## Product principle
+The selected and persisted value is always the concrete song. Melody equivalence is supporting knowledge, not a replacement identity.
 
-The system supports human decisions. It must not replace the priest or organist with automatic selection.
+## Candidate row
 
-Candidate selection should reduce cognitive load by surfacing eligible and contextually relevant songs. The human user still makes the final liturgical choice.
+One candidate row represents one concrete song.
 
-The system should make a larger repertoire easier to use, not harder.
+A melody class may therefore appear in several candidate rows when several of its concrete songs pass the hard filters.
 
-## Core domain concepts used by candidate selection
-
-### Concrete song identity
-
-A concrete song is identified by:
-
-```text
-(language, number)
-```
-
-Examples:
-
-```text
-(Czech, 28)
-(Polish, 613)
-```
-
-Song numbers are not globally unique across languages.
-
-### Melody equivalence
-
-A melody is modeled as an equivalence relation between concrete songs.
-
-A melody-equivalence class contains all songs known to share the same melody. Singleton classes are valid.
-
-Candidate selection must reason at both levels:
-
-- concrete songs for language, preferences, display, and final row selection;
-- melody-equivalence classes for repertoire reachability and non-repetition.
-
-### Service language
-
-The accepted service-language behavior for filtering is:
-
-```text
-Czech  -> Czech songs
-Polish -> Polish songs
-Mixed  -> Czech and Polish songs
-```
-
-Language filtering determines which concrete songs are selectable for the current service.
-
-### Planning row
-
-Candidate selection eventually fills or supports filling a service row. A row may contain:
-
-- a concrete song; or
-- a note-only non-song contribution.
-
-Candidate selection concerns song rows only. Note-only rows are outside candidate filtering.
-
-## Candidate selection as a pipeline
-
-Candidate selection should be understood as a pipeline:
-
-```text
-song catalog + melody knowledge
--> melody-equivalence classes
--> hard filters
--> highlighting
--> display shaping
--> human selection
-```
-
-Hard filters determine eligibility. Highlighting and display shaping provide additional context but must not make an ineligible song eligible.
+Each row begins with the concrete song number and title, followed by compact melody-class context. The exact visual layout is deferred to practical testing.
 
 ## Hard filters
 
-The accepted hard filters are:
+The hard filters are:
 
 1. selected/default organist repertoire;
 2. service language;
 3. melody non-repetition;
-4. preference threshold, default `x = 0`.
+4. preference threshold, default `0`.
 
-Antiphon and liturgical season are not hard filters.
+Antiphon and thematic section are recommendation/highlight inputs, not hard filters.
 
-### 1. Organist repertoire filter
+### Repertoire
 
-The repertoire filter is based on the selected or default organist.
+A melody class passes the repertoire condition if at least one member of the complete class is explicitly in the selected organist's repertoire.
 
-A melody-equivalence class passes the repertoire filter if the class contains at least one concrete song explicitly present in the selected organist's repertoire.
+This evidence may come from a member hidden by the current service-language filter. For example, a Polish repertoire member may prove that the organist can play the melody while Czech concrete songs from the same class remain the selectable candidates.
 
-Important consequence:
+Repertoire evidence does not change the concrete song that is selected or persisted.
 
-The organist repertoire is evidence that the organist can play that melody, not necessarily that the exact same-language concrete song is explicitly listed in the repertoire.
-
-Example:
+### Language
 
 ```text
-Melody class: 38P, 29C, 421C
-Organist repertoire contains: 38P
-Service language: Czech
+Czech  -> Czech candidate songs
+Polish -> Polish candidate songs
+Mixed  -> Czech and Polish candidate songs
 ```
 
-The class can pass the repertoire filter because `38P` proves the melody is in repertoire. Czech songs from the same class may then be considered under the language filter.
+Language filtering applies to the concrete candidate. It must not discard opposite-language members from the melody-class detail or repertoire explanation.
 
-Open implementation point:
+### Melody non-repetition
 
-If a class passes the repertoire filter but contains no concrete song allowed by the service-language filter, it should not produce a selectable candidate for that service. This should be confirmed in the implementation contract.
+Historical or saved future use of one member blocks the complete melody class within the configured window.
 
-### 2. Service-language filter
+Rows without a concrete song are ignored.
 
-The service-language filter applies to concrete songs.
+The configured default is two months. Existing date-window semantics remain authoritative until a separately approved phase changes them.
 
-Accepted behavior:
+### Preference threshold
 
-```text
-Czech service  -> selectable concrete songs must be Czech
-Polish service -> selectable concrete songs must be Polish
-Mixed service  -> selectable concrete songs may be Czech or Polish
-```
+Preferences belong to concrete songs and never transfer through melody equivalence.
 
-This filter should not destroy the evidence that a hidden opposite-language song is in the organist's repertoire. That evidence may still be displayed as supplemental repertoire context; see Display Rules.
+Each concrete song must independently satisfy the threshold.
 
-### 3. Melody non-repetition filter
-
-The non-repetition rule applies to melody-equivalence classes, not individual songs.
-
-Repeating the same melody under another song number still counts as repetition.
-
-The rule has no ad-hoc exceptions.
-
-It uses two directions:
-
-1. backward historical checking against completed-service records;
-2. forward protection against saved future working/final plans.
-
-Rows without concrete songs are ignored.
-
-### 4. Preference-threshold filter
-
-Preferences belong to concrete songs, not melody-equivalence classes.
-
-They do not automatically transfer across a melody-equivalence class.
-
-Accepted score ranges:
+Role score limits remain:
 
 ```text
 priest               0-3
@@ -191,333 +96,225 @@ congregation member  0-1
 admin                no own preference score
 ```
 
-Candidate preference filtering uses the summed score for the concrete song.
+At threshold `0`, an otherwise eligible song with no positive preference remains available.
 
-Default threshold:
+## Ordering and highlighting
 
-```text
-x = 0
-```
+Normal ordering is:
 
-With `x = 0`, preference thresholding should not remove ordinary songs merely because no positive preference has been entered.
+- Czech songs first;
+- then Polish songs;
+- within each language by base number and slash variant;
+- stable ID as final tie-breaker.
 
-Open implementation point:
+Antiphon and theme highlighting do not change ordering.
 
-When a displayed candidate is centered on a melody-equivalence class containing several visible concrete songs, the implementation contract must specify whether thresholding is evaluated per visible concrete song, by best visible song, or by another explicit rule. The current accepted principle is: do not transfer a preference score from one concrete song to another.
+Antiphon applies only to the exact recommended concrete song. It does not transfer to melody equivalents. Theme also applies only to the concrete song and is resolved against ranges of that song's language.
 
-## Antiphon and liturgical-season highlighting
+When both signals apply, antiphon has visual priority.
 
-Antiphon and liturgical season are highlighting inputs, not eligibility filters.
+## Mixed-language theme semantics
 
-They apply only after hard filtering.
+Phase 31.13 introduced symmetric Czech and Polish thematic-section datasets and language-specific resolvers.
 
-### Antiphon
+In a mixed service:
 
-Antiphon number is entered manually.
+- a Czech candidate is evaluated only against the Czech ranges of the selected shared theme concept;
+- a Polish candidate is evaluated only against the Polish ranges;
+- thematic membership never transfers through melody equivalence;
+- a language-specific concept without a counterpart, such as Polish `Miłość bliźniego`, highlights only that language.
 
-It is not derived from service date.
+## Melody-class context and Detail
 
-Antiphon mapping conceptually relates:
+Every candidate and selected-song row has a Detail action.
 
-```text
-(language, antiphon number) -> recommended concrete song(s)
-```
+The expanded detail contains one row for each member of the complete authoritative melody class, including:
 
-The result should highlight matching candidates after hard filters have already been applied.
+- song number;
+- title;
+- language;
+- score URL when available;
+- repertoire state;
+- current aggregate preference context where useful.
 
-### Liturgical season
+The concrete candidate/selected song appears first, followed by the other members in deterministic order.
 
-Liturgical season is manually selected.
+Score links remain active even for members that are not selectable because of service language. They open in a new tab and preserve application state.
 
-It is not automatically derived from date in the current accepted model.
+### Candidate detail behavior
 
-Season mapping conceptually relates:
+Selecting an allowed equivalent inside a candidate detail does not immediately choose it. It moves/focuses to that equivalent's own candidate row and opens its detail.
 
-```text
-(language, liturgical season) -> recommended concrete song(s)
-```
+A disallowed-language member remains informational and does not move or select.
 
-The result should highlight matching candidates after hard filters have already been applied.
+### Selected-song detail behavior
 
-### Highlighting rule
+Selecting an allowed equivalent inside the detail of an already selected song immediately replaces the selected concrete song and closes the detail.
 
-Highlighting must not resurrect a song or melody class eliminated by hard filters.
+A disallowed-language member remains informational.
 
-If a song does not pass repertoire, language, non-repetition, and preference threshold, antiphon/season mapping may not force it into the eligible candidate list.
+### Expansion state
 
-## Candidate display rules
+Only one expansion may be open in the entire service section:
 
-Candidate display should be compact but explain why a candidate is relevant.
+- one candidate list; or
+- one song detail.
 
-### Display unit
+Opening another list/detail closes the previous one. Expansion state is not persisted and refresh closes all expansions.
 
-Candidate display is expected to show melody-equivalence context, not just one isolated song number.
+Desktop hover may temporarily reveal detail; click/tap pins it. Final close affordance and cosmetic behavior are deferred to practical testing.
 
-Example display:
+## Selection, replacement and removal
 
-```text
-38P, 29C, 421C
-```
+Clicking/tapping the main candidate row immediately selects that concrete song.
 
-Where suffixes indicate language, for example:
+Selection, replacement and removal change the local draft only. They are persisted by the common `Uložit` action.
 
-```text
-P = Polish
-C = Czech
-```
+Replacing a song requires no confirmation. Removing a song requires no confirmation and leaves the row empty.
 
-Exact UI notation can be decided later, but the displayed context must preserve the idea that these songs share a melody.
+Reopening the candidate list for a row with a selected song:
 
-### Repertoire visibility
+- keeps the selected song and its class available for that same row;
+- marks the current concrete song;
+- scrolls to it automatically;
+- hides classes occupied by other rows in normal browsing.
 
-Explicit repertoire songs should be visually distinguished, for example by bold text.
+After selecting or replacing, the candidate list closes.
 
-Example:
+## Local melody occupancy
 
-```text
-**38P**, 29C, 421C
-```
+Selecting a concrete song occupies its complete melody class for all other rows of the same service draft.
 
-The bold item indicates a concrete song explicitly present in the organist's repertoire.
+Removing or replacing releases the previous class.
 
-### Opposite-language repertoire visibility rule
+While editing a row, that row's own previous class remains available to itself.
 
-If service-language filtering hides all explicit repertoire songs from a melody-equivalence class, display exactly one opposite-language repertoire song from the same class as supplemental context and emphasize it.
+An invalid selected song, for example after a language change, continues to occupy its complete class elsewhere until the user removes or replaces it.
 
-Example:
+## Search and unavailable results
 
-```text
-Service language: Czech
-Melody class: 38P, 29C, 421C
-Organist repertoire contains only: 38P
-Selectable Czech songs: 29C, 421C
-Display should include: **38P**, 29C, 421C
-```
+Candidate search works by concrete song number and title.
 
-`38P` is displayed to explain why the organist can play the melody. It is not the primary selectable Czech service song.
+The search universe is first limited by hard context that cannot be relaxed, especially service language and authoritative catalog scope.
 
-Open implementation points:
+Within that universe, songs temporarily unavailable because their melody is occupied by another row may appear as inactive results with a concise reason.
 
-- define deterministic tie-breaking if multiple hidden opposite-language repertoire songs exist;
-- define whether supplemental opposite-language repertoire evidence is clickable, disabled, or purely informational;
-- define exact visual notation for explicit repertoire evidence.
-
-## Non-repetition period
-
-Default non-repetition period:
+The reason names the occupying service row, for example:
 
 ```text
-2 months
+Stejná melodie je použita v řádku Píseň po kázání.
 ```
 
-Only admin may change the period.
+An inactive search result still supports Detail, including the complete melody class and score links. Only selection is disabled.
 
-Changing the period must be blocked if the change would create a conflict among saved non-completed plans.
+Songs outside the hard search universe never appear.
 
-Important distinction:
+Search is live, case-insensitive and diacritic-insensitive where sensible. Numeric search follows the displayed catalog number syntax, including slash variants.
 
-Completed-service records provide backward historical input for future planning. They are not themselves treated as conflicts with each other.
+## Collision and validation behavior
 
-Conflicts are limited to:
+Old/imported data may contain the same melody class in more than one service row.
 
-- the currently edited plan;
-- saved future working sets;
-- saved future final sets.
+The application must not silently remove or rewrite either row.
 
-Completed records are historical evidence for backward checking, not active conflicts.
+Instead:
 
-Open implementation points:
+- mark both rows with a local validation error;
+- show a concise shared reason near the blocked approval action;
+- allow saving the invalid draft;
+- block approval until the conflict is resolved.
 
-- exact date arithmetic for the 2-month window;
-- whether the boundary is inclusive or exclusive;
-- how service time affects ordering if two services occur on the same date;
-- how Europe/Prague local calendar date should be used in the non-repetition engine.
+`Uložit` remains enabled with validation errors. Successful invalid save reports that the draft was saved while error markers remain visible.
 
-## Repertoire, knowledge, and preferences are different things
+## Language changes
 
-The application must keep these concepts separate.
+Changing service language does not automatically delete a selected song that is no longer permitted.
 
-### Shared knowledge
+The song remains selected and is marked invalid. Its candidate list shows it as the current invalid selection plus permitted alternatives.
 
-Admin-managed shared knowledge includes:
+The draft may be saved, but approval is blocked until the song is removed or replaced.
 
-- song catalog;
-- melody equivalence;
-- Czech/Polish song relations;
-- antiphon mappings;
-- liturgical-season mappings;
-- non-repetition period.
+## Theme and antiphon changes
 
-### Organist repertoire
+Changing the antiphon or selected thematic section only recalculates highlights. It does not remove or invalidate existing selections.
 
-Organist repertoire is not shared melody knowledge. It is a statement that a specific organist can play a concrete song, and by melody equivalence can practically support using related songs in another language.
+Antiphon/theme mismatch is not an approval error.
 
-Organist or admin may manage repertoire.
+## Save, discard and approval
 
-### Preferences
+Candidate edits remain local until common `Uložit`.
 
-Preferences are role-weighted song evaluations. They are attached to concrete songs only.
+Leaving the service/page with unsaved changes triggers stay/discard protection.
 
-Admin manages congregation preference administration but has no own preference score.
+`Zahodit změny` restores the last saved state in place and requires confirmation.
 
-Priest, organist, and congregation members may eventually manage their own preferences within accepted role limits.
+Approval is allowed only for persisted valid state. Unsaved changes must be saved first.
 
-## Permissions relevant to future candidate work
+After approval, the complete set is locked. Editing requires the priest to cancel approval and return the set to draft; existing songs and metadata are preserved.
 
-Candidate selection itself is decision support. It must not override planning permissions.
+## Approved implementation decomposition
 
-Planning permissions remain governed by the Planning Lifecycle rules:
+### Phase 31.13 — authoritative bilingual thematic knowledge
 
-- priest, organist, admin may create/edit/delete working sets;
-- priest and admin may save/delete final sets;
-- priest, admin, or later system may convert final set to completed-service record;
-- congregation member has no planning permissions.
+Completed and merged. Contains frozen Czech and Polish data, validation, persistence, synchronization and language-specific read-only resolution. No Service Context UI or candidate highlighting.
 
-Knowledge permissions remain separate:
+### Phase 31.14 — concrete-song authoritative backend candidates
 
-- admin manages shared knowledge;
-- organist/admin manages organist repertoire;
-- admin manages congregation preferences;
-- users manage their own preferences where allowed.
+Current phase:
 
-## Implementation warnings from the previous UX failure
+- one backend result per concrete song;
+- per-song preference threshold;
+- language/number ordering independent of highlights;
+- complete melody-class metadata;
+- existing hard filters, authoritative search and antiphon behavior preserved;
+- no new candidate-list UI.
 
-Do not repeat the PR #74 failure pattern.
+### Phase 31.15 — local melody occupancy and collision validation
 
-Avoid implementing too many UX/lifecycle behaviors in one broad PR.
+- occupy/release a full class across rows;
+- distinguish historical blocking from local occupancy;
+- inactive candidates with occupying row reason;
+- detect imported duplicate classes;
+- allow invalid draft save but block approval.
 
-For candidate selection, do not combine all of these in one step:
+### Phase 31.16 — concrete candidate-list UI
 
-- catalog import;
-- melody-equivalence editor;
-- repertoire editor;
-- candidate engine;
-- preference UI;
-- antiphon/season mapping UI;
-- service-row picker UI;
-- non-repetition engine;
-- DB schema expansion;
-- visual highlighting design.
+- one open list;
+- concrete rows;
+- selection/replacement/removal;
+- current-song marker and auto-scroll;
+- inactive results and empty states;
+- no expanded class detail.
 
-Before implementation, create a precise contract with deterministic test cases.
+### Phase 31.17 — inline melody-class detail
 
-The preferred pattern is:
+- detail for candidate and selected song;
+- complete class rows and score links;
+- language-disabled members;
+- candidate-detail navigation versus selected-detail replacement;
+- one expansion in the whole section.
 
-1. codify the implementation contract;
-2. add pure/domain-level candidate-selection tests;
-3. implement the smallest useful candidate engine slice;
-4. only then attach UI behavior.
+### Phase 31.18 — Service Context theme and candidate highlighting
 
-## Suggested next discussion target
+- one optional theme concept selection;
+- persistence and hydration;
+- Czech/Polish language-specific resolution;
+- concrete-song highlighting;
+- antiphon priority;
+- no automatic derivation from date, multi-theme selection or manual exception tags.
 
-The next ChatGPT thread should use this file to prepare a Codex-ready implementation phase, not to implement immediately from vague memory.
+## Workflow constraints
 
-Suggested phase title:
+Each phase has one failure domain, an explicit Contract Gate, focused acceptance, Automatic Review Gate, one useful HUMAN checkpoint and a Merge Gate.
+
+No issue, branch or implementation is created before Contract Gate approval.
+
+No merge occurs without the user's exact command:
 
 ```text
-Candidate Selection Contract and Testable Domain Slice
+MERGOVAT
 ```
 
-Suggested purpose:
+## Deferred presentation details
 
-```text
-Turn the accepted candidate-selection knowledge into a precise implementation contract and a small deterministic domain/service test suite before any UI or database-heavy candidate-selection implementation.
-```
-
-Suggested first implementation boundary:
-
-- define candidate-selection input/output types in a dependency-free module;
-- implement hard-filter logic using in-memory fixtures only;
-- cover repertoire, language, melody non-repetition, and preference threshold in tests;
-- include antiphon/season only as post-filter highlighting metadata if it can be done without UI work;
-- do not add editors, imports, auth, full DB persistence, or visual UI redesign.
-
-## Minimum test fixtures for the next phase
-
-Use small artificial fixtures, not the full legacy database.
-
-Example melody classes:
-
-```text
-Class A: 38P, 29C, 421C
-Class B: 10C
-Class C: 613P, 28C
-```
-
-Example repertoire:
-
-```text
-Organist O1 knows: 38P, 10C
-Organist O2 knows: 613P
-```
-
-Example service contexts:
-
-```text
-Czech service
-Polish service
-Mixed service
-```
-
-Example non-repetition data:
-
-```text
-Completed service used Class A recently
-Future final set uses Class C
-Future working set uses Class B
-```
-
-Example preference data:
-
-```text
-Priest likes 29C with score 3
-Organist likes 38P with score 2
-Congregation member likes 421C with score 1
-No score on 28C
-```
-
-These fixtures should verify:
-
-- repertoire pass via same melody but different language;
-- Czech service hides Polish selectable songs but may show one Polish repertoire evidence item;
-- Polish service behaves symmetrically;
-- Mixed service allows both languages;
-- non-repetition removes a whole melody class;
-- preference threshold does not transfer scores between concrete songs;
-- antiphon/season highlighting does not resurrect filtered-out songs.
-
-## Open questions to resolve before implementation
-
-1. What is the exact candidate output shape: one candidate per melody class, per concrete song, or a class candidate with selectable concrete songs?
-2. What is the deterministic ordering of candidates?
-3. What is the deterministic ordering of songs inside a displayed melody class?
-4. How exactly should hidden opposite-language repertoire evidence be represented in data?
-5. How should preference threshold be evaluated when a candidate contains multiple visible concrete songs?
-6. What exact date window should the 2-month non-repetition rule use?
-7. Should service time affect future/backward ordering inside one calendar date?
-8. Which antiphon/season highlight colors or categories are accepted, and should color names appear in domain output or only in UI?
-9. What minimal persistent schema is needed for catalog, melody equivalence, repertoire, preferences, antiphon mappings, and season mappings?
-10. Which part of candidate selection must be implemented before any UI picker exists?
-
-## Non-goals for the next immediate phase
-
-Do not implement in the first candidate-selection continuation:
-
-- full legacy import;
-- full song catalog UI;
-- melody-equivalence admin UI;
-- repertoire admin UI;
-- preference voting UI;
-- antiphon mapping editor;
-- season mapping editor;
-- authentication;
-- multi-congregation support;
-- visual redesign of the Planning Lifecycle workspace;
-- automatic hymn selection;
-- any behavior that bypasses human final decision-making.
-
-## Summary
-
-The most important transferred rule is this:
-
-Candidate selection is not a song search box and not an automatic hymn picker. It is a decision-support engine over concrete songs and melody-equivalence classes. It applies hard eligibility filters first, then adds liturgical highlighting and repertoire explanation, and only then presents compact context for a human decision.
+Exact colors, spacing, indentation, hover delay, close icon and other cosmetic choices are intentionally deferred to practical browser testing. Functional semantics above are authoritative.
