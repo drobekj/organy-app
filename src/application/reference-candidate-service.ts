@@ -1,7 +1,6 @@
 import type { Pool } from "pg";
 import type {
   CandidateHydrationInput,
-  CandidateMelodyMember,
   CandidateQueryInput,
   CandidateQueryResult,
   CandidateUsage,
@@ -30,6 +29,21 @@ export type ReferenceCandidateSong = ReferenceCatalogRecord & {
   repertoire: boolean;
 };
 
+export type ReferenceCandidateMelodyMember = {
+  songId: string;
+  language: "czech" | "polish";
+  number: string;
+  title: string;
+  repertoire: boolean;
+  aggregatePreferenceScore: number;
+  sheetMusicUrl?: string;
+};
+
+export type ReferenceCandidateQueryResult = CandidateQueryResult & {
+  melodyClassId: string;
+  melodyMembers: ReferenceCandidateMelodyMember[];
+};
+
 export type ReferenceCandidateData = {
   songs: ReferenceCandidateSong[];
   melodyWindowMonths: number;
@@ -56,12 +70,12 @@ type CandidateRow = {
 export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
 
-  async queryCandidates(input: CandidateQueryInput): Promise<CandidateQueryResult[]> {
+  async queryCandidates(input: CandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId);
     return queryReferenceCandidatesFromData(data, input);
   }
 
-  async hydrateCandidates(input: CandidateHydrationInput): Promise<CandidateQueryResult[]> {
+  async hydrateCandidates(input: CandidateHydrationInput): Promise<ReferenceCandidateQueryResult[]> {
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId);
     return hydrateReferenceCandidatesFromData(data, input);
   }
@@ -131,7 +145,7 @@ export class ReferenceCandidateService {
 export function queryReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateQueryInput,
-): CandidateQueryResult[] {
+): ReferenceCandidateQueryResult[] {
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
   const membersByClass = groupSongsByClass(data.songs);
@@ -144,7 +158,7 @@ export function queryReferenceCandidatesFromData(
   );
   const threshold = input.preferenceThreshold ?? 0;
   const query = input.queryText?.trim() ?? "";
-  const candidates: CandidateQueryResult[] = [];
+  const candidates: ReferenceCandidateQueryResult[] = [];
 
   for (const song of data.songs) {
     if (!languageSet.has(song.language)) continue;
@@ -164,7 +178,7 @@ export function queryReferenceCandidatesFromData(
 export function hydrateReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateHydrationInput,
-): CandidateQueryResult[] {
+): ReferenceCandidateQueryResult[] {
   const songsById = new Map(data.songs.map((song) => [song.id, song]));
   const membersByClass = groupSongsByClass(data.songs);
 
@@ -187,7 +201,7 @@ function toCandidate(
   allMembers: ReferenceCandidateSong[],
   antiphonMatch: boolean,
   seasonMatch: boolean,
-): CandidateQueryResult {
+): ReferenceCandidateQueryResult {
   const melodyMembers = orderMelodyMembers(song, allMembers).map(toMelodyMember);
   const equivalentNumbers = melodyMembers
     .filter((member) => member.songId !== song.id)
@@ -213,7 +227,7 @@ function toCandidate(
   };
 }
 
-function toMelodyMember(song: ReferenceCandidateSong): CandidateMelodyMember {
+function toMelodyMember(song: ReferenceCandidateSong): ReferenceCandidateMelodyMember {
   return {
     songId: song.id,
     language: song.language,
@@ -225,20 +239,21 @@ function toMelodyMember(song: ReferenceCandidateSong): CandidateMelodyMember {
   };
 }
 
-function historicalCandidate(reference: CandidateHydrationInput["songs"][number]): CandidateQueryResult {
+function historicalCandidate(reference: CandidateHydrationInput["songs"][number]): ReferenceCandidateQueryResult {
   const songId = reference.songId ?? `historical:${reference.language}:${reference.number}`;
+  const title = reference.title ?? "Untitled snapshot";
   return {
     songId,
     language: reference.language,
     number: reference.number,
-    title: reference.title ?? "Untitled snapshot",
+    title,
     equivalentNumbers: [],
     melodyClassId: `historical:${songId}`,
     melodyMembers: [{
       songId,
       language: reference.language,
       number: reference.number,
-      title: reference.title ?? "Untitled snapshot",
+      title,
       repertoire: false,
       aggregatePreferenceScore: 0,
     }],
@@ -266,7 +281,7 @@ function orderMelodyMembers(primary: ReferenceCandidateSong, members: ReferenceC
   ];
 }
 
-function compareConcreteResults(left: CandidateQueryResult, right: CandidateQueryResult): number {
+function compareConcreteResults(left: ReferenceCandidateQueryResult, right: ReferenceCandidateQueryResult): number {
   return left.orderKey.localeCompare(right.orderKey);
 }
 
