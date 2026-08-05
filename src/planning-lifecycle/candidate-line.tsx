@@ -21,6 +21,7 @@ export type CandidateLineViewModel = {
   backgroundClass: string;
   contentTextClass: string;
   accessibleMeaning: string;
+  availabilityReason?: string;
 };
 
 export function getCandidateLineViewModel(candidate: CandidateQueryResult): CandidateLineViewModel {
@@ -32,8 +33,11 @@ export function getCandidateLineViewModel(candidate: CandidateQueryResult): Cand
   const backgroundClass = `candidate-tone-${tone} candidate-preference-${candidate.preferenceShade}`;
   const contentTextClass = `candidate-content-text candidate-text-${tone}`;
   const optionMeaning = numberOptions.map((item) => `${item.primary ? "primary" : "equivalent"} ${item.number}${item.language ? ` ${item.language}` : ""}; ${item.repertoire ? "in organist repertoire" : "not in organist repertoire"}`).join("; ");
-  const accessibleMeaning = `${tone === "positive" ? "green positive" : tone === "negative" ? "red negative" : "neutral"} candidate; ${optionMeaning}`;
-  return { candidate, numberOptions, tone, backgroundClass, contentTextClass, accessibleMeaning };
+  const availabilityReason = candidate.availability.kind === "occupiedByCurrentRows"
+    ? `Same melody is already used in ${joinLabels(candidate.availability.rows.map((row) => row.label))}.`
+    : undefined;
+  const accessibleMeaning = `${tone === "positive" ? "green positive" : tone === "negative" ? "red negative" : "neutral"} candidate; ${optionMeaning}${availabilityReason ? `; unavailable: ${availabilityReason}` : ""}`;
+  return { candidate, numberOptions, tone, backgroundClass, contentTextClass, accessibleMeaning, availabilityReason };
 }
 
 export function CandidateLine(props: CandidateLineProps) {
@@ -41,7 +45,8 @@ export function CandidateLine(props: CandidateLineProps) {
   if (props.variant === "popup") {
     return (
       <div className={`candidate-card candidate-card-compact ${viewModel.backgroundClass}`} data-candidate-line="popup" aria-label={viewModel.accessibleMeaning}>
-        <button type="button" onClick={props.onSelect}><span className={viewModel.contentTextClass}><CandidateSummary viewModel={viewModel} /><span>{props.candidate.title} · {props.candidate.language} · {props.candidate.signal}</span></span></button>
+        <button type="button" disabled={Boolean(viewModel.availabilityReason)} aria-disabled={Boolean(viewModel.availabilityReason)} onClick={() => { if (!viewModel.availabilityReason) props.onSelect(); }}><span className={viewModel.contentTextClass}><CandidateSummary viewModel={viewModel} /><span>{props.candidate.title} · {props.candidate.language} · {props.candidate.signal}</span></span></button>
+        {viewModel.availabilityReason && <span className="field-help" role="status">{viewModel.availabilityReason}</span>}
       </div>
     );
   }
@@ -81,4 +86,10 @@ function referenceLanguageFromSongId(songId: string): CandidateQueryResult["lang
   if (songId.startsWith("czech:")) return "czech";
   if (songId.startsWith("polish:")) return "polish";
   return undefined;
+}
+
+function joinLabels(labels: string[]): string {
+  if (labels.length <= 1) return labels[0] ?? "another row";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
 }

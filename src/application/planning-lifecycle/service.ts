@@ -3,6 +3,9 @@ import {
   isValidServiceTime,
   normalizeServiceTime,
   validatePlanningSet,
+  findMelodyCollisions,
+  melodyCollisionSummary,
+  type MelodyCollision,
   type PlanningRole,
   type PlanningRow,
   type PlanningSet,
@@ -12,6 +15,7 @@ import {
 import type { CatalogRepository } from "../catalog";
 import type { ReferenceAntiphonProvider, ReferenceAntiphonRecord } from "../reference-antiphon-contract";
 import type { ReferenceCatalogRecord } from "../reference-catalog-contract";
+import type { ReferenceMelodyClassProvider } from "../reference-melody-class-provider";
 import { isEligiblePerson, languagesForService } from "../catalog";
 import type {
   CompletedServiceRecord,
@@ -28,6 +32,7 @@ export type PlanningLifecycleServiceDependencies = {
   catalog: CatalogRepository;
   referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
   referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
+  referenceMelodyClasses?: ReferenceMelodyClassProvider;
   now?: () => Date;
   enforceCatalogSelections?: boolean;
 };
@@ -84,6 +89,7 @@ export class PlanningLifecycleService {
   private readonly catalog: CatalogRepository;
   private readonly referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
   private readonly referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
+  private readonly referenceMelodyClasses?: ReferenceMelodyClassProvider;
   private readonly enforceCatalogSelections: boolean;
 
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
@@ -92,6 +98,7 @@ export class PlanningLifecycleService {
     this.catalog = dependencies.catalog;
     this.referenceAntiphons = dependencies.referenceAntiphons;
     this.referenceSongs = dependencies.referenceSongs;
+    this.referenceMelodyClasses = dependencies.referenceMelodyClasses;
     this.enforceCatalogSelections = dependencies.enforceCatalogSelections ?? true;
     this.now = dependencies.now ?? (() => new Date());
   }
@@ -196,6 +203,18 @@ export class PlanningLifecycleService {
     const validation = validatePlanningSet(finalSet);
     if (!validation.valid) {
       return failure({ code: "invalidInput", message: "Final planning set is invalid.", issues: validation.issues });
+    }
+
+    const melodyCollisions = await this.getAuthoritativeMelodyCollisions(finalSet.rows);
+    if (melodyCollisions.length > 0) {
+      return failure({
+        code: "invalidInput",
+        message: melodyCollisionSummary(melodyCollisions) ?? "Final planning set contains a melody collision.",
+        issues: melodyCollisions.flatMap((collision) => collision.rows.map((row) => ({
+          path: `rows.${row.rowId - 1}.song`,
+          message: `This melody is also used in ${collision.rows.filter((candidate) => candidate.rowId !== row.rowId).map((candidate) => candidate.rowLabel).join(" and ")}.`,
+        }))),
+      });
     }
 
     const persistedFinalSet = await this.planningSets.saveFinalSet(
@@ -338,6 +357,19 @@ export class PlanningLifecycleService {
 
     await this.planningSets.deleteById(input.finalSetId);
     return success(completedRecord);
+  }
+
+  private async getAuthoritativeMelodyCollisions(rows: PlanningRow[]): Promise<MelodyCollision[]> {
+    if (!this.referenceMelodyClasses) return [];
+    const songIds = rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []);
+    const memberships = await this.referenceMelodyClasses.getClassMemberships(songIds);
+    const classBySongId = new Map(memberships.map((membership) => [membership.songId, membership.melodyClassId]));
+    return findMelodyCollisions(rows.map((row, index) => ({
+      rowId: index + 1,
+      rowLabel: `Row ${index + 1}`,
+      songId: row.song?.songId,
+      melodyClassId: row.song?.songId ? classBySongId.get(row.song.songId) : undefined,
+    })));
   }
 
   private async validateAndNormalizeReferenceAntiphon(

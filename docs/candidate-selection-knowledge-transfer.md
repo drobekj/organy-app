@@ -17,9 +17,10 @@ Use it together with:
 ## Status and phase history
 
 - Phase 31.13, authoritative Czech and Polish thematic-section knowledge, is merged on `main` as commit `50fae1326534d4058157bab6fca6c7f9e2a26948`.
-- Phase 31.14 is authorized by issue #133 and implemented in PR #134.
+- Phase 31.14, concrete-song authoritative Planning candidates, is merged on `main` as commit `93f1e1f836cadca5d286a5b9b2678334614d9ee0`.
+- Phase 31.15 is authorized by issue #135 and implements current-service occupancy plus collision validation.
 - This file supersedes the documentation-only draft PR #129.
-- Later phases remain separately gated and must not be pulled into Phase 31.14.
+- Later phases remain separately gated and must not be pulled into Phase 31.15.
 
 The system supports human decisions. It must not automatically choose hymns or override the priest or organist.
 
@@ -177,7 +178,7 @@ Reopening the candidate list for a row with a selected song:
 - keeps the selected song and its class available for that same row;
 - marks the current concrete song;
 - scrolls to it automatically;
-- hides classes occupied by other rows in normal browsing.
+- returns classes occupied by other rows as disabled candidates with an occupying-row reason.
 
 After selecting or replacing, the candidate list closes.
 
@@ -197,7 +198,7 @@ Candidate search works by concrete song number and title.
 
 The search universe is first limited by hard context that cannot be relaxed, especially service language and authoritative catalog scope.
 
-Within that universe, songs temporarily unavailable because their melody is occupied by another row may appear as inactive results with a concise reason.
+Within that universe, songs temporarily unavailable because their melody is occupied by another row are returned as inactive results with a concise reason.
 
 The reason names the occupying service row, for example:
 
@@ -260,7 +261,7 @@ Completed and merged. Contains frozen Czech and Polish data, validation, persist
 
 ### Phase 31.14 — concrete-song authoritative backend candidates
 
-Current phase:
+Completed and merged:
 
 - one backend result per concrete song;
 - per-song preference threshold;
@@ -270,6 +271,8 @@ Current phase:
 - no new candidate-list UI.
 
 ### Phase 31.15 — local melody occupancy and collision validation
+
+Current phase:
 
 - occupy/release a full class across rows;
 - distinguish historical blocking from local occupancy;

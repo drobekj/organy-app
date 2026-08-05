@@ -13,10 +13,12 @@ export type MelodyClass = { id: string; label: string; songIds: string[]; synthe
 export type KnowledgeMapping = { id: string; key: string; songId: string; synthetic: boolean };
 export type MelodyNonRepetitionConfig = { months: number };
 export type CandidateUsageSource = "completed" | "working" | "final" | "current";
-export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number };
+export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number; rowLabel?: string };
 export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
 export type CandidateMelodyMember = { songId: string; language: ConcreteSongLanguage; number: string; title: string; repertoire: boolean; aggregatePreferenceScore: number; sheetMusicUrl?: string };
-export type CandidateQueryResult = { songId: string; language: ConcreteSongLanguage; number: string; title: string; equivalentNumbers: { songId: string; number: string; repertoire: boolean }[]; melodyClassId?: string; melodyMembers?: CandidateMelodyMember[]; aggregatePreferenceScore: number; antiphonMatch: boolean; seasonMatch: boolean; signal: "antiphon" | "season" | "none"; preferenceShade: "none" | "low" | "medium" | "high"; repertoire: boolean; suppressedByMelodyWindow: boolean; sheetMusicUrl?: string; orderKey: string };
+export type CandidateOccupyingRow = { rowId: number; label: string };
+export type CandidateAvailability = { kind: "available" } | { kind: "occupiedByCurrentRows"; rows: CandidateOccupyingRow[] };
+export type CandidateQueryResult = { songId: string; language: ConcreteSongLanguage; number: string; title: string; equivalentNumbers: { songId: string; number: string; repertoire: boolean }[]; melodyClassId?: string; melodyMembers?: CandidateMelodyMember[]; aggregatePreferenceScore: number; antiphonMatch: boolean; seasonMatch: boolean; signal: "antiphon" | "season" | "none"; preferenceShade: "none" | "low" | "medium" | "high"; repertoire: boolean; availability: CandidateAvailability; suppressedByMelodyWindow: boolean; sheetMusicUrl?: string; orderKey: string };
 export type CandidateHydrationInput = { songs: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }[]; organistPersonId?: string; referenceAntiphonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
 
 export function preferenceScoreLimit(category: PreferenceProfileCategory): number { return category === "priest" ? 3 : category === "organist" ? 2 : 1; }
@@ -105,7 +107,7 @@ export class InMemoryInteractionRepository {
       scored.sort((a, b) => `${a.repertoire ? 0 : 1}:${a.signal === "antiphon" ? 0 : a.signal === "season" ? 1 : 2}:${999 - a.aggregatePreferenceScore}:${a.song.language}:${a.song.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.signal === "antiphon" ? 0 : b.signal === "season" ? 1 : 2}:${999 - b.aggregatePreferenceScore}:${b.song.language}:${b.song.number}`));
       const primary = scored[0];
       const equivalentNumbers = allClassSongIds.filter((songId) => songId !== primary.song.songId).map((songId) => ({ songId, number: songsById.get(songId)?.number ?? songId, repertoire: input.organistPersonId ? this.repertoire.has(this.repertoireKey(input.organistPersonId, songId)) : false })).sort((a, b) => `${a.repertoire ? 0 : 1}:${a.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.number}`));
-      candidates.push({ songId: primary.song.songId, language: primary.song.language, number: primary.song.number, title: primary.song.title, equivalentNumbers, aggregatePreferenceScore: primary.aggregatePreferenceScore, antiphonMatch: primary.antiphonMatch, seasonMatch: primary.seasonMatch, signal: primary.signal, preferenceShade: getPreferenceShade(primary.aggregatePreferenceScore), repertoire: primary.repertoire, suppressedByMelodyWindow: false, ...(primary.song.sheetMusicUrl ? { sheetMusicUrl: primary.song.sheetMusicUrl } : {}), orderKey: `${primary.signal === "antiphon" ? 0 : primary.signal === "season" ? 1 : 2}:${primary.repertoire ? 0 : 1}:${999 - primary.aggregatePreferenceScore}:${primary.song.language}:${primary.song.number}` });
+      candidates.push({ songId: primary.song.songId, language: primary.song.language, number: primary.song.number, title: primary.song.title, equivalentNumbers, aggregatePreferenceScore: primary.aggregatePreferenceScore, antiphonMatch: primary.antiphonMatch, seasonMatch: primary.seasonMatch, signal: primary.signal, preferenceShade: getPreferenceShade(primary.aggregatePreferenceScore), repertoire: primary.repertoire, availability: availabilityForClass(this.melodyClasses, classId, input.candidateUsages ?? []), suppressedByMelodyWindow: false, ...(primary.song.sheetMusicUrl ? { sheetMusicUrl: primary.song.sheetMusicUrl } : {}), orderKey: `${primary.signal === "antiphon" ? 0 : primary.signal === "season" ? 1 : 2}:${primary.repertoire ? 0 : 1}:${999 - primary.aggregatePreferenceScore}:${primary.song.language}:${primary.song.number}` });
     }
     return candidates.sort((a, b) => a.orderKey.localeCompare(b.orderKey));
   }
@@ -118,7 +120,7 @@ export class InMemoryInteractionRepository {
 function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {
   const ids = new Set<string>();
   const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
-  const datedUsages = (input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId);
+  const datedUsages = (input.candidateUsages ?? []).filter((usage) => usage.source !== "current" && (!input.currentPlanId || usage.planId !== input.currentPlanId));
   for (const recent of datedUsages) {
     if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`), window.months)) continue;
     for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
@@ -128,3 +130,16 @@ function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryIn
 
 function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number, months = 2): boolean { const earlier = addMonthsUtc(target, -months); const later = addMonthsUtc(target, months); return usedAt >= earlier && usedAt <= later; }
 function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }
+
+function availabilityForClass(classes: MelodyClass[], classId: string, usages: CandidateUsage[]): CandidateAvailability {
+  const rows = usages
+    .filter((usage) => usage.source === "current" && classIdForSong(classes, usage.songId) === classId && usage.rowId !== undefined && usage.rowLabel)
+    .map((usage) => ({ rowId: usage.rowId!, label: usage.rowLabel!.trim() }))
+    .filter((row, index, all) => all.findIndex((candidate) => candidate.rowId === row.rowId) === index)
+    .sort((left, right) => left.rowId - right.rowId || left.label.localeCompare(right.label));
+  return rows.length > 0 ? { kind: "occupiedByCurrentRows", rows } : { kind: "available" };
+}
+
+function classIdForSong(classes: MelodyClass[], songId: string): string {
+  return classes.find((melody) => melody.songIds.includes(songId))?.id ?? `song:${songId}`;
+}

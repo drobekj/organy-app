@@ -138,6 +138,7 @@ export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongP
       signal: primary.signal,
       preferenceShade: getPreferenceShade(primary.aggregatePreferenceScore),
       repertoire: primary.repertoire,
+      availability: availabilityForClass(knowledge.melodyClasses, classId, input.candidateUsages ?? []),
       suppressedByMelodyWindow: false,
       ...(primary.song.sheetMusicUrl ? { sheetMusicUrl: primary.song.sheetMusicUrl } : {}),
       orderKey: `${primary.signal === "antiphon" ? 0 : primary.signal === "season" ? 1 : 2}:${primary.repertoire ? 0 : 1}:${999 - primary.aggregatePreferenceScore}:${primary.song.language}:${primary.song.number}`,
@@ -151,7 +152,7 @@ function fail<T>(code: "permissionDenied" | "notFound" | "invalidInput", message
 function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {
   const ids = new Set<string>();
   const target = Date.parse(`${input.serviceDate}T00:00:00Z`);
-  const datedUsages = (input.candidateUsages ?? []).filter((usage) => !input.currentPlanId || usage.planId !== input.currentPlanId);
+  const datedUsages = (input.candidateUsages ?? []).filter((usage) => usage.source !== "current" && (!input.currentPlanId || usage.planId !== input.currentPlanId));
   for (const recent of datedUsages) {
     if (!isWithinSymmetricTwoCalendarMonths(target, Date.parse(`${recent.serviceDate}T00:00:00Z`), window.months)) continue;
     for (const melody of classes) if (melody.songIds.includes(recent.songId)) ids.add(melody.id);
@@ -161,6 +162,23 @@ function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryIn
 
 function isWithinSymmetricTwoCalendarMonths(target: number, usedAt: number, months = 2): boolean { const earlier = addMonthsUtc(target, -months); const later = addMonthsUtc(target, months); return usedAt >= earlier && usedAt <= later; }
 function addMonthsUtc(value: number, months: number): number { const date = new Date(value); return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate()); }
+
+function availabilityForClass(
+  classes: MelodyClass[],
+  classId: string,
+  usages: NonNullable<CandidateQueryInput["candidateUsages"]>,
+): CandidateQueryResult["availability"] {
+  const rows = usages
+    .filter((usage) => usage.source === "current" && classIdForSong(classes, usage.songId) === classId && usage.rowId !== undefined && usage.rowLabel?.trim())
+    .map((usage) => ({ rowId: usage.rowId!, label: usage.rowLabel!.trim() }))
+    .filter((row, index, all) => all.findIndex((candidate) => candidate.rowId === row.rowId) === index)
+    .sort((left, right) => left.rowId - right.rowId || left.label.localeCompare(right.label));
+  return rows.length > 0 ? { kind: "occupiedByCurrentRows", rows } : { kind: "available" };
+}
+
+function classIdForSong(classes: MelodyClass[], songId: string): string {
+  return classes.find((melody) => melody.songIds.includes(songId))?.id ?? `song:${songId}`;
+}
 
 export function hydrateCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateHydrationInput): CandidateQueryResult[] {
   const songsById = new Map(songs.map((song) => [song.songId, song]));
@@ -191,6 +209,7 @@ export function hydrateCandidatesFromData(songs: CatalogSong[], preferences: Son
       signal,
       preferenceShade: getPreferenceShade(aggregatePreferenceScore),
       repertoire: repertoire.has(storedSong.songId),
+      availability: { kind: "available" },
       suppressedByMelodyWindow: false,
       ...(storedSong.sheetMusicUrl ? { sheetMusicUrl: storedSong.sheetMusicUrl } : {}),
       orderKey: `hydrated:${storedSong.language}:${storedSong.number}:${storedSong.songId}`,
@@ -198,4 +217,4 @@ export function hydrateCandidatesFromData(songs: CatalogSong[], preferences: Son
   });
 }
 
-function hydrateCandidateFromReference(song: { songId?: string; language: CatalogSong["language"]; number: string; title?: string }): CandidateQueryResult { const songId = song.songId ?? `historical:${song.language}:${song.number}`; return { songId, language: song.language, number: song.number, title: song.title ?? "Untitled snapshot", equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, suppressedByMelodyWindow: false, orderKey: `rehydrated:${song.language}:${song.number}:${songId}` }; }
+function hydrateCandidateFromReference(song: { songId?: string; language: CatalogSong["language"]; number: string; title?: string }): CandidateQueryResult { const songId = song.songId ?? `historical:${song.language}:${song.number}`; return { songId, language: song.language, number: song.number, title: song.title ?? "Untitled snapshot", equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, availability: { kind: "available" }, suppressedByMelodyWindow: false, orderKey: `rehydrated:${song.language}:${song.number}:${songId}` }; }

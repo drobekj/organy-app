@@ -661,3 +661,19 @@ manage non-repetition period
 Repertoire management is separate from knowledge management because an organist may manage repertoire.
 
 Own song preferences are separate from admin management of congregation preferences.
+
+---
+
+## 2026-08-05 — Phase 31.15 Contract Gate accepted
+
+The user approved Phase 31.15 with `dál`. Authority is issue #135 from exact baseline `93f1e1f836cadca5d286a5b9b2678334614d9ee0`.
+
+Accepted boundary:
+
+- historical/completed and other saved working/final uses remain hard melody-class exclusions;
+- another current-service row causes a disabled candidate with row identity rather than removal from the hard-filtered search universe;
+- the active row's own class remains available;
+- invalid retained selections continue to occupy their authoritative class;
+- authoritative collisions mark every affected row, permit Working save/reload, and block finalization locally and on the server;
+- server finalization re-resolves current Reference melody memberships through a read-only provider;
+- no schema migration, candidate-list redesign, auto-scroll, inline Detail or thematic UI is in scope.

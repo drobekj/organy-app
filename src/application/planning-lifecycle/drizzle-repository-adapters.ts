@@ -371,7 +371,7 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
 }
 
 export function createDbBackedPlanningLifecycleService(
-  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now" | "referenceAntiphons" | "referenceSongs">>,
+  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now" | "referenceAntiphons" | "referenceSongs" | "referenceMelodyClasses">>,
 ): PlanningLifecycleService {
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
@@ -379,6 +379,7 @@ export function createDbBackedPlanningLifecycleService(
     catalog: new DrizzleCatalogRepository(dependencies.db),
     referenceAntiphons: dependencies.referenceAntiphons,
     referenceSongs: dependencies.referenceSongs,
+    referenceMelodyClasses: dependencies.referenceMelodyClasses,
     now: dependencies.now,
   });
 }

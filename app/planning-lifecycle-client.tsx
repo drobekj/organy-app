@@ -18,7 +18,7 @@ import {
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
-import { canPerformPlanningAction, isValidServiceTime, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
+import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionRowIssues, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
@@ -120,6 +120,7 @@ function candidateFromSelectedSong(song: { songId?: string; language: ConcreteSo
     signal: "none",
     preferenceShade: "none",
     repertoire: false,
+    availability: { kind: "available" },
     suppressedByMelodyWindow: false,
     orderKey: `${song.language}:${song.number}`,
   };
@@ -410,6 +411,19 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = validationResults.some((result) => !result.valid);
+  const melodyCollisions = useMemo(() => findMelodyCollisions(rows.map((row, index) => ({
+    rowId: row.id,
+    rowLabel: `Row ${index + 1}`,
+    songId: row.selectedSong?.songId,
+    melodyClassId: row.selectedCandidate?.melodyClassId,
+  }))), [rows]);
+  const melodyIssuesByRow = useMemo(() => {
+    const issues = new Map<number, ReturnType<typeof melodyCollisionRowIssues>>();
+    for (const issue of melodyCollisionRowIssues(melodyCollisions)) issues.set(issue.rowId, [...(issues.get(issue.rowId) ?? []), issue]);
+    return issues;
+  }, [melodyCollisions]);
+  const melodyFinalizationReason = melodyCollisionSummary(melodyCollisions);
+  const hasMelodyCollisions = melodyCollisions.length > 0;
   const isCompletedRecordOpen = Boolean(completedRecord);
   const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim() && priestId && organistId);
   const isFinalSetOpen = persistedSet?.status === "final";
@@ -792,7 +806,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       serviceDate,
       completedRecords: completedRecords.map((record) => ({ id: record.id, serviceDate: record.serviceContext.serviceDate, rows: record.set.rows.map((row) => ({ songId: row.song?.songId })) })),
       plans: savedDbSets.map((set) => ({ id: set.id, status: set.status, serviceDate: set.serviceContext.serviceDate, rows: set.rows.map((row) => ({ songId: row.song?.songId })) })),
-      currentRows: rows.map((row) => ({ rowId: row.id, songId: row.selectedSong?.songId })),
+      currentRows: rows.map((row, index) => ({ rowId: row.id, rowLabel: `Row ${index + 1}`, songId: row.selectedSong?.songId })),
       activeRowId,
     });
   }
@@ -821,17 +835,21 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function selectCandidate(rowId: number, candidate: CandidateQueryResult) {
+    if (candidate.availability.kind !== "available") {
+      setServiceError({ code: "invalidInput", message: `Same melody is already used in ${candidate.availability.rows.map((row) => row.label).join(" and ")}.` });
+      return;
+    }
     lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
-    setSongResults((current) => ({ ...current, [rowId]: [] }));
-    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
+    setSongResults({});
+    setCandidateResults({});
   }
 
   function clearSong(rowId: number) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "songCleared" }) : row)));
-    setSongResults((current) => ({ ...current, [rowId]: [] }));
-    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
+    setSongResults({});
+    setCandidateResults({});
   }
 
   function cancelActiveLookup(rowId: number) {
@@ -860,7 +878,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function removeRow(id: number) {
+    lookupTracker.invalidatePrefix("song:");
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.filter((row) => row.id !== id)));
+    setSongResults({});
+    setCandidateResults({});
   }
 
   function moveRow(index: number, direction: -1 | 1) {
@@ -877,6 +898,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       nextRows.splice(targetIndex, 0, movedRow);
       return nextRows;
     });
+    lookupTracker.invalidatePrefix("song:");
+    setSongResults({});
+    setCandidateResults({});
     setSaveState("unsaved");
     setServiceError(null);
   }
@@ -887,6 +911,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       setRows((currentRows) => preserveRowsOnServiceLanguageChange(currentRows, nextServiceLanguage));
       lookupTracker.invalidatePrefix("song:");
       setSongResults(clearSongLookupResultsOnServiceLanguageChange());
+      setCandidateResults({});
     });
   }
 
@@ -965,6 +990,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function finalizeWorkingSet() {
     if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") {
+      return;
+    }
+    if (hasMelodyCollisions) {
+      setServiceError({ code: "invalidInput", message: melodyFinalizationReason ?? "Cannot finalize: the same melody is used more than once." });
+      setSaveState("errors");
       return;
     }
 
@@ -1263,6 +1293,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
           <div className="rows-list">
             {rows.map((row, index) => {
               const validation = validationResults[index];
+              const melodyIssues = melodyIssuesByRow.get(row.id) ?? [];
+              const rowIssues = [...validation.issues, ...melodyIssues.map((issue) => ({ path: "song", message: issue.message }))];
 
               return (
                 <fieldset className="row-card" key={row.id} onFocus={() => activateExistingRow(row.id)} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
@@ -1325,9 +1357,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       </label>
                     )}
                   </div>
-                  {!validation.valid && (
+                  {rowIssues.length > 0 && (
                     <ul className="validation-list" aria-label={`Row ${index + 1} validation errors`}>
-                      {validation.issues.map((issue) => (
+                      {rowIssues.map((issue) => (
                         <li key={`${issue.path}-${issue.message}`}>{issue.message}</li>
                       ))}
                     </ul>
@@ -1344,7 +1376,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                     <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasMelodyCollisions}>
                       Finalize set
                     </button>
                   </>
@@ -1369,6 +1401,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
               </>
           </div>
+          {melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen && <p className="field-help" role="alert">{melodyFinalizationReason}</p>}
           {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>
         )}
