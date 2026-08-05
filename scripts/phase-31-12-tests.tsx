@@ -40,6 +40,8 @@ function pureCandidateCoverage() {
   assert.deepEqual(noAntiphon.map((candidate) => candidate.songId), ["czech:1", "czech:5210"]);
   assert.ok(noAntiphon.every((candidate) => !candidate.antiphonMatch && !candidate.seasonMatch && candidate.signal === "none"));
   assert.deepEqual(noAntiphon[0].equivalentNumbers, [{ songId: "polish:1", number: "1", repertoire: false }]);
+  assert.equal(noAntiphon[0].melodyClassId, "class-alpha");
+  assert.deepEqual(noAntiphon[0].melodyMembers.map((member) => member.songId), ["czech:1", "polish:1"]);
 
   const recommended = queryReferenceCandidatesFromData(data("czech:1"), query({ referenceAntiphonId: "czech:800" }));
   assert.equal(recommended[0].songId, "czech:1");
@@ -61,8 +63,11 @@ function pureCandidateCoverage() {
 
   assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ serviceLanguage: "polish" })).map((candidate) => candidate.songId), ["polish:1"]);
   const mixed = queryReferenceCandidatesFromData(data("polish:1"), query({ serviceLanguage: "mixed" }));
-  assert.equal(mixed[0].songId, "polish:1", "recommended surviving concrete song did not become class primary");
-  assert.deepEqual(mixed[0].equivalentNumbers, [{ songId: "czech:1", number: "1", repertoire: true }]);
+  assert.deepEqual(mixed.map((candidate) => candidate.songId), ["czech:1", "czech:5210", "polish:1"]);
+  const polishCandidate = mixed.find((candidate) => candidate.songId === "polish:1");
+  assert.ok(polishCandidate);
+  assert.equal(polishCandidate.antiphonMatch, true, "exact Polish recommendation signal was lost");
+  assert.deepEqual(polishCandidate.equivalentNumbers, [{ songId: "czech:1", number: "1", repertoire: true }]);
 
   assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ queryText: "52/1" })).map((candidate) => candidate.songId), ["czech:5210"]);
   assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ queryText: "5210" })).map((candidate) => candidate.songId), ["czech:5210"]);
@@ -72,9 +77,11 @@ function pureCandidateCoverage() {
   assert.equal(hydrated[0].title, "Historical title");
   assert.equal(hydrated[0].number, "OLD");
   assert.equal(hydrated[0].signal, "antiphon");
+  assert.deepEqual(hydrated[0].melodyMembers.map((member) => member.songId), ["czech:1", "polish:1"]);
   const missing = hydrateReferenceCandidatesFromData(data(), { songs: [{ songId: "historical:czech:999", language: "czech", number: "999", title: "Historical only" }] });
   assert.equal(missing[0].title, "Historical only");
   assert.equal(missing[0].songId, "historical:czech:999");
+  assert.deepEqual(missing[0].melodyMembers.map((member) => member.songId), ["historical:czech:999"]);
 }
 
 function staleLookupCoverage() {
@@ -90,7 +97,6 @@ function staleLookupCoverage() {
 }
 
 async function contextRefreshCoverage() {
-  // HUMAN regression: removing the authoritative antiphon must re-run the unchanged lookup text.
   const calls: Array<{ rowId: number; queryText: string }> = [];
   await refreshOpenSongLookupsOnContextChange([
     { id: 1, songSearch: "1", lookupOpen: true },
@@ -145,6 +151,8 @@ async function staticBoundaryCoverage() {
   assert.match(service, /reference_organist_repertoire/);
   assert.match(service, /reference_song_melody_memberships/);
   assert.match(service, /reference_antiphon_recommendations/);
+  assert.match(service, /melodyClassId/);
+  assert.match(service, /melodyMembers/);
   assert.doesNotMatch(service, /\bcatalog_songs\b/);
   assert.doesNotMatch(service, /\bsong_preferences\b/);
   assert.doesNotMatch(service, /\borganist_repertoire\b/);
