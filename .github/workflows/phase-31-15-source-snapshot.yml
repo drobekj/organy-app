@@ -1,0 +1,26 @@
+name: Phase 31.15 source snapshot
+
+on:
+  push:
+    branches:
+      - codex/phase-31-15-melody-occupancy-collisions
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-15-source-snapshot
+          path: |
+            .
+            !.git/**
+            !node_modules/**
+          if-no-files-found: error
+          retention-days: 1
