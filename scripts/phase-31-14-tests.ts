@@ -96,7 +96,11 @@ function repertoireAndPreferences() {
   assert.deepEqual(thresholdThree.map((candidate) => candidate.songId), ["czech:10", "czech:29"]);
   assert.equal(thresholdThree.some((candidate) => candidate.songId === "czech:421"), false, "preference score transferred within a melody class");
 
-  const noRepertoire = queryReferenceCandidatesFromData(data(), query({ organistPersonId: "organist-with-no-members" }));
+  const noRepertoireData: ReferenceCandidateData = {
+    songs: songs.map((candidate) => ({ ...candidate, repertoire: false })),
+    melodyWindowMonths: 2,
+  };
+  const noRepertoire = queryReferenceCandidatesFromData(noRepertoireData, query());
   assert.deepEqual(noRepertoire, []);
 }
 
