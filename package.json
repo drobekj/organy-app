@@ -63,7 +63,10 @@
     "verify:phase-31-12:local": "tsx scripts/verify-phase-31-12-local.ts",
     "db:sync:reference-thematic-sections": "tsx scripts/db-sync-reference-thematic-sections.ts",
     "verify:phase-31-13": "tsx scripts/verify-phase-31-13.ts",
-    "verify:phase-31-13:local": "tsx scripts/verify-phase-31-13-local.ts"
+    "verify:phase-31-13:local": "tsx scripts/verify-phase-31-13-local.ts",
+    "test:phase-31-14": "tsx scripts/phase-31-14-tests.ts",
+    "verify:phase-31-14": "npm run test:phase-31-14 && npm run verify:phase-31-12",
+    "verify:phase-31-14:local": "tsx scripts/verify-phase-31-14-local.ts"
   },
   "dependencies": {
     "next": "16.2.10",
