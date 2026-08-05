@@ -181,6 +181,17 @@ jobs:
           name: phase-31-12-log
           path: phase-31-12.log
           if-no-files-found: ignore
+      - name: Phase 31.13 authoritative bilingual thematic-section acceptance
+        run: |
+          set -o pipefail
+          npm run verify:phase-31-13 2>&1 | tee phase-31-13.log
+      - name: Upload Phase 31.13 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-13-log
+          path: phase-31-13.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail
