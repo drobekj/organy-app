@@ -17,7 +17,8 @@ Use it together with:
 ## Status and phase history
 
 - Phase 31.13, authoritative Czech and Polish thematic-section knowledge, is merged on `main` as commit `50fae1326534d4058157bab6fca6c7f9e2a26948`.
-- Phase 31.14 is authorized by issue #133 and implements concrete-song authoritative backend candidates.
+- Phase 31.14 is authorized by issue #133 and implemented in PR #134.
+- This file supersedes the documentation-only draft PR #129.
 - Later phases remain separately gated and must not be pulled into Phase 31.14.
 
 The system supports human decisions. It must not automatically choose hymns or override the priest or organist.
