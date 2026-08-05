@@ -77,11 +77,14 @@ function pureCandidateCoverage() {
   assert.equal(hydrated[0].title, "Historical title");
   assert.equal(hydrated[0].number, "OLD");
   assert.equal(hydrated[0].signal, "antiphon");
+  assert.ok(hydrated[0].melodyMembers);
   assert.deepEqual(hydrated[0].melodyMembers.map((member) => member.songId), ["czech:1", "polish:1"]);
   const missing = hydrateReferenceCandidatesFromData(data(), { songs: [{ songId: "historical:czech:999", language: "czech", number: "999", title: "Historical only" }] });
   assert.equal(missing[0].title, "Historical only");
   assert.equal(missing[0].songId, "historical:czech:999");
-  assert.deepEqual(missing[0].melodyMembers.map((member) => member.songId), ["historical:czech:999"]);
+  assert.equal(missing[0].melodyClassId, undefined);
+  assert.equal(missing[0].melodyMembers, undefined);
+  assert.equal(missing[0].orderKey, "rehydrated:czech:999:historical:czech:999");
 }
 
 function staleLookupCoverage() {
