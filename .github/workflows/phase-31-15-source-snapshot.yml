@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Stage hidden CI source
+        run: cp .github/workflows/ci.yml phase-31-15-ci-source.yml
       - name: Upload source snapshot
         uses: actions/upload-artifact@v4
         with:
