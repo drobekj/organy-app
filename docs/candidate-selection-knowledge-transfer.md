@@ -181,29 +181,37 @@ It does not change order, restore a hard-filtered song or invalidate a nonmatchi
 
 When both signals apply, antiphon has priority over theme.
 
-## Czech thematic-section knowledge
+## Czech and Polish thematic-section knowledge
 
-The authoritative source will be an exact transcription of the thematic table of contents from the physical `Evangelický zpěvník`, supplied as user scans.
+The authoritative sources will be exact transcriptions of the thematic tables of contents supplied by the user as Czech and Polish scans.
 
-The first data-only boundary establishes:
+Phase 31.13 is one data-and-resolver phase covering both languages symmetrically. It establishes:
 
 - frozen Czech thematic-section JSON;
-- stable section identifiers;
-- exact inclusive number ranges;
-- range validation;
-- DB synchronization/read-only provider where required by the architecture;
-- resolution by base song number, including slash variants;
-- deterministic ordinary and slash-number tests.
+- frozen Polish thematic-section JSON;
+- stable language-scoped section identifiers;
+- exact inclusive number ranges transcribed from each source;
+- schema, uniqueness, ordering and range-integrity validation for both datasets;
+- DB synchronization and read-only providers where required by the architecture;
+- resolution by `(language, base song number)`, including slash variants;
+- deterministic ordinary, boundary and slash-number tests for both languages.
 
-The theme belongs to a concrete Czech song. It does not transfer through melody equivalence. Polish songs receive no Czech theme until authoritative Polish data exist.
+The thematic section belongs to a concrete song in the matching language. It never transfers through melody equivalence.
+
+For a mixed-language service:
+
+- a Czech candidate is evaluated only against the selected Czech thematic section/ranges;
+- a Polish candidate is evaluated only against the corresponding Polish thematic section/ranges;
+- a Czech theme is never copied to a Polish equivalent, and a Polish theme is never copied to a Czech equivalent.
 
 Initial exclusions:
 
-- Polish ranges;
-- manual exception tags;
-- automatic date derivation;
-- multiple themes per song;
+- manual exception tags beyond the authoritative scanned ranges;
+- automatic derivation of thematic selection from service date;
+- multiple simultaneous thematic sections per language;
 - candidate-picker redesign;
+- Service Context selection UI and persistence;
+- candidate highlighting activation;
 - cosmetic tuning.
 
 ## Validation and final action
@@ -248,10 +256,71 @@ Truly new work is limited to:
 - disabled occupancy search results with occupying-row explanation;
 - complete inline melody detail and its navigation/replacement behavior;
 - current-selection positioning in the candidate list;
-- Czech thematic-section data and resolver;
+- Czech and Polish thematic-section data and resolvers;
 - thematic highlighting and antiphon precedence.
 
 The catalog, melody database, repertoire, preferences, antiphon knowledge and Planning persistence must not be rebuilt.
+
+## Approved phase decomposition
+
+### Phase 31.13 — Czech and Polish thematic sections: data and resolvers
+
+One symmetric data-only phase for both languages:
+
+- transcribe the supplied scans;
+- freeze Czech and Polish JSON datasets;
+- validate stable identifiers and exact ranges;
+- synchronize/read through the existing authoritative architecture;
+- resolve by language and base song number;
+- prove ordinary, boundary and slash-number cases;
+- no Service Context selector, persistence or candidate highlighting.
+
+### Phase 31.14 — concrete songs as backend candidates
+
+- emit one candidate result per eligible concrete song;
+- apply preference threshold per song;
+- order by language block and canonical number;
+- expose complete melody-class/equivalent metadata;
+- preserve existing hard filters, search and antiphon behavior;
+- no new candidate-picker UI and no persistence redesign.
+
+### Phase 31.15 — melody occupancy and collision validation
+
+- immediate current-service class occupancy and release;
+- distinguish hard historical suppression from local row occupancy;
+- disabled candidates with occupying-row reason;
+- detect imported/legacy duplicate classes;
+- mark both rows, allow draft save and block approval;
+- invalid selected songs continue occupying their class.
+
+### Phase 31.16 — candidate list and selection UI
+
+- one open candidate list;
+- concrete candidate rows;
+- select, replace and remove;
+- current-song marker and automatic positioning;
+- disabled results and empty states;
+- close list after selection;
+- no inline melody detail.
+
+### Phase 31.17 — inline melody-class detail
+
+- detail for candidate and selected-song rows;
+- number, title and URL for every class member;
+- informational disallowed-language rows;
+- distinct candidate-detail and selected-song-detail behavior;
+- one expansion across the service section;
+- no cosmetic tuning.
+
+### Phase 31.18 — thematic selection and highlighting
+
+- optional Czech and Polish thematic-section selection in Service Context;
+- persistence and hydration of the language-scoped selection data;
+- mixed service can resolve/highlight Czech candidates from Czech ranges and Polish candidates from Polish ranges;
+- theme applies only to the concrete candidate in its own language;
+- antiphon has priority;
+- theme changes only recalculate highlights;
+- no automatic date derivation and no cross-language inheritance.
 
 ## Resolved questions and deferred cosmetics
 
@@ -263,7 +332,9 @@ Resolved:
 - opposite-language equivalents remain informational;
 - current-service occupancy disables, but does not hard-filter, otherwise eligible songs;
 - candidate and selected-song details intentionally behave differently;
-- antiphon wins over theme.
+- antiphon wins over theme;
+- Czech and Polish thematic knowledge is acquired in the same Phase 31.13;
+- mixed-language thematic evaluation is language-scoped and does not transfer through melody equivalence.
 
 Deferred until practical UI testing:
 
@@ -288,5 +359,6 @@ Before each implementation slice:
 
 - Functional specification approved: 2026-08-05.
 - Implementation comparison approved: 2026-08-05.
+- Phase decomposition approved with Czech/Polish Phase 31.13 amendment: 2026-08-05.
 - Examined baseline: `main` at `39c3e64f96a5ec1cd879e28e12bbf13c6909afc7`, containing merged Phase 31.12.
 - Documentation PR: #129 on `docs/candidate-selection-spec-2026-08-05`.
