@@ -1,12 +1,12 @@
 # Candidate Selection Knowledge Transfer
 
-## Purpose and authority
+## Authority and status
 
-This document is the repository source of truth for the accepted candidate-selection behavior discussed through 2026-08-05.
+This document is the repository source of truth for accepted candidate-selection behavior discussed through 2026-08-05.
 
-It replaces the earlier pre-implementation candidate-display assumptions in this file, especially the former open question whether one displayed candidate represents a melody class or a concrete song. The accepted display and selection unit is now a concrete song, while melody-equivalence classes remain authoritative for repertoire reachability, non-repetition, and local occupancy.
+It is an approved functional baseline, not implementation authorization. Every implementation slice still requires its own Contract Gate. No merge is authorized without the user's exact instruction `MERGOVAT`.
 
-Use this document together with:
+Use together with:
 
 - `docs/decisions.md`
 - `docs/requirements.md`
@@ -15,44 +15,20 @@ Use this document together with:
 - `docs/planning-lifecycle-confirmed-rules.md`
 - `docs/phase-30-1-interaction-data-contract.md`
 
-This is accepted product knowledge and a functional specification baseline. It does not by itself authorize application-code changes, schema changes, an issue, a branch for implementation, or a merge. Implementation still requires a phase-specific Contract Gate.
+## Core model
 
-## Current implementation context
-
-Phase 31.12 is merged on `main` and provides authoritative Planning candidates from the song catalog, melody-equivalence knowledge, and organist repertoire. Its current service shapes each candidate around one authoritative melody-class representative plus equivalents.
-
-The behavior accepted here requires a later adaptation from class-shaped display records to concrete-song candidate rows. Existing Planning Lifecycle, Service Context validation, save/finalize rules, catalog identity, and melody authority must be reused rather than replaced.
-
-Phase 31.13 has not yet been implemented. Its intended first boundary is the Czech thematic-section knowledge dataset and resolver, not the entire candidate-picker redesign.
-
-## Stable domain principles
-
-### Concrete song identity
-
-A concrete song is identified by:
-
-```text
-(language, number)
-```
-
-Song numbers are not globally unique across languages.
-
-### Melody equivalence
+A concrete song is identified by `(language, number)`. Numbers are not globally unique across languages.
 
 A melody-equivalence class contains all concrete songs known to share one melody. Singleton classes are valid.
 
-Candidate selection reasons at two levels:
+Candidate selection operates at two levels:
 
-- concrete songs are displayed, searched, selected, persisted, and evaluated for concrete-song metadata;
-- melody-equivalence classes provide repertoire evidence, non-repetition, equivalent-song detail, and occupancy across rows of one service.
+- concrete songs are searched, displayed, selected, persisted, highlighted and preference-filtered;
+- melody classes provide repertoire reachability, historical non-repetition, current-service occupancy and equivalent-song context.
 
-### Human decision
-
-The application provides decision support. It does not automatically choose the final song set.
+The application supports a human decision. It does not select songs automatically.
 
 ## Candidate pipeline
-
-The conceptual pipeline is:
 
 ```text
 catalog + melody knowledge + organist repertoire + service context
@@ -63,292 +39,254 @@ catalog + melody knowledge + organist repertoire + service context
 -> human selection
 ```
 
-Hard filters determine whether a concrete song belongs to the candidate universe. Current-service availability may temporarily disable a song that is otherwise in that universe. Highlighting never changes eligibility or ordering.
+Hard filters determine whether a song belongs to the candidate universe. Current-service occupancy may only make an otherwise eligible song temporarily unavailable. Highlighting never changes eligibility or ordering.
 
-## Hard-filtered universe
+## Hard filters
 
-The established hard filters remain:
+The established hard filters are:
 
-1. selected/default organist repertoire through melody-equivalence reachability;
-2. service language for the concrete song;
-3. melody non-repetition against applicable historical and saved-plan data;
-4. concrete-song preference threshold, default `x = 0`.
+1. selected/default organist repertoire through melody-class reachability;
+2. service language applied to the concrete song;
+3. melody non-repetition against applicable completed and saved-plan data;
+4. preference threshold applied separately to each concrete song, default `x = 0`.
+
+A melody class may pass the repertoire filter because any equivalent song is explicitly in the organist repertoire. Preference scores never transfer between equivalent songs.
 
 Antiphon and thematic section are not hard filters.
 
-A melody class may pass the repertoire filter because an equivalent song is explicitly present in the organist repertoire, even when the selectable concrete song is in another permitted language. Preference scores remain attached to concrete songs and never transfer through melody equivalence.
-
 ## Candidate-row contract
 
-### Display unit
+Each candidate row represents exactly one concrete song. One melody class may therefore produce several candidate rows.
 
-Each candidate row represents exactly one concrete selectable song.
+The compact row begins with the concrete song number and title, followed by compact melody-class context containing the other song numbers. The authoritative pivot or explicit repertoire member remains distinguishable. Polish equivalents must be distinguishable in mixed-language context.
 
-A melody class containing several permitted concrete songs may therefore produce several candidate rows. Selecting one row persists that concrete song, not the class representative and not every equivalent song.
-
-### Row content
-
-A compact candidate row begins with:
-
-1. the concrete candidate's number;
-2. the concrete candidate's title.
-
-It then exposes compact melody-equivalence context, including the other song numbers in the same class. The authoritative class pivot or repertoire-evidence member remains distinguishable according to existing class metadata. In mixed-language context, Polish equivalents must be clearly distinguishable from Czech equivalents.
-
-The concrete candidate remains the row identity even when another equivalent song is the class pivot or the song explicitly present in the organist repertoire.
+Selecting a row persists that concrete song, not a class representative.
 
 ### Ordering
 
-Candidate highlighting does not change ordering.
+Highlighting does not affect ordering.
 
-Default ordering is deterministic by concrete song number. For a mixed-language service:
+- Czech service: Czech songs in canonical number order.
+- Polish service: Polish songs in canonical number order.
+- Mixed service: Czech block first, Polish block second; each block in canonical number order.
 
-1. Czech candidate rows come first;
-2. Polish candidate rows follow;
-3. each language block is ordered by the catalog's canonical song-number ordering.
+### Existing selection
 
-### Current selection
+When reopening a candidate list for a row with a selected song:
 
-When a row already contains a selected song and its candidate list is opened:
+- the current concrete song is marked;
+- the list scrolls to it;
+- its class remains available to that same row;
+- classes occupied by other rows remain unavailable.
 
-- the current concrete song is marked as the current selection;
-- the list automatically scrolls to it;
-- its melody class remains available to that same service row;
-- melody classes occupied by other service rows remain unavailable.
-
-If a Service Context change makes the current song language-invalid, the song is not deleted. It remains visible as the current invalid selection so the user can replace or remove it.
+A selected song that became language-invalid remains visible as the current invalid selection until replaced or removed.
 
 ## Current-service occupancy
 
-### Occupancy rule
+Selecting a concrete song immediately occupies its whole melody class in the local unsaved service draft.
 
-Selecting a concrete song occupies its whole melody-equivalence class within the currently edited service set.
+For every other service row, all songs from that class become unavailable. Removing or replacing the selection immediately releases the old class unless another row still occupies it.
 
-All other concrete songs from that class become unavailable in candidate lists for other service rows. This happens immediately in the local unsaved editing state.
+An invalid selected song continues occupying its class until corrected, preventing an additional collision.
 
-### Release rule
+### Existing duplicate state
 
-When the selected song is removed or replaced, its previous melody class immediately becomes available again wherever no other service row occupies it.
+If imported or older data already contain the same melody class in two rows:
 
-### Invalid selections still occupy their class
-
-A selected song that has become invalid because of a Service Context change continues to occupy its whole melody class until it is replaced or removed. This prevents creating an additional collision during correction.
-
-### Legacy or imported duplicate state
-
-If existing/imported data already contain the same melody class in two service rows:
-
-- do not silently remove or replace either selection;
-- mark both colliding rows as erroneous;
-- allow the invalid state to be saved as a working draft;
+- do not alter either row automatically;
+- mark both rows as erroneous;
+- allow saving the invalid working draft;
 - block approval/finalization;
-- show a concise blocking reason near the approval/finalization action, following the established Service Context validation pattern.
+- show a concise blocking reason near the final action.
 
-A suitable reason is conceptually:
+## Selection and editing
 
-```text
-Cannot approve: two selected songs use the same melody.
-```
-
-## Selection and editing interactions
-
-### Select or replace
-
-Clicking/tapping the main area of an available candidate row immediately selects that concrete song for the active service row.
-
-If another song was already selected, it is replaced without a confirmation dialog. After selection or replacement, the candidate list closes.
-
-### Remove
-
-Removing a selected song requires no confirmation dialog. The service row becomes empty, the melody class is released immediately, and the candidate list does not open automatically.
-
-### Unsaved editing
-
-Selection, replacement, and removal update only the local draft until the existing shared Save action is used. Existing unsaved-change protection, discard behavior, approval locking, and draft validation rules remain authoritative.
-
-Open candidate/detail state is transient UI state and is not persisted. After reload, all candidate lists and details are closed.
+- Clicking/tapping the main area of an available candidate selects it immediately.
+- Selecting another candidate replaces the current song without confirmation.
+- The candidate list closes after selection or replacement.
+- Removing a song requires no confirmation, leaves the row empty and does not open the list.
+- Selection, replacement and removal remain local until the shared Save action.
+- Approval is blocked while changes are unsaved and always operates on persisted state.
+- Save remains available even when validation errors exist.
+- After saving an invalid draft, confirmation remains visible together with the errors and blocked approval.
+- `Discard changes` restores the last persisted state after confirmation.
+- Unsaved-change protection applies when leaving the service or closing the page.
+- Failed save retains all local changes.
+- Open lists and details are transient and are closed after reload.
 
 ## Candidate search
 
-Each candidate list supports search by:
+Search supports song number and title, including canonical slash variants such as `52/1` and their encoded form.
 
-- song number;
-- song title.
+Search never restores a song removed by a hard filter.
 
-Search is constrained to the hard-filtered universe. Songs eliminated by a hard filter are not resurrected as search results.
+Songs that pass hard filters but are unavailable only because their class is occupied in another current-service row may appear as disabled results. Each disabled result states the reason and identifies the occupying row. It remains available for informational detail and resource links but cannot be selected.
 
-Songs that pass hard filters but are currently unavailable because their melody class is occupied elsewhere in the same service may appear as disabled search results. A disabled result states the reason and identifies the occupying service row, for example:
-
-```text
-The same melody is already used in “Song after the sermon”.
-```
-
-A disabled search result may still expose its detail and score links, but it cannot be selected.
-
-If no currently available candidate remains, show an explicit empty state such as:
-
-```text
-No available song.
-```
-
-The explanation should distinguish, where determinable, whether the absence results from hard filtering such as language or from melody occupancy in another service row.
+When no available song remains, show `No available song` and, where determinable, distinguish hard filtering from current-service occupancy.
 
 ## Detail contract
 
-### Availability
-
 Every candidate row and every selected-song row has a Detail action.
 
-On desktop, hover may open a temporary preview and an explicit Detail action pins it. On touch devices, the main row action selects while the Detail action opens/pins the detail.
-
-The detail opens inline directly below its row and pushes following content down.
-
-### One expansion at a time
-
-Across the service-planning area, at most one expansion is open:
-
-- one candidate list; or
-- one song detail.
-
-Opening another candidate list closes the previous expansion. Opening a detail closes an open candidate list, and opening a candidate list closes an open detail. Clicking/tapping outside an open detail closes it. Exact visual treatment is deferred to practical testing.
+- Desktop hover may provide temporary preview; explicit Detail pins it.
+- Touching the main candidate row selects; touching Detail opens detail.
+- Detail opens inline below its row and pushes following content downward.
+- Across the whole service section only one expansion is open: one candidate list or one song detail.
+- Opening another expansion closes the previous one.
+- Clicking/tapping outside an open detail closes it.
+- Exact cosmetic treatment is deferred to practical testing.
 
 ### Detail contents
 
-The expanded detail is row-based:
+The first detail row is the concrete song whose detail was opened. Following rows are the other songs in the same melody class.
 
-1. first row: the concrete song whose detail was opened;
-2. following rows: the other concrete songs in the same melody-equivalence class.
+Each row contains number, title and resource/score URL when available. URLs open in a new tab without losing application state.
 
-Each detail row contains:
+Equivalent songs outside the permitted service language remain visible with active links, but are not selectable.
 
-- song number;
-- title;
-- score/resource URL when available.
+### Candidate detail
 
-Resource URLs open in a new tab and must not discard the current application state.
+Clicking another selectable equivalent song moves focus to that song's own candidate row and opens its detail. It does not select it immediately.
 
-Equivalent songs outside the currently permitted service language remain visible as informational rows with active resource links, but they are not selectable.
+A disabled candidate detail is informational only.
 
-### Candidate-detail behavior
+### Selected-song detail
 
-In a detail opened from a candidate row, clicking another selectable equivalent song does not immediately select it. It moves focus to that concrete song's own candidate row and opens that row's detail.
+Clicking another selectable equivalent song immediately replaces the selected concrete song, keeps the same melody class occupied and closes the detail. Reopening starts with the new song.
 
-For an unavailable candidate result, detail remains informational; no song in that disabled result can be selected through the detail.
-
-### Selected-song-detail behavior
-
-In a detail opened from an already selected song, clicking another selectable equivalent song immediately replaces the current concrete selection with that equivalent song.
-
-After replacement:
-
-- the detail closes;
-- the melody class remains occupied by the newly selected concrete song;
-- reopening the detail uses the newly selected song as its first row.
-
-Clicking a resource URL never triggers selection or replacement.
+Clicking a resource URL never selects or replaces a song.
 
 ## Service Context changes
 
-When the service language changes and an already selected song is no longer permitted:
+Changing language never deletes an existing selection automatically.
 
-- do not delete the song automatically;
-- mark its service row as invalid;
-- block approval/finalization;
-- keep Save available for the working draft;
-- keep valid replacement candidates available;
-- keep the invalid selection's melody class occupied until correction.
+A no-longer-permitted song:
 
-This uses the same validation pattern as invalid Service Context fields: local error indication plus a concise explanation at the blocked final action.
+- remains in its row;
+- is marked invalid;
+- continues occupying its melody class;
+- may be replaced or removed;
+- allows working-draft save;
+- blocks approval/finalization.
+
+Use the existing validation pattern: local row error plus concise explanation near the blocked final action.
+
+Changing antiphon or thematic section only recalculates highlights. It does not invalidate selections.
 
 ## Antiphon and thematic highlighting
 
-Antiphon and thematic-section inputs only recalculate recommendation highlighting.
+Highlighting applies only to the concrete candidate's number and title, not to every member of its melody class.
 
-They do not:
+It does not change order, restore a hard-filtered song or invalidate a nonmatching selected song.
 
-- change candidate ordering;
-- make a hard-filtered song eligible;
-- invalidate an already selected song merely because it does not match;
-- propagate concrete-song metadata to every member of a melody class.
+When both signals apply, antiphon has priority over theme.
 
-Highlighting applies only to the concrete candidate's number and title, not to the whole melody-equivalence context. When both antiphon and thematic highlighting apply, antiphon has priority.
+## Czech thematic-section knowledge
 
-## Thematic-section knowledge
+The authoritative source will be an exact transcription of the thematic table of contents from the physical `Evangelický zpěvník`, supplied as user scans.
 
-The intended input is an exact transcription of the thematic table of contents from the physical `Evangelický zpěvník`. The user will provide scans of the relevant pages.
-
-The first data-oriented thematic phase should establish:
+The first data-only boundary establishes:
 
 - frozen Czech thematic-section JSON;
 - stable section identifiers;
-- exact inclusive song-number ranges;
-- validation of range integrity;
-- DB synchronization/read-only provider where required by the existing architecture;
-- resolution by the base song number so slash variants resolve through their base number;
-- deterministic tests for ordinary and slash-number cases.
+- exact inclusive number ranges;
+- range validation;
+- DB synchronization/read-only provider where required by the architecture;
+- resolution by base song number, including slash variants;
+- deterministic ordinary and slash-number tests.
 
-Thematic membership applies to a concrete Czech song. It does not automatically transfer through melody equivalence, and Polish equivalents do not inherit Czech thematic membership until authoritative Polish thematic data exist.
+The theme belongs to a concrete Czech song. It does not transfer through melody equivalence. Polish songs receive no Czech theme until authoritative Polish data exist.
 
-The initial thematic-data phase excludes:
+Initial exclusions:
 
-- Polish thematic ranges;
+- Polish ranges;
 - manual exception tags;
 - automatic date derivation;
-- multi-theme assignment;
-- broad candidate-picker redesign;
-- final visual tuning.
+- multiple themes per song;
+- candidate-picker redesign;
+- cosmetic tuning.
 
 ## Validation and final action
 
-The following candidate-selection conditions block approval/finalization but do not block saving a working draft:
+The following block approval/finalization but not working-draft save:
 
-- duplicate melody-equivalence class across two service rows;
-- selected concrete song disallowed by the current Service Context;
-- any inherited Planning Lifecycle validation error.
+- the same melody class selected in multiple rows;
+- selected concrete song disallowed by current Service Context;
+- inherited Planning Lifecycle validation errors.
 
-Errors are shown locally at the affected row or field and summarized concisely near the blocked approval/finalization action.
+Errors are local to affected rows or fields and summarized near the final action.
 
-## Superseded assumptions and resolved questions
+## Accepted comparison with current `main`
 
-The following earlier questions are now resolved:
+Phase 31.12 already provides and must be reused:
 
-- Candidate output is per concrete song, not one display row per melody class.
-- Candidate ordering is deterministic by number, with Czech before Polish in mixed services.
-- Melody context is supplemental to the concrete row identity.
-- Opposite-language equivalents may be shown in detail as informational entries but cannot be selected when the language is not permitted.
-- Current-service melody occupancy disables otherwise eligible candidates and states the occupying row.
-- Search includes disabled occupancy results only inside the hard-filtered universe.
-- Candidate and selected-song details intentionally have different click behavior because their purposes differ.
-- Highlighting never changes ordering and antiphon wins over thematic highlighting.
+- authoritative Czech/Polish catalog and stable song IDs;
+- melody-equivalence authority;
+- organist repertoire;
+- aggregate concrete-song preferences;
+- historical and saved-plan melody non-repetition;
+- authoritative antiphon recommendation;
+- number/title search including slash variants;
+- persistence and hydration of concrete selected songs;
+- candidate refresh after relevant Service Context changes;
+- structured candidate errors;
+- existing Planning Lifecycle save/finalize and validation patterns.
 
-The following are not product questions for further pre-implementation interrogation:
+The existing implementation is only partially compatible in these areas:
 
-- exact colors, spacing, indentation, icons, and animation;
-- final close affordance styling;
-- other cosmetic treatment.
+1. It currently groups by melody class and emits one chosen primary row. It must emit one row for every eligible concrete song.
+2. Preference threshold currently admits a class by the best visible member. It must apply per concrete song.
+3. Ordering currently uses signal, repertoire and preference ranking. It must become language-block and canonical-number ordering, independent of highlighting.
+4. `candidateUsages` already suppress melody classes, but it must distinguish historical/saved-plan hard suppression from temporary occupancy by another row in the current draft.
+5. The candidate DTO must gain melody-class identity, full equivalent-song metadata, availability, reason and occupying-row information, plus later thematic signal.
+6. The existing selected-song Detail action is only a starting point; the complete inline melody detail and one-expansion interaction are new.
+7. Existing language-deviation handling must converge on the accepted rule: preserve the invalid song, allow draft save and block approval.
 
-Those details are deferred until practical UI testing.
+Truly new work is limited to:
+
+- duplicate-class validation across current service rows;
+- disabled occupancy search results with occupying-row explanation;
+- complete inline melody detail and its navigation/replacement behavior;
+- current-selection positioning in the candidate list;
+- Czech thematic-section data and resolver;
+- thematic highlighting and antiphon precedence.
+
+The catalog, melody database, repertoire, preferences, antiphon knowledge and Planning persistence must not be rebuilt.
+
+## Resolved questions and deferred cosmetics
+
+Resolved:
+
+- display and selection unit is a concrete song;
+- ordering is by language block and number;
+- equivalent-song context is supplemental;
+- opposite-language equivalents remain informational;
+- current-service occupancy disables, but does not hard-filter, otherwise eligible songs;
+- candidate and selected-song details intentionally behave differently;
+- antiphon wins over theme.
+
+Deferred until practical UI testing:
+
+- colors;
+- spacing and indentation;
+- icons;
+- animation;
+- exact close affordance styling.
 
 ## Implementation discipline
 
-Do not implement the whole specification as one broad change.
+Do not implement the whole specification in one broad PR.
 
 Before each implementation slice:
 
-1. compare this specification with current `main` and identify behavior already present;
-2. isolate one failure domain;
-3. define inputs, outputs, invariants, validation, tests, and explicit non-goals in a Contract Gate;
-4. obtain user approval of that Contract Gate;
-5. only then create implementation issue/branch/code as required by the project workflow.
-
-No merge is authorized without the user's exact instruction `MERGOVAT`.
+1. isolate one failure domain;
+2. define inputs, outputs, invariants, validation, tests and explicit non-goals;
+3. approve the Contract Gate;
+4. only then create the implementation issue/branch/code required by workflow.
 
 ## Traceability
 
-- Source discussion accepted on 2026-08-05.
-- Repository baseline examined: `main` at `39c3e64f96a5ec1cd879e28e12bbf13c6909afc7` (merged Phase 31.12).
-- The next analytical steps are:
-  1. approve this consolidated functional specification;
-  2. compare it with current implementation and remove already implemented work from the change set;
-  3. decompose only the remaining work into one-failure-domain phases;
-  4. approve the Contract Gate for the first phase.
+- Functional specification approved: 2026-08-05.
+- Implementation comparison approved: 2026-08-05.
+- Examined baseline: `main` at `39c3e64f96a5ec1cd879e28e12bbf13c6909afc7`, containing merged Phase 31.12.
+- Documentation PR: #129 on `docs/candidate-selection-spec-2026-08-05`.
