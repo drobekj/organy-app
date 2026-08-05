@@ -23,6 +23,7 @@ jobs:
             | base64 --decode \
             | gzip --decompress \
             > /tmp/phase-31-15.patch
+          git rm .github/workflows/ci.yml
           git apply --index /tmp/phase-31-15.patch
           rm .phase-31-15-payload.b64
           rm .phase-31-15-patch-00 .phase-31-15-patch-01 .phase-31-15-patch-02 .phase-31-15-patch-03
