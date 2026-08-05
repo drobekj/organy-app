@@ -193,7 +193,9 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   const historical = await invoke("hydrateCandidates", { songs: [{ songId: "historical:czech:999", language: "czech", number: "999", title: "Historical only" }] });
   assert.equal(historical.body.value[0].title, "Historical only");
   assert.equal(historical.body.value[0].songId, "historical:czech:999");
-  assert.deepEqual(historical.body.value[0].melodyMembers.map((member: { songId: string }) => member.songId), ["historical:czech:999"]);
+  assert.equal(historical.body.value[0].melodyClassId, undefined);
+  assert.equal(historical.body.value[0].melodyMembers, undefined);
+  assert.equal(historical.body.value[0].orderKey, "rehydrated:czech:999:historical:czech:999");
 }
 
 async function verifyReferenceCandidateLifecycle(pool: Pool) {
