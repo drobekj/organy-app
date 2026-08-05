@@ -75,7 +75,7 @@ export class ReferenceCandidateService {
     return queryReferenceCandidatesFromData(data, input);
   }
 
-  async hydrateCandidates(input: CandidateHydrationInput): Promise<ReferenceCandidateQueryResult[]> {
+  async hydrateCandidates(input: CandidateHydrationInput): Promise<CandidateQueryResult[]> {
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId);
     return hydrateReferenceCandidatesFromData(data, input);
   }
@@ -178,7 +178,7 @@ export function queryReferenceCandidatesFromData(
 export function hydrateReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateHydrationInput,
-): ReferenceCandidateQueryResult[] {
+): CandidateQueryResult[] {
   const songsById = new Map(data.songs.map((song) => [song.id, song]));
   const membersByClass = groupSongsByClass(data.songs);
 
@@ -239,24 +239,14 @@ function toMelodyMember(song: ReferenceCandidateSong): ReferenceCandidateMelodyM
   };
 }
 
-function historicalCandidate(reference: CandidateHydrationInput["songs"][number]): ReferenceCandidateQueryResult {
+function historicalCandidate(reference: CandidateHydrationInput["songs"][number]): CandidateQueryResult {
   const songId = reference.songId ?? `historical:${reference.language}:${reference.number}`;
-  const title = reference.title ?? "Untitled snapshot";
   return {
     songId,
     language: reference.language,
     number: reference.number,
-    title,
+    title: reference.title ?? "Untitled snapshot",
     equivalentNumbers: [],
-    melodyClassId: `historical:${songId}`,
-    melodyMembers: [{
-      songId,
-      language: reference.language,
-      number: reference.number,
-      title,
-      repertoire: false,
-      aggregatePreferenceScore: 0,
-    }],
     aggregatePreferenceScore: 0,
     antiphonMatch: false,
     seasonMatch: false,
@@ -264,7 +254,7 @@ function historicalCandidate(reference: CandidateHydrationInput["songs"][number]
     preferenceShade: "none",
     repertoire: false,
     suppressedByMelodyWindow: false,
-    orderKey: `historical:${languageRank(reference.language)}:${reference.number}:${songId}`,
+    orderKey: `rehydrated:${reference.language}:${reference.number}:${songId}`,
   };
 }
 
