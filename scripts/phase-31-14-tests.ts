@@ -192,6 +192,7 @@ function hydration() {
   assert.equal(hydrated.title, "Historical 29");
   assert.equal(hydrated.signal, "antiphon");
   assert.equal(hydrated.melodyClassId, "class-a");
+  assert.ok(hydrated.melodyMembers);
   assert.deepEqual(hydrated.melodyMembers.map((member) => member.songId), ["czech:29", "polish:38", "czech:421"]);
 
   const historical = hydrateReferenceCandidatesFromData(data(), {
@@ -200,8 +201,9 @@ function hydration() {
   assert.equal(historical.songId, "historical:czech:999");
   assert.equal(historical.number, "999");
   assert.equal(historical.title, "Historical only");
-  assert.equal(historical.melodyClassId, "historical:historical:czech:999");
-  assert.deepEqual(historical.melodyMembers.map((member) => member.songId), ["historical:czech:999"]);
+  assert.equal(historical.melodyClassId, undefined);
+  assert.equal(historical.melodyMembers, undefined);
+  assert.equal(historical.orderKey, "rehydrated:czech:999:historical:czech:999");
 }
 
 async function staticScope() {
