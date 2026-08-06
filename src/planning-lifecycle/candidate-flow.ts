@@ -1,4 +1,4 @@
-export const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
+export const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
 
 import type { CatalogSong } from "../application/catalog";
 import type { CandidateQueryInput, CandidateQueryResult, CandidateUsage } from "../application/interaction-contracts";
@@ -54,6 +54,7 @@ export type PlanningCandidateEditableRow = {
 };
 
 export type PlanningCandidateRowAction =
+  | { type: "lookupOpened" }
   | { type: "lookupChanged"; text: string }
   | { type: "candidateSelected"; song: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }; candidate?: CandidateQueryResult }
   | { type: "lookupCancelled" }
@@ -143,8 +144,10 @@ export function buildCandidateQueryInput(input: CandidateQueryContextInput): Can
 
 export function planningCandidateRowReducer(row: PlanningCandidateEditableRow, action: PlanningCandidateRowAction): PlanningCandidateEditableRow {
   switch (action.type) {
+    case "lookupOpened":
+      return { ...row, songSearch: "", lookupOpen: true };
     case "lookupChanged":
-      return { ...row, songSearch: action.text, lookupOpen: Boolean(action.text.trim()) };
+      return { ...row, songSearch: action.text, lookupOpen: true };
     case "candidateSelected":
       return { ...row, songSearch: formatSongLabel(action.song), selectedSong: action.song, selectedCandidate: action.candidate, lookupOpen: false };
     case "lookupCancelled":
@@ -163,6 +166,12 @@ export function restoreConfirmedCandidate<T extends PlanningCandidateEditableRow
 
 export function restoreRowsExceptActive<T extends PlanningCandidateEditableRow>(rows: T[], targetRowId: number): T[] {
   return rows.map((row) => row.id === targetRowId ? row : row.lookupOpen ? restoreConfirmedCandidate(row) : row);
+}
+
+export function openSingleCandidateRow<T extends PlanningCandidateEditableRow>(rows: T[], targetRowId: number): T[] {
+  return rows.map((row) => row.id === targetRowId
+    ? planningCandidateRowReducer(row, { type: "lookupOpened" }) as T
+    : row.lookupOpen ? restoreConfirmedCandidate(row) : row);
 }
 
 export function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {

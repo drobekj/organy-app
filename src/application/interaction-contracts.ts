@@ -78,6 +78,7 @@ export class InMemoryInteractionRepository {
   listKnowledge() { return { antiphons: this.antiphons.map((m) => ({ ...m })), seasons: this.seasons.map((m) => ({ ...m })), melodyWindow: this.getMelodyWindow(), melodyClasses: this.listMelodyClasses() }; }
 
   queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {
+    if (!input.organistPersonId) return [];
     const languageSet = new Set(languagesForService(input.serviceLanguage));
     const recentClassIds = getRecentMelodyClassIds(this.melodyClasses, input, this.melodyWindow);
     const queryText = input.queryText?.trim().toLowerCase();
@@ -95,7 +96,7 @@ export class InMemoryInteractionRepository {
     for (const [classId, groupSongs] of groups) {
       const melody = this.melodyClasses.find((m) => m.id === classId);
       const allClassSongIds = melody?.songIds ?? groupSongs.map((song) => song.songId);
-      if (input.organistPersonId && !allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(input.organistPersonId!, songId)))) continue;
+      if (!allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(input.organistPersonId!, songId)))) continue;
       const scored = groupSongs.map((song) => {
         const aggregatePreferenceScore = [...this.preferences.values()].filter((p) => p.songId === song.songId).reduce((sum, p) => sum + p.score, 0);
         const antiphonMatch = Boolean(input.antiphonKey && this.antiphons.some((m) => m.key === input.antiphonKey && m.songId === song.songId));

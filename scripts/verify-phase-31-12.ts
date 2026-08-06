@@ -99,8 +99,8 @@ async function seedFocusedAuthority(pool: Pool) {
   const profileId = String(profiles.find((row) => row.category === "priest")?.id ?? profiles[0].id);
   await pool.query("delete from reference_song_preferences where reference_song_id in ('czech:1','polish:1')");
   await pool.query("insert into reference_song_preferences(profile_id,reference_song_id,score) values($1,'czech:1',3),($1,'polish:1',1)", [profileId]);
-  await pool.query("delete from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id in ('czech:1','polish:1')");
-  await pool.query("insert into reference_organist_repertoire(organist_person_id,reference_song_id) values('demo-organist','czech:1')");
+  await pool.query("delete from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id in ('czech:1','polish:1','czech:5210')");
+  await pool.query("insert into reference_organist_repertoire(organist_person_id,reference_song_id) values('demo-organist','czech:1'),('demo-organist','czech:5210')");
   const czechClass = String((await pool.query("select class_id from reference_song_melody_memberships where reference_song_id='czech:1'")).rows[0].class_id);
   const polishClass = String((await pool.query("select class_id from reference_song_melody_memberships where reference_song_id='polish:1'")).rows[0].class_id);
   await pool.query("update reference_song_melody_memberships set class_id=$1,updated_at=now() where reference_song_id='polish:1'", [czechClass]);
@@ -178,9 +178,9 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
 
   const tooHigh = await query(baseQuery({ queryText: "1", preferenceThreshold: 4 }));
   assert.equal(tooHigh.length, 0);
-  const canonicalVariant = await query(baseQuery({ organistPersonId: undefined, preferenceThreshold: 0, queryText: "5210" }));
+  const canonicalVariant = await query(baseQuery({ preferenceThreshold: 0, queryText: "5210" }));
   assert.ok(canonicalVariant.some((candidate) => candidate.songId === "czech:5210"));
-  const displayVariant = await query(baseQuery({ organistPersonId: undefined, preferenceThreshold: 0, queryText: "52/1" }));
+  const displayVariant = await query(baseQuery({ preferenceThreshold: 0, queryText: "52/1" }));
   assert.ok(displayVariant.some((candidate) => candidate.songId === "czech:5210"));
 
   const hydrated = await invoke("hydrateCandidates", { songs: [{ songId: "czech:1", language: "czech", number: "OLD", title: "Historical" }], organistPersonId: "demo-organist", referenceAntiphonId: "czech:800" });

@@ -3,13 +3,13 @@ import { readFileSync } from "node:fs";
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
+const candidateList = readFileSync("src/planning-lifecycle/candidate-list.tsx", "utf8");
 
 // DB candidate calls use the injected transport so structured failures remain observable to the Planning client.
 // Authoritative highlighting is passed separately and never inferred from the legacy synthetic antiphon key.
 // The production Reference candidate boundary is checked separately for absence of every legacy table identifier.
 for (const required of [
-  "role=\"listbox\"",
-  "Cancel lookup",
+  "<CandidateCombobox",
   "onOpenDetail={() => row.selectedSong?.songId && openCatalogSongDetail(row.selectedSong.songId, row.id)}",
   "<CandidateLine",
   "Back to Planning row",
@@ -28,8 +28,12 @@ for (const required of [
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }
 
-for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)"]) {
+for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current"]) {
   assert(css.includes(required), `Planning UI CSS is missing ${required}`);
 }
 
 console.log("Planning UI static workflow coverage passed.");
+
+for (const required of ["role=\"listbox\"", "role=\"combobox\"", "aria-activedescendant", "Loading candidates", "No candidate matches", "Retry"]) {
+  assert(candidateList.includes(required), `Candidate list UI is missing ${required}`);
+}
