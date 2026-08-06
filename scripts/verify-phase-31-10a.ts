@@ -151,9 +151,10 @@ async function verifyUnrelatedBackendBehaviorIsUnchanged(pool: Pool): Promise<vo
     insert into preference_profiles(id,user_id,category) values('legacy-profile','priest','priest');
     insert into song_preferences(profile_id,song_id,score) values('legacy-profile','legacy-song',2);
     insert into organist_repertoire(organist_person_id,song_id) values('organist-person','legacy-song');
+    insert into reference_organist_repertoire(organist_person_id,reference_song_id) values('organist-person','czech:1');
     insert into melody_equivalence_classes(id,label,synthetic) values('legacy-melody','Legacy melody',false);
     insert into song_melody_equivalence(song_id,class_id) values('legacy-song','legacy-melody')`);
-  const candidateInput = { serviceDate: "2026-07-31", serviceLanguage: "czech", antiphonKey: "legacy-key" };
+  const candidateInput = { serviceDate: "2026-07-31", serviceLanguage: "czech", organistPersonId: "organist-person", antiphonKey: "legacy-key" };
   const candidateBefore = await invoke("queryCandidates", candidateInput);
   assert.equal(candidateBefore.status, 200);
   assert.equal(candidateBefore.body.success, true);
