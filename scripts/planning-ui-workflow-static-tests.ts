@@ -13,7 +13,6 @@ for (const required of [
   "onOpenDetail={() => openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong!))}",
   "<CandidateLine",
   "Back to Planning row",
-  "candidate-line",
   "Historical inactive priest",
   "Historical inactive organist",
   "Catalog sections",
