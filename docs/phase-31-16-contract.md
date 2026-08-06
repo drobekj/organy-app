@@ -29,6 +29,12 @@ One concrete authoritative candidate is one concrete option in a single-open Pla
 - approved default preference threshold is `0`;
 - no inline melody detail, thematic UI, migration, schema or persistence change.
 
+## HUMAN checkpoint history
+
+- 2026-08-06: first browser checkpoint failed because an empty candidate browse attempted a lookup without a selected Service Context organist and exposed `Candidate lookup failed.`
+- Correction: no-organist browse is now a neutral prerequisite state with no API request; no organist and an empty selected-organist repertoire both yield zero candidates in authoritative and in-memory services.
+- A fresh browser HUMAN checkpoint is required on the corrected exact head.
+
 ## Workflow
 
 Exact-head CI, Automatic Review Gate and one real browser HUMAN checkpoint are required. Merge is forbidden without exact `MERGOVAT`.
