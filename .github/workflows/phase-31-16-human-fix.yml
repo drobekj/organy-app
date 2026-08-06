@@ -1,0 +1,48 @@
+name: Phase 31.16 HUMAN correction
+
+on:
+  push:
+    branches:
+      - codex/phase-31-16-concrete-candidate-list-ui
+    paths:
+      - scripts/phase-31-16-human-fix.mjs
+      - .github/workflows/phase-31-16-human-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  correct:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout correction branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-16-concrete-candidate-list-ui
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply correction
+        run: node scripts/phase-31-16-human-fix.mjs
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Focused Phase 31.16 acceptance
+        run: npm run test:phase-31-16
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Existing tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Remove correction bootstrap and commit verified result
+        run: |
+          rm scripts/phase-31-16-human-fix.mjs
+          rm .github/workflows/phase-31-16-human-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix Phase 31.16 organist repertoire prerequisite"
+          git push origin HEAD:codex/phase-31-16-concrete-candidate-list-ui
