@@ -187,14 +187,15 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
                 aria-selected={current}
                 aria-disabled={!selectable}
                 data-song-id={candidate.songId}
+                onClick={() => { if (selectable) props.onSelect(candidate); }}
               >
-                <button type="button" disabled={!selectable} onClick={() => { if (selectable) props.onSelect(candidate); }}>
+                <div className="candidate-option-content">
                   <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span><span>{candidate.language}</span></span>
                   <span className="candidate-option-meta">{candidate.repertoire ? "In repertoire" : "Melody known through an equivalent"} · preference {candidate.aggregatePreferenceScore} · {candidate.signal}</span>
                   {candidate.melodyMembers && candidate.melodyMembers.length > 1 && <span className="candidate-option-meta">Melody class: {candidate.melodyMembers.length} songs</span>}
                   {current && <span className="candidate-current-marker">Currently selected</span>}
                   {reason && <span className="candidate-unavailable-reason">Unavailable — {reason}</span>}
-                </button>
+                </div>
               </div>
             );
           })}

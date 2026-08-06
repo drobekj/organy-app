@@ -598,7 +598,7 @@ textarea {
   scroll-margin-block: 0.5rem;
 }
 
-.candidate-option > button {
+.candidate-option-content {
   border: 0;
   border-radius: 0.65rem;
   display: grid;
@@ -607,16 +607,16 @@ textarea {
   width: 100%;
 }
 
-.candidate-option-active > button {
+.candidate-option-active .candidate-option-content {
   outline: 3px solid #84adff;
   outline-offset: -3px;
 }
 
-.candidate-option-current > button {
+.candidate-option-current .candidate-option-content {
   background: #eff6ff;
 }
 
-.candidate-option-disabled > button {
+.candidate-option-disabled .candidate-option-content {
   opacity: 0.72;
 }
 

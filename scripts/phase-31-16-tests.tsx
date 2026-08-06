@@ -130,6 +130,7 @@ function renderCoverage() {
   const equivalentSlice = html.slice(html.indexOf("Same melody equivalent"), html.indexOf("Occupied Polish equivalent"));
   assert.doesNotMatch(equivalentSlice, /Currently selected/, "equivalent song must not receive the exact current marker");
   assert.match(html, /aria-disabled="true"/);
+  assert.doesNotMatch(html, /<button[^>]*disabled/, "disabled candidates remain semantic options rather than nested disabled controls");
   assert.match(html, /Row 2 and Row 3/);
   assert.doesNotMatch(html, /All matching melodies are already occupied/, "mixed available and occupied results must not become an empty state");
 
@@ -177,6 +178,7 @@ async function staticCoverage() {
     readFile("drizzle/meta/_journal.json", "utf8"),
   ]);
   assert.match(client, /openCandidateRowId/);
+  assert.match(client, /openCandidateRowId === null \|\| openCandidateRowId === row\.id/, "unrelated row focus must not detach the open list from its query state");
   assert.match(client, /CandidateCombobox/);
   assert.match(client, /preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD/);
   assert.match(client, /const PHASE_30_1_PREFERENCE_THRESHOLD = 0/);

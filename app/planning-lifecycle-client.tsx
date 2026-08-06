@@ -1365,7 +1365,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               const rowIssues = [...validation.issues, ...melodyIssues.map((issue) => ({ path: "song", message: issue.message }))];
 
               return (
-                <fieldset className="row-card" key={row.id} onFocus={() => activateExistingRow(row.id)} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
+                <fieldset className="row-card" key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-actions">
                     <button type="button" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>
