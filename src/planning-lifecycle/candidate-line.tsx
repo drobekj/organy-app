@@ -4,7 +4,7 @@ import { getSelectedSongPresentation } from "./candidate-flow";
 
 type CandidateLineProps =
   | { candidate: CandidateQueryResult; variant: "popup"; onSelect: () => void }
-  | { candidate: CandidateQueryResult; variant: "selected"; note: string; readOnly?: boolean; onOpenDetail: () => void; onNoteChange?: (note: string) => void };
+  | { candidate: CandidateQueryResult; variant: "selected"; note: string; readOnly?: boolean; detailButtonId?: string; onOpenDetail: () => void; onNoteChange?: (note: string) => void };
 
 type CandidateNumberOption = {
   songId: string;
@@ -59,7 +59,7 @@ export function CandidateLine(props: CandidateLineProps) {
       <div className="selected-song-summary" data-content-row="candidate">
         <span className={viewModel.contentTextClass}><CandidateSummary viewModel={viewModel} />
         <span>{candidateLine.title || "Untitled snapshot"} · {candidateLine.language} · {candidateLine.signal}</span></span>
-        <button type="button" className="candidate-detail-button" onClick={props.onOpenDetail}>Detail</button>
+        <button id={props.detailButtonId} type="button" className="candidate-detail-button" onClick={props.onOpenDetail}>Detail</button>
       </div>
       <div className="selected-song-note-row" data-content-row="note">
         {props.readOnly ? <span>{noteLine.text.trim() ? noteLine.text : "No text note."}</span> : <input aria-label="Text note" type="text" value={noteLine.text} onChange={(event: ChangeEvent<HTMLInputElement>) => props.onNoteChange?.(event.target.value)} placeholder="Optional note without a song" />}

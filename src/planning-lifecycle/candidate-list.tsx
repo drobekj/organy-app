@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { CandidateQueryResult } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
+import { MelodyClassDetail } from "./melody-detail";
 
 export type CandidateListSelectedSong = {
   songId?: string;
   language: ConcreteSongLanguage;
   number: string;
   title?: string;
+};
+
+export type CandidateDetailState = {
+  candidate: CandidateQueryResult;
+  eligibilityCandidates: CandidateQueryResult[];
+  loading: boolean;
+  error?: string;
 };
 
 type CandidateComboboxProps = {
@@ -21,11 +29,17 @@ type CandidateComboboxProps = {
   prerequisiteMessage?: string;
   serviceLanguage: ServiceLanguage;
   disabled?: boolean;
+  focusSongId?: string;
+  detail?: CandidateDetailState;
   onOpen: () => void;
   onQueryChange: (value: string) => void;
   onSelect: (candidate: CandidateQueryResult) => void;
   onCancel: () => void;
   onRetry: () => void;
+  onOpenDetail?: (candidate: CandidateQueryResult) => void;
+  onBackFromDetail?: () => void;
+  onRetryDetail?: () => void;
+  onShowDetailCandidate?: (songId: string) => void;
 };
 
 export function candidateIndexForKey(current: number, key: string, length: number): number {
@@ -37,9 +51,10 @@ export function candidateIndexForKey(current: number, key: string, length: numbe
   return current;
 }
 
-export function getInitialCandidateIndex(candidates: CandidateQueryResult[], currentSongId?: string): number {
-  if (currentSongId) {
-    const currentIndex = candidates.findIndex((candidate) => candidate.songId === currentSongId);
+export function getInitialCandidateIndex(candidates: CandidateQueryResult[], currentSongId?: string, focusSongId?: string): number {
+  const preferredSongId = focusSongId ?? currentSongId;
+  if (preferredSongId) {
+    const currentIndex = candidates.findIndex((candidate) => candidate.songId === preferredSongId);
     if (currentIndex >= 0) return currentIndex;
   }
   return candidates.length > 0 ? 0 : -1;
@@ -64,6 +79,7 @@ export function isCandidateSelectable(candidate: CandidateQueryResult): boolean 
 
 export function CandidateCombobox(props: CandidateComboboxProps) {
   const listboxId = `candidate-list-${props.rowId}`;
+  const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrolled = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -85,13 +101,14 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       setActiveIndex(-1);
       return;
     }
-    const initial = getInitialCandidateIndex(props.candidates, currentSongId);
+    const initial = getInitialCandidateIndex(props.candidates, currentSongId, props.focusSongId);
     setActiveIndex(initial);
-    if (!autoScrolled.current && !props.value.trim() && currentSongId && currentCandidateIndex >= 0) {
+    if (props.focusSongId) queueMicrotask(() => inputRef.current?.focus());
+    if (!autoScrolled.current && !props.value.trim() && (props.focusSongId || currentSongId) && initial >= 0) {
       autoScrolled.current = true;
       queueMicrotask(() => scrollOptionInsideList(listRef.current, initial));
     }
-  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, currentCandidateIndex]);
+  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, currentCandidateIndex, props.focusSongId]);
 
   function moveActive(key: string) {
     const next = candidateIndexForKey(activeIndex, key, props.candidates.length);
@@ -101,7 +118,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (!props.open) {
-      if (event.key === "ArrowDown" || event.key === "Enter") {
+      if (!props.detail && (event.key === "ArrowDown" || event.key === "Enter")) {
         event.preventDefault();
         props.onOpen();
       }
@@ -128,6 +145,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   return (
     <div className="candidate-combobox">
       <input
+        ref={inputRef}
         type="text"
         role="combobox"
         aria-autocomplete="list"
@@ -135,13 +153,29 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         aria-controls={props.open ? listboxId : undefined}
         aria-activedescendant={activeDescendant}
         value={props.value}
-        onFocus={() => { if (!props.disabled && !props.open) props.onOpen(); }}
-        onClick={() => { if (!props.disabled && !props.open) props.onOpen(); }}
+        onFocus={() => { if (!props.disabled && !props.open && !props.detail) props.onOpen(); }}
+        onClick={() => { if (!props.disabled && !props.open && !props.detail) props.onOpen(); }}
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Search by number or title"
         disabled={props.disabled}
       />
+      {props.detail && (
+        <MelodyClassDetail
+          mode="candidate"
+          rowLabel={props.rowLabel}
+          candidate={props.detail.candidate}
+          serviceLanguage={props.serviceLanguage}
+          currentSongId={props.selectedSong?.songId}
+          eligibilityCandidates={props.detail.eligibilityCandidates}
+          loading={props.detail.loading}
+          error={props.detail.error}
+          onBack={() => props.onBackFromDetail?.()}
+          onClose={() => props.onBackFromDetail?.()}
+          onRetry={() => props.onRetryDetail?.()}
+          onShowCandidate={(songId) => props.onShowDetailCandidate?.(songId)}
+        />
+      )}
       {props.open && (
         <div
           id={listboxId}
@@ -187,23 +221,26 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
               ? `Same melody is already used in ${joinLabels(candidate.availability.rows.map((row) => row.label))}.`
               : undefined;
             return (
-              <div
-                id={optionId(listboxId, candidate.songId)}
-                key={candidate.songId}
-                className={`candidate-option${index === activeIndex ? " candidate-option-active" : ""}${current ? " candidate-option-current" : ""}${selectable ? "" : " candidate-option-disabled"}`}
-                role="option"
-                aria-selected={current}
-                aria-disabled={!selectable}
-                data-song-id={candidate.songId}
-                onClick={() => { if (selectable) props.onSelect(candidate); }}
-              >
-                <div className="candidate-option-content">
-                  <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span><span>{candidate.language}</span></span>
-                  <span className="candidate-option-meta">{candidate.repertoire ? "In repertoire" : "Melody known through an equivalent"} · preference {candidate.aggregatePreferenceScore} · {candidate.signal}</span>
-                  {candidate.melodyMembers && candidate.melodyMembers.length > 1 && <span className="candidate-option-meta">Melody class: {candidate.melodyMembers.length} songs</span>}
-                  {current && <span className="candidate-current-marker">Currently selected</span>}
-                  {reason && <span className="candidate-unavailable-reason">Unavailable — {reason}</span>}
+              <div key={candidate.songId} className="candidate-option-row">
+                <div
+                  id={optionId(listboxId, candidate.songId)}
+                  className={`candidate-option${index === activeIndex ? " candidate-option-active" : ""}${current ? " candidate-option-current" : ""}${selectable ? "" : " candidate-option-disabled"}`}
+                  role="option"
+                  aria-selected={current}
+                  aria-disabled={!selectable}
+                  data-song-id={candidate.songId}
+                  data-candidate-option
+                  onClick={() => { if (selectable) props.onSelect(candidate); }}
+                >
+                  <div className="candidate-option-content">
+                    <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span><span>{candidate.language}</span></span>
+                    <span className="candidate-option-meta">{candidate.repertoire ? "In repertoire" : "Melody known through an equivalent"} · preference {candidate.aggregatePreferenceScore} · {candidate.signal}</span>
+                    {candidate.melodyMembers && candidate.melodyMembers.length > 1 && <span className="candidate-option-meta">Melody class: {candidate.melodyMembers.length} songs</span>}
+                    {current && <span className="candidate-current-marker">Currently selected</span>}
+                    {reason && <span className="candidate-unavailable-reason">Unavailable — {reason}</span>}
+                  </div>
                 </div>
+                <button type="button" className="candidate-inline-detail" onClick={() => props.onOpenDetail?.(candidate)} aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}>Detail</button>
               </div>
             );
           })}
@@ -220,7 +257,7 @@ function optionId(listboxId: string, songId?: string): string | undefined {
 
 function scrollOptionInsideList(container: HTMLDivElement | null, index: number): void {
   if (!container || index < 0) return;
-  const option = container.querySelectorAll<HTMLElement>("[data-song-id]")[index];
+  const option = container.querySelectorAll<HTMLElement>("[data-candidate-option]")[index];
   if (!option) return;
   const top = option.offsetTop;
   const bottom = top + option.offsetHeight;

@@ -126,6 +126,7 @@ export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongP
       .filter((songId) => songId !== primary.song.songId)
       .map((songId) => ({ songId, number: songsById.get(songId)?.number ?? songId, repertoire: repertoire.has(songId) }))
       .sort((a, b) => `${a.repertoire ? 0 : 1}:${a.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.number}`));
+    const melodyMembers = buildMemoryMelodyMembers(primary.song, allClassSongIds, songsById, preferences, repertoire);
 
     candidates.push({
       songId: primary.song.songId,
@@ -133,6 +134,8 @@ export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongP
       number: primary.song.number,
       title: primary.song.title,
       equivalentNumbers,
+      melodyClassId: classId,
+      melodyMembers,
       aggregatePreferenceScore: primary.aggregatePreferenceScore,
       antiphonMatch: primary.antiphonMatch,
       seasonMatch: primary.seasonMatch,
@@ -147,6 +150,22 @@ export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongP
   }
   return candidates.sort((a, b) => a.orderKey.localeCompare(b.orderKey));
 }
+function buildMemoryMelodyMembers(primary: CatalogSong, classSongIds: string[], songsById: Map<string, CatalogSong>, preferences: SongPreference[], repertoire: Set<string>) {
+  const members = classSongIds
+    .map((songId) => songsById.get(songId))
+    .filter((song): song is CatalogSong => Boolean(song?.active));
+  const ordered = [primary, ...members.filter((song) => song.songId !== primary.songId).sort((left, right) => `${left.language}:${left.number}:${left.songId}`.localeCompare(`${right.language}:${right.number}:${right.songId}`))];
+  return ordered.map((song) => ({
+    songId: song.songId,
+    language: song.language,
+    number: song.number,
+    title: song.title,
+    repertoire: repertoire.has(song.songId),
+    aggregatePreferenceScore: preferences.filter((preference) => preference.songId === song.songId).reduce((sum, preference) => sum + preference.score, 0),
+    ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}),
+  }));
+}
+
 function ok<T>(value: T): InteractionResult<T> { return { success: true, value }; }
 function fail<T>(code: "permissionDenied" | "notFound" | "invalidInput", message: string): InteractionResult<T> { return { success: false, error: { code, message } }; }
 
@@ -204,6 +223,8 @@ export function hydrateCandidatesFromData(songs: CatalogSong[], preferences: Son
       number: storedSong.number,
       title: storedSong.title,
       equivalentNumbers,
+      melodyClassId: melody?.id ?? `song:${storedSong.songId}`,
+      melodyMembers: buildMemoryMelodyMembers(storedSong, classSongIds, songsById, preferences, repertoire),
       aggregatePreferenceScore,
       antiphonMatch,
       seasonMatch,
