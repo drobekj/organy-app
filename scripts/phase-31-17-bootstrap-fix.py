@@ -15,3 +15,12 @@ text = text.replace('  onShowDetailCandidate: (songId: string) => void;', '  onS
 text = text.replace('          onBack={props.onBackFromDetail}\n          onClose={props.onBackFromDetail}\n          onRetry={props.onRetryDetail}\n          onShowCandidate={props.onShowDetailCandidate}', '          onBack={() => props.onBackFromDetail?.()}\n          onClose={() => props.onBackFromDetail?.()}\n          onRetry={() => props.onRetryDetail?.()}\n          onShowCandidate={(songId) => props.onShowDetailCandidate?.(songId)}')
 text = text.replace('onClick={() => props.onOpenDetail(candidate)}', 'onClick={() => props.onOpenDetail?.(candidate)}')
 path.write_text(text, encoding='utf-8')
+
+path = Path('scripts/planning-ui-workflow-static-tests.ts')
+text = path.read_text(encoding='utf-8')
+old = '  "onOpenDetail={() => row.selectedSong?.songId && openCatalogSongDetail(row.selectedSong.songId, row.id)}",'
+new = '  "onOpenDetail={() => openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong!))}",'
+if old not in text:
+    raise RuntimeError('Planning static detail anchor was not found.')
+text = text.replace(old, new, 1)
+path.write_text(text, encoding='utf-8')
