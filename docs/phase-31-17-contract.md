@@ -18,3 +18,7 @@ Approved by the user on 2026-08-06. Baseline: `fb23295fba224d0ccbc645b77358d5e51
 ## Acceptance
 
 Focused Phase 31.17 tests, all prior phase gates, typecheck, complete tests and production build must pass. One real browser HUMAN checkpoint is required before Ready for review.
+
+## HUMAN checkpoint status — changes requested
+
+The 2026-08-06 browser checkpoint confirmed items 1–10 functionally, but approval is withheld until the requested compact, invariant two-field Planning-row protocol is implemented and rechecked.
