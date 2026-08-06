@@ -18,11 +18,13 @@ One concrete authoritative candidate is one concrete option in a single-open Pla
 - non-empty unresolved search retains the existing safety block;
 - backend order is preserved and exact `songId` alone determines the current marker;
 - selected songs outside the hard-filtered universe remain separate non-selectable context;
+- an active Service Context organist is a mandatory prerequisite for candidate browsing;
+- the selected organist's concrete repertoire is always a hard filter; no organist or an empty repertoire yields zero candidates rather than bypassing the filter;
 - occupied candidates stay in order, expose all occupying rows, and cannot be selected through any input path;
 - selection/replacement preserves note, closes the list, updates occupancy immediately, and dirties only a genuinely changed draft;
 - same-song reselection is idempotent;
 - clear preserves note and releases occupancy;
-- loading, browse-empty, search-empty, local error, retry, stale-response protection, and context refresh are explicit;
+- loading, browse-empty, search-empty, prerequisite guidance, local error, retry, stale-response protection, and context refresh are explicit;
 - combobox/listbox ARIA and Arrow/Home/End/Enter/Escape behavior;
 - approved default preference threshold is `0`;
 - no inline melody detail, thematic UI, migration, schema or persistence change.
