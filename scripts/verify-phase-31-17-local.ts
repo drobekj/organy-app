@@ -54,7 +54,7 @@ async function main(): Promise<void> {
         code === 0 ? resolve() : reject(new Error(`verify:phase-31-17 exited with code ${code ?? 1}.`));
       });
     });
-    console.log("Phase 31.16 inline melody-class detail and equivalent navigation: HUMAN PASS");
+    console.log("Phase 31.17 inline melody-class detail and equivalent navigation: HUMAN PASS");
     console.log(`LOG_PATH=${process.cwd()}\\${LOG_PATH}`);
     console.log("EXIT_CODE=0");
   } finally {
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  console.error("Phase 31.16 inline melody-class detail and equivalent navigation: HUMAN FAIL");
+  console.error("Phase 31.17 inline melody-class detail and equivalent navigation: HUMAN FAIL");
   console.error(error);
   console.error(`LOG_PATH=${process.cwd()}\\${LOG_PATH}`);
   console.error("EXIT_CODE=1");
