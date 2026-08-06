@@ -68,7 +68,7 @@ assert.match(clientSource, /openSelectedSongDetail/);
 assert.match(clientSource, /replaceFromSelectedDetail/);
 assert.equal(clientSource.includes('else if (planningExpansion && planningExpansion.kind !== "candidateList")'), true);
 assert.equal(clientSource.includes("resetDetailEligibility();\n      setCandidateResults"), true);
-assert.match(clientSource, /id={`selected-song-detail-button-/);
+assert.match(clientSource, /detailButtonId={`selected-song-detail-button-/);
 assert.doesNotMatch(clientSource, /onOpenDetail=\{\(\) => row\.selectedSong\?\.songId && openCatalogSongDetail/);
 
 console.log("Phase 31.17 inline melody-class detail and equivalent navigation: PASS");
