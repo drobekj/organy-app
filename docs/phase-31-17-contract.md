@@ -22,3 +22,5 @@ Focused Phase 31.17 tests, all prior phase gates, typecheck, complete tests and 
 ## HUMAN checkpoint status — changes requested
 
 The 2026-08-06 browser checkpoint confirmed items 1–10 functionally, but approval is withheld until the requested compact, invariant two-field Planning-row protocol is implemented and rechecked.
+
+The compact-row correction must pass an isolated runner-independent refinement gate before the replacement browser checkpoint is issued.
