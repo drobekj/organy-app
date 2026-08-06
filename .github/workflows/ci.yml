@@ -214,6 +214,17 @@ jobs:
           name: phase-31-15-log
           path: phase-31-15.log
           if-no-files-found: ignore
+      - name: Phase 31.16 concrete candidate-list UI and single-open interaction
+        run: |
+          set -o pipefail
+          npm run verify:phase-31-16 2>&1 | tee phase-31-16.log
+      - name: Upload Phase 31.16 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-16-log
+          path: phase-31-16.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail
