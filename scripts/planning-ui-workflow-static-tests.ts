@@ -12,6 +12,7 @@ for (const required of [
   "<CandidateCombobox",
   "onOpenDetail={() => openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong!))}",
   "<CandidateLine",
+  "candidate-line",
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",
