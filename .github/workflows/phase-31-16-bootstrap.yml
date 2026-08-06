@@ -20,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply approved Phase 31.16 integration
-        run: python scripts/phase-31-16-bootstrap.py
+        run: python scripts/phase-31-16-bootstrap-run.py
       - name: Install dependencies
         run: npm ci
       - name: Focused acceptance
