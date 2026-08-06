@@ -8,7 +8,7 @@ export type CandidatePopupAction = "select" | "cancel";
 
 export type CandidatePopupRow = Pick<
   CandidateQueryResult,
-  "songId" | "language" | "number" | "title" | "signal" | "preferenceShade" | "repertoire" | "aggregatePreferenceScore"
+  "songId" | "language" | "number" | "title" | "signal" | "preferenceShade" | "repertoire" | "aggregatePreferenceScore" | "availability"
 > & {
   actions: CandidatePopupAction[];
 };
@@ -84,7 +84,8 @@ export function getCandidatePopupRows(candidates: CandidateQueryResult[]): Candi
     preferenceShade: candidate.preferenceShade,
     repertoire: candidate.repertoire,
     aggregatePreferenceScore: candidate.aggregatePreferenceScore,
-    actions: ["select"],
+    availability: candidate.availability,
+    actions: candidate.availability.kind === "available" ? ["select"] : [],
   }));
 }
 
@@ -182,6 +183,7 @@ export function rehydrateCandidateFromSelectedSong(song: { songId?: string; lang
     signal: "none",
     preferenceShade: "none",
     repertoire: false,
+    availability: { kind: "available" },
     suppressedByMelodyWindow: false,
     orderKey: `rehydrated:${song.language}:${song.number}:${songId}`,
   };
@@ -196,7 +198,7 @@ export type CanonicalUsageInput = {
   serviceDate: string;
   completedRecords?: { id: string; serviceDate: string; rows: { songId?: string }[] }[];
   plans?: { id: string; status: "working" | "final"; serviceDate: string; rows: { songId?: string }[] }[];
-  currentRows?: { rowId: number; songId?: string }[];
+  currentRows?: { rowId: number; rowLabel: string; songId?: string }[];
   activeRowId?: number;
 };
 
@@ -211,7 +213,7 @@ export function buildCanonicalCandidateUsages(input: CanonicalUsageInput): Candi
   }
   for (const row of input.currentRows ?? []) {
     if (row.rowId === input.activeRowId) continue;
-    if (row.songId) usages.push({ songId: row.songId, serviceDate: input.serviceDate, source: "current", rowId: row.rowId });
+    if (row.songId) usages.push({ songId: row.songId, serviceDate: input.serviceDate, source: "current", rowId: row.rowId, rowLabel: row.rowLabel });
   }
   return usages;
 }

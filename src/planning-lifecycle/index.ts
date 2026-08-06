@@ -21,3 +21,12 @@ export {
 export type { PlanningValidationIssue, PlanningValidationResult } from "./validation";
 
 export { isValidServiceTime, normalizeServiceTime } from "./service-time";
+export {
+  findMelodyCollisions,
+  melodyCollisionRowIssues,
+  melodyCollisionSummary,
+  type MelodyCollision,
+  type MelodyCollisionParticipant,
+  type MelodyCollisionRowInput,
+  type MelodyCollisionRowIssue,
+} from "./melody-collision";

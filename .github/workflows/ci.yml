@@ -203,6 +203,17 @@ jobs:
           name: phase-31-14-log
           path: phase-31-14.log
           if-no-files-found: ignore
+      - name: Phase 31.15 current-service melody occupancy and collision validation
+        run: |
+          set -o pipefail
+          npm run verify:phase-31-15 2>&1 | tee phase-31-15.log
+      - name: Upload Phase 31.15 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-15-log
+          path: phase-31-15.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail

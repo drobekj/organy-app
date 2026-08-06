@@ -175,6 +175,7 @@ async function verifyUnrelatedBackendBehaviorIsUnchanged(pool: Pool): Promise<vo
     signal: "none",
     preferenceShade: "none",
     repertoire: false,
+    availability: { kind: "available" },
     suppressedByMelodyWindow: false,
     orderKey: "rehydrated:czech:101:legacy-song",
   }]);

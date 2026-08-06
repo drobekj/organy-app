@@ -7,6 +7,7 @@ import * as schema from "../../../src/db/schema";
 import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 import { PostgresReferenceAntiphonProvider } from "../../../src/application/postgres-reference-antiphon";
 import { PostgresReferenceCatalogProvider } from "../../../src/application/postgres-reference-catalog";
+import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
 
 type PlanningLifecycleAction =
   | "listPlanningSets"
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
       ...adapterDependencies,
       referenceAntiphons: new PostgresReferenceAntiphonProvider(pool),
       referenceSongs: new PostgresReferenceCatalogProvider(pool),
+      referenceMelodyClasses: new PostgresReferenceMelodyClassProvider(pool),
     });
     const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
     if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");

@@ -170,11 +170,14 @@ function parseCandidateUsages(value: unknown): CandidateUsage[] {
   if (!Array.isArray(value)) throw new LocalActorError("invalidInput", "candidateUsages must be an array.");
   return value.map((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) throw new LocalActorError("invalidInput", `candidateUsages[${index}] is malformed.`);
-    const usage = item as Record<string, unknown>; const allowed = new Set(["songId", "serviceDate", "source", "planId", "rowId"]);
+    const usage = item as Record<string, unknown>; const allowed = new Set(["songId", "serviceDate", "source", "planId", "rowId", "rowLabel"]);
     if (Object.keys(usage).some((key) => !allowed.has(key)) || typeof usage.songId !== "string" || !usage.songId.trim() || typeof usage.serviceDate !== "string" || !isValidIsoDate(usage.serviceDate) || !["completed", "working", "final", "current"].includes(String(usage.source))) throw new LocalActorError("invalidInput", `candidateUsages[${index}] is malformed.`);
     if (usage.planId !== undefined && (typeof usage.planId !== "string" || !usage.planId.trim())) throw new LocalActorError("invalidInput", `candidateUsages[${index}].planId is invalid.`);
     if (usage.rowId !== undefined && (typeof usage.rowId !== "number" || !Number.isInteger(usage.rowId) || usage.rowId <= 0)) throw new LocalActorError("invalidInput", `candidateUsages[${index}].rowId is invalid.`);
-    return { songId: usage.songId, serviceDate: usage.serviceDate, source: usage.source as CandidateUsage["source"], ...(usage.planId !== undefined ? { planId: usage.planId as string } : {}), ...(usage.rowId !== undefined ? { rowId: usage.rowId as number } : {}) };
+    if (usage.rowLabel !== undefined && (typeof usage.rowLabel !== "string" || !usage.rowLabel.trim())) throw new LocalActorError("invalidInput", `candidateUsages[${index}].rowLabel is invalid.`);
+    if (usage.source === "current" && (usage.rowId === undefined || usage.rowLabel === undefined)) throw new LocalActorError("invalidInput", `candidateUsages[${index}] current usage requires rowId and rowLabel.`);
+    if (usage.source !== "current" && (usage.rowId !== undefined || usage.rowLabel !== undefined)) throw new LocalActorError("invalidInput", `candidateUsages[${index}] non-current usage cannot include row context.`);
+    return { songId: usage.songId, serviceDate: usage.serviceDate, source: usage.source as CandidateUsage["source"], ...(usage.planId !== undefined ? { planId: usage.planId as string } : {}), ...(usage.rowId !== undefined ? { rowId: usage.rowId as number, rowLabel: (usage.rowLabel as string).trim() } : {}) };
   });
 }
 

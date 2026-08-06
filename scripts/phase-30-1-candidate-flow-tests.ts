@@ -115,13 +115,14 @@ const canonicalUsages = buildCanonicalCandidateUsages({
     { id: "plan-b", status: "final", serviceDate: "2026-07-11", rows: [{ songId: "other-final-song" }] },
   ],
   currentRows: [
-    { rowId: 1, songId: "active-row-song" },
-    { rowId: 2, songId: "other-current-row-song" },
+    { rowId: 1, rowLabel: "Row 1", songId: "active-row-song" },
+    { rowId: 2, rowLabel: "Row 2", songId: "other-current-row-song" },
   ],
   activeRowId: 1,
 });
 assert.deepEqual(canonicalUsages.map((usage) => `${usage.source}:${usage.songId}`).sort(), ["completed:completed-song", "current:other-current-row-song", "final:other-final-song"].sort(), "canonical usages must include dated completed/final/current rows and exclude current plan self plus active row");
 assert(canonicalUsages.every((usage) => usage.serviceDate), "all canonical candidate usages must be dated");
+assert.equal(canonicalUsages.find((usage) => usage.source === "current")?.rowLabel, "Row 2");
 
 const domainSongs: CatalogSong[] = [
   { songId: "melody-a", language: "czech", number: "101A", title: "Shared Melody Alpha", active: true },
@@ -220,5 +221,5 @@ async function runHydrationAssertions() {
 }
 
 function candidate(songId: string, suppressedByMelodyWindow: boolean): CandidateQueryResult {
-  return { songId, language: "czech", number: songId === "visible" ? "101" : "102", title: `${songId} title`, equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, suppressedByMelodyWindow, orderKey: songId };
+  return { songId, language: "czech", number: songId === "visible" ? "101" : "102", title: `${songId} title`, equivalentNumbers: [], aggregatePreferenceScore: 0, antiphonMatch: false, seasonMatch: false, signal: "none", preferenceShade: "none", repertoire: false, availability: { kind: "available" }, suppressedByMelodyWindow, orderKey: songId };
 }

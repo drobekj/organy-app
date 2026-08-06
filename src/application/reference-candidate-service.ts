@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import type {
+  CandidateAvailability,
   CandidateHydrationInput,
+  CandidateOccupyingRow,
   CandidateQueryInput,
   CandidateQueryResult,
   CandidateUsage,
@@ -149,13 +151,14 @@ export function queryReferenceCandidatesFromData(
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
   const membersByClass = groupSongsByClass(data.songs);
-  const blockedClasses = getBlockedClassIds(
+  const blockedClasses = getHardBlockedClassIds(
     classBySongId,
     input.candidateUsages ?? [],
     input.serviceDate,
     data.melodyWindowMonths,
     input.currentPlanId,
   );
+  const occupancyByClass = getCurrentOccupancyByClass(classBySongId, input.candidateUsages ?? []);
   const threshold = input.preferenceThreshold ?? 0;
   const query = input.queryText?.trim() ?? "";
   const candidates: ReferenceCandidateQueryResult[] = [];
@@ -169,7 +172,11 @@ export function queryReferenceCandidatesFromData(
     if (query && !matchesReferenceCandidateSearch(song, query)) continue;
 
     const antiphonMatch = song.id === data.recommendedReferenceSongId;
-    candidates.push(toCandidate(song, allMembers, antiphonMatch, false));
+    const occupiedRows = occupancyByClass.get(song.classId) ?? [];
+    const availability: CandidateAvailability = occupiedRows.length > 0
+      ? { kind: "occupiedByCurrentRows", rows: occupiedRows }
+      : { kind: "available" };
+    candidates.push(toCandidate(song, allMembers, antiphonMatch, false, availability));
   }
 
   return candidates.sort(compareConcreteResults);
@@ -201,6 +208,7 @@ function toCandidate(
   allMembers: ReferenceCandidateSong[],
   antiphonMatch: boolean,
   seasonMatch: boolean,
+  availability: CandidateAvailability = { kind: "available" },
 ): ReferenceCandidateQueryResult {
   const melodyMembers = orderMelodyMembers(song, allMembers).map(toMelodyMember);
   const equivalentNumbers = melodyMembers
@@ -221,6 +229,7 @@ function toCandidate(
     signal,
     preferenceShade: getPreferenceShade(song.aggregatePreferenceScore),
     repertoire: song.repertoire,
+    availability,
     suppressedByMelodyWindow: false,
     ...(song.sourceUrl ? { sheetMusicUrl: song.sourceUrl } : {}),
     orderKey: concreteOrderKey(song),
@@ -253,6 +262,7 @@ function historicalCandidate(reference: CandidateHydrationInput["songs"][number]
     signal: "none",
     preferenceShade: "none",
     repertoire: false,
+    availability: { kind: "available" },
     suppressedByMelodyWindow: false,
     orderKey: `rehydrated:${reference.language}:${reference.number}:${songId}`,
   };
@@ -299,7 +309,7 @@ function matchesReferenceCandidateSearch(song: ReferenceCandidateSong, query: st
   return normalized !== undefined && normalized === song.canonicalNumber;
 }
 
-function getBlockedClassIds(
+function getHardBlockedClassIds(
   classBySongId: Map<string, string>,
   usages: CandidateUsage[],
   serviceDate: string,
@@ -309,6 +319,7 @@ function getBlockedClassIds(
   const target = Date.parse(`${serviceDate}T00:00:00Z`);
   const blocked = new Set<string>();
   for (const usage of usages) {
+    if (usage.source === "current") continue;
     if (currentPlanId && usage.planId === currentPlanId) continue;
     const usedAt = Date.parse(`${usage.serviceDate}T00:00:00Z`);
     if (!Number.isFinite(usedAt) || !isWithinCalendarMonths(target, usedAt, months)) continue;
@@ -316,6 +327,23 @@ function getBlockedClassIds(
     if (classId) blocked.add(classId);
   }
   return blocked;
+}
+
+function getCurrentOccupancyByClass(
+  classBySongId: Map<string, string>,
+  usages: CandidateUsage[],
+): Map<string, CandidateOccupyingRow[]> {
+  const occupancy = new Map<string, CandidateOccupyingRow[]>();
+  for (const usage of usages) {
+    if (usage.source !== "current" || usage.rowId === undefined || !usage.rowLabel?.trim()) continue;
+    const classId = classBySongId.get(usage.songId);
+    if (!classId) continue;
+    const rows = occupancy.get(classId) ?? [];
+    if (!rows.some((row) => row.rowId === usage.rowId)) rows.push({ rowId: usage.rowId, label: usage.rowLabel.trim() });
+    occupancy.set(classId, rows);
+  }
+  for (const rows of occupancy.values()) rows.sort((left, right) => left.rowId - right.rowId || left.label.localeCompare(right.label));
+  return occupancy;
 }
 
 function isWithinCalendarMonths(target: number, usedAt: number, months: number): boolean {
