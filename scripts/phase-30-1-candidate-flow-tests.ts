@@ -45,7 +45,7 @@ assert.deepEqual(melodyWindowConfig, { months: 2 }, "melody non-repetition confi
 
 const thresholdQuery = buildCandidateQueryInput({ serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [] });
 assert.equal(thresholdQuery.preferenceThreshold, PHASE_30_1_PREFERENCE_THRESHOLD, "Planning candidate queries must default to the Phase 30.1 threshold");
-assert.equal(PHASE_30_1_PREFERENCE_THRESHOLD, 1);
+assert.equal(PHASE_30_1_PREFERENCE_THRESHOLD, 0);
 
 const rehydrated = rehydrateCandidateFromSelectedSong({ songId: "rehydrated", language: "czech", number: "777", title: "Rehydrated title" }, "Loaded note");
 assert.equal(rehydrated.songId, "rehydrated");

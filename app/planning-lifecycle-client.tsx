@@ -21,7 +21,8 @@ import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonRe
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionRowIssues, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
-import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, getCandidatePopupRows, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
@@ -60,7 +61,7 @@ type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]
 type MelodyResult = { success: true; value: ReferenceMelodyClass } | { success: false; error: PlanningServiceError };
 type RepertoireResult = { success: true; value: ReferenceRepertoireMembership } | { success: false; error: PlanningServiceError };
 type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }): Promise<MelodyResult>; mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }): Promise<MelodyResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
-const PHASE_30_1_PREFERENCE_THRESHOLD = 1;
+const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
 
 type PlanningRepositories = {
   planningSets: InMemoryPlanningSetRepository;
@@ -326,6 +327,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
   const [songResults, setSongResults] = useState<Record<number, CatalogSong[]>>({});
   const [candidateResults, setCandidateResults] = useState<Record<number, CandidateQueryResult[]>>({});
+  const [openCandidateRowId, setOpenCandidateRowId] = useState<number | null>(null);
+  const [candidateLoading, setCandidateLoading] = useState<Record<number, boolean>>({});
+  const [candidateErrors, setCandidateErrors] = useState<Record<number, string | undefined>>({});
+  const [candidateRefreshGeneration, setCandidateRefreshGeneration] = useState(0);
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
@@ -430,11 +435,24 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
   const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
+  const candidateRecordKeyRef = useRef(serviceContextRecordKey);
   useEffect(() => {
+    const recordChanged = candidateRecordKeyRef.current !== serviceContextRecordKey;
+    candidateRecordKeyRef.current = serviceContextRecordKey;
     lookupTracker.invalidatePrefix("song:");
     setCandidateResults({});
-    void refreshOpenSongLookupsOnContextChange(rows, queryCandidateResults);
-  }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker]);
+    setCandidateLoading({});
+    setCandidateErrors({});
+    if (recordChanged) {
+      setOpenCandidateRowId(null);
+      setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+      return;
+    }
+    if (openCandidateRowId !== null) {
+      const openRow = rows.find((row) => row.id === openCandidateRowId);
+      if (openRow) void queryCandidateResults(openRow.id, openRow.songSearch);
+    }
+  }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker, candidateRefreshGeneration]);
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
     selectedRole,
     persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
@@ -816,22 +834,50 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     const languageAtRequest = serviceLanguage;
     const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
+    setCandidateLoading((current) => ({ ...current, [rowId]: true }));
+    setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
+    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
     try {
       const candidates = await interactionClient.queryCandidates({ serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, referenceAntiphonId: referenceAntiphon?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
       setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
+      setCandidateLoading((current) => ({ ...current, [rowId]: false }));
+      setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
       setServiceError(null);
     } catch (error) {
       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
       const candidateError = error as Error & { code?: PlanningServiceError["code"] };
+      const message = candidateError.message || "Candidate lookup failed.";
       setCandidateResults((current) => ({ ...current, [rowId]: [] }));
-      setServiceError({ code: candidateError.code ?? "invalidInput", message: candidateError.message || "Candidate lookup failed." });
+      setCandidateLoading((current) => ({ ...current, [rowId]: false }));
+      setCandidateErrors((current) => ({ ...current, [rowId]: message }));
+      setServiceError({ code: candidateError.code ?? "invalidInput", message });
     }
   }
 
+  function openCandidateList(rowId: number) {
+    if (!canEditRows || openCandidateRowId === rowId) return;
+    lookupTracker.invalidatePrefix("song:");
+    setRows((currentRows) => openSingleCandidateRow(currentRows, rowId));
+    setOpenCandidateRowId(rowId);
+    setCandidateResults({});
+    setCandidateLoading({ [rowId]: true });
+    setCandidateErrors({});
+    void queryCandidateResults(rowId, "");
+  }
+
   async function updateSongSearch(rowId: number, value: string) {
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row)));
+    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: value }) : row));
     await queryCandidateResults(rowId, value);
+  }
+
+  function closeCandidateList(rowId: number) {
+    lookupTracker.invalidate(getSongLookupScope(rowId));
+    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+    if (openCandidateRowId === rowId) setOpenCandidateRowId(null);
+    setCandidateResults((current) => { const next = { ...current }; delete next[rowId]; return next; });
+    setCandidateLoading((current) => { const next = { ...current }; delete next[rowId]; return next; });
+    setCandidateErrors((current) => { const next = { ...current }; delete next[rowId]; return next; });
   }
 
   function selectCandidate(rowId: number, candidate: CandidateQueryResult) {
@@ -839,23 +885,30 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       setServiceError({ code: "invalidInput", message: `Same melody is already used in ${candidate.availability.rows.map((row) => row.label).join(" and ")}.` });
       return;
     }
-    lookupTracker.invalidate(getSongLookupScope(rowId));
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
-    setSongResults({});
+    const currentRow = rows.find((row) => row.id === rowId);
+    lookupTracker.invalidatePrefix("song:");
+    if (currentRow?.selectedSong?.songId === candidate.songId) {
+      setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row));
+    } else {
+      guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
+    }
+    setOpenCandidateRowId(null);
     setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
   }
 
   function clearSong(rowId: number) {
-    lookupTracker.invalidate(getSongLookupScope(rowId));
+    lookupTracker.invalidatePrefix("song:");
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "songCleared" }) : row)));
-    setSongResults({});
+    setOpenCandidateRowId(null);
     setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
   }
 
   function cancelActiveLookup(rowId: number) {
-    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
-    setSongResults((current) => ({ ...current, [rowId]: [] }));
-    setCandidateResults((current) => ({ ...current, [rowId]: [] }));
+    closeCandidateList(rowId);
     setServiceError(null);
   }
 
@@ -880,8 +933,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function removeRow(id: number) {
     lookupTracker.invalidatePrefix("song:");
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.filter((row) => row.id !== id)));
+    if (openCandidateRowId === id) setOpenCandidateRowId(null);
+    else if (openCandidateRowId !== null) setCandidateRefreshGeneration((generation) => generation + 1);
     setSongResults({});
     setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
   }
 
   function moveRow(index: number, direction: -1 | 1) {
@@ -901,6 +958,9 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     lookupTracker.invalidatePrefix("song:");
     setSongResults({});
     setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
+    if (openCandidateRowId !== null) setCandidateRefreshGeneration((generation) => generation + 1);
     setSaveState("unsaved");
     setServiceError(null);
   }
@@ -1145,6 +1205,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       setSaveState("errors");
       return;
     }
+    if (nextWorkspace !== workspace && workspace === "planning") {
+      lookupTracker.invalidatePrefix("song:");
+      setOpenCandidateRowId(null);
+      setCandidateResults({});
+      setCandidateLoading({});
+      setCandidateErrors({});
+      setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+    }
     setWorkspace(nextWorkspace);
   }
 
@@ -1317,12 +1385,22 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                   <div className="row-fields">
                     <label>
                       Song lookup
-                      <input
-                        type="text"
+                      <CandidateCombobox
+                        rowId={row.id}
+                        rowLabel={`Row ${index + 1}`}
+                        open={openCandidateRowId === row.id}
                         value={row.songSearch}
-                        onChange={(event) => { void updateSongSearch(row.id, event.target.value); }}
-                        placeholder="Search by number or title"
+                        selectedSong={row.selectedSong}
+                        candidates={candidateResults[row.id] ?? []}
+                        loading={candidateLoading[row.id] ?? false}
+                        error={candidateErrors[row.id]}
+                        serviceLanguage={serviceLanguage}
                         disabled={!canEditRows}
+                        onOpen={() => openCandidateList(row.id)}
+                        onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
+                        onSelect={(candidate) => selectCandidate(row.id, candidate)}
+                        onCancel={() => cancelActiveLookup(row.id)}
+                        onRetry={() => { void queryCandidateResults(row.id, row.songSearch); }}
                       />
                       {row.selectedSong ? (
                         <CandidateLine
@@ -1335,14 +1413,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                         />
                       ) : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
                       {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
-                      {getCandidatePopupRows(candidateResults[row.id] ?? []).length > 0 && canEditRows && (
-                        <div className="candidate-popup" role="listbox" aria-label={`Song candidates for row ${index + 1}`}>
-                          {getCandidatePopupRows(candidateResults[row.id] ?? []).map((candidate) => (
-                            <CandidateLine key={candidate.songId} candidate={(candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId)!} variant="popup" onSelect={() => selectCandidate(row.id, (candidateResults[row.id] ?? []).find((item) => item.songId === candidate.songId)!)} />
-                          ))}
-                          <button type="button" onClick={() => cancelActiveLookup(row.id)}>Cancel lookup</button>
-                        </div>
-                      )}
                     </label>
                     {!row.selectedSong && (
                       <label className="note-field">
