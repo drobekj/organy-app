@@ -33,6 +33,7 @@ One concrete authoritative candidate is one concrete option in a single-open Pla
 
 - 2026-08-06: first browser checkpoint failed because an empty candidate browse attempted a lookup without a selected Service Context organist and exposed `Candidate lookup failed.`
 - Correction: no-organist browse is now a neutral prerequisite state with no API request; no organist and an empty selected-organist repertoire both yield zero candidates in authoritative and in-memory services.
+- The Phase 31.8 melody-equivalence acceptance fixture was aligned with the same rule by explicitly selecting `demo-organist` and assigning both fixture songs to that repertoire; its intended candidate-set invariance assertion is unchanged.
 - A fresh browser HUMAN checkpoint is required on the corrected exact head.
 
 ## Workflow
