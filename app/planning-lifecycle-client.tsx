@@ -831,6 +831,14 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function queryCandidateResults(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
+    if (!organistId) {
+      lookupTracker.invalidate(scope);
+      setCandidateResults((current) => ({ ...current, [rowId]: [] }));
+      setCandidateLoading((current) => ({ ...current, [rowId]: false }));
+      setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
+      setServiceError(null);
+      return;
+    }
     const languageAtRequest = serviceLanguage;
     const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
@@ -861,7 +869,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setRows((currentRows) => openSingleCandidateRow(currentRows, rowId));
     setOpenCandidateRowId(rowId);
     setCandidateResults({});
-    setCandidateLoading({ [rowId]: true });
+    setCandidateLoading({ [rowId]: Boolean(organistId) });
     setCandidateErrors({});
     void queryCandidateResults(rowId, "");
   }
@@ -1394,6 +1402,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                         candidates={candidateResults[row.id] ?? []}
                         loading={candidateLoading[row.id] ?? false}
                         error={candidateErrors[row.id]}
+                        prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
                         serviceLanguage={serviceLanguage}
                         disabled={!canEditRows}
                         onOpen={() => openCandidateList(row.id)}

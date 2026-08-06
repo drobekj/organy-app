@@ -148,6 +148,7 @@ export function queryReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateQueryInput,
 ): ReferenceCandidateQueryResult[] {
+  if (!input.organistPersonId) return [];
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
   const membersByClass = groupSongsByClass(data.songs);
@@ -167,7 +168,7 @@ export function queryReferenceCandidatesFromData(
     if (!languageSet.has(song.language)) continue;
     if (blockedClasses.has(song.classId)) continue;
     const allMembers = membersByClass.get(song.classId) ?? [song];
-    if (input.organistPersonId && !allMembers.some((member) => member.repertoire)) continue;
+    if (!allMembers.some((member) => member.repertoire)) continue;
     if (song.aggregatePreferenceScore < threshold) continue;
     if (query && !matchesReferenceCandidateSearch(song, query)) continue;
 

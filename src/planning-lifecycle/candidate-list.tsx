@@ -18,6 +18,7 @@ type CandidateComboboxProps = {
   candidates: CandidateQueryResult[];
   loading: boolean;
   error?: string;
+  prerequisiteMessage?: string;
   serviceLanguage: ServiceLanguage;
   disabled?: boolean;
   onOpen: () => void;
@@ -66,11 +67,12 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrolled = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
   const currentSongId = props.selectedSong?.songId;
   const currentCandidateIndex = currentSongId ? props.candidates.findIndex((candidate) => candidate.songId === currentSongId) : -1;
   const unavailableCurrent = Boolean(props.open && !props.loading && !props.error && !props.value.trim() && props.selectedSong && currentCandidateIndex < 0);
   const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
-  const activeDescendant = props.open && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
+  const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);
 
   useEffect(() => {
@@ -79,7 +81,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       setActiveIndex(-1);
       return;
     }
-    if (props.loading || props.error || props.candidates.length === 0) {
+    if (blockedByPrerequisite || props.loading || props.error || props.candidates.length === 0) {
       setActiveIndex(-1);
       return;
     }
@@ -89,7 +91,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       autoScrolled.current = true;
       queueMicrotask(() => scrollOptionInsideList(listRef.current, initial));
     }
-  }, [props.open, props.loading, props.error, candidateIds, props.value, currentSongId, currentCandidateIndex]);
+  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, currentCandidateIndex]);
 
   function moveActive(key: string) {
     const next = candidateIndexForKey(activeIndex, key, props.candidates.length);
@@ -147,10 +149,16 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           className="candidate-popup candidate-listbox"
           role="listbox"
           aria-label={`Song candidates for ${props.rowLabel}`}
-          aria-busy={props.loading}
+          aria-busy={!blockedByPrerequisite && props.loading}
         >
-          {props.loading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
-          {!props.loading && props.error && (
+          {blockedByPrerequisite && (
+            <div className="candidate-list-state candidate-list-prerequisite" role="status">
+              <p>{props.prerequisiteMessage}</p>
+              <button type="button" className="candidate-list-cancel" onClick={props.onCancel}>Cancel</button>
+            </div>
+          )}
+          {!blockedByPrerequisite && props.loading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
+          {!blockedByPrerequisite && !props.loading && props.error && (
             <div className="candidate-list-state candidate-list-error" role="alert">
               <p>{props.error}</p>
               <div className="candidate-list-actions">
@@ -159,20 +167,20 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
               </div>
             </div>
           )}
-          {!props.loading && !props.error && unavailableCurrent && props.selectedSong && (
+          {!blockedByPrerequisite && !props.loading && !props.error && unavailableCurrent && props.selectedSong && (
             <div className="candidate-current-context" role="status">
               <strong>Currently selected</strong>
               <span>{props.selectedSong.number} · {props.selectedSong.title ?? "Untitled snapshot"} · {props.selectedSong.language}</span>
               <span>{getUnavailableCurrentReason(props.selectedSong, props.serviceLanguage)}</span>
             </div>
           )}
-          {!props.loading && !props.error && props.candidates.length === 0 && (
+          {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.length === 0 && (
             <p className="candidate-list-state" role="status">{getCandidateEmptyMessage(props.value)}</p>
           )}
-          {!props.loading && !props.error && allOccupied && (
+          {!blockedByPrerequisite && !props.loading && !props.error && allOccupied && (
             <p className="candidate-list-state" role="status">All matching melodies are already occupied in this service.</p>
           )}
-          {!props.loading && !props.error && props.candidates.map((candidate, index) => {
+          {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.map((candidate, index) => {
             const current = Boolean(currentSongId && candidate.songId === currentSongId);
             const selectable = isCandidateSelectable(candidate);
             const reason = candidate.availability.kind === "occupiedByCurrentRows"
@@ -199,7 +207,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
               </div>
             );
           })}
-          {!props.loading && !props.error && <button type="button" className="candidate-list-cancel" onClick={props.onCancel}>Cancel</button>}
+          {!blockedByPrerequisite && !props.loading && !props.error && <button type="button" className="candidate-list-cancel" onClick={props.onCancel}>Cancel</button>}
         </div>
       )}
     </div>

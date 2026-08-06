@@ -84,7 +84,7 @@ const songs: CatalogSong[] = [
   { songId: "eligible", language: "czech", number: "101", title: "Eligible", active: true },
 ];
 const melodyClasses: MelodyClass[] = [{ id: "class-a", label: "Class A", songIds: ["recent", "recent-equivalent"], synthetic: true }];
-const serviceCandidates = queryCandidatesFromData(songs, [], new Set(), { antiphons: [], seasons: [], melodyClasses, melodyWindow: { months: 2 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "recent", serviceDate: "2026-07-01", source: "completed" }] });
+const serviceCandidates = queryCandidatesFromData(songs, [], new Set(["eligible"]), { antiphons: [], seasons: [], melodyClasses, melodyWindow: { months: 2 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", organistPersonId: "organist-1", candidateUsages: [{ songId: "recent", serviceDate: "2026-07-01", source: "completed" }] });
 assert.deepEqual(serviceCandidates.map((item) => item.songId), ["eligible"], "candidate service must return only eligible non-suppressed candidates");
 assert(serviceCandidates.every((item) => !item.suppressedByMelodyWindow), "suppressed candidates must not leave the candidate service");
 
@@ -150,7 +150,7 @@ assert.equal(candidateVm.numberOptions[0].primary, true, "primary number must be
 const futureWindowCandidates = queryCandidatesFromData([
   { songId: "future-equivalent", language: "czech", number: "303", title: "Future Equivalent", active: true },
   { songId: "future-eligible", language: "czech", number: "304", title: "Future Eligible", active: true },
-], [], new Set(), { antiphons: [], seasons: [], melodyClasses: [{ id: "future-class", label: "Future class", songIds: ["future-equivalent", "future-used"], synthetic: true }], melodyWindow: { months: 2 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", candidateUsages: [{ songId: "future-used", serviceDate: "2026-09-17", source: "final" }] });
+], [], new Set(["future-eligible"]), { antiphons: [], seasons: [], melodyClasses: [{ id: "future-class", label: "Future class", songIds: ["future-equivalent", "future-used"], synthetic: true }], melodyWindow: { months: 2 } }, { serviceDate: "2026-07-18", serviceLanguage: "czech", organistPersonId: "organist-1", candidateUsages: [{ songId: "future-used", serviceDate: "2026-09-17", source: "final" }] });
 assert.deepEqual(futureWindowCandidates.map((candidate) => candidate.songId), ["future-eligible"], "symmetric two-calendar-month melody window must suppress future dated usages too");
 
 const selectedFromCandidate = candidateToSelectedSong(domainCandidates[0]);
