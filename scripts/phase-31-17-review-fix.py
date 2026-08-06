@@ -200,7 +200,7 @@ test = test.replace(
 )
 test = test.replace(
     'assert.match(clientSource, /replaceFromSelectedDetail/);',
-    'assert.match(clientSource, /replaceFromSelectedDetail/);\nassert.match(clientSource, /else if \(planningExpansion && planningExpansion.kind !== "candidateList"\)/);\nassert.match(clientSource, /resetDetailEligibility\(\);\n      setCandidateResults/);',
+    'assert.match(clientSource, /replaceFromSelectedDetail/);\nassert.equal(clientSource.includes(\'else if (planningExpansion && planningExpansion.kind !== "candidateList")\'), true);\nassert.equal(clientSource.includes("resetDetailEligibility();\\n      setCandidateResults"), true);',
     1,
 )
 test_path.write_text(test, encoding='utf-8')
