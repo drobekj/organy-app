@@ -1,0 +1,53 @@
+name: Phase 31.17 bootstrap
+
+on:
+  push:
+    branches:
+      - codex/phase-31-17-inline-melody-detail
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-17-inline-melody-detail
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply implementation
+        run: python3 scripts/phase-31-17-bootstrap.py
+      - name: Focused acceptance
+        run: npm run test:phase-31-17
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Commit verified implementation
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            app/globals.css \
+            app/planning-lifecycle-client.tsx \
+            docs/candidate-selection-knowledge-transfer.md \
+            docs/phase-31-17-contract.md \
+            package.json \
+            scripts/phase-31-17-tests.tsx \
+            scripts/verify-phase-31-17-local.ts \
+            src/application/interaction-service.ts \
+            src/planning-lifecycle/candidate-line.tsx \
+            src/planning-lifecycle/candidate-list.tsx \
+            src/planning-lifecycle/melody-detail.tsx
+          git diff --cached --check
+          git commit -m "Phase 31.17 — inline melody-class detail"
+          git push origin HEAD:codex/phase-31-17-inline-melody-detail
