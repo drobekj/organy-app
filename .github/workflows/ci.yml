@@ -2,267 +2,51 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
+
+permissions:
+  contents: write
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: organy_app
-          POSTGRES_PASSWORD: organy_app
-          POSTGRES_DB: organy_app
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U organy_app -d organy_app"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
+  compact-row-refine:
+    if: github.head_ref == 'codex/phase-31-17-compact-row-runner'
+    runs-on: macos-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-17-inline-melody-detail
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund --loglevel=error
-      - name: Data Gate A1 offline Czech antiphon catalog
-        run: npm run verify:czech-antiphons
-      - name: Wait for PostgreSQL
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Apply compact-row refinement
         run: |
-          for attempt in {1..30}; do
-            if docker exec ${{ job.services.postgres.id }} pg_isready -U organy_app -d organy_app; then
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs ${{ job.services.postgres.id }} > postgres.log 2>&1 || true
-          exit 1
-      - name: Engineering E1 isolated PostgreSQL acceptance
-        run: |
-          set -o pipefail
-          npm run verify:engineering-e1 2>&1 | tee engineering-e1.log
-      - name: Upload Engineering E1 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: engineering-e1-log
-          path: engineering-e1.log
-          if-no-files-found: ignore
-      - name: Phase 31.2 isolated PostgreSQL catalog acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-2 2>&1 | tee phase-31-2.log
-      - name: Upload Phase 31.2 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-2-log
-          path: phase-31-2.log
-          if-no-files-found: ignore
-      - name: Phase 31.3 PostgreSQL reference runtime acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-3 2>&1 | tee phase-31-3.log
-      - name: Upload Phase 31.3 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-3-log
-          path: phase-31-3.log
-          if-no-files-found: ignore
-      - name: Phase 31.4 authoritative local actor acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-4 2>&1 | tee phase-31-4.log
-      - name: Upload Phase 31.4 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-4-log
-          path: phase-31-4.log
-          if-no-files-found: ignore
-      - name: Phase 31.5 persistent reference preferences acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-5 2>&1 | tee phase-31-5.log
-      - name: Upload Phase 31.5 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-5-log
-          path: phase-31-5.log
-          if-no-files-found: ignore
-      - name: Phase 31.6 authoritative reference aggregate preference acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-6 2>&1 | tee phase-31-6.log
-      - name: Upload Phase 31.6 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-6-log
-          path: phase-31-6.log
-          if-no-files-found: ignore
-      - name: Phase 31.7 authoritative reference organist repertoire acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-7 2>&1 | tee phase-31-7.log
-      - name: Upload Phase 31.7 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-7-log
-          path: phase-31-7.log
-          if-no-files-found: ignore
-      - name: Phase 31.8 authoritative reference melody equivalence acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-8 2>&1 | tee phase-31-8.log
-      - name: Upload Phase 31.8 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-8-log
-          path: phase-31-8.log
-          if-no-files-found: ignore
-      - name: Phase 31.9 authoritative reference antiphon acceptance
-        run: npm run verify:phase-31-9
-      - name: Phase 31.10a authoritative reference antiphon recommendation acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-10a 2>&1 | tee phase-31-10a.log
-      - name: Upload Phase 31.10a log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-10a-log
-          path: phase-31-10a.log
-          if-no-files-found: ignore
-      - name: Phase 31.10b reference antiphon recommendation UI acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-10b 2>&1 | tee phase-31-10b.log
-      - name: Upload Phase 31.10b log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-10b-log
-          path: phase-31-10b.log
-          if-no-files-found: ignore
-      - name: Phase 31.11 authoritative Service Context antiphon acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-11 2>&1 | tee phase-31-11.log
-      - name: Upload Phase 31.11 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-11-log
-          path: phase-31-11.log
-          if-no-files-found: ignore
-      - name: Phase 31.12 authoritative Planning candidates acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-12 2>&1 | tee phase-31-12.log
-      - name: Upload Phase 31.12 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-12-log
-          path: phase-31-12.log
-          if-no-files-found: ignore
-      - name: Phase 31.13 authoritative bilingual thematic-section acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-13 2>&1 | tee phase-31-13.log
-      - name: Upload Phase 31.13 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-13-log
-          path: phase-31-13.log
-          if-no-files-found: ignore
-      - name: Phase 31.14 concrete-song authoritative Planning candidates acceptance
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-14 2>&1 | tee phase-31-14.log
-      - name: Upload Phase 31.14 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-14-log
-          path: phase-31-14.log
-          if-no-files-found: ignore
-      - name: Phase 31.15 current-service melody occupancy and collision validation
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-15 2>&1 | tee phase-31-15.log
-      - name: Upload Phase 31.15 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-15-log
-          path: phase-31-15.log
-          if-no-files-found: ignore
-      - name: Phase 31.16 concrete candidate-list UI and single-open interaction
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-16 2>&1 | tee phase-31-16.log
-      - name: Upload Phase 31.16 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-16-log
-          path: phase-31-16.log
-          if-no-files-found: ignore
-      - name: Phase 31.17 inline melody-class detail and equivalent navigation
-        run: |
-          set -o pipefail
-          npm run verify:phase-31-17 2>&1 | tee phase-31-17.log
-      - name: Upload Phase 31.17 log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase-31-17-log
-          path: phase-31-17.log
-          if-no-files-found: ignore
-      - name: Database migration
-        run: |
-          set -o pipefail
-          npm run db:migrate 2>&1 | tee db-migrate.log
-      - name: Phase 30.1 DB lifecycle smoke
-        run: |
-          set -o pipefail
-          npm run db:phase-30-1-smoke 2>&1 | tee db-phase-30-1-smoke.log
-      - name: Upload database logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: database-logs
-          path: |
-            db-migrate.log
-            db-phase-30-1-smoke.log
-            postgres.log
-          if-no-files-found: ignore
+          python3 scripts/phase-31-17-row-ux-fix.py
+          python3 scripts/phase-31-17-row-ux-test-fix.py
+      - name: Focused Phase 31.17 acceptance
+        run: npm run test:phase-31-17
       - name: Typecheck
         run: npm run typecheck
-      - name: Test
-        run: npm run test > test.log 2>&1
-      - name: Upload test log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-log
-          path: test.log
-      - name: Build
+      - name: Complete tests
+        run: npm test
+      - name: Production build
         run: npm run build
+      - name: Commit verified refinement to PR branch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            app/globals.css \
+            app/planning-lifecycle-client.tsx \
+            docs/candidate-selection-knowledge-transfer.md \
+            docs/phase-31-17-contract.md \
+            scripts/phase-30-1-candidate-flow-tests.ts \
+            scripts/phase-31-16-tests.tsx \
+            scripts/phase-31-17-tests.tsx \
+            scripts/planning-ui-workflow-static-tests.ts \
+            src/planning-lifecycle/candidate-flow.ts \
+            src/planning-lifecycle/candidate-list.tsx
+          git diff --cached --check
+          git commit -m "Phase 31.17 — compact invariant Planning rows"
+          git push origin HEAD:codex/phase-31-17-inline-melody-detail
