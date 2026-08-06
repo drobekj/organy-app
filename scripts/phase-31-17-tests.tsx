@@ -54,6 +54,7 @@ const songs = [
 const preferences = [{ profileId: "p", songId: "demo-cz", score: 3 }];
 const knowledge = { antiphons: [], seasons: [], melodyClasses: [{ id: "demo-class", label: "Demo", songIds: ["demo-cz", "demo-pl"], synthetic: true }], melodyWindow: { months: 2 } };
 const memoryCandidates = queryCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { serviceDate: "2026-08-09", serviceLanguage: "mixed", organistPersonId: "demo-organist", preferenceThreshold: 0 });
+assert.deepEqual(memoryCandidates.map((candidate) => candidate.songId), ["demo-cz", "demo-pl"]);
 assert.equal(memoryCandidates[0]?.melodyClassId, "demo-class");
 assert.deepEqual(memoryCandidates[0]?.melodyMembers?.map((member) => member.songId), [memoryCandidates[0]?.songId, memoryCandidates[0]?.songId === "demo-cz" ? "demo-pl" : "demo-cz"]);
 const hydrated = hydrateCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { songs: [{ songId: "demo-pl", language: "polish", number: "101", title: "Stored Polish" }], organistPersonId: "demo-organist" });
@@ -65,6 +66,8 @@ assert.match(clientSource, /kind: "candidateDetail"/);
 assert.match(clientSource, /kind: "selectedSongDetail"/);
 assert.match(clientSource, /openSelectedSongDetail/);
 assert.match(clientSource, /replaceFromSelectedDetail/);
+assert.equal(clientSource.includes('else if (planningExpansion && planningExpansion.kind !== "candidateList")'), true);
+assert.equal(clientSource.includes("resetDetailEligibility();\n      setCandidateResults"), true);
 assert.match(clientSource, /detailButtonId={`selected-song-detail-button-/);
 assert.doesNotMatch(clientSource, /onOpenDetail=\{\(\) => row\.selectedSong\?\.songId && openCatalogSongDetail/);
 

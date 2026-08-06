@@ -456,6 +456,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCandidateLoading({});
     setCandidateErrors({});
     if (recordChanged) {
+      detailEligibilityRequest.current += 1;
+      setDetailEligibilityCandidates([]);
+      setDetailEligibilityLoading(false);
+      setDetailEligibilityError(undefined);
       setPlanningExpansion(null);
       setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
       return;
@@ -463,6 +467,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (openCandidateRowId !== null) {
       const openRow = rows.find((row) => row.id === openCandidateRowId);
       if (openRow) void queryCandidateResults(openRow.id, openRow.songSearch);
+    } else if (planningExpansion && planningExpansion.kind !== "candidateList") {
+      void loadDetailEligibility(planningExpansion.rowId);
     }
   }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker, candidateRefreshGeneration]);
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
@@ -899,6 +905,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
       });
       if (request !== detailEligibilityRequest.current) return;
       setDetailEligibilityCandidates(candidates);
+      setPlanningExpansion((current) => {
+        if (!current || current.kind === "candidateList" || current.rowId !== rowId) return current;
+        const refreshedCandidate = candidates.find((candidate) => candidate.songId === current.songId);
+        return refreshedCandidate ? { ...current, candidate: refreshedCandidate } : current;
+      });
       setDetailEligibilityLoading(false);
     } catch (error) {
       if (request !== detailEligibilityRequest.current) return;
@@ -983,6 +994,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   function openCandidateList(rowId: number) {
     if (!canEditRows || (planningExpansion?.kind === "candidateList" && planningExpansion.rowId === rowId)) return;
+    resetDetailEligibility();
     lookupTracker.invalidatePrefix("song:");
     setRows((currentRows) => openSingleCandidateRow(currentRows, rowId));
     setPlanningExpansion({ kind: "candidateList", rowId });
@@ -1025,6 +1037,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   }
 
   function clearSong(rowId: number) {
+    resetDetailEligibility();
     lookupTracker.invalidatePrefix("song:");
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "songCleared" }) : row)));
     setPlanningExpansion(null);
@@ -1059,8 +1072,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function removeRow(id: number) {
     lookupTracker.invalidatePrefix("song:");
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.filter((row) => row.id !== id)));
-    if (planningExpansion?.rowId === id) setPlanningExpansion(null);
-    else if (openCandidateRowId !== null) setCandidateRefreshGeneration((generation) => generation + 1);
+    if (planningExpansion?.rowId === id) {
+      setPlanningExpansion(null);
+      resetDetailEligibility();
+    } else if (planningExpansion !== null) setCandidateRefreshGeneration((generation) => generation + 1);
     setSongResults({});
     setCandidateResults({});
     setCandidateLoading({});
@@ -1086,7 +1101,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCandidateResults({});
     setCandidateLoading({});
     setCandidateErrors({});
-    if (openCandidateRowId !== null) setCandidateRefreshGeneration((generation) => generation + 1);
+    if (planningExpansion !== null) setCandidateRefreshGeneration((generation) => generation + 1);
     setSaveState("unsaved");
     setServiceError(null);
   }
@@ -1334,6 +1349,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (nextWorkspace !== workspace && workspace === "planning") {
       lookupTracker.invalidatePrefix("song:");
       setPlanningExpansion(null);
+      resetDetailEligibility();
       setCandidateResults({});
       setCandidateLoading({});
       setCandidateErrors({});

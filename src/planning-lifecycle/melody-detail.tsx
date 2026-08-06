@@ -57,6 +57,7 @@ export function candidateAvailabilityReason(candidate: CandidateQueryResult | un
 export function MelodyClassDetail(props: MelodyClassDetailProps) {
   const regionRef = useRef<HTMLElement>(null);
   const { authoritative, members } = useMemo(() => melodyMembersForDetail(props.candidate), [props.candidate]);
+  const classHasRepertoire = members.some((member) => member.repertoire);
 
   useEffect(() => {
     regionRef.current?.focus();
@@ -92,7 +93,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
       {!authoritative && (
         <p className="candidate-list-state" role="status">Authoritative melody-class information is not available for this saved song.</p>
       )}
-      {props.loading && <p className="candidate-list-state" role="status">Checking available replacements…</p>}
+      {props.loading && <p className="candidate-list-state" role="status">{props.mode === "selected" ? "Checking available replacements…" : "Checking candidate availability…"}</p>}
       {props.error && (
         <div className="candidate-list-state candidate-list-error" role="alert">
           <p>{props.error}</p>
@@ -127,7 +128,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                 <span>{member.language}</span>
               </div>
               <div className="melody-member-meta">
-                <span>{member.repertoire ? "In repertoire" : "Melody known through an equivalent"}</span>
+                <span>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
                 <span>Aggregate preference {member.aggregatePreferenceScore}</span>
                 {isOpened && <span className="candidate-current-marker">This song</span>}
                 {isCurrent && <span className="candidate-current-marker">Currently selected</span>}

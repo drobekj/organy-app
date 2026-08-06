@@ -10,7 +10,7 @@ const candidateList = readFileSync("src/planning-lifecycle/candidate-list.tsx", 
 // The production Reference candidate boundary is checked separately for absence of every legacy table identifier.
 for (const required of [
   "<CandidateCombobox",
-  "onOpenDetail={() => row.selectedSong?.songId && openCatalogSongDetail(row.selectedSong.songId, row.id)}",
+  "onOpenDetail={() => openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong!))}",
   "<CandidateLine",
   "Back to Planning row",
   "candidate-line",
