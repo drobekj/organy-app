@@ -68,7 +68,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const [activeIndex, setActiveIndex] = useState(-1);
   const currentSongId = props.selectedSong?.songId;
   const currentCandidateIndex = currentSongId ? props.candidates.findIndex((candidate) => candidate.songId === currentSongId) : -1;
-  const unavailableCurrent = Boolean(props.open && !props.loading && !props.error && props.selectedSong && currentCandidateIndex < 0);
+  const unavailableCurrent = Boolean(props.open && !props.loading && !props.error && !props.value.trim() && props.selectedSong && currentCandidateIndex < 0);
   const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
   const activeDescendant = props.open && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);

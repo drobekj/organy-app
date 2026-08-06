@@ -147,7 +147,7 @@ export function planningCandidateRowReducer(row: PlanningCandidateEditableRow, a
     case "lookupOpened":
       return { ...row, songSearch: "", lookupOpen: true };
     case "lookupChanged":
-      return { ...row, songSearch: action.text, lookupOpen: Boolean(action.text.trim()) };
+      return { ...row, songSearch: action.text, lookupOpen: true };
     case "candidateSelected":
       return { ...row, songSearch: formatSongLabel(action.song), selectedSong: action.song, selectedCandidate: action.candidate, lookupOpen: false };
     case "lookupCancelled":

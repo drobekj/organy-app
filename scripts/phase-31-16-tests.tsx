@@ -85,6 +85,13 @@ function stateCoverage() {
   assert.equal(opened[0].songSearch, "czech 29 — Current", "opening another row must cancel and restore the prior temporary search");
   assert.equal(opened[1].lookupOpen, true);
   assert.equal(opened[1].songSearch, "", "browse mode must not query the confirmed display label");
+  const typedThenCleared = planningCandidateRowReducer(
+    planningCandidateRowReducer(opened[1], { type: "lookupChanged", text: "421" }),
+    { type: "lookupChanged", text: "" },
+  );
+  assert.equal(typedThenCleared.lookupOpen, true, "clearing a live query must return to open browse mode");
+  const switchedAfterClear = openSingleCandidateRow([opened[0], typedThenCleared], 1);
+  assert.equal(switchedAfterClear[1].songSearch, "czech 421 — Equivalent", "switching after a cleared query must restore the confirmed label");
 
   const replaced = planningCandidateRowReducer(rows[0], {
     type: "candidateSelected",
@@ -147,6 +154,16 @@ function renderCoverage() {
   );
   assert.match(unavailableHtml, /Currently selected/);
   assert.match(unavailableHtml, /polish song in a czech service/i);
+  const searchedHtml = renderToStaticMarkup(
+    <CandidateCombobox
+      {...common}
+      value="different search"
+      selectedSong={{ songId: "polish:999", language: "polish", number: "999", title: "Retained invalid" }}
+      candidates={[available]}
+      serviceLanguage="czech"
+    />,
+  );
+  assert.doesNotMatch(searchedHtml, /Not available because/, "search mismatch must not be presented as a hard-filter failure");
   const allOccupiedHtml = renderToStaticMarkup(<CandidateCombobox {...common} selectedSong={undefined} candidates={[occupied]} />);
   assert.match(allOccupiedHtml, /All matching melodies are already occupied/);
 }
