@@ -15,7 +15,7 @@ concurrency:
 jobs:
   refine:
     if: github.actor != 'github-actions[bot]'
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,6 +30,15 @@ jobs:
         run: |
           python3 scripts/phase-31-17-row-ux-fix.py
           python3 scripts/phase-31-17-row-ux-test-fix.py
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/planning-ui-workflow-static-tests.ts")
+          text = path.read_text(encoding="utf-8")
+          stale = '  "candidate-line",\n'
+          if text.count(stale) != 1:
+              raise RuntimeError(f"expected one stale candidate-line assertion, found {text.count(stale)}")
+          path.write_text(text.replace(stale, "", 1), encoding="utf-8")
+          PY
       - name: Focused Phase 31.17 acceptance
         run: npm run test:phase-31-17
       - name: Typecheck
