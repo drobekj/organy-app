@@ -1,2 +1,3 @@
-trigger=2026-08-06
+trigger=2026-08-06T18:53Z
 source=codex/phase-31-17-inline-melody-detail
+mode=macos-pull-request
