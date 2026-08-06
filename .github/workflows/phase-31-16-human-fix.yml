@@ -27,6 +27,38 @@ jobs:
           cache: npm
       - name: Apply correction
         run: node scripts/phase-31-16-human-fix.mjs
+      - name: Stabilize generated static evidence
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'scripts/phase-31-16-organist-prerequisite-tests.tsx';
+          let source = fs.readFileSync(path, 'utf8');
+          source = source.replace(
+            '  assert.match(client, /if \\(!organistId\\) \\{/);',
+            '  assert.equal(client.includes("if (!organistId) {"), true);',
+          );
+          source = source.replace(
+            '  assert.match(client, /prerequisiteMessage=\\{!organistId/);',
+            '  assert.equal(client.includes("prerequisiteMessage={!organistId"), true);',
+          );
+          source = source.replace(
+            '  assert.match(component, /blockedByPrerequisite/);',
+            '  assert.equal(component.includes("blockedByPrerequisite"), true);',
+          );
+          source = source.replace(
+            '  assert.match(authoritative, /if \\(!input\\.organistPersonId\\) return \\[\\];/);',
+            '  assert.equal(authoritative.includes("if (!input.organistPersonId) return [];"), true);',
+          );
+          source = source.replace(
+            '  assert.match(memory, /if \\(!input\\.organistPersonId\\) return \\[\\];/);',
+            '  assert.equal(memory.includes("if (!input.organistPersonId) return [];"), true);',
+          );
+          source = source.replace(
+            '  assert.match(contracts, /if \\(!input\\.organistPersonId\\) return \\[\\];/);',
+            '  assert.equal(contracts.includes("if (!input.organistPersonId) return [];"), true);',
+          );
+          fs.writeFileSync(path, source);
+          NODE
       - name: Install dependencies
         run: npm ci --no-audit --no-fund --loglevel=error
       - name: Focused Phase 31.16 acceptance
