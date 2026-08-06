@@ -1,8 +1,13 @@
 import atexit
+import runpy
 from pathlib import Path
 
 
 def _apply_final_compact_row_alignment() -> None:
+    test_alignment = Path(__file__).with_name("phase-31-17-row-ux-test-fix.py")
+    if test_alignment.exists():
+        runpy.run_path(str(test_alignment), run_name="__main__")
+
     replacements = {
         "src/planning-lifecycle/candidate-flow.ts": [
             ("`${song.number}${song.title ? ` — ${song.title}` : \"\"}`", "`${song.number}${song.title ? ` · ${song.title}` : \"\"}`"),
@@ -29,7 +34,7 @@ def _apply_final_compact_row_alignment() -> None:
             text = text.replace(old, new)
         path.write_text(text, encoding="utf-8")
 
-    print("Phase 31.17 final compact-row separator alignment applied.")
+    print("Phase 31.17 final compact-row alignment applied.")
 
 
 atexit.register(_apply_final_compact_row_alignment)
