@@ -19,7 +19,7 @@ replace_once(
 
 replace_once(
     "app/planning-lifecycle-client.tsx",
-    "refreshOpenSongLookupsOnContextChange, ",
+    ", refreshOpenSongLookupsOnContextChange",
     "",
     "unused legacy refresh import",
 )
