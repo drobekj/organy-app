@@ -1,16 +1,15 @@
 name: Phase 31.17 compact row UX
 
 on:
-  push:
-    branches:
-      - codex/phase-31-17-inline-melody-detail
+  pull_request:
+    types: [reopened]
 
 permissions:
   contents: write
 
 jobs:
   refine:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'codex/phase-31-17-inline-melody-detail'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,5 +49,3 @@ jobs:
           git diff --cached --check
           git commit -m "Phase 31.17 — compact invariant Planning rows"
           git push origin HEAD:codex/phase-31-17-inline-melody-detail
-
-# Triggered after the registered workflow path existed on the branch.
