@@ -1,20 +1,19 @@
-name: Phase 31.17 compact row UX
+name: Phase 31.17 isolated compact row UX
 
 on:
   push:
     branches:
-      - codex/phase-31-17-inline-melody-detail
+      - codex/phase-31-17-compact-row-runner
 
 permissions:
   contents: write
 
 concurrency:
-  group: phase-31-17-compact-row
+  group: phase-31-17-isolated-compact-row
   cancel-in-progress: true
 
 jobs:
   refine:
-    if: github.actor != 'github-actions[bot]'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +37,7 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
-      - name: Commit verified refinement
+      - name: Commit verified refinement to PR branch
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
