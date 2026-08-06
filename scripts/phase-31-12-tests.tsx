@@ -161,7 +161,9 @@ async function staticBoundaryCoverage() {
   assert.doesNotMatch(service, /\borganist_repertoire\b/);
   assert.doesNotMatch(service, /antiphon_mappings|liturgical_season_mappings/);
   assert.match(client, /referenceAntiphonId: referenceAntiphon\?\.id/);
-  assert.match(client, /refreshOpenSongLookupsOnContextChange\(rows, queryCandidateResults\)/);
+  // Phase 31.16 replaced the multi-row helper with an explicit refresh of the sole open row.
+  assert.match(client, /openCandidateRowId !== null/);
+  assert.match(client, /void queryCandidateResults\(openRow\.id, openRow\.songSearch\)/);
   assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length > 0, true);
   assert.match(contracts, /referenceAntiphonId\?: string/);
   assert.match(flow, /referenceAntiphonId/);
