@@ -1,9 +1,8 @@
 name: Phase 31.17 isolated compact row UX
 
 on:
-  push:
-    branches:
-      - codex/phase-31-17-compact-row-runner
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -14,6 +13,7 @@ concurrency:
 
 jobs:
   refine:
+    if: github.head_ref == 'codex/phase-31-17-compact-row-runner'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
