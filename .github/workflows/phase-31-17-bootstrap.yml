@@ -23,7 +23,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply implementation
-        run: python3 scripts/phase-31-17-bootstrap.py
+        run: |
+          python3 scripts/phase-31-17-bootstrap.py
+          python3 scripts/phase-31-17-bootstrap-fix.py
       - name: Focused acceptance
         run: npm run test:phase-31-17
       - name: Typecheck
