@@ -35,6 +35,7 @@ One concrete authoritative candidate is one concrete option in a single-open Pla
 - Correction: no-organist browse is now a neutral prerequisite state with no API request; no organist and an empty selected-organist repertoire both yield zero candidates in authoritative and in-memory services.
 - The Phase 31.8 melody-equivalence acceptance fixture was aligned with the same rule by explicitly selecting `demo-organist` and assigning both fixture songs to that repertoire; its intended candidate-set invariance assertion is unchanged.
 - The Phase 31.10a unrelated-backend fixture was likewise aligned by selecting `organist-person` and assigning one authoritative reference song to its repertoire; recommendation-isolation assertions are unchanged.
+- The Phase 31.12 slash-number fixture now selects `demo-organist` and explicitly assigns `czech:5210` to that repertoire; its `5210` and `52/1` normalization assertions are unchanged.
 - A fresh browser HUMAN checkpoint is required on the corrected exact head.
 
 ## Workflow
