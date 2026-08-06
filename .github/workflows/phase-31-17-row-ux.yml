@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: phase-31-17-compact-row
+  cancel-in-progress: true
+
 jobs:
   refine:
     if: github.actor != 'github-actions[bot]'
