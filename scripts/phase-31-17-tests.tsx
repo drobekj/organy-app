@@ -239,10 +239,15 @@ assert.match(candidateListSource, /detailReturnSongId/, "candidate-detail return
 assert.match(candidateListSource, /detailReturnCandidates/, "candidate-detail return keeps the fresh eligibility snapshot so an equivalent target cannot disappear from the reopened list");
 assert.match(candidateListSource, /const effectiveFocusSongId = detailReturnSongId \?\? props\.focusSongId/, "the clicked equivalent target has priority over any selected-song focus");
 assert.match(candidateListSource, /function captureDetailReturn\(songId: string\)[\s\S]*?setDetailReturnSongId\(songId\)[\s\S]*?setDetailReturnCandidates\(snapshot\)[\s\S]*?props\.onOpen\(\)/, "candidate-detail return reopens without mutating Song lookup and retains the target snapshot");
-assert.match(candidateListSource, /\.row-icon-palette \{ top: 0 !important; transform: translateY\(calc\(-100% \+ 0\.35rem\)\); \}/, "row control squares are lowered slightly from the full-height lift to visually center on the fieldset legend axis");
+assert.match(candidateListSource, /\.row-icon-palette \{ top: 0 !important; transform: translateY\(calc\(-100% \+ 0\.35rem\)\); \}/, "row control squares retain the latest browser-tuned vertical position");
 assert.match(candidateListSource, /const candidateListVisible = props\.open \|\| Boolean\(props\.detail && detailMode === "candidate"\)/, "candidate-origin Detail keeps the candidate list visible beneath its overlay");
-assert.match(candidateListSource, /\{candidateListVisible && \(/);
-assert.match(candidateListSource, /gridRow: 2,[\s\S]*?justifySelf: "start"[\s\S]*?zIndex: 1/, "the retained candidate list sits below the Detail overlay");
+assert.match(candidateListSource, /\.candidate-combobox > \.candidate-listbox,[\s\S]*?\.candidate-combobox > \.melody-detail-candidate[\s\S]*?position: absolute !important;[\s\S]*?top: calc\(100% \+ 0\.35rem\)/, "candidate list and candidate Detail are independent overlays anchored to the same line below Song lookup");
+assert.match(candidateListSource, /\.candidate-combobox > \.candidate-listbox \{[\s\S]*?right: calc\(-4\.7rem - 0\.45rem\);[\s\S]*?width: 100%;/, "candidate list keeps its lookup-column width while aligning its right edge with the standalone Detail button");
+assert.match(candidateListSource, /\.candidate-combobox > \.candidate-listbox \{[\s\S]*?max-height: min\(32rem, 70vh\);[\s\S]*?overflow-y: auto;[\s\S]*?direction: rtl;[\s\S]*?z-index: 40;/, "long candidate lists scroll independently with the scrollbar exposed on the left");
+assert.match(candidateListSource, /\.candidate-combobox > \.melody-detail-candidate \{[\s\S]*?max-height: min\(32rem, 70vh\);[\s\S]*?overflow-y: auto;[\s\S]*?direction: rtl;[\s\S]*?z-index: 50 !important;/, "candidate Detail scrolls independently and overlays the retained candidate list");
+assert.match(candidateListSource, /\.row-card > \.melody-detail-selected \{[\s\S]*?position: absolute !important;[\s\S]*?grid-row: 2 !important;[\s\S]*?top: -0\.2rem;[\s\S]*?right: 0;[\s\S]*?transform: none !important;/, "selected-song Detail is removed from row flow and aligned to the same overlay start immediately below Song lookup");
+assert.match(candidateListSource, /\.row-card > \.melody-detail-selected \{[\s\S]*?max-height: min\(32rem, 70vh\);[\s\S]*?overflow-y: auto;[\s\S]*?direction: rtl;/, "selected-song Detail has the same independent overflow policy");
+assert.match(candidateListSource, /\.row-card:has\(> \.melody-detail-selected\) \.song-field-detail \{[\s\S]*?opacity: 0\.55;[\s\S]*?pointer-events: none;/, "the right Detail button becomes a disabled-looking outside-dismiss target while selected-song Detail is open");
 assert.match(candidateListSource, /getBoundingClientRect\(\)/, "candidate return scrolling must measure the real option position relative to its scroll container");
 assert.match(candidateListSource, /optionRect\.bottom > containerRect\.bottom/);
 assert.doesNotMatch(candidateListSource, /const top = option\.offsetTop/, "nested grid offsetTop must not drive candidate return positioning");
@@ -253,8 +258,7 @@ assert.match(detailSource, /openedMelodyMemberFirst\(classMembers, props\.candid
 assert.doesNotMatch(detailSource, /openedMelodyMemberFirst\(classMembers, openedSongId\)/, "switching the expanded member must not reorder the Detail session");
 assert.match(detailSource, /setOpenedSongId\(member\.songId\)/, "Detail still expands another member in place");
 assert.equal(detailSource.includes('className={`melody-detail melody-detail-${props.mode}`}'), true, "both Detail origins use the same panel with an origin class only for context");
-assert.match(detailSource, /justifySelf: "end"/);
-assert.match(detailSource, /transform: "translateX\(calc\(4\.7rem \+ 0\.45rem\)\)"/, "both Detail origins extend right by the selected-song Detail column plus its grid gap");
+assert.match(detailSource, /transform: "translateX\(calc\(4\.7rem \+ 0\.45rem\)\)"/, "candidate-origin Detail retains the right-column alignment transform; selected-origin overlay CSS neutralizes it in its full-row grid area");
 assert.match(detailSource, /width: "min\(82%, 46rem\)"/);
 assert.match(detailSource, /background: "#f5f5f4"/);
 assert.match(detailSource, /boxShadow: "0 0\.8rem 2rem rgb\(31 41 51 \/ 14%\)"/);
@@ -264,8 +268,7 @@ assert.match(detailSource, /document\.addEventListener\("pointerdown", dismissSe
 assert.match(detailSource, /selectedDetailDismissPointerTarget = target/);
 assert.doesNotMatch(detailSource, /Currently selected|Back to candidates|Show this candidate|Replace with this song/);
 assert.match(cssSource, /\.compact-row-fields,\s*\.song-field-row\s*\{\s*display: contents;/);
-assert.match(cssSource, /\.row-card > \.melody-detail\s*\{[\s\S]*?grid-column: 1;[\s\S]*?order: 2;/, "selected-song detail is visually placed in the same first-column slot between lookup and note before the shared right-column alignment transform");
-assert.match(cssSource, /\.row-card \.row-note-input\s*\{[\s\S]*?order: 3;/);
+assert.match(cssSource, /\.row-card \.row-note-input\s*\{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?order: 3;/, "Text note stays in the permanent base row flow while overlays do not consume height");
 assert.match(cssSource, /\.melody-member-active\s*\{[\s\S]*?outline: 3px solid #84adff;/);
 
 console.log("Phase 31.17 inline melody-class detail and equivalent navigation: PASS");
