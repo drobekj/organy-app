@@ -184,7 +184,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         if (props.open && next instanceof Node && !event.currentTarget.contains(next)) props.onCancel();
       }}
     >
-      <style>{`.row-icon-palette { top: 0 !important; transform: translateY(-100%); }`}</style>
+      <style>{`.row-icon-palette { top: 0 !important; transform: translateY(calc(-100% + 0.35rem)); }`}</style>
       <input
         ref={inputRef}
         type="text"
