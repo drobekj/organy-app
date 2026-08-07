@@ -20,7 +20,16 @@ export type MelodyClassDetailProps = {
   onReplace?: (candidate: CandidateQueryResult) => void;
   onEscape?: () => void;
   onActivateMember?: (songId: string) => void;
+  onReturnToCandidates?: (songId: string) => void;
 };
+
+let selectedDetailDismissPointerTarget: EventTarget | null = null;
+
+export function consumeSelectedDetailDismissPointer(target: EventTarget | null): boolean {
+  if (!selectedDetailDismissPointerTarget || selectedDetailDismissPointerTarget !== target) return false;
+  selectedDetailDismissPointerTarget = null;
+  return true;
+}
 
 export function isMemberLanguageAllowed(language: CandidateMelodyMember["language"], serviceLanguage: ServiceLanguage): boolean {
   return serviceLanguage === "mixed" || language === serviceLanguage;
@@ -88,14 +97,13 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   const regionRef = useRef<HTMLElement>(null);
   const rowRefs = useRef(new Map<string, HTMLLIElement>());
   const { authoritative, members: classMembers } = useMemo(() => melodyMembersForDetail(props.candidate), [props.candidate]);
+  const members = useMemo(() => openedMelodyMemberFirst(classMembers, props.candidate.songId), [classMembers, props.candidate.songId]);
   const [openedSongId, setOpenedSongId] = useState(props.candidate.songId);
-  const members = useMemo(() => openedMelodyMemberFirst(classMembers, openedSongId), [classMembers, openedSongId]);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const [pendingCandidateReturn, setPendingCandidateReturn] = useState<string | undefined>();
   const classHasRepertoire = members.some((member) => member.repertoire);
   const eligibilityBySongId = useMemo(() => new Map(props.eligibilityCandidates.map((candidate) => [candidate.songId, candidate])), [props.eligibilityCandidates]);
   const activationEnabled = props.mode === "candidate"
-    ? Boolean(props.onActivateMember || props.onBack || props.onShowCandidate)
+    ? Boolean(props.onReturnToCandidates || props.onActivateMember || props.onBack || props.onShowCandidate)
     : Boolean(props.onActivateMember || props.onReplace);
   const activatable = members.map((member) => isDetailMemberActivatable({
     mode: props.mode,
@@ -111,10 +119,23 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   }, [props.candidate.songId]);
 
   useEffect(() => {
-    if (props.mode !== "candidate" || !pendingCandidateReturn || props.candidate.songId !== pendingCandidateReturn) return;
-    setPendingCandidateReturn(undefined);
-    props.onBack?.();
-  }, [props.mode, props.candidate.songId, pendingCandidateReturn, props.onBack]);
+    if (props.mode !== "selected") return;
+    function dismissSelectedDetailOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node) || regionRef.current?.contains(target)) return;
+      selectedDetailDismissPointerTarget = target;
+      props.onClose();
+      if (target instanceof Element && target.closest('[id^="selected-song-detail-button-"]')) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      queueMicrotask(() => {
+        if (selectedDetailDismissPointerTarget === target) selectedDetailDismissPointerTarget = null;
+      });
+    }
+    document.addEventListener("pointerdown", dismissSelectedDetailOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", dismissSelectedDetailOnOutsidePointer, true);
+  }, [props.mode, props.onClose]);
 
   useEffect(() => {
     const openedIndex = members.findIndex((member, index) => member.songId === openedSongId && activatable[index]);
@@ -124,6 +145,10 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   }, [props.mode, openedSongId, props.currentSongId, props.serviceLanguage, members.map((member) => member.songId).join("|"), activatable.join("|")]);
 
   function escape() {
+    if (props.mode === "candidate" && props.onReturnToCandidates) {
+      props.onReturnToCandidates(props.candidate.songId);
+      return;
+    }
     if (props.onEscape) props.onEscape();
     else if (props.mode === "candidate" && props.onBack) props.onBack();
     else props.onClose();
@@ -134,6 +159,10 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
     if (!member) return;
     if (!activatable[index]) {
       escape();
+      return;
+    }
+    if (props.mode === "candidate" && props.onReturnToCandidates) {
+      props.onReturnToCandidates(member.songId);
       return;
     }
     if (props.onActivateMember) {
@@ -154,7 +183,6 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
       return;
     }
     if (props.onShowCandidate && props.onBack) {
-      setPendingCandidateReturn(member.songId);
       props.onShowCandidate(member.songId);
       return;
     }
@@ -215,6 +243,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
           const isOpened = member.songId === openedSongId;
           const isCurrent = Boolean(props.currentSongId && member.songId === props.currentSongId);
           const rowActivatable = activatable[index];
+          const infoOpacity = rowActivatable ? 1 : 0.58;
           const unavailableReason = !languageAllowed
             ? `Not selectable in a ${props.serviceLanguage} service.`
             : occupancyReason
@@ -241,31 +270,32 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
               >
                 <div
                   className={`melody-member-content${rowActivatable ? "" : " melody-member-content-muted"}`}
-                  style={{ display: "grid", gap: "0.35rem", opacity: rowActivatable ? 1 : 0.58 }}
+                  style={{ display: "grid", gap: "0.35rem" }}
                 >
-                  <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem" }}><strong>{member.number}</strong><span>{member.title}</span></span>
+                  <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem", opacity: infoOpacity }}><strong>{member.number}</strong><span>{member.title}</span></span>
                   {isOpened && (
                     <div className="melody-member-meta">
-                      <span>{member.language}</span>
-                      <span>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
-                      <span>Aggregate preference {member.aggregatePreferenceScore}</span>
-                      {eligibility && <span>Signal {eligibility.signal}</span>}
-                      {unavailableReason && <span className="candidate-unavailable-reason">{unavailableReason}</span>}
-                      {!member.sheetMusicUrl && <span className="field-help melody-score-missing">Score not available</span>}
+                      <span style={{ opacity: infoOpacity }}>{member.language}</span>
+                      <span style={{ opacity: infoOpacity }}>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
+                      <span style={{ opacity: infoOpacity }}>Aggregate preference {member.aggregatePreferenceScore}</span>
+                      {eligibility && <span style={{ opacity: infoOpacity }}>Signal {eligibility.signal}</span>}
+                      {unavailableReason && <span className="candidate-unavailable-reason" style={{ opacity: infoOpacity }}>{unavailableReason}</span>}
+                      {member.sheetMusicUrl ? (
+                        <a
+                          href={member.sheetMusicUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={stopRowActivation}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          aria-label={`Open score for ${member.number} ${member.title}`}
+                        >Score</a>
+                      ) : (
+                        <span className="field-help melody-score-missing">Score not available</span>
+                      )}
                     </div>
                   )}
                 </div>
                 <div className="melody-member-actions" onClick={stopRowActivation}>
-                  {isOpened && member.sheetMusicUrl && (
-                    <a
-                      href={member.sheetMusicUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={stopRowActivation}
-                      onKeyDown={(event) => event.stopPropagation()}
-                      aria-label={`Open score for ${member.number} ${member.title}`}
-                    >Score</a>
-                  )}
                   {!isOpened && (
                     <button
                       type="button"
