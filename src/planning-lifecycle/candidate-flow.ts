@@ -148,7 +148,9 @@ export function planningCandidateRowReducer(row: PlanningCandidateEditableRow, a
     case "lookupOpened":
       return { ...row, songSearch: row.selectedSong ? formatPlanningSongField(row.selectedSong) : "", lookupOpen: true };
     case "lookupChanged":
-      return { ...row, songSearch: action.text, lookupOpen: true };
+      return action.text.trim()
+        ? { ...row, songSearch: action.text, lookupOpen: true }
+        : { ...row, songSearch: "", selectedSong: undefined, selectedCandidate: undefined, lookupOpen: true };
     case "candidateSelected":
       return { ...row, songSearch: formatPlanningSongField(action.song), selectedSong: action.song, selectedCandidate: action.candidate, lookupOpen: false };
     case "lookupCancelled":
