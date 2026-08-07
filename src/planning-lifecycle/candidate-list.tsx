@@ -229,10 +229,14 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
             const current = Boolean(currentSongId && candidate.songId === currentSongId);
             const selectable = isCandidateSelectable(candidate);
             return (
-              <div key={candidate.songId} className="candidate-option-row">
+              <div
+                key={candidate.songId}
+                className={`candidate-option-row${current ? " candidate-option-current" : ""}`}
+                style={current ? { border: "1px solid #84adff", borderRadius: "0.65rem" } : undefined}
+              >
                 <div
                   id={optionId(listboxId, candidate.songId)}
-                  className={`candidate-option${index === activeIndex ? " candidate-option-active" : ""}${current ? " candidate-option-current" : ""}${selectable ? "" : " candidate-option-disabled"}`}
+                  className={`candidate-option${index === activeIndex && !current ? " candidate-option-active" : ""}${selectable ? "" : " candidate-option-disabled"}`}
                   role="option"
                   aria-selected={current}
                   aria-disabled={!selectable}
@@ -240,7 +244,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
                   data-candidate-option
                   onClick={() => { if (selectable) props.onSelect(candidate); }}
                 >
-                  <div className="candidate-option-content">
+                  <div className="candidate-option-content" style={current ? { background: "transparent" } : undefined}>
                     <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span></span>
                   </div>
                 </div>
