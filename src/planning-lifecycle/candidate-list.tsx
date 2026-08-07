@@ -46,7 +46,16 @@ type CandidateComboboxProps = {
 };
 
 const planningOverlayCss = `
-.row-icon-palette { top: 0 !important; transform: translateY(calc(-100% + 0.35rem)); }
+.row-icon-palette { top: 0 !important; transform: translateY(calc(-100% + 0.26rem)); }
+.row-icon-palette .row-icon-button {
+  font-size: 1rem;
+  font-weight: 900;
+  height: 1.72rem;
+  line-height: 1;
+  min-width: 1.72rem;
+  padding: 0;
+  width: 1.72rem;
+}
 .row-card .candidate-combobox { position: relative; }
 .row-card .candidate-combobox > .candidate-listbox,
 .row-card .candidate-combobox > .melody-detail-candidate {
@@ -132,9 +141,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const inputWasOpenOnPointerDown = useRef(false);
   const suppressOpenOnPointerDown = useRef(false);
   const autoScrolled = useRef(false);
+  const pendingFullCandidateDismiss = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [detailReturnSongId, setDetailReturnSongId] = useState<string | undefined>();
   const [detailReturnCandidates, setDetailReturnCandidates] = useState<CandidateQueryResult[] | undefined>();
+  const [suppressCandidateOverlay, setSuppressCandidateOverlay] = useState(false);
   const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
   const currentSongId = props.selectedSong?.songId;
   const confirmedLabel = props.selectedSong
@@ -146,20 +157,46 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const visibleError = detailReturnCandidates ? undefined : props.error;
   const allOccupied = visibleCandidates.length > 0 && visibleCandidates.every((candidate) => !isCandidateSelectable(candidate));
   const detailMode = props.detail?.mode ?? "candidate";
-  const candidateListVisible = props.open || Boolean(props.detail && detailMode === "candidate");
+  const candidateDetailOpen = Boolean(props.detail && detailMode === "candidate");
+  const candidateListVisible = !suppressCandidateOverlay && (props.open || candidateDetailOpen);
   const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, visibleCandidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => visibleCandidates.map((candidate) => candidate.songId).join("|"), [visibleCandidates]);
   const effectiveFocusSongId = detailReturnSongId ?? props.focusSongId;
 
   useEffect(() => {
-    if (!props.open) return;
+    if (!props.open && !candidateDetailOpen) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target;
-      if (target instanceof Node && rootRef.current && !rootRef.current.contains(target)) props.onCancel();
+      if (!(target instanceof Node)) return;
+      if (candidateDetailOpen) {
+        const detailRegion = rootRef.current?.querySelector<HTMLElement>(".melody-detail-candidate");
+        if (listRef.current?.contains(target) || detailRegion?.contains(target)) return;
+        pendingFullCandidateDismiss.current = true;
+        setSuppressCandidateOverlay(true);
+        if (target instanceof Element && target.closest('[id^="selected-song-detail-button-"]')) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        if (props.onBackFromDetail) props.onBackFromDetail();
+        else {
+          pendingFullCandidateDismiss.current = false;
+          setSuppressCandidateOverlay(false);
+          props.onCancel();
+        }
+        return;
+      }
+      if (rootRef.current && !rootRef.current.contains(target)) props.onCancel();
     }
     document.addEventListener("pointerdown", closeOnOutsidePointer, true);
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
-  }, [props.open, props.onCancel]);
+  }, [props.open, candidateDetailOpen, props.onBackFromDetail, props.onCancel]);
+
+  useEffect(() => {
+    if (!pendingFullCandidateDismiss.current || props.detail) return;
+    pendingFullCandidateDismiss.current = false;
+    if (props.open) props.onCancel();
+    setSuppressCandidateOverlay(false);
+  }, [props.detail, props.open, props.onCancel]);
 
   useEffect(() => {
     if (!props.open) {
@@ -226,6 +263,14 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     props.onOpen();
   }
 
+  function returnToVisibleCandidate(candidate: CandidateQueryResult, index: number) {
+    autoScrolled.current = false;
+    setActiveIndex(index);
+    setDetailReturnSongId(candidate.songId);
+    setDetailReturnCandidates([...visibleCandidates]);
+    props.onOpen();
+  }
+
   return (
     <div
       ref={rootRef}
@@ -279,7 +324,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         placeholder="Song lookup"
         disabled={props.disabled}
       />
-      {props.detail && (
+      {props.detail && !suppressCandidateOverlay && (
         <MelodyClassDetail
           mode={detailMode}
           rowLabel={props.rowLabel}
@@ -349,7 +394,13 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
                   aria-disabled={!selectable}
                   data-song-id={candidate.songId}
                   data-candidate-option
-                  onClick={() => { if (selectable) props.onSelect(candidate); }}
+                  onClick={() => {
+                    if (candidateDetailOpen) {
+                      returnToVisibleCandidate(candidate, index);
+                      return;
+                    }
+                    if (selectable) props.onSelect(candidate);
+                  }}
                 >
                   <div
                     className="candidate-option-content"
