@@ -83,16 +83,20 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const autoScrolled = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [detailReturnSongId, setDetailReturnSongId] = useState<string | undefined>();
+  const [detailReturnCandidates, setDetailReturnCandidates] = useState<CandidateQueryResult[] | undefined>();
   const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
   const currentSongId = props.selectedSong?.songId;
   const confirmedLabel = props.selectedSong
     ? `${props.selectedSong.number}${props.selectedSong.title ? ` · ${props.selectedSong.title}` : ""}`
     : "";
   const candidateQueryText = confirmedLabel && props.value === confirmedLabel ? "" : props.value;
-  const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
-  const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
-  const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);
-  const effectiveFocusSongId = props.focusSongId ?? detailReturnSongId;
+  const visibleCandidates = detailReturnCandidates ?? props.candidates;
+  const visibleLoading = detailReturnCandidates ? false : props.loading;
+  const visibleError = detailReturnCandidates ? undefined : props.error;
+  const allOccupied = visibleCandidates.length > 0 && visibleCandidates.every((candidate) => !isCandidateSelectable(candidate));
+  const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, visibleCandidates[activeIndex]?.songId) : undefined;
+  const candidateIds = useMemo(() => visibleCandidates.map((candidate) => candidate.songId).join("|"), [visibleCandidates]);
+  const effectiveFocusSongId = detailReturnSongId ?? props.focusSongId;
 
   useEffect(() => {
     if (!props.open) return;
@@ -108,26 +112,25 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     if (!props.open) {
       autoScrolled.current = false;
       setActiveIndex(-1);
+      setDetailReturnSongId(undefined);
+      setDetailReturnCandidates(undefined);
       return;
     }
-    if (blockedByPrerequisite || props.loading || props.error || props.candidates.length === 0) {
+    if (blockedByPrerequisite || visibleLoading || visibleError || visibleCandidates.length === 0) {
       setActiveIndex(-1);
       return;
     }
-    const initial = getInitialCandidateIndex(props.candidates, currentSongId, effectiveFocusSongId);
+    const initial = getInitialCandidateIndex(visibleCandidates, currentSongId, effectiveFocusSongId);
     setActiveIndex(initial);
     if (effectiveFocusSongId) queueMicrotask(() => inputRef.current?.focus());
     if (!autoScrolled.current && (effectiveFocusSongId || currentSongId) && initial >= 0) {
       autoScrolled.current = true;
-      queueMicrotask(() => {
-        scrollOptionInsideList(listRef.current, initial);
-        if (detailReturnSongId) setDetailReturnSongId(undefined);
-      });
+      queueMicrotask(() => scrollOptionInsideList(listRef.current, initial));
     }
-  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, effectiveFocusSongId, detailReturnSongId]);
+  }, [props.open, visibleLoading, visibleError, props.prerequisiteMessage, candidateIds, props.value, currentSongId, effectiveFocusSongId, visibleCandidates]);
 
   function moveActive(key: string) {
-    const next = candidateIndexForKey(activeIndex, key, props.candidates.length);
+    const next = candidateIndexForKey(activeIndex, key, visibleCandidates.length);
     setActiveIndex(next);
     queueMicrotask(() => scrollOptionInsideList(listRef.current, next));
   }
@@ -153,9 +156,21 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      const candidate = props.candidates[activeIndex];
+      const candidate = visibleCandidates[activeIndex];
       if (candidate && isCandidateSelectable(candidate)) props.onSelect(candidate);
     }
+  }
+
+  function captureDetailReturn(songId: string) {
+    const detailCandidates = props.detail?.eligibilityCandidates ?? [];
+    const openedCandidate = props.detail?.candidate;
+    const snapshot = openedCandidate && openedCandidate.songId === songId && !detailCandidates.some((candidate) => candidate.songId === songId)
+      ? [openedCandidate, ...detailCandidates]
+      : [...detailCandidates];
+    autoScrolled.current = false;
+    setDetailReturnSongId(songId);
+    setDetailReturnCandidates(snapshot);
+    props.onOpen();
   }
 
   return (
@@ -167,6 +182,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         if (props.open && next instanceof Node && !event.currentTarget.contains(next)) props.onCancel();
       }}
     >
+      <style>{`.row-icon-palette { top: 0 !important; transform: translateY(-50%); }`}</style>
       <input
         ref={inputRef}
         type="text"
@@ -201,7 +217,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           if (!props.open) props.onOpen();
           if (event.currentTarget.value) event.currentTarget.select();
         }}
-        onChange={(event) => props.onQueryChange(event.target.value)}
+        onChange={(event) => {
+          setDetailReturnSongId(undefined);
+          setDetailReturnCandidates(undefined);
+          props.onQueryChange(event.target.value);
+        }}
         onKeyDown={handleKeyDown}
         placeholder="Song lookup"
         disabled={props.disabled}
@@ -222,11 +242,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           onShowCandidate={props.onShowDetailCandidate}
           onEscape={props.onEscapeDetail}
           onActivateMember={props.onActivateDetailMember}
-          onReturnToCandidates={(songId) => {
-            autoScrolled.current = false;
-            setDetailReturnSongId(songId);
-            props.onOpen();
-          }}
+          onReturnToCandidates={captureDetailReturn}
         />
       )}
       {props.open && (
@@ -236,29 +252,29 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           className="candidate-popup candidate-listbox"
           role="listbox"
           aria-label={`Song candidates for ${props.rowLabel}`}
-          aria-busy={!blockedByPrerequisite && props.loading}
+          aria-busy={!blockedByPrerequisite && visibleLoading}
         >
           {blockedByPrerequisite && (
             <div className="candidate-list-state candidate-list-prerequisite" role="status">
               <p>{props.prerequisiteMessage}</p>
             </div>
           )}
-          {!blockedByPrerequisite && props.loading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
-          {!blockedByPrerequisite && !props.loading && props.error && (
+          {!blockedByPrerequisite && visibleLoading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
+          {!blockedByPrerequisite && !visibleLoading && visibleError && (
             <div className="candidate-list-state candidate-list-error" role="alert">
-              <p>{props.error}</p>
+              <p>{visibleError}</p>
               <div className="candidate-list-actions">
                 <button type="button" onClick={props.onRetry}>Retry</button>
               </div>
             </div>
           )}
-          {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.length === 0 && (
+          {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.length === 0 && (
             <p className="candidate-list-state" role="status">{getCandidateEmptyMessage(candidateQueryText)}</p>
           )}
-          {!blockedByPrerequisite && !props.loading && !props.error && allOccupied && (
+          {!blockedByPrerequisite && !visibleLoading && !visibleError && allOccupied && (
             <p className="candidate-list-state" role="status">All matching melodies are already occupied in this service.</p>
           )}
-          {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.map((candidate, index) => {
+          {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.map((candidate, index) => {
             const current = Boolean(currentSongId && candidate.songId === currentSongId);
             const selectable = isCandidateSelectable(candidate);
             return (
