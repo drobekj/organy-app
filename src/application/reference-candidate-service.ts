@@ -299,6 +299,7 @@ function matchesReferenceCandidateSearch(song: ReferenceCandidateSong, query: st
   const trimmed = query.trim();
   const lower = trimmed.toLocaleLowerCase();
   if (song.title.toLocaleLowerCase().includes(lower)) return true;
+  if (song.displayNumber.toLocaleLowerCase().includes(lower)) return true;
   if (song.displayNumber === trimmed || String(song.canonicalNumber) === trimmed) return true;
   if (/^[1-9]\d{3,}$/.test(trimmed)) return song.canonicalNumber === Number(trimmed);
   const family = trimmed.match(/^([1-9]\d*)\/?$/);
