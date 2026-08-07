@@ -66,13 +66,6 @@ export function getCandidateEmptyMessage(queryText: string): string {
     : "No songs satisfy the current language, repertoire, preference and melody rules.";
 }
 
-export function getUnavailableCurrentReason(selectedSong: CandidateListSelectedSong, serviceLanguage: ServiceLanguage): string {
-  if (serviceLanguage !== "mixed" && selectedSong.language !== serviceLanguage) {
-    return `Not available because this is a ${selectedSong.language} song in a ${serviceLanguage} service.`;
-  }
-  return "Not available under the current candidate filters.";
-}
-
 export function isCandidateSelectable(candidate: CandidateQueryResult): boolean {
   return candidate.availability.kind === "available";
 }
@@ -82,12 +75,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputWasOpenOnPointerDown = useRef(false);
   const autoScrolled = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
   const currentSongId = props.selectedSong?.songId;
-  const currentCandidateIndex = currentSongId ? props.candidates.findIndex((candidate) => candidate.songId === currentSongId) : -1;
-  const unavailableCurrent = Boolean(props.open && !props.loading && !props.error && !props.value.trim() && props.selectedSong && currentCandidateIndex < 0);
   const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
   const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);
@@ -115,11 +107,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     const initial = getInitialCandidateIndex(props.candidates, currentSongId, props.focusSongId);
     setActiveIndex(initial);
     if (props.focusSongId) queueMicrotask(() => inputRef.current?.focus());
-    if (!autoScrolled.current && !props.value.trim() && (props.focusSongId || currentSongId) && initial >= 0) {
+    if (!autoScrolled.current && (props.focusSongId || currentSongId) && initial >= 0) {
       autoScrolled.current = true;
       queueMicrotask(() => scrollOptionInsideList(listRef.current, initial));
     }
-  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, currentCandidateIndex, props.focusSongId]);
+  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, props.focusSongId]);
 
   function moveActive(key: string) {
     const next = candidateIndexForKey(activeIndex, key, props.candidates.length);
@@ -172,8 +164,13 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         aria-controls={props.open ? listboxId : undefined}
         aria-activedescendant={activeDescendant}
         value={props.value}
+        onPointerDown={() => { inputWasOpenOnPointerDown.current = props.open; }}
         onFocus={() => { if (!props.disabled && !props.open && !props.detail) props.onOpen(); }}
-        onClick={() => { if (!props.disabled && !props.open && !props.detail) props.onOpen(); }}
+        onClick={() => {
+          if (props.disabled || props.detail) return;
+          if (inputWasOpenOnPointerDown.current) props.onCancel();
+          else if (!props.open) props.onOpen();
+        }}
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Song lookup"
@@ -207,7 +204,6 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           {blockedByPrerequisite && (
             <div className="candidate-list-state candidate-list-prerequisite" role="status">
               <p>{props.prerequisiteMessage}</p>
-              <button type="button" className="candidate-list-cancel" onClick={props.onCancel}>Cancel</button>
             </div>
           )}
           {!blockedByPrerequisite && props.loading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
@@ -216,15 +212,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
               <p>{props.error}</p>
               <div className="candidate-list-actions">
                 <button type="button" onClick={props.onRetry}>Retry</button>
-                <button type="button" onClick={props.onCancel}>Cancel</button>
               </div>
-            </div>
-          )}
-          {!blockedByPrerequisite && !props.loading && !props.error && unavailableCurrent && props.selectedSong && (
-            <div className="candidate-current-context" role="status">
-              <strong>Currently selected</strong>
-              <span>{props.selectedSong.number} · {props.selectedSong.title ?? "Untitled snapshot"} · {props.selectedSong.language}</span>
-              <span>{getUnavailableCurrentReason(props.selectedSong, props.serviceLanguage)}</span>
             </div>
           )}
           {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.length === 0 && (
@@ -236,9 +224,6 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.map((candidate, index) => {
             const current = Boolean(currentSongId && candidate.songId === currentSongId);
             const selectable = isCandidateSelectable(candidate);
-            const reason = candidate.availability.kind === "occupiedByCurrentRows"
-              ? `Same melody is already used in ${joinLabels(candidate.availability.rows.map((row) => row.label))}.`
-              : undefined;
             return (
               <div key={candidate.songId} className="candidate-option-row">
                 <div
@@ -252,18 +237,13 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
                   onClick={() => { if (selectable) props.onSelect(candidate); }}
                 >
                   <div className="candidate-option-content">
-                    <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span><span>{candidate.language}</span></span>
-                    <span className="candidate-option-meta">{candidate.repertoire ? "In repertoire" : "Melody known through an equivalent"} · preference {candidate.aggregatePreferenceScore} · {candidate.signal}</span>
-                    {candidate.melodyMembers && candidate.melodyMembers.length > 1 && <span className="candidate-option-meta">Melody class: {candidate.melodyMembers.length} songs</span>}
-                    {current && <span className="candidate-current-marker">Currently selected</span>}
-                    {reason && <span className="candidate-unavailable-reason">Unavailable — {reason}</span>}
+                    <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span></span>
                   </div>
                 </div>
                 <button type="button" className="candidate-inline-detail" onClick={() => props.onOpenDetail?.(candidate)} aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}>Detail</button>
               </div>
             );
           })}
-          {!blockedByPrerequisite && !props.loading && !props.error && <button type="button" className="candidate-list-cancel" onClick={props.onCancel}>Cancel</button>}
         </div>
       )}
     </div>
@@ -282,10 +262,4 @@ function scrollOptionInsideList(container: HTMLDivElement | null, index: number)
   const bottom = top + option.offsetHeight;
   if (top < container.scrollTop) container.scrollTop = top;
   else if (bottom > container.scrollTop + container.clientHeight) container.scrollTop = bottom - container.clientHeight;
-}
-
-function joinLabels(labels: string[]): string {
-  if (labels.length <= 1) return labels[0] ?? "another row";
-  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
-  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
 }
