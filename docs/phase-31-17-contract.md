@@ -29,7 +29,7 @@ The browser checkpoint confirmed the compact invariant Planning-row protocol:
 - every row keeps one outer `Row N` fieldset in all empty, partial and selected states;
 - the upper border carries `Row N` on the left and the compact control palette on the right;
 - palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
-- the rounded control squares must be vertically centered on the same upper-border/legend axis as `Row N`; the earlier `translateY(-50%)` correction remained visibly too low, so the final implementation lifts the palette by its full own height and requires one focused browser re-check;
+- the rounded control squares must be vertically centered on the same upper-border/legend axis as `Row N`; the full-own-height lift proved slightly too high in the next browser screenshot, so the final correction lowers that position by `0.35rem` and requires one focused browser re-check;
 - the interior has exactly two permanent base fields: song lookup and text note, with no visible labels above them;
 - empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
 - after selection, the collapsed song field contains only `number · title`;
@@ -95,7 +95,9 @@ Approved for implementation by the user's `dál`, then refined through focused b
 
 ### Right-aligned overlay and origin cue
 
-- the whole expanded Detail panel is right-aligned and deliberately narrower than its available row slot, leaving a clear inset on the left;
+- the whole expanded Detail panel is deliberately narrower than its available row slot, leaving a clear inset on the left;
+- its right edge must align with the right edge of the standalone `Detail` button beside the selected Song lookup, not merely with the right edge of the Song lookup input column;
+- because both Detail origins are based in that first grid column, the shared panel is translated right by the standalone `Detail` column width (`4.7rem`) plus the row grid gap (`0.45rem`), preserving identical width and placement in both modes;
 - the panel uses a previously unused neutral light surface plus a soft shadow so it reads as the active foreground layer without introducing another semantic signal color;
 - when Detail originates from the candidate list, that candidate list remains rendered in the same grid layer underneath the panel;
 - the Detail panel overlays the list from the right, leaving part of the candidate list visible on the left as an orientation cue;
