@@ -239,7 +239,7 @@ assert.match(candidateListSource, /detailReturnSongId/, "candidate-detail return
 assert.match(candidateListSource, /detailReturnCandidates/, "candidate-detail return keeps the fresh eligibility snapshot so an equivalent target cannot disappear from the reopened list");
 assert.match(candidateListSource, /const effectiveFocusSongId = detailReturnSongId \?\? props\.focusSongId/, "the clicked equivalent target has priority over any selected-song focus");
 assert.match(candidateListSource, /function captureDetailReturn\(songId: string\)[\s\S]*?setDetailReturnSongId\(songId\)[\s\S]*?setDetailReturnCandidates\(snapshot\)[\s\S]*?props\.onOpen\(\)/, "candidate-detail return reopens without mutating Song lookup and retains the target snapshot");
-assert.match(candidateListSource, /\.row-icon-palette \{ top: 0 !important; transform: translateY\(-100%\); \}/, "row control squares are lifted by their full palette height to center on the fieldset legend axis");
+assert.match(candidateListSource, /\.row-icon-palette \{ top: 0 !important; transform: translateY\(calc\(-100% \+ 0\.35rem\)\); \}/, "row control squares are lowered slightly from the full-height lift to visually center on the fieldset legend axis");
 assert.match(candidateListSource, /const candidateListVisible = props\.open \|\| Boolean\(props\.detail && detailMode === "candidate"\)/, "candidate-origin Detail keeps the candidate list visible beneath its overlay");
 assert.match(candidateListSource, /\{candidateListVisible && \(/);
 assert.match(candidateListSource, /gridRow: 2,[\s\S]*?justifySelf: "start"[\s\S]*?zIndex: 1/, "the retained candidate list sits below the Detail overlay");
@@ -254,6 +254,7 @@ assert.doesNotMatch(detailSource, /openedMelodyMemberFirst\(classMembers, opened
 assert.match(detailSource, /setOpenedSongId\(member\.songId\)/, "Detail still expands another member in place");
 assert.equal(detailSource.includes('className={`melody-detail melody-detail-${props.mode}`}'), true, "both Detail origins use the same panel with an origin class only for context");
 assert.match(detailSource, /justifySelf: "end"/);
+assert.match(detailSource, /transform: "translateX\(calc\(4\.7rem \+ 0\.45rem\)\)"/, "both Detail origins extend right by the selected-song Detail column plus its grid gap");
 assert.match(detailSource, /width: "min\(82%, 46rem\)"/);
 assert.match(detailSource, /background: "#f5f5f4"/);
 assert.match(detailSource, /boxShadow: "0 0\.8rem 2rem rgb\(31 41 51 \/ 14%\)"/);
@@ -263,7 +264,7 @@ assert.match(detailSource, /document\.addEventListener\("pointerdown", dismissSe
 assert.match(detailSource, /selectedDetailDismissPointerTarget = target/);
 assert.doesNotMatch(detailSource, /Currently selected|Back to candidates|Show this candidate|Replace with this song/);
 assert.match(cssSource, /\.compact-row-fields,\s*\.song-field-row\s*\{\s*display: contents;/);
-assert.match(cssSource, /\.row-card > \.melody-detail\s*\{[\s\S]*?grid-column: 1;[\s\S]*?order: 2;/, "selected-song detail is visually placed in the same first-column slot between lookup and note");
+assert.match(cssSource, /\.row-card > \.melody-detail\s*\{[\s\S]*?grid-column: 1;[\s\S]*?order: 2;/, "selected-song detail is visually placed in the same first-column slot between lookup and note before the shared right-column alignment transform");
 assert.match(cssSource, /\.row-card \.row-note-input\s*\{[\s\S]*?order: 3;/);
 assert.match(cssSource, /\.melody-member-active\s*\{[\s\S]*?outline: 3px solid #84adff;/);
 
