@@ -30,7 +30,8 @@ The browser checkpoint confirmed the compact invariant Planning-row protocol:
 - the upper border carries `Row N` on the left and the compact control palette on the right;
 - palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
 - the rounded control squares must be vertically centered on the same upper-border/legend axis as `Row N`; the full-own-height lift proved slightly too high in the next browser screenshot, so the final correction lowers that position by `0.35rem` and requires one focused browser re-check;
-- the interior has exactly two permanent base fields: song lookup and text note, with no visible labels above them;
+- the interior has exactly two permanent base fields: Song lookup and Text note, with no visible labels above them;
+- Song lookup and Text note form a fixed-height base pair whose row height does not change when candidate or Detail overlays open;
 - empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
 - after selection, the collapsed song field contains only `number · title`;
 - Detail remains on the right side of the song field and is disabled only when no song is selected;
@@ -71,12 +72,13 @@ The user browser-accepted the editable Song lookup behavior:
 
 Approved for implementation by the user's `dál`, then refined through focused browser feedback on the same day.
 
-### One panel geometry for both entry paths
+### One overlay geometry for both entry paths
 
 - Detail opened from a candidate-list row and Detail opened beside the selected Song lookup use the same melody-class presentation;
-- both render in the same Planning-row position between `Song lookup` and `Text note`;
+- both begin on the same horizontal line immediately below Song lookup;
+- both are overlays and do not consume row-flow height, so Text note remains fixed immediately below Song lookup and is partially covered by the overlay;
 - both use the same right-aligned panel geometry, left inset, neutral surface and elevation;
-- the interaction meaning still depends on the entry path, and the final visual refinement deliberately exposes that origin through whether the candidate list remains visible underneath the panel.
+- the interaction meaning still depends on the entry path, and the visual refinement deliberately exposes that origin through whether the candidate list remains visible underneath the panel.
 
 ### Frozen order for one Detail session
 
@@ -93,16 +95,19 @@ Approved for implementation by the user's `dál`, then refined through focused b
 - available `Score` and `Score not available` occupy the same metadata location among the expanded information rather than different action positions;
 - `Detail` and an available `Score` remain independent controls and must not propagate into whole-member activation.
 
-### Right-aligned overlay and origin cue
+### Independent candidate-list and Detail overlays
 
-- the whole expanded Detail panel is deliberately narrower than its available row slot, leaving a clear inset on the left;
-- its right edge must align with the right edge of the standalone `Detail` button beside the selected Song lookup, not merely with the right edge of the Song lookup input column;
-- because both Detail origins are based in that first grid column, the shared panel is translated right by the standalone `Detail` column width (`4.7rem`) plus the row grid gap (`0.45rem`), preserving identical width and placement in both modes;
-- the panel uses a previously unused neutral light surface plus a soft shadow so it reads as the active foreground layer without introducing another semantic signal color;
-- when Detail originates from the candidate list, that candidate list remains rendered in the same grid layer underneath the panel;
-- the Detail panel overlays the list from the right, leaving part of the candidate list visible on the left as an orientation cue;
-- when Detail originates from the right-side button beside the already selected song, the candidate list remains collapsed and therefore nothing is visible underneath the panel;
-- this visual distinction communicates which Detail entry path is active without changing the internal Detail presentation itself.
+- the candidate-list block starts immediately below Song lookup and is removed from normal document flow;
+- its width remains the established Song lookup-column width, but the whole block is shifted right so its right edge aligns with the right edge of the standalone selected-song `Detail` button;
+- opening the candidate list never changes the height of `Row N`; it may overlay Text note, later Planning rows and any other content below;
+- candidate-list height is content-driven up to `max-height: min(32rem, 70vh)`; longer lists scroll internally instead of growing indefinitely;
+- the candidate-list vertical scrollbar is exposed on the left so it remains accessible when a candidate Detail overlays the right-hand part of the list;
+- candidate Detail is a separate overlay with the same top edge and the same right edge as the candidate list;
+- candidate Detail is narrower than the candidate list, so an exposed strip of the candidate list remains visible and clickable on the left;
+- candidate Detail has a higher stacking level than the candidate list and therefore overlays it;
+- Detail height is independent from candidate-list height, with its own `max-height: min(32rem, 70vh)` and its own left-side scrollbar only when needed;
+- selected-song Detail uses the same top line, right edge, width policy, max-height and left-scrollbar policy, but the candidate list is collapsed underneath it;
+- the panel uses a previously unused neutral light surface plus a soft shadow so it reads as the active foreground layer without introducing another semantic signal color.
 
 ### No companion navigation buttons
 
@@ -132,8 +137,9 @@ Their navigation/selection semantics belong directly to the member fields.
 - clicking an available eligible member field closes Detail and selects that member into Song lookup;
 - clicking the currently selected member closes Detail and preserves the same Song lookup selection;
 - opening the right-side Detail beside a selected Song lookup deactivates/collapses any open candidate list;
+- while selected-song Detail is open, that right-side `Detail` control is visually deactivated and pointer-inert; clicking its screen area therefore has the same outside-dismiss meaning as clicking elsewhere outside the open Detail;
 - every way of leaving selected-song Detail leaves the candidate list collapsed, whether the candidate list had previously been open or not;
-- this includes member activation, clicking `Song lookup`, clicking `Text note`, and clicking anywhere else outside the expanded Detail;
+- this includes member activation, clicking `Song lookup`, clicking `Text note`, clicking the deactivated right-side Detail area, and clicking anywhere else outside the expanded Detail;
 - clicking `Song lookup` while selected-song Detail is open dismisses Detail but suppresses the same pointer action from immediately reopening the candidate list;
 - clicking an input outside Detail leaves that clicked input focused after dismissal;
 - hard candidate eligibility, service-language and current-service occupancy rules remain authoritative for replacement.
