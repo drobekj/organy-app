@@ -153,4 +153,6 @@ Their navigation/selection semantics belong directly to the member fields.
 - clicking the unavailable member field has Escape semantics: close/return from Detail without selection or replacement and preserve the previously confirmed Song lookup state;
 - expanding an unavailable member through `Detail` remains informational only.
 
-A fresh exact-head automated gate and focused browser HUMAN checkpoint are required after this refined unified Detail behavior.
+## Exact-head overlay verification — 2026-08-07
+
+Exact head `3a958347f3ee6fcceed2d3090e5ec343c5feb368` passed standard CI #360 (`31212231150`) including Phase 31.16, Phase 31.17, DB smoke, typecheck, complete tests and production build. Focused artifact `phase-31-17-log` id `9007303548`, digest `sha256:3289837c78bb8c16b75e6cb18038829e11b61d09c28e6b92c6a24f808c4f6757`. Fresh Automatic Review Gate review `4886075385` is PASS with no open review threads. The final overlay geometry remains pending one focused HUMAN browser checkpoint before Ready for review.
