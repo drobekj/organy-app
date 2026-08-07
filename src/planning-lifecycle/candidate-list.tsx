@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { CandidateQueryResult } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
-import { MelodyClassDetail, type MelodyClassDetailMode } from "./melody-detail";
+import { consumeSelectedDetailDismissPointer, MelodyClassDetail, type MelodyClassDetailMode } from "./melody-detail";
 
 export type CandidateListSelectedSong = {
   songId?: string;
@@ -79,8 +79,10 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputWasOpenOnPointerDown = useRef(false);
+  const suppressOpenOnPointerDown = useRef(false);
   const autoScrolled = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [detailReturnSongId, setDetailReturnSongId] = useState<string | undefined>();
   const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
   const currentSongId = props.selectedSong?.songId;
   const confirmedLabel = props.selectedSong
@@ -90,6 +92,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
   const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);
+  const effectiveFocusSongId = props.focusSongId ?? detailReturnSongId;
 
   useEffect(() => {
     if (!props.open) return;
@@ -111,14 +114,17 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       setActiveIndex(-1);
       return;
     }
-    const initial = getInitialCandidateIndex(props.candidates, currentSongId, props.focusSongId);
+    const initial = getInitialCandidateIndex(props.candidates, currentSongId, effectiveFocusSongId);
     setActiveIndex(initial);
-    if (props.focusSongId) queueMicrotask(() => inputRef.current?.focus());
-    if (!autoScrolled.current && (props.focusSongId || currentSongId) && initial >= 0) {
+    if (effectiveFocusSongId) queueMicrotask(() => inputRef.current?.focus());
+    if (!autoScrolled.current && (effectiveFocusSongId || currentSongId) && initial >= 0) {
       autoScrolled.current = true;
-      queueMicrotask(() => scrollOptionInsideList(listRef.current, initial));
+      queueMicrotask(() => {
+        scrollOptionInsideList(listRef.current, initial);
+        if (detailReturnSongId) setDetailReturnSongId(undefined);
+      });
     }
-  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, props.focusSongId]);
+  }, [props.open, props.loading, props.error, props.prerequisiteMessage, candidateIds, props.value, currentSongId, effectiveFocusSongId, detailReturnSongId]);
 
   function moveActive(key: string) {
     const next = candidateIndexForKey(activeIndex, key, props.candidates.length);
@@ -171,15 +177,22 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         aria-controls={props.open ? listboxId : undefined}
         aria-activedescendant={activeDescendant}
         value={props.value}
-        onPointerDown={() => { inputWasOpenOnPointerDown.current = props.open; }}
+        onPointerDown={(event) => {
+          suppressOpenOnPointerDown.current = consumeSelectedDetailDismissPointer(event.target);
+          inputWasOpenOnPointerDown.current = suppressOpenOnPointerDown.current ? false : props.open;
+        }}
         onFocus={(event) => {
-          if (props.disabled || props.detail) return;
+          if (props.disabled || props.detail || suppressOpenOnPointerDown.current) return;
           if (!props.open) {
             props.onOpen();
             if (event.currentTarget.value) event.currentTarget.select();
           }
         }}
         onClick={(event) => {
+          if (suppressOpenOnPointerDown.current) {
+            suppressOpenOnPointerDown.current = false;
+            return;
+          }
           if (props.disabled || props.detail) return;
           if (inputWasOpenOnPointerDown.current) {
             props.onCancel();
@@ -209,6 +222,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           onShowCandidate={props.onShowDetailCandidate}
           onEscape={props.onEscapeDetail}
           onActivateMember={props.onActivateDetailMember}
+          onReturnToCandidates={(songId) => {
+            autoScrolled.current = false;
+            setDetailReturnSongId(songId);
+            props.onOpen();
+          }}
         />
       )}
       {props.open && (
