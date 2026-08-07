@@ -46,7 +46,10 @@ assert.match(historical, /Authoritative melody-class information is not availabl
 const occupiedList = renderToStaticMarkup(<CandidateCombobox rowId={1} rowLabel="Row 1" open value="" candidates={[occupied]} loading={false} serviceLanguage="czech" onOpen={() => undefined} onQueryChange={() => undefined} onSelect={() => undefined} onCancel={() => undefined} onRetry={() => undefined} onOpenDetail={() => undefined} onBackFromDetail={() => undefined} onRetryDetail={() => undefined} onShowDetailCandidate={() => undefined} />);
 assert.match(occupiedList, /aria-disabled="true"/);
 assert.match(occupiedList, /Show melody detail for 29 Czech song/);
-assert.match(occupiedList, /Same melody is already used in Row 2/);
+assert.doesNotMatch(occupiedList, /Same melody is already used in Row 2/, "candidate rows stay compact; occupancy explanation belongs in Detail");
+assert.doesNotMatch(occupiedList, /Currently selected/);
+assert.doesNotMatch(occupiedList, />Cancel</);
+assert.doesNotMatch(occupiedList, /In repertoire|preference 3|Melody class:/);
 
 const songs = [
   { songId: "demo-cz", language: "czech" as const, number: "101", title: "Demo Czech", active: true, sheetMusicUrl: "https://example.test/demo-cz.pdf" },
@@ -62,6 +65,18 @@ const hydrated = hydrateCandidatesFromData(songs, preferences, new Set(["demo-cz
 assert.deepEqual(hydrated[0]?.melodyMembers?.map((member) => member.songId), ["demo-pl", "demo-cz"]);
 
 assert.equal(formatPlanningSongField({ number: "29", title: "Czech song" }), "29 · Czech song");
+const openedRow = planningCandidateRowReducer({
+  id: 1,
+  songSearch: "29 · Czech song",
+  selectedSong: { songId: available.songId, language: available.language, number: available.number, title: available.title },
+  selectedCandidate: available,
+  note: "keep this note",
+  lookupOpen: false,
+}, { type: "lookupOpened" });
+assert.equal(openedRow.songSearch, "29 · Czech song", "opening candidates must preserve the confirmed number/title display");
+assert.equal(openedRow.selectedSong?.songId, available.songId);
+assert.equal(openedRow.lookupOpen, true);
+
 const clearedRow = planningCandidateRowReducer({
   id: 1,
   songSearch: "29 · Czech song",
@@ -95,5 +110,9 @@ assert.match(clientSource, />↶<\/button>/);
 assert.match(clientSource, /placeholder="Text note"/);
 assert.match(candidateListSource, /placeholder="Song lookup"/);
 assert.match(candidateListSource, /closeOnOutsidePointer/);
+assert.match(candidateListSource, /inputWasOpenOnPointerDown/);
+assert.doesNotMatch(candidateListSource, /candidate-list-cancel/);
+assert.doesNotMatch(candidateListSource, /candidate-option-meta/);
+assert.doesNotMatch(candidateListSource, /Currently selected/);
 
 console.log("Phase 31.17 inline melody-class detail and equivalent navigation: PASS");
