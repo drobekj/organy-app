@@ -22,14 +22,14 @@ Approved by the user on 2026-08-06. Baseline: `fb23295fba224d0ccbc645b77358d5e51
 
 Focused Phase 31.17 tests, all prior phase gates, typecheck, complete tests and production build must pass. One real browser HUMAN checkpoint is required after the final Detail refinement before Ready for review.
 
-## HUMAN row-UX refinement — PASS 2026-08-07
+## HUMAN row-UX refinement — functionally PASS 2026-08-07; final palette alignment re-check pending
 
 The browser checkpoint confirmed the compact invariant Planning-row protocol:
 
 - every row keeps one outer `Row N` fieldset in all empty, partial and selected states;
 - the upper border carries `Row N` on the left and the compact control palette on the right;
 - palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
-- the rounded control squares are vertically centered on the same upper-border axis as the `Row N` legend;
+- the rounded control squares must be vertically centered on the same upper-border/legend axis as `Row N`; the earlier `translateY(-50%)` correction remained visibly too low, so the final implementation lifts the palette by its full own height and requires one focused browser re-check;
 - the interior has exactly two permanent base fields: song lookup and text note, with no visible labels above them;
 - empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
 - after selection, the collapsed song field contains only `number · title`;
@@ -71,11 +71,12 @@ The user browser-accepted the editable Song lookup behavior:
 
 Approved for implementation by the user's `dál`, then refined through focused browser feedback on the same day.
 
-### One presentation for both entry paths
+### One panel geometry for both entry paths
 
 - Detail opened from a candidate-list row and Detail opened beside the selected Song lookup use the same melody-class presentation;
 - both render in the same Planning-row position between `Song lookup` and `Text note`;
-- the visual difference between the two entry paths is eliminated; only the consequence of activating a member differs.
+- both use the same right-aligned panel geometry, left inset, neutral surface and elevation;
+- the interaction meaning still depends on the entry path, and the final visual refinement deliberately exposes that origin through whether the candidate list remains visible underneath the panel.
 
 ### Frozen order for one Detail session
 
@@ -91,6 +92,15 @@ Approved for implementation by the user's `dál`, then refined through focused b
 - the expanded member contains all available detail information;
 - available `Score` and `Score not available` occupy the same metadata location among the expanded information rather than different action positions;
 - `Detail` and an available `Score` remain independent controls and must not propagate into whole-member activation.
+
+### Right-aligned overlay and origin cue
+
+- the whole expanded Detail panel is right-aligned and deliberately narrower than its available row slot, leaving a clear inset on the left;
+- the panel uses a previously unused neutral light surface plus a soft shadow so it reads as the active foreground layer without introducing another semantic signal color;
+- when Detail originates from the candidate list, that candidate list remains rendered in the same grid layer underneath the panel;
+- the Detail panel overlays the list from the right, leaving part of the candidate list visible on the left as an orientation cue;
+- when Detail originates from the right-side button beside the already selected song, the candidate list remains collapsed and therefore nothing is visible underneath the panel;
+- this visual distinction communicates which Detail entry path is active without changing the internal Detail presentation itself.
 
 ### No companion navigation buttons
 
