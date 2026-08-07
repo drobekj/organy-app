@@ -78,11 +78,11 @@ function stateCoverage() {
 
   const rows: PlanningCandidateEditableRow[] = [
     { id: 1, songSearch: "temporary", selectedSong: { songId: "czech:29", language: "czech", number: "29", title: "Current" }, selectedCandidate: available, note: "keep", lookupOpen: true },
-    { id: 2, songSearch: "421 — Equivalent", selectedSong: { songId: "czech:421", language: "czech", number: "421", title: "Equivalent" }, selectedCandidate: equivalent, note: "second", lookupOpen: false },
+    { id: 2, songSearch: "421 · Equivalent", selectedSong: { songId: "czech:421", language: "czech", number: "421", title: "Equivalent" }, selectedCandidate: equivalent, note: "second", lookupOpen: false },
   ];
   const opened = openSingleCandidateRow(rows, 2);
   assert.equal(opened[0].lookupOpen, false);
-  assert.equal(opened[0].songSearch, "29 — Current", "opening another row must cancel and restore the prior temporary search");
+  assert.equal(opened[0].songSearch, "29 · Current", "opening another row must cancel and restore the prior temporary search");
   assert.equal(opened[1].lookupOpen, true);
   assert.equal(opened[1].songSearch, "", "browse mode must not query the confirmed display label");
   const typedThenCleared = planningCandidateRowReducer(
@@ -91,7 +91,7 @@ function stateCoverage() {
   );
   assert.equal(typedThenCleared.lookupOpen, true, "clearing a live query must return to open browse mode");
   const switchedAfterClear = openSingleCandidateRow([opened[0], typedThenCleared], 1);
-  assert.equal(switchedAfterClear[1].songSearch, "421 — Equivalent", "switching after a cleared query must restore the confirmed label");
+  assert.equal(switchedAfterClear[1].songSearch, "421 · Equivalent", "switching after a cleared query must restore the confirmed label");
 
   const replaced = planningCandidateRowReducer(rows[0], {
     type: "candidateSelected",

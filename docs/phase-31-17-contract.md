@@ -35,7 +35,7 @@ The first browser checkpoint confirmed the Phase 31.17 behavior but requested a 
 - palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
 - the interior has exactly two permanent base fields: song lookup and text note, with no visible labels above them;
 - empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
-- after selection, the collapsed song field contains only the concrete song number and title; language, repertoire, preference, signals, equivalents and score context remain in the candidate list or Detail;
+- after selection, the collapsed song field contains only `number · title`; language, repertoire, preference, signals, equivalents and score context remain in the candidate list or Detail;
 - Detail remains on the right side of the song field and is disabled only when no song is selected;
 - focusing the note field or otherwise leaving the lookup interaction closes the candidate list and restores the confirmed number/title or an empty field;
 - `↶` clears both the selected song and the text note, closes list/detail state and remains available for note-only rows;

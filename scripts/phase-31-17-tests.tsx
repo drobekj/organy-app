@@ -61,10 +61,10 @@ assert.deepEqual(memoryCandidates[0]?.melodyMembers?.map((member) => member.song
 const hydrated = hydrateCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { songs: [{ songId: "demo-pl", language: "polish", number: "101", title: "Stored Polish" }], organistPersonId: "demo-organist" });
 assert.deepEqual(hydrated[0]?.melodyMembers?.map((member) => member.songId), ["demo-pl", "demo-cz"]);
 
-assert.equal(formatPlanningSongField({ number: "29", title: "Czech song" }), "29 — Czech song");
+assert.equal(formatPlanningSongField({ number: "29", title: "Czech song" }), "29 · Czech song");
 const clearedRow = planningCandidateRowReducer({
   id: 1,
-  songSearch: "29 — Czech song",
+  songSearch: "29 · Czech song",
   selectedSong: { songId: available.songId, language: available.language, number: available.number, title: available.title },
   selectedCandidate: available,
   note: "clear this note",

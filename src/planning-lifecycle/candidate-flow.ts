@@ -178,7 +178,7 @@ export function openSingleCandidateRow<T extends PlanningCandidateEditableRow>(r
 }
 
 export function formatPlanningSongField(song: { number: string; title?: string }): string {
-  return `${song.number}${song.title ? ` — ${song.title}` : ""}`;
+  return `${song.number}${song.title ? ` · ${song.title}` : ""}`;
 }
 
 export function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {

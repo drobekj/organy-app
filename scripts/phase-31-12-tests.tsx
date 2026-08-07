@@ -164,7 +164,8 @@ async function staticBoundaryCoverage() {
   // Phase 31.16 replaced the multi-row helper with an explicit refresh of the sole open row.
   assert.match(client, /openCandidateRowId !== null/);
   assert.match(client, /void queryCandidateResults\(openRow\.id, openRow\.songSearch\)/);
-  assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length > 0, true);
+  assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length, 0);
+  assert.match(client, /className="row-icon-palette"/);
   assert.match(contracts, /referenceAntiphonId\?: string/);
   assert.match(flow, /referenceAntiphonId/);
   assert.match(schema, /referenceAntiphonRecommendations/);

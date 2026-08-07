@@ -74,7 +74,7 @@
     "verify:phase-31-16": "npm run test:phase-31-16 && npm run verify:phase-31-15",
     "verify:phase-31-16:local": "tsx scripts/verify-phase-31-16-local.ts",
     "test:phase-31-17": "tsx scripts/phase-31-17-tests.tsx",
-    "verify:phase-31-17": "python3 scripts/phase-31-17-ci-apply.py && npm run test:phase-31-17 && npm run verify:phase-31-16 && printf '\nPHASE_31_17_BUNDLE_BEGIN\n' && tar -czf - app/globals.css app/planning-lifecycle-client.tsx docs/candidate-selection-knowledge-transfer.md docs/phase-31-17-contract.md scripts/phase-30-1-candidate-flow-tests.ts scripts/phase-31-16-tests.tsx scripts/phase-31-17-tests.tsx scripts/planning-ui-workflow-static-tests.ts src/planning-lifecycle/candidate-flow.ts src/planning-lifecycle/candidate-list.tsx | base64 -w 0 && printf '\nPHASE_31_17_BUNDLE_END\n'",
+    "verify:phase-31-17": "npm run test:phase-31-17 && npm run verify:phase-31-16",
     "verify:phase-31-17:local": "tsx scripts/verify-phase-31-17-local.ts"
   },
   "dependencies": {
