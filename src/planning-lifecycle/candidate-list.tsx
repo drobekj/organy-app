@@ -156,7 +156,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      const candidate = visibleCandidates[activeIndex];
+      const candidate = detailReturnCandidates ? visibleCandidates[activeIndex] : props.candidates[activeIndex];
       if (candidate && isCandidateSelectable(candidate)) props.onSelect(candidate);
     }
   }
