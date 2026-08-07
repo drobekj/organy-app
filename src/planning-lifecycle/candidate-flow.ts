@@ -1,26 +1,62 @@
-import type { CandidateQueryInput, CandidateQueryResult } from "../application/interaction-contracts";
+export const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
+
+import type { CatalogSong } from "../application/catalog";
+import type { CandidateQueryInput, CandidateQueryResult, CandidateUsage } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
 
-export const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
+export type CandidatePopupAction = "select" | "cancel";
+
+export type CandidatePopupRow = Pick<
+  CandidateQueryResult,
+  "songId" | "language" | "number" | "title" | "signal" | "preferenceShade" | "repertoire" | "aggregatePreferenceScore" | "availability"
+> & {
+  actions: CandidatePopupAction[];
+};
+
+export type SelectedSongCandidateLine = Pick<
+  CandidateQueryResult,
+  "songId" | "language" | "number" | "title" | "signal" | "preferenceShade" | "repertoire" | "aggregatePreferenceScore"
+> & {
+  kind: "candidate";
+  detailAction: true;
+};
+
+export type SelectedSongNoteLine = {
+  kind: "note";
+  text: string;
+};
+
+export type SelectedSongPresentation = {
+  lines: [SelectedSongCandidateLine, SelectedSongNoteLine];
+};
+
+export type PlanningLookupState =
+  | { status: "idle"; detailNavigation?: DetailNavigation }
+  | { status: "lookupActive"; text: string; detailNavigation?: DetailNavigation }
+  | { status: "selected"; presentation: SelectedSongPresentation; detailNavigation?: DetailNavigation };
+
+export type DetailNavigation = { songId: string; returnRowId: number };
+
+export type PlanningLookupAction =
+  | { type: "lookupChanged"; text: string }
+  | { type: "candidateSelected"; candidate: CandidateQueryResult; note: string }
+  | { type: "lookupCancelled" }
+  | { type: "detailOpened"; songId: string; returnRowId: number }
+  | { type: "detailReturned" };
 
 export type PlanningCandidateEditableRow = {
   id: number;
   songSearch: string;
-  selectedSong?: {
-    songId?: string;
-    language: ConcreteSongLanguage;
-    number: string;
-    title?: string;
-  };
+  selectedSong?: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string };
   selectedCandidate?: CandidateQueryResult;
   note: string;
-  lookupOpen: boolean;
+  lookupOpen?: boolean;
 };
 
 export type PlanningCandidateRowAction =
   | { type: "lookupOpened" }
   | { type: "lookupChanged"; text: string }
-  | { type: "candidateSelected"; song: NonNullable<PlanningCandidateEditableRow["selectedSong"]>; candidate: CandidateQueryResult }
+  | { type: "candidateSelected"; song: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }; candidate?: CandidateQueryResult }
   | { type: "lookupCancelled" }
   | { type: "rowDeactivated" }
   | { type: "songCleared" }
@@ -34,16 +70,62 @@ export type CandidateQueryContextInput = {
   referenceAntiphonId?: string;
   antiphonKey?: string;
   liturgicalSeasonKey?: string;
+  candidateUsages?: CandidateUsage[];
+  currentPlanId?: string;
   queryText?: string;
   preferenceThreshold?: number;
-  currentPlanId?: number;
-  candidateUsages?: CandidateQueryInput["candidateUsages"];
 };
 
-export function buildCanonicalCandidateUsages(rows: Array<{ rowId: number; selectedCandidate?: CandidateQueryResult }>, excludedRowId?: number): NonNullable<CandidateQueryInput["candidateUsages"]> {
-  return rows
-    .filter((row) => row.rowId !== excludedRowId && row.selectedCandidate)
-    .map((row) => ({ rowId: row.rowId, melodyClassId: row.selectedCandidate!.melodyClassId, songId: row.selectedCandidate!.songId, label: `Row ${row.rowId}` }));
+export function getCandidatePopupRows(candidates: CandidateQueryResult[]): CandidatePopupRow[] {
+  return candidates.filter((candidate) => !candidate.suppressedByMelodyWindow).map((candidate) => ({
+    songId: candidate.songId,
+    language: candidate.language,
+    number: candidate.number,
+    title: candidate.title,
+    signal: candidate.signal,
+    preferenceShade: candidate.preferenceShade,
+    repertoire: candidate.repertoire,
+    aggregatePreferenceScore: candidate.aggregatePreferenceScore,
+    availability: candidate.availability,
+    actions: candidate.availability.kind === "available" ? ["select"] : [],
+  }));
+}
+
+export function getSelectedSongPresentation(candidate: CandidateQueryResult, note: string): SelectedSongPresentation {
+  return {
+    lines: [
+      {
+        kind: "candidate",
+        songId: candidate.songId,
+        language: candidate.language,
+        number: candidate.number,
+        title: candidate.title,
+        signal: candidate.signal,
+        preferenceShade: candidate.preferenceShade,
+        repertoire: candidate.repertoire,
+        aggregatePreferenceScore: candidate.aggregatePreferenceScore,
+        detailAction: true,
+      },
+      { kind: "note", text: note },
+    ],
+  };
+}
+
+export function planningLookupReducer(state: PlanningLookupState, action: PlanningLookupAction): PlanningLookupState {
+  switch (action.type) {
+    case "lookupChanged":
+      return action.text.trim() ? { status: "lookupActive", text: action.text, detailNavigation: state.detailNavigation } : { status: "idle", detailNavigation: state.detailNavigation };
+    case "candidateSelected":
+      return { status: "selected", presentation: getSelectedSongPresentation(action.candidate, action.note), detailNavigation: state.detailNavigation };
+    case "lookupCancelled":
+      return { status: "idle", detailNavigation: state.detailNavigation };
+    case "detailOpened":
+      return { ...state, detailNavigation: { songId: action.songId, returnRowId: action.returnRowId } };
+    case "detailReturned": {
+      const { detailNavigation: _detailNavigation, ...rest } = state;
+      return rest;
+    }
+  }
 }
 
 export function buildCandidateQueryInput(input: CandidateQueryContextInput): CandidateQueryInput {
@@ -125,4 +207,29 @@ export function rehydrateCandidateFromSelectedSong(song: { songId?: string; lang
 
 export function candidateToSelectedSong(candidate: CandidateQueryResult): { songId: string; language: ConcreteSongLanguage; number: string; title: string } {
   return { songId: candidate.songId, language: candidate.language, number: candidate.number, title: candidate.title };
+}
+
+export type CanonicalUsageInput = {
+  currentPlanId?: string;
+  serviceDate: string;
+  completedRecords?: { id: string; serviceDate: string; rows: { songId?: string }[] }[];
+  plans?: { id: string; status: "working" | "final"; serviceDate: string; rows: { songId?: string }[] }[];
+  currentRows?: { rowId: number; rowLabel: string; songId?: string }[];
+  activeRowId?: number;
+};
+
+export function buildCanonicalCandidateUsages(input: CanonicalUsageInput): CandidateUsage[] {
+  const usages: CandidateUsage[] = [];
+  for (const record of input.completedRecords ?? []) {
+    for (const row of record.rows) if (row.songId) usages.push({ songId: row.songId, serviceDate: record.serviceDate, source: "completed", planId: record.id });
+  }
+  for (const plan of input.plans ?? []) {
+    if (plan.id === input.currentPlanId) continue;
+    for (const row of plan.rows) if (row.songId) usages.push({ songId: row.songId, serviceDate: plan.serviceDate, source: plan.status, planId: plan.id });
+  }
+  for (const row of input.currentRows ?? []) {
+    if (row.rowId === input.activeRowId) continue;
+    if (row.songId) usages.push({ songId: row.songId, serviceDate: input.serviceDate, source: "current", rowId: row.rowId, rowLabel: row.rowLabel });
+  }
+  return usages;
 }
