@@ -11,6 +11,7 @@ import {
   isMemberLanguageAllowed,
   melodyMembersForDetail,
   nextDetailMemberIndex,
+  openedMelodyMemberFirst,
   replacementCandidateForMember,
 } from "../src/planning-lifecycle/melody-detail";
 
@@ -29,7 +30,9 @@ const occupied: CandidateQueryResult = { ...available, availability: { kind: "oc
 
 assert.equal(isMemberLanguageAllowed("polish", "czech"), false);
 assert.equal(isMemberLanguageAllowed("polish", "mixed"), true);
-assert.deepEqual(melodyMembersForDetail(polishCandidate).members.map((member) => member.songId), ["czech:29", "polish:38"], "opened member must stay in stable melody-class order rather than moving to the top");
+const naturalMembers = melodyMembersForDetail(polishCandidate).members;
+assert.deepEqual(naturalMembers.map((member) => member.songId), ["czech:29", "polish:38"], "melody-class members retain deterministic natural order before expansion ordering");
+assert.deepEqual(openedMelodyMemberFirst(naturalMembers, "polish:38").map((member) => member.songId), ["polish:38", "czech:29"], "the currently expanded member must be first in Detail");
 assert.equal(replacementCandidateForMember("polish:38", [polishCandidate])?.songId, "polish:38");
 assert.equal(isDetailMemberActivatable({ mode: "candidate", memberSongId: "czech:29", languageAllowed: true, eligibility: available, activationEnabled: true }), true);
 assert.equal(isDetailMemberActivatable({ mode: "candidate", memberSongId: "czech:29", languageAllowed: true, eligibility: occupied, activationEnabled: true }), false);
@@ -51,13 +54,28 @@ const candidateDetail = renderToStaticMarkup(
     onShowCandidate={() => undefined}
   />,
 );
-assert.equal((candidateDetail.match(/>Detail<\/button>/g) ?? []).length, 2, "every melody-class row keeps the compact Detail control");
-assert.match(candidateDetail, />Score<\/a>/, "expanded row exposes Score on the right");
+assert.equal((candidateDetail.match(/>Detail<\/button>/g) ?? []).length, 1, "the expanded melody member must not keep a redundant Detail button");
+assert.match(candidateDetail, />Score<\/a>/, "expanded row exposes Score on the right when available");
 assert.match(candidateDetail, /target="_blank"/);
 assert.match(candidateDetail, /rel="noopener noreferrer"/);
 assert.match(candidateDetail, /Open score for 29 Czech song/);
-assert.doesNotMatch(candidateDetail, /Back to candidates|Show this candidate|Replace with this song|>Close</, "detail must have no companion navigation/replacement buttons");
-assert.ok(candidateDetail.indexOf("Czech song") < candidateDetail.indexOf("Polish song"), "rendered order is stable regardless of opened member");
+assert.doesNotMatch(candidateDetail, /Currently selected|Back to candidates|Show this candidate|Replace with this song|>Close</, "detail must not show legacy selection/navigation labels or companion buttons");
+
+const polishOpenedDetail = renderToStaticMarkup(
+  <MelodyClassDetail
+    mode="candidate"
+    rowLabel="Row 1"
+    candidate={polishCandidate}
+    serviceLanguage="mixed"
+    eligibilityCandidates={[available, polishCandidate]}
+    loading={false}
+    onBack={() => undefined}
+    onClose={() => undefined}
+    onRetry={() => undefined}
+    onShowCandidate={() => undefined}
+  />,
+);
+assert.ok(polishOpenedDetail.indexOf("Polish song") < polishOpenedDetail.indexOf("Czech song"), "the expanded song must render first even when its natural melody-class position is later");
 
 const selectedDetail = renderToStaticMarkup(
   <MelodyClassDetail
@@ -73,9 +91,8 @@ const selectedDetail = renderToStaticMarkup(
     onReplace={() => undefined}
   />,
 );
-assert.match(selectedDetail, /Currently selected/);
-assert.doesNotMatch(selectedDetail, /Replace with this song|>Close</);
-assert.equal((selectedDetail.match(/>Detail<\/button>/g) ?? []).length, 2);
+assert.doesNotMatch(selectedDetail, /Currently selected|Replace with this song|>Close</);
+assert.equal((selectedDetail.match(/>Detail<\/button>/g) ?? []).length, 1, "selected-song Detail uses the same expanded-row button rule");
 
 const languageDisabled = renderToStaticMarkup(
   <MelodyClassDetail
@@ -94,7 +111,8 @@ const languageDisabled = renderToStaticMarkup(
 assert.match(languageDisabled, /Not selectable in a czech service/);
 assert.match(languageDisabled, /Polish song, unavailable/);
 assert.doesNotMatch(languageDisabled, /role="button"[^>]*aria-label="38 Polish song, unavailable"/, "unavailable member field must not become an activatable keyboard row");
-assert.match(languageDisabled, /Show detail for 38 Polish song/, "Detail remains usable for an unavailable member");
+assert.doesNotMatch(languageDisabled, /Show detail for 38 Polish song/, "the already expanded unavailable member must not keep a Detail button");
+assert.match(languageDisabled, /Show detail for 29 Czech song/, "compressed equivalent members retain Detail");
 assert.match(languageDisabled, />Score<\/a>/, "Score remains usable when the unavailable member is expanded");
 
 const historical = renderToStaticMarkup(
@@ -111,6 +129,8 @@ const historical = renderToStaticMarkup(
   />,
 );
 assert.match(historical, /Authoritative melody-class information is not available/);
+assert.match(historical, /Score not available/, "missing-score information belongs with expanded metadata");
+assert.doesNotMatch(historical, />Detail<\/button>/, "a single expanded historical member has no redundant Detail control");
 
 const occupiedList = renderToStaticMarkup(<CandidateCombobox rowId={1} rowLabel="Row 1" open value="" candidates={[occupied]} loading={false} serviceLanguage="czech" onOpen={() => undefined} onQueryChange={() => undefined} onSelect={() => undefined} onCancel={() => undefined} onRetry={() => undefined} onOpenDetail={() => undefined} onBackFromDetail={() => undefined} onRetryDetail={() => undefined} onShowDetailCandidate={() => undefined} />);
 assert.match(occupiedList, /aria-disabled="true"/);
@@ -170,6 +190,8 @@ assert.match(clientSource, /openSelectedSongDetail/);
 assert.match(clientSource, /replaceFromSelectedDetail/);
 assert.equal(clientSource.includes('else if (planningExpansion && planningExpansion.kind !== "candidateList")'), true);
 assert.equal(clientSource.includes("resetDetailEligibility();\n      setCandidateResults"), true);
+assert.match(clientSource, /function openSelectedSongDetail[\s\S]*?lookupCancelled[\s\S]*?setCandidateResults\(\{\}\)/, "opening selected-song Detail collapses any candidate list and clears its result state");
+assert.match(clientSource, /function closeSelectedSongDetail[\s\S]*?setPlanningExpansion\(null\)/, "return from selected-song Detail stays in the collapsed Song lookup state");
 assert.match(clientSource, /id={`selected-song-detail-button-/);
 assert.doesNotMatch(clientSource, /onOpenDetail=\{\(\) => row\.selectedSong\?\.songId && openCatalogSongDetail/);
 assert.doesNotMatch(clientSource, /<CandidateLine/);
@@ -182,13 +204,17 @@ assert.match(clientSource, /placeholder="Text note"/);
 assert.match(candidateListSource, /placeholder="Song lookup"/);
 assert.match(candidateListSource, /closeOnOutsidePointer/);
 assert.match(candidateListSource, /inputWasOpenOnPointerDown/);
+assert.match(candidateListSource, /getBoundingClientRect\(\)/, "candidate return scrolling must measure the real option position relative to its scroll container");
+assert.match(candidateListSource, /optionRect\.bottom > containerRect\.bottom/);
+assert.doesNotMatch(candidateListSource, /const top = option\.offsetTop/, "nested grid offsetTop must not drive candidate return positioning");
 assert.doesNotMatch(candidateListSource, /candidate-list-cancel/);
 assert.doesNotMatch(candidateListSource, /candidate-option-meta/);
 assert.doesNotMatch(candidateListSource, /Currently selected/);
 assert.match(detailSource, /pendingCandidateReturn/);
+assert.match(detailSource, /openedMelodyMemberFirst/);
 assert.match(detailSource, /props\.onShowCandidate\(member\.songId\)/);
 assert.match(detailSource, /props\.onBack\?\.\(\)/);
-assert.doesNotMatch(detailSource, /Back to candidates|Show this candidate|Replace with this song/);
+assert.doesNotMatch(detailSource, /Currently selected|Back to candidates|Show this candidate|Replace with this song/);
 assert.match(cssSource, /\.compact-row-fields,\s*\.song-field-row\s*\{\s*display: contents;/);
 assert.match(cssSource, /\.row-card > \.melody-detail\s*\{[\s\S]*?grid-column: 1;[\s\S]*?order: 2;/, "selected-song detail is visually placed in the same first-column slot between lookup and note");
 assert.match(cssSource, /\.row-card \.row-note-input\s*\{[\s\S]*?order: 3;/);
