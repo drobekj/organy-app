@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { CatalogSong } from "../src/application/catalog";
 import type { CandidateQueryResult } from "../src/application/interaction-contracts";
+import { queryCandidatesFromData } from "../src/application/interaction-service";
 import {
   CandidateCombobox,
   candidateIndexForKey,
@@ -83,13 +85,25 @@ function stateCoverage() {
   assert.equal(opened[0].songSearch, "29 · Current", "opening another row must cancel and restore the prior temporary search");
   assert.equal(opened[1].lookupOpen, true);
   assert.equal(opened[1].songSearch, "421 · Equivalent", "opening the candidate list must keep the confirmed number/title visible");
-  const typedThenCleared = planningCandidateRowReducer(
-    planningCandidateRowReducer(opened[1], { type: "lookupChanged", text: "421" }),
-    { type: "lookupChanged", text: "" },
-  );
-  assert.equal(typedThenCleared.lookupOpen, true, "clearing a live query must keep browse mode open");
-  const switchedAfterClear = openSingleCandidateRow([opened[0], typedThenCleared], 1);
-  assert.equal(switchedAfterClear[1].songSearch, "421 · Equivalent", "switching after a cleared query must restore the confirmed label");
+
+  const typed = planningCandidateRowReducer(opened[1], { type: "lookupChanged", text: "421" });
+  assert.equal(typed.selectedSong?.songId, "czech:421", "non-empty manual text remains only a query and must not discard the last confirmed song");
+  const typedThenCancelled = planningCandidateRowReducer(typed, { type: "lookupCancelled" });
+  assert.equal(typedThenCancelled.songSearch, "421 · Equivalent", "unconfirmed manual text must restore the last confirmed song when lookup closes");
+
+  const explicitlyEmpty = planningCandidateRowReducer(opened[1], { type: "lookupChanged", text: "" });
+  assert.equal(explicitlyEmpty.lookupOpen, true, "clearing the field must keep browse mode open");
+  assert.equal(explicitlyEmpty.songSearch, "");
+  assert.equal(explicitlyEmpty.selectedSong, undefined, "explicitly empty lookup is a valid no-song state");
+  assert.equal(explicitlyEmpty.selectedCandidate, undefined);
+  assert.equal(explicitlyEmpty.note, "second", "clearing only Song lookup must preserve the row note");
+  const emptyThenClosed = planningCandidateRowReducer(explicitlyEmpty, { type: "lookupCancelled" });
+  assert.equal(emptyThenClosed.songSearch, "", "closing an explicitly empty lookup must not resurrect the former song");
+  assert.equal(emptyThenClosed.selectedSong, undefined);
+
+  const switchedAfterClear = openSingleCandidateRow([opened[0], explicitlyEmpty], 1);
+  assert.equal(switchedAfterClear[1].songSearch, "", "switching rows after explicit clear must preserve the accepted empty state");
+  assert.equal(switchedAfterClear[1].selectedSong, undefined);
 
   const replaced = planningCandidateRowReducer(rows[0], {
     type: "candidateSelected",
@@ -99,6 +113,30 @@ function stateCoverage() {
   assert.equal(replaced.note, "keep", "replacement must preserve the row note");
   const cleared = planningCandidateRowReducer(replaced, { type: "songCleared" });
   assert.equal(cleared.note, "keep", "clear must preserve the row note");
+}
+
+function dynamicSearchCoverage() {
+  const songs: CatalogSong[] = [
+    { songId: "czech:29", language: "czech", number: "29", title: "Current exact song", active: true },
+    { songId: "czech:421", language: "czech", number: "421", title: "Same Melody Equivalent", active: true },
+    { songId: "czech:512", language: "czech", number: "512", title: "Another hymn", active: true },
+  ];
+  const repertoire = new Set(songs.map((song) => song.songId));
+  const knowledge = { antiphons: [], seasons: [], melodyClasses: [], melodyWindow: { months: 2 } };
+  const baseInput = {
+    serviceDate: "2026-08-09",
+    serviceLanguage: "czech" as const,
+    organistPersonId: "demo-organist",
+    preferenceThreshold: 0,
+    candidateUsages: [],
+  };
+
+  const byNumber = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "421" });
+  assert.deepEqual(byNumber.map((item) => item.songId), ["czech:421"], "manual query must match candidate number");
+  const byTitle = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "melody" });
+  assert.deepEqual(byTitle.map((item) => item.songId), ["czech:421"], "manual query must match candidate title");
+  const caseInsensitive = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "MELODY" });
+  assert.deepEqual(caseInsensitive.map((item) => item.songId), ["czech:421"], "candidate title matching must be case-insensitive");
 }
 
 function renderCoverage() {
@@ -167,21 +205,26 @@ function renderCoverage() {
 }
 
 async function staticCoverage() {
-  const [client, component, flow, schema, journal] = await Promise.all([
+  const [client, component, flow, service, schema, journal] = await Promise.all([
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
     readFile("src/planning-lifecycle/candidate-list.tsx", "utf8"),
     readFile("src/planning-lifecycle/candidate-flow.ts", "utf8"),
+    readFile("src/application/interaction-service.ts", "utf8"),
     readFile("src/db/schema/index.ts", "utf8"),
     readFile("drizzle/meta/_journal.json", "utf8"),
   ]);
   assert.match(client, /openCandidateRowId/);
   assert.match(client, /openCandidateRowId === null \|\| openCandidateRowId === row\.id/, "unrelated row focus must not detach the open list from its query state");
   assert.match(client, /CandidateCombobox/);
+  assert.match(client, /queryText: value/, "every manual edit must drive a fresh candidate query");
   assert.match(client, /preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD/);
   assert.match(client, /const PHASE_30_1_PREFERENCE_THRESHOLD = 0/);
   assert.doesNotMatch(client, /getCandidatePopupRows\(candidateResults/);
   assert.match(component, /aria-activedescendant/);
   assert.match(component, /ArrowDown/);
+  assert.match(component, /event\.key === "Enter"/);
+  assert.match(component, /props\.candidates\[activeIndex\]/, "Enter must resolve the currently active candidate");
+  assert.match(component, /currentTarget\.select\(\)/, "activating a non-empty Song lookup must select the whole value for replacement typing");
   assert.match(component, /scrollOptionInsideList/);
   assert.match(component, /role="option"/);
   assert.match(component, /candidate-option-current/);
@@ -191,13 +234,17 @@ async function staticCoverage() {
   assert.doesNotMatch(component, /candidate-list-cancel/);
   assert.doesNotMatch(component, /Currently selected/);
   assert.match(flow, /case "lookupOpened"/);
+  assert.match(flow, /selectedSong: undefined, selectedCandidate: undefined, lookupOpen: true/, "explicit blank query must become an accepted no-song state while the list remains open");
   assert.match(flow, /songSearch: row\.selectedSong \? formatPlanningSongField\(row\.selectedSong\) : ""/);
+  assert.match(service, /song\.number\.toLocaleLowerCase\(\)\.includes\(queryText\)/);
+  assert.match(service, /song\.title\.toLocaleLowerCase\(\)\.includes\(queryText\)/);
   assert.doesNotMatch(schema, /phase_31_16|candidate_list_state/i);
   assert.doesNotMatch(journal, /31_16/);
 }
 
 async function main() {
   stateCoverage();
+  dynamicSearchCoverage();
   renderCoverage();
   await staticCoverage();
   console.log("Phase 31.16 concrete candidate-list UI and single-open interaction: PASS");
