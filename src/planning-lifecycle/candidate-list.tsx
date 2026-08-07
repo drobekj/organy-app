@@ -45,6 +45,57 @@ type CandidateComboboxProps = {
   onActivateDetailMember?: (songId: string) => void;
 };
 
+const planningOverlayCss = `
+.row-icon-palette { top: 0 !important; transform: translateY(calc(-100% + 0.35rem)); }
+.row-card .candidate-combobox { position: relative; }
+.row-card .candidate-combobox > .candidate-listbox,
+.row-card .candidate-combobox > .melody-detail-candidate {
+  position: absolute !important;
+  top: calc(100% + 0.35rem);
+  margin-top: 0 !important;
+}
+.row-card .candidate-combobox > .candidate-listbox {
+  right: calc(-4.7rem - 0.45rem);
+  width: 100%;
+  max-width: none !important;
+  min-width: 0 !important;
+  max-height: min(32rem, 70vh);
+  overflow-y: auto;
+  direction: rtl;
+  z-index: 40;
+}
+.row-card .candidate-combobox > .candidate-listbox > * { direction: ltr; }
+.row-card .candidate-combobox > .melody-detail-candidate {
+  right: 0;
+  max-height: min(32rem, 70vh);
+  overflow-y: auto;
+  direction: rtl;
+  z-index: 50 !important;
+}
+.row-card .candidate-combobox > .melody-detail-candidate > * { direction: ltr; }
+.row-card > .melody-detail-selected {
+  position: absolute !important;
+  grid-column: 1 / -1 !important;
+  grid-row: 2 !important;
+  top: -0.2rem;
+  right: 0;
+  margin-top: 0 !important;
+  transform: none !important;
+  width: min(calc(82% - 4.223rem), 46rem) !important;
+  max-height: min(32rem, 70vh);
+  overflow-y: auto;
+  direction: rtl;
+  z-index: 50 !important;
+}
+.row-card > .melody-detail-selected > * { direction: ltr; }
+.row-card:has(> .melody-detail-selected) .song-field-detail {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.55;
+  pointer-events: none;
+}
+`;
+
 export function candidateIndexForKey(current: number, key: string, length: number): number {
   if (length <= 0) return -1;
   if (key === "Home") return 0;
@@ -184,7 +235,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         if (props.open && next instanceof Node && !event.currentTarget.contains(next)) props.onCancel();
       }}
     >
-      <style>{`.row-icon-palette { top: 0 !important; transform: translateY(calc(-100% + 0.35rem)); }`}</style>
+      <style>{planningOverlayCss}</style>
       <input
         ref={inputRef}
         type="text"
@@ -255,14 +306,6 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           role="listbox"
           aria-label={`Song candidates for ${props.rowLabel}`}
           aria-busy={!blockedByPrerequisite && visibleLoading}
-          style={props.detail && detailMode === "candidate" ? {
-            gridColumn: 1,
-            gridRow: 2,
-            justifySelf: "start",
-            marginTop: "0.35rem",
-            position: "relative",
-            zIndex: 1,
-          } : undefined}
         >
           {blockedByPrerequisite && (
             <div className="candidate-list-state candidate-list-prerequisite" role="status">
