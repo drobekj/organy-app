@@ -80,6 +80,10 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const [activeIndex, setActiveIndex] = useState(-1);
   const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
   const currentSongId = props.selectedSong?.songId;
+  const confirmedLabel = props.selectedSong
+    ? `${props.selectedSong.number}${props.selectedSong.title ? ` · ${props.selectedSong.title}` : ""}`
+    : "";
+  const candidateQueryText = confirmedLabel && props.value === confirmedLabel ? "" : props.value;
   const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
   const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);
@@ -216,7 +220,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
             </div>
           )}
           {!blockedByPrerequisite && !props.loading && !props.error && props.candidates.length === 0 && (
-            <p className="candidate-list-state" role="status">{getCandidateEmptyMessage(props.value)}</p>
+            <p className="candidate-list-state" role="status">{getCandidateEmptyMessage(candidateQueryText)}</p>
           )}
           {!blockedByPrerequisite && !props.loading && !props.error && allOccupied && (
             <p className="candidate-list-state" role="status">All matching melodies are already occupied in this service.</p>
