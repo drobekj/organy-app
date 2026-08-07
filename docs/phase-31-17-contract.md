@@ -22,14 +22,16 @@ Approved by the user on 2026-08-06. Baseline: `fb23295fba224d0ccbc645b77358d5e51
 
 Focused Phase 31.17 tests, all prior phase gates, typecheck, complete tests and production build must pass. One real browser HUMAN checkpoint is required after the final Detail refinement before Ready for review.
 
-## HUMAN row-UX refinement — functionally PASS 2026-08-07; final palette alignment re-check pending
+## HUMAN row-UX refinement — functionally PASS 2026-08-07
 
 The browser checkpoint confirmed the compact invariant Planning-row protocol:
 
 - every row keeps one outer `Row N` fieldset in all empty, partial and selected states;
 - the upper border carries `Row N` on the left and the compact control palette on the right;
 - palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
-- the rounded control squares must be vertically centered on the same upper-border/legend axis as `Row N`; the full-own-height lift proved slightly too high in the next browser screenshot, so the final correction lowers that position by `0.35rem` and requires one focused browser re-check;
+- the rounded control squares are browser-accepted as vertically centered on the same upper-border/legend axis as `Row N`;
+- the next visual refinement makes those squares slightly smaller while compensating their vertical offset so this accepted center does not move;
+- the glyphs inside those smaller squares are deliberately heavier (`font-weight: 900`) so they visually match the weight of `Detail` and other bold UI controls instead of appearing thin and incidental;
 - the interior has exactly two permanent base fields: Song lookup and Text note, with no visible labels above them;
 - Song lookup and Text note form a fixed-height base pair whose row height does not change when candidate or Detail overlays open;
 - empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
@@ -122,15 +124,21 @@ Their navigation/selection semantics belong directly to the member fields.
 
 ### Candidate-detail activation and lossless return
 
-- clicking an available member field closes Detail and returns to the candidate list focused/scrolled to that concrete member;
+- clicking an available member field inside Detail closes Detail and returns to the candidate list focused/scrolled to that concrete member;
 - this action does not select the member into Song lookup;
 - clicking the originally opened available member has the same return-to-list meaning;
+- clicking the exposed strip of any candidate row in the retained candidate list while candidate Detail is open also closes Detail and returns the active candidate cursor to exactly that clicked list row;
+- an exposed-list return happens before normal candidate selection logic, so it never selects, replaces or clears Song lookup; the currently visible list snapshot is retained for that return so the clicked row does not move or disappear;
+- the candidate list remains open after either member-field return or exposed-list return;
 - returning from candidate Detail must never clear, replace or rewrite the confirmed Song lookup field;
-- for that returned list, the fresh hard-filtered eligibility snapshot already loaded by Detail is retained for the duration of the open list, so the clicked equivalent cannot disappear during a background candidate refresh;
-- the clicked member id is carried as the highest-priority local focus/scroll target, ahead of the currently selected song;
+- for a return initiated from a Detail member, the fresh hard-filtered eligibility snapshot already loaded by Detail is retained for the duration of the open list, so the clicked equivalent cannot disappear during a background candidate refresh;
+- the clicked member/candidate id is carried as the highest-priority local focus/scroll target, ahead of the currently selected song;
 - therefore the confirmed `number · title` display is not reused as a candidate query and cannot produce a false empty-list message or redirect focus back to the selected song;
 - editing Song lookup after the return releases the retained snapshot and resumes normal live candidate querying;
-- return scrolling uses the candidate's real geometry relative to the scroll container, not a nested grid-local `offsetTop`, so the target row is actually visible at its corresponding list position.
+- return scrolling uses the candidate's real geometry relative to the scroll container, not a nested grid-local `offsetTop`, so the target row is actually visible at its corresponding list position;
+- for outside-dismiss, the candidate-list block and candidate Detail are treated as one union region: a pointer inside either block remains in the interaction;
+- a pointer anywhere outside that union immediately hides both overlays, cancels the restored candidate-list state, and returns Song lookup/Text note to their already confirmed values without song selection;
+- the standalone selected-song `Detail` button is outside this candidate-origin union; clicking its screen area during candidate Detail therefore dismisses the candidate-origin interaction rather than switching directly into selected-song Detail.
 
 ### Selected-song-detail activation and collapsed return
 
@@ -153,6 +161,6 @@ Their navigation/selection semantics belong directly to the member fields.
 - clicking the unavailable member field has Escape semantics: close/return from Detail without selection or replacement and preserve the previously confirmed Song lookup state;
 - expanding an unavailable member through `Detail` remains informational only.
 
-## Exact-head overlay verification — 2026-08-07
+## Latest refinement verification
 
-Exact head `3a958347f3ee6fcceed2d3090e5ec343c5feb368` passed standard CI #360 (`31212231150`) including Phase 31.16, Phase 31.17, DB smoke, typecheck, complete tests and production build. Focused artifact `phase-31-17-log` id `9007303548`, digest `sha256:3289837c78bb8c16b75e6cb18038829e11b61d09c28e6b92c6a24f808c4f6757`. Fresh Automatic Review Gate review `4886075385` is PASS with no open review threads. The final overlay geometry remains pending one focused HUMAN browser checkpoint before Ready for review.
+The previous exact-head overlay implementation passed standard CI #361 on `f8719d991ec458191922a8e88df12c5f0c8c16db`. The newly approved smaller/bolder row controls plus exposed-list/outside-union candidate Detail interaction require a fresh exact-head Phase 31.17/CI/Automatic Review Gate and one focused HUMAN browser checkpoint before Ready for review.
