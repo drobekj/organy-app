@@ -169,11 +169,21 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         aria-activedescendant={activeDescendant}
         value={props.value}
         onPointerDown={() => { inputWasOpenOnPointerDown.current = props.open; }}
-        onFocus={() => { if (!props.disabled && !props.open && !props.detail) props.onOpen(); }}
-        onClick={() => {
+        onFocus={(event) => {
           if (props.disabled || props.detail) return;
-          if (inputWasOpenOnPointerDown.current) props.onCancel();
-          else if (!props.open) props.onOpen();
+          if (!props.open) {
+            props.onOpen();
+            if (event.currentTarget.value) event.currentTarget.select();
+          }
+        }}
+        onClick={(event) => {
+          if (props.disabled || props.detail) return;
+          if (inputWasOpenOnPointerDown.current) {
+            props.onCancel();
+            return;
+          }
+          if (!props.open) props.onOpen();
+          if (event.currentTarget.value) event.currentTarget.select();
         }}
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={handleKeyDown}
