@@ -224,11 +224,23 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   return (
     <section
       ref={regionRef}
-      className="melody-detail"
+      className={`melody-detail melody-detail-${props.mode}`}
       role="region"
       tabIndex={-1}
       aria-label={`Melody detail for ${props.candidate.number} ${props.candidate.title} in ${props.rowLabel}`}
       onKeyDown={handleKeyDown}
+      style={{
+        background: "#f5f5f4",
+        borderColor: "#d6d3d1",
+        boxShadow: "0 0.8rem 2rem rgb(31 41 51 / 14%)",
+        gridColumn: 1,
+        ...(props.mode === "candidate" ? { gridRow: 2 } : {}),
+        justifySelf: "end",
+        marginTop: "0.35rem",
+        position: "relative",
+        width: "min(82%, 46rem)",
+        zIndex: 2,
+      }}
     >
       {!authoritative && (
         <p className="candidate-list-state" role="status">Authoritative melody-class information is not available for this saved song.</p>
