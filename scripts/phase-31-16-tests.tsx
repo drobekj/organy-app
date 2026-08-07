@@ -7,7 +7,6 @@ import {
   candidateIndexForKey,
   getCandidateEmptyMessage,
   getInitialCandidateIndex,
-  getUnavailableCurrentReason,
   isCandidateSelectable,
 } from "../src/planning-lifecycle/candidate-list";
 import {
@@ -73,7 +72,6 @@ function stateCoverage() {
   assert.equal(getInitialCandidateIndex([equivalent], available.songId), 0, "an equivalent must not be treated as the exact current song");
   assert.equal(getCandidateEmptyMessage(""), "No songs satisfy the current language, repertoire, preference and melody rules.");
   assert.equal(getCandidateEmptyMessage("abc"), "No candidate matches this search within the current filters.");
-  assert.match(getUnavailableCurrentReason({ songId: "polish:38", language: "polish", number: "38" }, "czech"), /polish song in a czech service/);
   assert.equal(isCandidateSelectable(occupied), false);
 
   const rows: PlanningCandidateEditableRow[] = [
@@ -84,12 +82,12 @@ function stateCoverage() {
   assert.equal(opened[0].lookupOpen, false);
   assert.equal(opened[0].songSearch, "29 · Current", "opening another row must cancel and restore the prior temporary search");
   assert.equal(opened[1].lookupOpen, true);
-  assert.equal(opened[1].songSearch, "", "browse mode must not query the confirmed display label");
+  assert.equal(opened[1].songSearch, "421 · Equivalent", "opening the candidate list must keep the confirmed number/title visible");
   const typedThenCleared = planningCandidateRowReducer(
     planningCandidateRowReducer(opened[1], { type: "lookupChanged", text: "421" }),
     { type: "lookupChanged", text: "" },
   );
-  assert.equal(typedThenCleared.lookupOpen, true, "clearing a live query must return to open browse mode");
+  assert.equal(typedThenCleared.lookupOpen, true, "clearing a live query must keep browse mode open");
   const switchedAfterClear = openSingleCandidateRow([opened[0], typedThenCleared], 1);
   assert.equal(switchedAfterClear[1].songSearch, "421 · Equivalent", "switching after a cleared query must restore the confirmed label");
 
@@ -108,7 +106,7 @@ function renderCoverage() {
     rowId: 1,
     rowLabel: "Row 1",
     open: true,
-    value: "",
+    value: "29 · Current exact song",
     selectedSong: { songId: available.songId, language: "czech" as const, number: available.number, title: available.title },
     candidates: [available, equivalent, occupied],
     loading: false,
@@ -122,50 +120,49 @@ function renderCoverage() {
   const html = renderToStaticMarkup(<CandidateCombobox {...common} />);
   assert.match(html, /role="combobox"/);
   assert.match(html, /aria-expanded="true"/);
+  assert.match(html, /value="29 · Current exact song"/, "open lookup must keep the confirmed number/title visible");
   assert.match(html, /role="listbox"/);
   assert.equal((html.match(/role="option"/g) ?? []).length, 3, "one backend candidate must render as one concrete option");
+  assert.equal((html.match(/candidate-inline-detail/g) ?? []).length, 3, "every candidate row must retain one Detail button");
   assert.ok(html.indexOf("Current exact song") < html.indexOf("Same melody equivalent"));
   assert.ok(html.indexOf("Same melody equivalent") < html.indexOf("Occupied Polish equivalent"), "UI must preserve backend ordering");
-  assert.match(html, /Currently selected/);
-  const equivalentSlice = html.slice(html.indexOf("Same melody equivalent"), html.indexOf("Occupied Polish equivalent"));
-  assert.doesNotMatch(equivalentSlice, /Currently selected/, "equivalent song must not receive the exact current marker");
+  assert.match(html, /candidate-option-current/, "the exact selected song keeps its visual current-row highlight");
+  assert.doesNotMatch(html, /Currently selected/);
+  assert.doesNotMatch(html, /In repertoire/);
+  assert.doesNotMatch(html, /Melody known through an equivalent/);
+  assert.doesNotMatch(html, /preference 0/);
+  assert.doesNotMatch(html, /Melody class:/);
+  assert.doesNotMatch(html, /Unavailable —/);
+  assert.doesNotMatch(html, />Cancel</);
   assert.match(html, /aria-disabled="true"/);
   assert.doesNotMatch(html, /<button[^>]*disabled/, "disabled candidates remain semantic options rather than nested disabled controls");
-  assert.match(html, /Row 2 and Row 3/);
+  assert.doesNotMatch(html, /Row 2 and Row 3/, "occupancy explanation belongs in Detail rather than the candidate row");
   assert.doesNotMatch(html, /All matching melodies are already occupied/, "mixed available and occupied results must not become an empty state");
 
   const loadingHtml = renderToStaticMarkup(<CandidateCombobox {...common} candidates={[]} loading={true} />);
   assert.match(loadingHtml, /aria-busy="true"/);
   assert.match(loadingHtml, /Loading candidates/);
   const browseEmpty = renderToStaticMarkup(<CandidateCombobox {...common} candidates={[]} />);
-  assert.match(browseEmpty, /No songs satisfy/);
+  assert.match(browseEmpty, /No songs satisfy/, "confirmed display text must not be mistaken for a search query");
   const searchEmpty = renderToStaticMarkup(<CandidateCombobox {...common} value="missing" candidates={[]} />);
   assert.match(searchEmpty, /No candidate matches/);
   const errorHtml = renderToStaticMarkup(<CandidateCombobox {...common} candidates={[]} error="Candidate lookup failed." />);
   assert.match(errorHtml, /Candidate lookup failed/);
   assert.match(errorHtml, />Retry</);
-  assert.match(errorHtml, />Cancel</);
+  assert.doesNotMatch(errorHtml, />Cancel</);
   const unavailableHtml = renderToStaticMarkup(
     <CandidateCombobox
       {...common}
+      value="999 · Retained invalid"
       selectedSong={{ songId: "polish:999", language: "polish", number: "999", title: "Retained invalid" }}
       candidates={[available]}
       serviceLanguage="czech"
     />,
   );
-  assert.match(unavailableHtml, /Currently selected/);
-  assert.match(unavailableHtml, /polish song in a czech service/i);
-  const searchedHtml = renderToStaticMarkup(
-    <CandidateCombobox
-      {...common}
-      value="different search"
-      selectedSong={{ songId: "polish:999", language: "polish", number: "999", title: "Retained invalid" }}
-      candidates={[available]}
-      serviceLanguage="czech"
-    />,
-  );
-  assert.doesNotMatch(searchedHtml, /Not available because/, "search mismatch must not be presented as a hard-filter failure");
-  const allOccupiedHtml = renderToStaticMarkup(<CandidateCombobox {...common} selectedSong={undefined} candidates={[occupied]} />);
+  assert.match(unavailableHtml, /value="999 · Retained invalid"/);
+  assert.doesNotMatch(unavailableHtml, /Not available because/);
+  assert.doesNotMatch(unavailableHtml, /Currently selected/);
+  const allOccupiedHtml = renderToStaticMarkup(<CandidateCombobox {...common} value="" selectedSong={undefined} candidates={[occupied]} />);
   assert.match(allOccupiedHtml, /All matching melodies are already occupied/);
 }
 
@@ -187,7 +184,14 @@ async function staticCoverage() {
   assert.match(component, /ArrowDown/);
   assert.match(component, /scrollOptionInsideList/);
   assert.match(component, /role="option"/);
-  assert.match(flow, /lookupOpened/);
+  assert.match(component, /candidate-option-current/);
+  assert.match(component, /inputWasOpenOnPointerDown/);
+  assert.doesNotMatch(component, /candidate-option-meta/);
+  assert.doesNotMatch(component, /candidate-current-marker/);
+  assert.doesNotMatch(component, /candidate-list-cancel/);
+  assert.doesNotMatch(component, /Currently selected/);
+  assert.match(flow, /case "lookupOpened"/);
+  assert.match(flow, /songSearch: row\.selectedSong \? formatPlanningSongField\(row\.selectedSong\) : ""/);
   assert.doesNotMatch(schema, /phase_31_16|candidate_list_state/i);
   assert.doesNotMatch(journal, /31_16/);
 }
