@@ -60,6 +60,7 @@ export type PlanningCandidateRowAction =
   | { type: "lookupCancelled" }
   | { type: "rowDeactivated" }
   | { type: "songCleared" }
+  | { type: "rowCleared" }
   | { type: "noteChanged"; note: string };
 
 export type CandidateQueryContextInput = {
@@ -149,19 +150,21 @@ export function planningCandidateRowReducer(row: PlanningCandidateEditableRow, a
     case "lookupChanged":
       return { ...row, songSearch: action.text, lookupOpen: true };
     case "candidateSelected":
-      return { ...row, songSearch: formatSongLabel(action.song), selectedSong: action.song, selectedCandidate: action.candidate, lookupOpen: false };
+      return { ...row, songSearch: formatPlanningSongField(action.song), selectedSong: action.song, selectedCandidate: action.candidate, lookupOpen: false };
     case "lookupCancelled":
     case "rowDeactivated":
       return restoreConfirmedCandidate(row);
     case "songCleared":
       return { ...row, songSearch: "", selectedSong: undefined, selectedCandidate: undefined, lookupOpen: false };
+    case "rowCleared":
+      return { ...row, songSearch: "", selectedSong: undefined, selectedCandidate: undefined, note: "", lookupOpen: false };
     case "noteChanged":
       return { ...row, note: action.note };
   }
 }
 
 export function restoreConfirmedCandidate<T extends PlanningCandidateEditableRow>(row: T): T {
-  return { ...row, lookupOpen: false, songSearch: row.selectedSong ? formatSongLabel(row.selectedSong) : "" };
+  return { ...row, lookupOpen: false, songSearch: row.selectedSong ? formatPlanningSongField(row.selectedSong) : "" };
 }
 
 export function restoreRowsExceptActive<T extends PlanningCandidateEditableRow>(rows: T[], targetRowId: number): T[] {
@@ -172,6 +175,10 @@ export function openSingleCandidateRow<T extends PlanningCandidateEditableRow>(r
   return rows.map((row) => row.id === targetRowId
     ? planningCandidateRowReducer(row, { type: "lookupOpened" }) as T
     : row.lookupOpen ? restoreConfirmedCandidate(row) : row);
+}
+
+export function formatPlanningSongField(song: { number: string; title?: string }): string {
+  return `${song.number}${song.title ? ` — ${song.title}` : ""}`;
 }
 
 export function formatSongLabel(song: { language: ConcreteSongLanguage; number: string; title?: string }): string {

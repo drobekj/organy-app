@@ -325,3 +325,15 @@ MERGOVAT
 ## Deferred presentation details
 
 Exact colors, spacing, indentation, hover delay, close icon and other cosmetic choices are intentionally deferred to practical browser testing. Functional semantics above are authoritative.
+
+## Compact Planning row protocol
+
+The Phase 31.17 browser refinement fixes the collapsed Planning-row presentation:
+
+- the selected song field shows only concrete number and title;
+- all other candidate and melody metadata remains in the list or inline Detail;
+- each row always presents the same two base fields, `Song lookup` and `Text note`;
+- the border-level control palette is ordered `↑`, `↓`, `↶`, `×`;
+- `↶` clears both song and note while preserving the row, including note-only rows;
+- `×` removes the row;
+- leaving the active lookup closes its candidate list and restores the confirmed number/title.

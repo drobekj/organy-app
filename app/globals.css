@@ -734,3 +734,71 @@ textarea {
   font-size: 0.82rem;
   justify-content: flex-start;
 }
+
+
+/* Phase 31.17 HUMAN refinement: invariant compact Planning row. */
+.row-card {
+  position: relative;
+}
+
+.row-icon-palette {
+  align-items: center;
+  background: var(--surface);
+  display: flex;
+  gap: 0.2rem;
+  padding: 0 0.35rem;
+  position: absolute;
+  right: 0.75rem;
+  top: -1rem;
+}
+
+.row-icon-button {
+  align-items: center;
+  border-radius: 0.35rem;
+  display: inline-flex;
+  font-size: 1.05rem;
+  height: 1.9rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 1.9rem;
+}
+
+.row-icon-remove {
+  color: var(--danger);
+}
+
+.compact-row-fields {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.song-field-row {
+  align-items: start;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.song-field-detail {
+  align-self: start;
+  border-radius: 0.65rem;
+  min-width: 4.7rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.row-note-input {
+  width: 100%;
+}
+
+@media (max-width: 520px) {
+  .row-card {
+    padding-top: 1.35rem;
+  }
+
+  .row-icon-palette {
+    right: 0.45rem;
+  }
+}

@@ -24,3 +24,22 @@ Focused Phase 31.17 tests, all prior phase gates, typecheck, complete tests and 
 The 2026-08-06 browser checkpoint confirmed items 1–10 functionally, but approval is withheld until the requested compact, invariant two-field Planning-row protocol is implemented and rechecked.
 
 The compact-row correction must pass an isolated runner-independent refinement gate before the replacement browser checkpoint is issued.
+
+
+## HUMAN row-UX refinement — 2026-08-06
+
+The first browser checkpoint confirmed the Phase 31.17 behavior but requested a compact invariant row protocol before approval:
+
+- every row keeps one outer `Row N` fieldset in all empty, partial and selected states;
+- the upper border carries `Row N` on the left and the compact control palette on the right;
+- palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
+- the interior has exactly two permanent base fields: song lookup and text note, with no visible labels above them;
+- empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
+- after selection, the collapsed song field contains only the concrete song number and title; language, repertoire, preference, signals, equivalents and score context remain in the candidate list or Detail;
+- Detail remains on the right side of the song field and is disabled only when no song is selected;
+- focusing the note field or otherwise leaving the lookup interaction closes the candidate list and restores the confirmed number/title or an empty field;
+- `↶` clears both the selected song and the text note, closes list/detail state and remains available for note-only rows;
+- `×` removes the whole row;
+- candidate list, inline detail, validation, occupancy and persistence behavior otherwise remain unchanged.
+
+A fresh exact-head automated gate and focused browser HUMAN checkpoint are required after this refinement.

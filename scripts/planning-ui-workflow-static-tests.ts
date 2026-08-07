@@ -10,9 +10,9 @@ const candidateList = readFileSync("src/planning-lifecycle/candidate-list.tsx", 
 // The production Reference candidate boundary is checked separately for absence of every legacy table identifier.
 for (const required of [
   "<CandidateCombobox",
-  "onOpenDetail={() => openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong!))}",
-  "<CandidateLine",
-  "candidate-line",
+  "openSelectedSongDetail(row.id",
+  "row-icon-palette",
+  "placeholder=\"Text note\"",
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",
@@ -28,7 +28,7 @@ for (const required of [
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }
 
-for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current"]) {
+for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current", ".row-icon-palette", ".compact-row-fields"]) {
   assert(css.includes(required), `Planning UI CSS is missing ${required}`);
 }
 

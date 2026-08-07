@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CandidateQueryResult } from "../src/application/interaction-contracts";
 import { queryCandidatesFromData, hydrateCandidatesFromData } from "../src/application/interaction-service";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
+import { formatPlanningSongField, planningCandidateRowReducer } from "../src/planning-lifecycle/candidate-flow";
 import { MelodyClassDetail, isMemberLanguageAllowed, melodyMembersForDetail, replacementCandidateForMember } from "../src/planning-lifecycle/melody-detail";
 
 const available: CandidateQueryResult = {
@@ -60,7 +61,22 @@ assert.deepEqual(memoryCandidates[0]?.melodyMembers?.map((member) => member.song
 const hydrated = hydrateCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { songs: [{ songId: "demo-pl", language: "polish", number: "101", title: "Stored Polish" }], organistPersonId: "demo-organist" });
 assert.deepEqual(hydrated[0]?.melodyMembers?.map((member) => member.songId), ["demo-pl", "demo-cz"]);
 
+assert.equal(formatPlanningSongField({ number: "29", title: "Czech song" }), "29 — Czech song");
+const clearedRow = planningCandidateRowReducer({
+  id: 1,
+  songSearch: "29 — Czech song",
+  selectedSong: { songId: available.songId, language: available.language, number: available.number, title: available.title },
+  selectedCandidate: available,
+  note: "clear this note",
+  lookupOpen: false,
+}, { type: "rowCleared" });
+assert.equal(clearedRow.selectedSong, undefined);
+assert.equal(clearedRow.selectedCandidate, undefined);
+assert.equal(clearedRow.note, "");
+assert.equal(clearedRow.songSearch, "");
+
 const clientSource = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
+const candidateListSource = readFileSync("src/planning-lifecycle/candidate-list.tsx", "utf8");
 assert.match(clientSource, /type PlanningExpansion/);
 assert.match(clientSource, /kind: "candidateDetail"/);
 assert.match(clientSource, /kind: "selectedSongDetail"/);
@@ -68,7 +84,16 @@ assert.match(clientSource, /openSelectedSongDetail/);
 assert.match(clientSource, /replaceFromSelectedDetail/);
 assert.equal(clientSource.includes('else if (planningExpansion && planningExpansion.kind !== "candidateList")'), true);
 assert.equal(clientSource.includes("resetDetailEligibility();\n      setCandidateResults"), true);
-assert.match(clientSource, /detailButtonId={`selected-song-detail-button-/);
+assert.match(clientSource, /id={`selected-song-detail-button-/);
 assert.doesNotMatch(clientSource, /onOpenDetail=\{\(\) => row\.selectedSong\?\.songId && openCatalogSongDetail/);
+assert.doesNotMatch(clientSource, /<CandidateLine/);
+assert.match(clientSource, /className="row-icon-palette"/);
+assert.ok(clientSource.indexOf('aria-label="Move row up"') < clientSource.indexOf('aria-label="Move row down"'));
+assert.ok(clientSource.indexOf('aria-label="Move row down"') < clientSource.indexOf('aria-label="Clear row"'));
+assert.ok(clientSource.indexOf('aria-label="Clear row"') < clientSource.indexOf('aria-label="Remove row"'));
+assert.match(clientSource, />↶<\/button>/);
+assert.match(clientSource, /placeholder="Text note"/);
+assert.match(candidateListSource, /placeholder="Song lookup"/);
+assert.match(candidateListSource, /closeOnOutsidePointer/);
 
 console.log("Phase 31.17 inline melody-class detail and equivalent navigation: PASS");

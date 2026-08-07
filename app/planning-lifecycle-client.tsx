@@ -20,10 +20,9 @@ import {
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionRowIssues, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
-import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
-import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
@@ -91,7 +90,7 @@ function createEmptyRow(id: number, _serviceLanguage: ServiceLanguage): Editable
 function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
   return {
     id,
-    songSearch: row.song ? formatSongLabel(row.song) : "",
+    songSearch: row.song ? formatPlanningSongField(row.song) : "",
     selectedSong: row.song ? { ...row.song } : undefined,
     selectedCandidate: row.song ? rehydrateCandidateFromSelectedSong(row.song, row.note ?? "") : undefined,
     note: row.note ?? "",
@@ -1036,14 +1035,25 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCandidateErrors({});
   }
 
-  function clearSong(rowId: number) {
+  function clearRow(rowId: number) {
     resetDetailEligibility();
     lookupTracker.invalidatePrefix("song:");
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "songCleared" }) : row)));
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "rowCleared" }) : row)));
     setPlanningExpansion(null);
     setCandidateResults({});
     setCandidateLoading({});
     setCandidateErrors({});
+  }
+
+  function focusNoteField(rowId: number) {
+    lookupTracker.invalidatePrefix("song:");
+    setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+    setPlanningExpansion(null);
+    resetDetailEligibility();
+    setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
+    activateExistingRow(rowId);
   }
 
   function cancelActiveLookup(rowId: number) {
@@ -1509,78 +1519,63 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               return (
                 <fieldset className="row-card" key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
-                  <div className="row-actions">
-                    <button type="button" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>
-                      Move up
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveRow(index, 1)}
-                      disabled={!canEditRows || index === rows.length - 1}
-                    >
-                      Move down
-                    </button>
-                    <button type="button" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>
-                      Remove
-                    </button>
+                  <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
+                    <button type="button" className="row-icon-button" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
+                    <button type="button" className="row-icon-button" aria-label="Move row down" title="Move row down" onClick={() => moveRow(index, 1)} disabled={!canEditRows || index === rows.length - 1}>↓</button>
+                    <button type="button" className="row-icon-button" aria-label="Clear row" title="Clear row" onClick={() => clearRow(row.id)} disabled={!canEditRows || (!row.selectedSong && !row.note.trim() && !row.songSearch.trim() && planningExpansion?.rowId !== row.id)}>↶</button>
+                    <button type="button" className="row-icon-button row-icon-remove" aria-label="Remove row" title="Remove row" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>×</button>
                   </div>
-                  <div className="row-fields">
-                    <label>
-                      Song lookup
+                  <div className="compact-row-fields">
+                    <div className="song-field-row">
                       <CandidateCombobox
-                        rowId={row.id}
-                        rowLabel={`Row ${index + 1}`}
-                        open={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id}
-                        focusSongId={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id ? planningExpansion.focusSongId : undefined}
-                        detail={planningExpansion?.kind === "candidateDetail" && planningExpansion.rowId === row.id ? {
-                          candidate: planningExpansion.candidate,
-                          eligibilityCandidates: detailEligibilityCandidates,
-                          loading: detailEligibilityLoading,
-                          error: detailEligibilityError,
-                        } : undefined}
-                        value={row.songSearch}
-                        selectedSong={row.selectedSong}
-                        candidates={candidateResults[row.id] ?? []}
-                        loading={candidateLoading[row.id] ?? false}
-                        error={candidateErrors[row.id]}
-                        prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
-                        serviceLanguage={serviceLanguage}
-                        disabled={!canEditRows}
-                        onOpen={() => openCandidateList(row.id)}
-                        onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
-                        onSelect={(candidate) => selectCandidate(row.id, candidate)}
-                        onCancel={() => cancelActiveLookup(row.id)}
-                        onRetry={() => { void queryCandidateResults(row.id, row.songSearch); }}
-                        onOpenDetail={(candidate) => openCandidateDetail(row.id, candidate)}
-                        onBackFromDetail={backToCandidateList}
-                        onRetryDetail={retryDetailEligibility}
-                        onShowDetailCandidate={showCandidateFromDetail}
-                      />
-                      {row.selectedSong ? (
-                        <CandidateLine
-                          candidate={row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong)}
-                          variant="selected"
-                          note={row.note}
-                          readOnly={!canEditRows}
-                          detailButtonId={`selected-song-detail-button-${row.id}`}
-                          onOpenDetail={() => openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong!))}
-                          onNoteChange={(note) => updateRow(row.id, { note })}
-                        />
-                      ) : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
-                      {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
-                    </label>
-                    {!row.selectedSong && (
-                      <label className="note-field">
-                        Text note
-                        <input
-                          type="text"
-                          value={row.note}
-                          onChange={(event) => updateRow(row.id, { note: event.target.value })}
-                          placeholder="Optional note without a song"
-                          disabled={!canEditRows}
-                        />
-                      </label>
-                    )}
+                                              rowId={row.id}
+                                              rowLabel={`Row ${index + 1}`}
+                                              open={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id}
+                                              focusSongId={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id ? planningExpansion.focusSongId : undefined}
+                                              detail={planningExpansion?.kind === "candidateDetail" && planningExpansion.rowId === row.id ? {
+                                                candidate: planningExpansion.candidate,
+                                                eligibilityCandidates: detailEligibilityCandidates,
+                                                loading: detailEligibilityLoading,
+                                                error: detailEligibilityError,
+                                              } : undefined}
+                                              value={row.songSearch}
+                                              selectedSong={row.selectedSong}
+                                              candidates={candidateResults[row.id] ?? []}
+                                              loading={candidateLoading[row.id] ?? false}
+                                              error={candidateErrors[row.id]}
+                                              prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
+                                              serviceLanguage={serviceLanguage}
+                                              disabled={!canEditRows}
+                                              onOpen={() => openCandidateList(row.id)}
+                                              onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
+                                              onSelect={(candidate) => selectCandidate(row.id, candidate)}
+                                              onCancel={() => cancelActiveLookup(row.id)}
+                                              onRetry={() => { void queryCandidateResults(row.id, row.songSearch); }}
+                                              onOpenDetail={(candidate) => openCandidateDetail(row.id, candidate)}
+                                              onBackFromDetail={backToCandidateList}
+                                              onRetryDetail={retryDetailEligibility}
+                                              onShowDetailCandidate={showCandidateFromDetail}
+                                            />
+                      <button
+                        id={`selected-song-detail-button-${row.id}`}
+                        type="button"
+                        className="song-field-detail"
+                        disabled={!row.selectedSong}
+                        onClick={() => row.selectedSong && openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong))}
+                      >
+                        Detail
+                      </button>
+                    </div>
+                    <input
+                      className="row-note-input"
+                      aria-label={`Text note for Row ${index + 1}`}
+                      type="text"
+                      value={row.note}
+                      readOnly={!canEditRows}
+                      onFocus={() => focusNoteField(row.id)}
+                      onChange={(event) => updateRow(row.id, { note: event.target.value })}
+                      placeholder="Text note"
+                    />
                   </div>
                   {planningExpansion?.kind === "selectedSongDetail" && planningExpansion.rowId === row.id && (
                     <MelodyClassDetail

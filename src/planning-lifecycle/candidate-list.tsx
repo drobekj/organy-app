@@ -81,6 +81,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const listboxId = `candidate-list-${props.rowId}`;
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const autoScrolled = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const blockedByPrerequisite = Boolean(props.prerequisiteMessage);
@@ -90,6 +91,16 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const allOccupied = props.candidates.length > 0 && props.candidates.every((candidate) => !isCandidateSelectable(candidate));
   const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, props.candidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => props.candidates.map((candidate) => candidate.songId).join("|"), [props.candidates]);
+
+  useEffect(() => {
+    if (!props.open) return;
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && rootRef.current && !rootRef.current.contains(target)) props.onCancel();
+    }
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [props.open, props.onCancel]);
 
   useEffect(() => {
     if (!props.open) {
@@ -143,11 +154,19 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   }
 
   return (
-    <div className="candidate-combobox">
+    <div
+      ref={rootRef}
+      className="candidate-combobox"
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (props.open && next instanceof Node && !event.currentTarget.contains(next)) props.onCancel();
+      }}
+    >
       <input
         ref={inputRef}
         type="text"
         role="combobox"
+        aria-label="Song lookup"
         aria-autocomplete="list"
         aria-expanded={props.open}
         aria-controls={props.open ? listboxId : undefined}
@@ -157,7 +176,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         onClick={() => { if (!props.disabled && !props.open && !props.detail) props.onOpen(); }}
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Search by number or title"
+        placeholder="Song lookup"
         disabled={props.disabled}
       />
       {props.detail && (
