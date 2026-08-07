@@ -130,6 +130,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
         event.stopPropagation();
       }
       queueMicrotask(() => {
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) target.focus();
         if (selectedDetailDismissPointerTarget === target) selectedDetailDismissPointerTarget = null;
       });
     }
