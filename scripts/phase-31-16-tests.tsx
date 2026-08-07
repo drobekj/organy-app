@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CatalogSong } from "../src/application/catalog";
 import type { CandidateQueryResult } from "../src/application/interaction-contracts";
 import { queryCandidatesFromData } from "../src/application/interaction-service";
+import { queryReferenceCandidatesFromData, type ReferenceCandidateData } from "../src/application/reference-candidate-service";
 import {
   CandidateCombobox,
   candidateIndexForKey,
@@ -131,12 +132,27 @@ function dynamicSearchCoverage() {
     candidateUsages: [],
   };
 
-  const byNumber = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "421" });
-  assert.deepEqual(byNumber.map((item) => item.songId), ["czech:421"], "manual query must match candidate number");
+  const byNumber = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "42" });
+  assert.deepEqual(byNumber.map((item) => item.songId), ["czech:421"], "memory manual query must match a partially typed candidate number");
   const byTitle = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "melody" });
-  assert.deepEqual(byTitle.map((item) => item.songId), ["czech:421"], "manual query must match candidate title");
+  assert.deepEqual(byTitle.map((item) => item.songId), ["czech:421"], "memory manual query must match candidate title");
   const caseInsensitive = queryCandidatesFromData(songs, [], repertoire, knowledge, { ...baseInput, queryText: "MELODY" });
-  assert.deepEqual(caseInsensitive.map((item) => item.songId), ["czech:421"], "candidate title matching must be case-insensitive");
+  assert.deepEqual(caseInsensitive.map((item) => item.songId), ["czech:421"], "memory candidate title matching must be case-insensitive");
+
+  const referenceData: ReferenceCandidateData = {
+    songs: [
+      { id: "czech:29", language: "czech", canonicalNumber: 29, displayNumber: "29", title: "Current exact song", classId: "reference-melody:czech:29", aggregatePreferenceScore: 0, repertoire: true },
+      { id: "czech:421", language: "czech", canonicalNumber: 421, displayNumber: "421", title: "Same Melody Equivalent", classId: "reference-melody:czech:421", aggregatePreferenceScore: 0, repertoire: true },
+      { id: "czech:512", language: "czech", canonicalNumber: 512, displayNumber: "512", title: "Another hymn", classId: "reference-melody:czech:512", aggregatePreferenceScore: 0, repertoire: true },
+    ],
+    melodyWindowMonths: 2,
+  };
+  const referenceByNumber = queryReferenceCandidatesFromData(referenceData, { ...baseInput, queryText: "42" });
+  assert.deepEqual(referenceByNumber.map((item) => item.songId), ["czech:421"], "DB/reference manual query must match a partially typed displayed number");
+  const referenceByTitle = queryReferenceCandidatesFromData(referenceData, { ...baseInput, queryText: "melody" });
+  assert.deepEqual(referenceByTitle.map((item) => item.songId), ["czech:421"], "DB/reference manual query must match candidate title");
+  const referenceCaseInsensitive = queryReferenceCandidatesFromData(referenceData, { ...baseInput, queryText: "MELODY" });
+  assert.deepEqual(referenceCaseInsensitive.map((item) => item.songId), ["czech:421"], "DB/reference candidate title matching must be case-insensitive");
 }
 
 function renderCoverage() {
@@ -205,11 +221,12 @@ function renderCoverage() {
 }
 
 async function staticCoverage() {
-  const [client, component, flow, service, schema, journal] = await Promise.all([
+  const [client, component, flow, service, referenceService, schema, journal] = await Promise.all([
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
     readFile("src/planning-lifecycle/candidate-list.tsx", "utf8"),
     readFile("src/planning-lifecycle/candidate-flow.ts", "utf8"),
     readFile("src/application/interaction-service.ts", "utf8"),
+    readFile("src/application/reference-candidate-service.ts", "utf8"),
     readFile("src/db/schema/index.ts", "utf8"),
     readFile("drizzle/meta/_journal.json", "utf8"),
   ]);
@@ -238,6 +255,8 @@ async function staticCoverage() {
   assert.match(flow, /songSearch: row\.selectedSong \? formatPlanningSongField\(row\.selectedSong\) : ""/);
   assert.match(service, /song\.number\.toLocaleLowerCase\(\)\.includes\(queryText\)/);
   assert.match(service, /song\.title\.toLocaleLowerCase\(\)\.includes\(queryText\)/);
+  assert.match(referenceService, /song\.displayNumber\.toLocaleLowerCase\(\)\.includes\(lower\)/, "DB/reference lookup must support incremental partial displayed-number matching");
+  assert.match(referenceService, /song\.title\.toLocaleLowerCase\(\)\.includes\(lower\)/);
   assert.doesNotMatch(schema, /phase_31_16|candidate_list_state/i);
   assert.doesNotMatch(journal, /31_16/);
 }
