@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { CandidateMelodyMember, CandidateQueryResult } from "../application/interaction-contracts";
 import type { ServiceLanguage } from "./model";
 
@@ -13,11 +13,8 @@ export type MelodyClassDetailProps = {
   eligibilityCandidates: CandidateQueryResult[];
   loading: boolean;
   error?: string;
-  onBack?: () => void;
-  onClose: () => void;
-  onRetry: () => void;
-  onShowCandidate?: (songId: string) => void;
-  onReplace?: (candidate: CandidateQueryResult) => void;
+  onEscape: () => void;
+  onActivateMember?: (songId: string) => void;
 };
 
 export function isMemberLanguageAllowed(language: CandidateMelodyMember["language"], serviceLanguage: ServiceLanguage): boolean {
@@ -37,11 +34,10 @@ export function melodyMembersForDetail(candidate: CandidateQueryResult): { autho
         aggregatePreferenceScore: candidate.aggregatePreferenceScore,
         ...(candidate.sheetMusicUrl ? { sheetMusicUrl: candidate.sheetMusicUrl } : {}),
       }];
-  const opened = source.find((member) => member.songId === candidate.songId);
-  const remainder = source
-    .filter((member) => member.songId !== candidate.songId)
-    .sort((left, right) => `${languageRank(left.language)}:${numberKey(left.number)}:${left.songId}`.localeCompare(`${languageRank(right.language)}:${numberKey(right.number)}:${right.songId}`));
-  return { authoritative, members: opened ? [opened, ...remainder] : remainder };
+  return {
+    authoritative,
+    members: [...source].sort((left, right) => `${languageRank(left.language)}:${numberKey(left.number)}:${left.songId}`.localeCompare(`${languageRank(right.language)}:${numberKey(right.number)}:${right.songId}`)),
+  };
 }
 
 export function replacementCandidateForMember(memberSongId: string, eligibilityCandidates: CandidateQueryResult[]): CandidateQueryResult | undefined {
@@ -54,21 +50,100 @@ export function candidateAvailabilityReason(candidate: CandidateQueryResult | un
     : undefined;
 }
 
+export function isDetailMemberActivatable(input: {
+  mode: MelodyClassDetailMode;
+  memberSongId: string;
+  currentSongId?: string;
+  languageAllowed: boolean;
+  eligibility?: CandidateQueryResult;
+  activationEnabled: boolean;
+}): boolean {
+  if (input.mode === "selected" && input.memberSongId === input.currentSongId) return true;
+  return Boolean(input.activationEnabled && input.languageAllowed && input.eligibility?.availability.kind === "available");
+}
+
+export function nextDetailMemberIndex(current: number, key: string, activatable: boolean[]): number {
+  const enabled = activatable.map((value, index) => value ? index : -1).filter((index) => index >= 0);
+  if (enabled.length === 0) return -1;
+  if (key === "Home") return enabled[0];
+  if (key === "End") return enabled[enabled.length - 1];
+  const position = enabled.indexOf(current);
+  if (key === "ArrowDown") return position < 0 ? enabled[0] : enabled[Math.min(enabled.length - 1, position + 1)];
+  if (key === "ArrowUp") return position < 0 ? enabled[enabled.length - 1] : enabled[Math.max(0, position - 1)];
+  return current;
+}
+
 export function MelodyClassDetail(props: MelodyClassDetailProps) {
   const regionRef = useRef<HTMLElement>(null);
+  const rowRefs = useRef(new Map<string, HTMLLIElement>());
   const { authoritative, members } = useMemo(() => melodyMembersForDetail(props.candidate), [props.candidate]);
+  const [openedSongId, setOpenedSongId] = useState(props.candidate.songId);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const classHasRepertoire = members.some((member) => member.repertoire);
+  const eligibilityBySongId = useMemo(() => new Map(props.eligibilityCandidates.map((candidate) => [candidate.songId, candidate])), [props.eligibilityCandidates]);
+  const activatable = members.map((member) => isDetailMemberActivatable({
+    mode: props.mode,
+    memberSongId: member.songId,
+    currentSongId: props.currentSongId,
+    languageAllowed: isMemberLanguageAllowed(member.language, props.serviceLanguage),
+    eligibility: eligibilityBySongId.get(member.songId),
+    activationEnabled: Boolean(props.onActivateMember),
+  }));
 
   useEffect(() => {
-    regionRef.current?.focus();
-  }, [props.mode, props.candidate.songId]);
+    setOpenedSongId(props.candidate.songId);
+  }, [props.candidate.songId]);
+
+  useEffect(() => {
+    const openedIndex = members.findIndex((member) => member.songId === props.candidate.songId && activatable[members.indexOf(member)]);
+    const initial = openedIndex >= 0 ? openedIndex : activatable.findIndex(Boolean);
+    setActiveIndex(initial);
+    queueMicrotask(() => regionRef.current?.focus());
+  }, [props.mode, props.candidate.songId, props.currentSongId, props.serviceLanguage, members.map((member) => member.songId).join("|"), activatable.join("|")]);
+
+  function escape() {
+    props.onEscape();
+  }
+
+  function activateMember(index: number) {
+    const member = members[index];
+    if (!member) return;
+    if (!activatable[index]) {
+      escape();
+      return;
+    }
+    props.onActivateMember?.(member.songId);
+  }
+
+  function moveActive(key: string) {
+    const next = nextDetailMemberIndex(activeIndex, key, activatable);
+    if (next < 0) return;
+    setActiveIndex(next);
+    const member = members[next];
+    if (member) queueMicrotask(() => rowRefs.current.get(member.songId)?.focus());
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      escape();
+      return;
+    }
+    if (isNestedControl(event.target)) return;
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      moveActive(event.key);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      activateMember(activeIndex);
+    }
+  }
+
+  function stopRowActivation(event: MouseEvent<HTMLElement>) {
     event.stopPropagation();
-    if (props.mode === "candidate" && props.onBack) props.onBack();
-    else props.onClose();
   }
 
   return (
@@ -80,73 +155,90 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
       aria-label={`Melody detail for ${props.candidate.number} ${props.candidate.title} in ${props.rowLabel}`}
       onKeyDown={handleKeyDown}
     >
-      <div className="melody-detail-header">
-        <div>
-          <h3>{props.candidate.number} · {props.candidate.title}</h3>
-          <p className="field-help">Complete melody-class context</p>
-        </div>
-        {props.mode === "candidate" && props.onBack
-          ? <button type="button" onClick={props.onBack}>Back to candidates</button>
-          : <button type="button" onClick={props.onClose}>Close</button>}
-      </div>
-
       {!authoritative && (
         <p className="candidate-list-state" role="status">Authoritative melody-class information is not available for this saved song.</p>
       )}
-      {props.loading && <p className="candidate-list-state" role="status">{props.mode === "selected" ? "Checking available replacements…" : "Checking candidate availability…"}</p>}
-      {props.error && (
-        <div className="candidate-list-state candidate-list-error" role="alert">
-          <p>{props.error}</p>
-          <div className="candidate-list-actions">
-            <button type="button" onClick={props.onRetry}>Retry</button>
-            <button type="button" onClick={props.onClose}>Close</button>
-          </div>
-        </div>
-      )}
+      {props.loading && <p className="candidate-list-state" role="status">Checking candidate availability…</p>}
+      {props.error && <p className="candidate-list-state candidate-list-error" role="alert">{props.error}</p>}
 
       <ul className="melody-member-list">
-        {members.map((member) => {
-          const eligibility = replacementCandidateForMember(member.songId, props.eligibilityCandidates);
+        {members.map((member, index) => {
+          const eligibility = eligibilityBySongId.get(member.songId);
           const languageAllowed = isMemberLanguageAllowed(member.language, props.serviceLanguage);
           const occupancyReason = candidateAvailabilityReason(eligibility);
-          const isOpened = member.songId === props.candidate.songId;
+          const isOpened = member.songId === openedSongId;
           const isCurrent = Boolean(props.currentSongId && member.songId === props.currentSongId);
-          const selectable = Boolean(languageAllowed && eligibility && eligibility.availability.kind === "available");
-          const canShow = props.mode === "candidate" && !isOpened && Boolean(eligibility) && Boolean(props.onShowCandidate);
-          const canReplace = props.mode === "selected" && !isCurrent && selectable && Boolean(props.onReplace);
+          const rowActivatable = activatable[index];
           const unavailableReason = !languageAllowed
             ? `Not selectable in a ${props.serviceLanguage} service.`
             : occupancyReason
               ? occupancyReason
-              : !props.loading && !props.error && !eligibility && authoritative
+              : !props.loading && !props.error && !eligibility && authoritative && !isCurrent
                 ? "Not available under the current candidate filters."
                 : undefined;
           return (
-            <li key={member.songId} className={`melody-member${isOpened ? " melody-member-opened" : ""}${isCurrent ? " melody-member-current" : ""}`}>
-              <div className="melody-member-main">
-                <strong>{member.number} · {member.title}</strong>
-                <span>{member.language}</span>
+            <li
+              key={member.songId}
+              ref={(node) => { if (node) rowRefs.current.set(member.songId, node); else rowRefs.current.delete(member.songId); }}
+              className={`melody-member${isOpened ? " melody-member-opened" : ""}${isCurrent ? " melody-member-current" : ""}${rowActivatable ? " melody-member-activatable" : " melody-member-unavailable"}${activeIndex === index && rowActivatable ? " melody-member-active" : ""}`}
+              role={rowActivatable ? "button" : undefined}
+              tabIndex={rowActivatable ? (activeIndex === index ? 0 : -1) : undefined}
+              aria-disabled={!rowActivatable || undefined}
+              aria-label={`${member.number} ${member.title}${rowActivatable ? "" : ", unavailable"}`}
+              onFocus={() => { if (rowActivatable) setActiveIndex(index); }}
+              onClick={() => activateMember(index)}
+              data-melody-member={member.songId}
+            >
+              <div className="melody-member-summary">
+                <div className={`melody-member-content${rowActivatable ? "" : " melody-member-content-muted"}`}>
+                  <span className="candidate-option-main"><strong>{member.number}</strong><span>{member.title}</span></span>
+                  {isOpened && (
+                    <div className="melody-member-meta">
+                      <span>{member.language}</span>
+                      <span>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
+                      <span>Aggregate preference {member.aggregatePreferenceScore}</span>
+                      {eligibility && <span>Signal {eligibility.signal}</span>}
+                      {isCurrent && <span className="candidate-current-marker">Currently selected</span>}
+                      {unavailableReason && <span className="candidate-unavailable-reason">{unavailableReason}</span>}
+                    </div>
+                  )}
+                </div>
+                <div className="melody-member-actions">
+                  {isOpened && member.sheetMusicUrl && (
+                    <a
+                      href={member.sheetMusicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={stopRowActivation}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      aria-label={`Open score for ${member.number} ${member.title}`}
+                    >Score</a>
+                  )}
+                  {isOpened && !member.sheetMusicUrl && <span className="field-help melody-score-missing">Score not available</span>}
+                  <button
+                    type="button"
+                    className="candidate-inline-detail melody-member-detail-button"
+                    aria-expanded={isOpened}
+                    onClick={(event) => {
+                      stopRowActivation(event);
+                      setOpenedSongId(member.songId);
+                      if (rowActivatable) setActiveIndex(index);
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    aria-label={`Show detail for ${member.number} ${member.title}`}
+                  >Detail</button>
+                </div>
               </div>
-              <div className="melody-member-meta">
-                <span>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
-                <span>Aggregate preference {member.aggregatePreferenceScore}</span>
-                {isOpened && <span className="candidate-current-marker">This song</span>}
-                {isCurrent && <span className="candidate-current-marker">Currently selected</span>}
-              </div>
-              <div className="melody-member-actions">
-                {member.sheetMusicUrl
-                  ? <a href={member.sheetMusicUrl} target="_blank" rel="noopener noreferrer" aria-label={`Open score for ${member.number} ${member.title}`}>Open score</a>
-                  : <span className="field-help">Score not available</span>}
-                {canShow && <button type="button" onClick={() => props.onShowCandidate?.(member.songId)}>Show this candidate</button>}
-                {canReplace && eligibility && <button type="button" onClick={() => props.onReplace?.(eligibility)}>Replace with this song</button>}
-              </div>
-              {unavailableReason && <p className="candidate-unavailable-reason">{unavailableReason}</p>}
             </li>
           );
         })}
       </ul>
     </section>
   );
+}
+
+function isNestedControl(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest("button, a"));
 }
 
 function languageRank(language: CandidateMelodyMember["language"]): number {
