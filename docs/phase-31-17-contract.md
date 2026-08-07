@@ -138,7 +138,7 @@ Their navigation/selection semantics belong directly to the member fields.
 - return scrolling uses the candidate's real geometry relative to the scroll container, not a nested grid-local `offsetTop`, so the target row is actually visible at its corresponding list position;
 - for outside-dismiss, the candidate-list block and candidate Detail are treated as one union region: a pointer inside either block remains in the interaction;
 - a pointer anywhere outside that union immediately hides both overlays, cancels the restored candidate-list state, and returns Song lookup/Text note to their already confirmed values without song selection;
-- the standalone selected-song `Detail` button is outside this candidate-origin union; clicking its screen area during candidate Detail therefore dismisses the candidate-origin interaction rather than switching directly into selected-song Detail.
+- the standalone selected-song `Detail` button is the one explicit exception to that generic outside-dismiss rule: clicking it while candidate Detail is open collapses the candidate-origin Detail/list state and the same click then opens Detail for the already selected Song lookup song.
 
 ### Selected-song-detail activation and collapsed return
 
@@ -163,4 +163,4 @@ Their navigation/selection semantics belong directly to the member fields.
 
 ## Latest refinement verification
 
-The previous exact-head overlay implementation passed standard CI #361 on `f8719d991ec458191922a8e88df12c5f0c8c16db`. The newly approved smaller/bolder row controls plus exposed-list/outside-union candidate Detail interaction require a fresh exact-head Phase 31.17/CI/Automatic Review Gate and one focused HUMAN browser checkpoint before Ready for review.
+The selected-song `Detail` switch exception above is the latest approved correction. It requires a fresh exact-head Phase 31.17/CI/Automatic Review Gate and one focused HUMAN browser checkpoint before Ready for review.
