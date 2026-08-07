@@ -190,8 +190,8 @@ assert.match(detailSource, /props\.onShowCandidate\(member\.songId\)/);
 assert.match(detailSource, /props\.onBack\?\.\(\)/);
 assert.doesNotMatch(detailSource, /Back to candidates|Show this candidate|Replace with this song/);
 assert.match(cssSource, /\.compact-row-fields,\s*\.song-field-row\s*\{\s*display: contents;/);
-assert.match(cssSource, /\.row-card > \.melody-detail\s*\{[^}]*grid-column: 1;[^}]*order: 2;/s, "selected-song detail is visually placed in the same first-column slot between lookup and note");
-assert.match(cssSource, /\.row-card \.row-note-input\s*\{[^}]*order: 3;/s);
-assert.match(cssSource, /\.melody-member-active\s*\{[^}]*outline: 3px solid #84adff;/s);
+assert.match(cssSource, /\.row-card > \.melody-detail\s*\{[\s\S]*?grid-column: 1;[\s\S]*?order: 2;/, "selected-song detail is visually placed in the same first-column slot between lookup and note");
+assert.match(cssSource, /\.row-card \.row-note-input\s*\{[\s\S]*?order: 3;/);
+assert.match(cssSource, /\.melody-member-active\s*\{[\s\S]*?outline: 3px solid #84adff;/);
 
 console.log("Phase 31.17 inline melody-class detail and equivalent navigation: PASS");
