@@ -42,13 +42,9 @@ jobs:
                   raise RuntimeError(f"{path_name}: expected stale or aligned text, stale count={count}")
               path.write_text(text, encoding="utf-8")
 
-          def replace_all_or_aligned(path_name: str, old: str, new: str) -> None:
+          def replace_if_present(path_name: str, old: str, new: str) -> None:
               path = Path(path_name)
-              text = path.read_text(encoding="utf-8")
-              if old in text:
-                  text = text.replace(old, new)
-              elif new not in text:
-                  raise RuntimeError(f"{path_name}: expected stale or aligned value {old!r}")
+              text = path.read_text(encoding="utf-8").replace(old, new)
               path.write_text(text, encoding="utf-8")
 
           replace_once_or_aligned(
@@ -61,11 +57,11 @@ jobs:
               "  assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length > 0, true);",
               '  assert.equal((client.match(/data-candidate-line|<CandidateLine/g) ?? []).length, 0);\n  assert.match(client, /className="row-icon-palette"/);',
           )
-          replace_all_or_aligned("scripts/phase-31-17-tests.tsx", '"29 — Czech song"', '"29 · Czech song"')
+          replace_once_or_aligned("scripts/phase-31-17-tests.tsx", '"29 — Czech song"', '"29 · Czech song"')
           for filename in ["scripts/phase-31-16-tests.tsx", "scripts/phase-30-1-candidate-flow-tests.ts"]:
-              replace_all_or_aligned(filename, "29 — Current", "29 · Current")
-              replace_all_or_aligned(filename, "421 — Equivalent", "421 · Equivalent")
-              replace_all_or_aligned(filename, "101 — Visible", "101 · Visible")
+              replace_if_present(filename, "29 — Current", "29 · Current")
+              replace_if_present(filename, "421 — Equivalent", "421 · Equivalent")
+              replace_if_present(filename, "101 — Visible", "101 · Visible")
           replace_once_or_aligned(
               "docs/phase-31-17-contract.md",
               "- after selection, the collapsed song field contains only the concrete song number and title;",
