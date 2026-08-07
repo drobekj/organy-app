@@ -238,6 +238,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
         justifySelf: "end",
         marginTop: "0.35rem",
         position: "relative",
+        transform: "translateX(calc(4.7rem + 0.45rem))",
         width: "min(82%, 46rem)",
         zIndex: 2,
       }}
