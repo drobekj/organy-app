@@ -55,6 +55,7 @@ const candidateDetail = renderToStaticMarkup(
     onReturnToCandidates={() => undefined}
   />,
 );
+assert.match(candidateDetail, /melody-detail melody-detail-candidate/);
 assert.equal((candidateDetail.match(/>Detail<\/button>/g) ?? []).length, 1, "the expanded melody member must not keep a redundant Detail button");
 assert.match(candidateDetail, />Score<\/a>/, "expanded row exposes Score when available");
 assert.match(candidateDetail, /target="_blank"/);
@@ -94,6 +95,7 @@ const selectedDetail = renderToStaticMarkup(
     onReplace={() => undefined}
   />,
 );
+assert.match(selectedDetail, /melody-detail melody-detail-selected/);
 assert.doesNotMatch(selectedDetail, /Currently selected|Replace with this song|>Close</);
 assert.equal((selectedDetail.match(/>Detail<\/button>/g) ?? []).length, 1, "selected-song Detail uses the same expanded-row button rule");
 
@@ -142,6 +144,31 @@ assert.doesNotMatch(occupiedList, /Same melody is already used in Row 2/, "candi
 assert.doesNotMatch(occupiedList, /Currently selected/);
 assert.doesNotMatch(occupiedList, />Cancel</);
 assert.doesNotMatch(occupiedList, /In repertoire|preference 3|Melody class:/);
+
+const candidateDetailOverlay = renderToStaticMarkup(
+  <CandidateCombobox
+    rowId={1}
+    rowLabel="Row 1"
+    open={false}
+    value="29 · Czech song"
+    selectedSong={{ songId: available.songId, language: available.language, number: available.number, title: available.title }}
+    candidates={[available, polishCandidate]}
+    loading={false}
+    serviceLanguage="mixed"
+    detail={{ mode: "candidate", candidate: available, eligibilityCandidates: [available, polishCandidate], loading: false }}
+    onOpen={() => undefined}
+    onQueryChange={() => undefined}
+    onSelect={() => undefined}
+    onCancel={() => undefined}
+    onRetry={() => undefined}
+    onOpenDetail={() => undefined}
+    onBackFromDetail={() => undefined}
+    onRetryDetail={() => undefined}
+  />,
+);
+assert.match(candidateDetailOverlay, /aria-expanded="true"/, "candidate-origin Detail keeps its underlying candidate list visually present");
+assert.match(candidateDetailOverlay, /melody-detail melody-detail-candidate/);
+assert.match(candidateDetailOverlay, /candidate-popup candidate-listbox/, "candidate-origin Detail overlays rather than replacing the candidate list");
 
 const songs = [
   { songId: "demo-cz", language: "czech" as const, number: "101", title: "Demo Czech", active: true, sheetMusicUrl: "https://example.test/demo-cz.pdf" },
@@ -212,7 +239,10 @@ assert.match(candidateListSource, /detailReturnSongId/, "candidate-detail return
 assert.match(candidateListSource, /detailReturnCandidates/, "candidate-detail return keeps the fresh eligibility snapshot so an equivalent target cannot disappear from the reopened list");
 assert.match(candidateListSource, /const effectiveFocusSongId = detailReturnSongId \?\? props\.focusSongId/, "the clicked equivalent target has priority over any selected-song focus");
 assert.match(candidateListSource, /function captureDetailReturn\(songId: string\)[\s\S]*?setDetailReturnSongId\(songId\)[\s\S]*?setDetailReturnCandidates\(snapshot\)[\s\S]*?props\.onOpen\(\)/, "candidate-detail return reopens without mutating Song lookup and retains the target snapshot");
-assert.match(candidateListSource, /\.row-icon-palette \{ top: 0 !important; transform: translateY\(-50%\); \}/, "row control squares are vertically centered on the fieldset top border like the Row legend");
+assert.match(candidateListSource, /\.row-icon-palette \{ top: 0 !important; transform: translateY\(-100%\); \}/, "row control squares are lifted by their full palette height to center on the fieldset legend axis");
+assert.match(candidateListSource, /const candidateListVisible = props\.open \|\| Boolean\(props\.detail && detailMode === "candidate"\)/, "candidate-origin Detail keeps the candidate list visible beneath its overlay");
+assert.match(candidateListSource, /\{candidateListVisible && \(/);
+assert.match(candidateListSource, /gridRow: 2,[\s\S]*?justifySelf: "start"[\s\S]*?zIndex: 1/, "the retained candidate list sits below the Detail overlay");
 assert.match(candidateListSource, /getBoundingClientRect\(\)/, "candidate return scrolling must measure the real option position relative to its scroll container");
 assert.match(candidateListSource, /optionRect\.bottom > containerRect\.bottom/);
 assert.doesNotMatch(candidateListSource, /const top = option\.offsetTop/, "nested grid offsetTop must not drive candidate return positioning");
@@ -222,6 +252,11 @@ assert.doesNotMatch(candidateListSource, /Currently selected/);
 assert.match(detailSource, /openedMelodyMemberFirst\(classMembers, props\.candidate\.songId\)/, "Detail ordering is anchored to the song used to enter this Detail session");
 assert.doesNotMatch(detailSource, /openedMelodyMemberFirst\(classMembers, openedSongId\)/, "switching the expanded member must not reorder the Detail session");
 assert.match(detailSource, /setOpenedSongId\(member\.songId\)/, "Detail still expands another member in place");
+assert.match(detailSource, /className={`melody-detail melody-detail-\$\{props\.mode\}`}\}/, "both Detail origins use the same panel with an origin class only for context");
+assert.match(detailSource, /justifySelf: "end"/);
+assert.match(detailSource, /width: "min\(82%, 46rem\)"/);
+assert.match(detailSource, /background: "#f5f5f4"/);
+assert.match(detailSource, /boxShadow: "0 0\.8rem 2rem rgb\(31 41 51 \/ 14%\)"/);
 assert.match(detailSource, /onReturnToCandidates/);
 assert.match(detailSource, /dismissSelectedDetailOnOutsidePointer/);
 assert.match(detailSource, /document\.addEventListener\("pointerdown", dismissSelectedDetailOnOutsidePointer, true\)/, "selected-song Detail closes on any outside pointer interaction");
