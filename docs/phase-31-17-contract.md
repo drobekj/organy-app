@@ -5,9 +5,11 @@ Approved by the user on 2026-08-06. Baseline: `fb23295fba224d0ccbc645b77358d5e51
 ## Contract
 
 - one local Planning expansion: candidate list, candidate detail, selected-song detail, or none;
-- complete authoritative melody-class members are shown, with the currently expanded song always first and the remaining equivalent members below it in deterministic natural order;
+- complete authoritative melody-class members are shown;
+- Detail ordering is fixed for one open Detail session: the song through which Detail was entered is first, with the remaining equivalent members below it in deterministic natural order;
+- changing which member is expanded does not reorder that already open Detail session;
 - safe score links remain available for informational members;
-- candidate detail returns to the clicked available member in the candidate list without selecting it;
+- candidate detail returns to the clicked available member in the candidate list without selecting it and without changing the confirmed Song lookup field;
 - selected-song detail selects/replaces only through a fresh hard-filtered eligibility snapshot;
 - replacement preserves note and updates local occupancy;
 - language-disabled, occupied and hard-filtered members remain explanatory and unselectable;
@@ -66,7 +68,7 @@ The user browser-accepted the editable Song lookup behavior:
 
 ## HUMAN unified melody Detail refinement — 2026-08-07
 
-Approved for implementation by the user's `dál`, then refined from browser feedback on the same day.
+Approved for implementation by the user's `dál`, then refined through focused browser feedback on the same day.
 
 ### One presentation for both entry paths
 
@@ -74,19 +76,20 @@ Approved for implementation by the user's `dál`, then refined from browser feed
 - both render in the same Planning-row position between `Song lookup` and `Text note`;
 - the visual difference between the two entry paths is eliminated; only the consequence of activating a member differs.
 
-### Expanded member first
+### Frozen order for one Detail session
 
-- the song whose detail is currently expanded is always the first item at the top of the Detail;
-- all other members of the same melody/equivalence class follow below it in deterministic natural order;
-- this is intentionally different from the candidate list, whose own ordering remains unchanged;
+- when Detail opens, the song through which Detail was entered is placed first at the top;
+- the other members of the same melody/equivalence class follow below it in deterministic natural order;
+- that complete vertical order is then frozen for the entire open Detail session;
+- pressing another compressed member's `Detail` expands it at its existing position and compresses the previously expanded member without moving either row;
+- this is intentionally different from candidate-list ordering, which remains unchanged;
 - a compressed equivalent member contains only number, title and the right-side `Detail` control;
 - exactly one member is expanded at a time;
-- pressing another member's `Detail` moves that newly expanded member to the top and leaves all other members compressed below it;
 - the expanded member does not show a redundant `Detail` control;
-- the expanded member contains all available detail information and its `Score`/source URL on the right when available;
-- `Score not available` is grouped with the other expanded metadata rather than occupying a separate action position;
 - visible `Currently selected` text is absent even when the expanded member is the selected song;
-- `Detail` and `Score` are independent controls and must not propagate into whole-member activation.
+- the expanded member contains all available detail information;
+- available `Score` and `Score not available` occupy the same metadata location among the expanded information rather than different action positions;
+- `Detail` and an available `Score` remain independent controls and must not propagate into whole-member activation.
 
 ### No companion navigation buttons
 
@@ -99,25 +102,31 @@ The expanded Detail contains no separate:
 
 Their navigation/selection semantics belong directly to the member fields.
 
-### Candidate-detail activation and return positioning
+### Candidate-detail activation and lossless return
 
-- clicking an available member field closes Detail and returns to the candidate list focused/scrolled to that concrete member;
+- clicking an available member field closes Detail and returns to the normal candidate list focused/scrolled to that concrete member;
 - this action does not select the member into Song lookup;
 - clicking the originally opened available member has the same return-to-list meaning;
-- return scrolling must use the candidate's real geometry relative to the scroll container, not a nested grid-local `offsetTop`, so the target row is actually visible at its corresponding list position.
+- returning from candidate Detail must never clear, replace or rewrite the confirmed Song lookup field;
+- the candidate list is reopened through its normal unfiltered/open behavior, while the clicked member id is carried only as a local focus/scroll target;
+- therefore the confirmed `number · title` display is not reused as a candidate query and cannot produce a false empty-list message;
+- return scrolling uses the candidate's real geometry relative to the scroll container, not a nested grid-local `offsetTop`, so the target row is actually visible at its corresponding list position.
 
 ### Selected-song-detail activation and collapsed return
 
 - clicking an available eligible member field closes Detail and selects that member into Song lookup;
 - clicking the currently selected member closes Detail and preserves the same Song lookup selection;
 - opening the right-side Detail beside a selected Song lookup deactivates/collapses any open candidate list;
-- every return from selected-song Detail leaves the candidate list collapsed, including when the candidate list had been open before that Detail was opened;
+- every way of leaving selected-song Detail leaves the candidate list collapsed, whether the candidate list had previously been open or not;
+- this includes member activation, clicking `Song lookup`, clicking `Text note`, and clicking anywhere else outside the expanded Detail;
+- clicking `Song lookup` while selected-song Detail is open dismisses Detail but suppresses the same pointer action from immediately reopening the candidate list;
+- clicking an input outside Detail leaves that clicked input focused after dismissal;
 - hard candidate eligibility, service-language and current-service occupancy rules remain authoritative for replacement.
 
 ### Unavailable member
 
 - its informational content is visibly lighter/muted;
-- its `Detail` control and any `Score` link remain active;
+- its `Detail` control and any `Score` link remain active and are not visually muted with the informational text;
 - its member field is not selectable/activatable;
 - keyboard vertical navigation skips the member, so it never receives the active cursor contour;
 - clicking the unavailable member field has Escape semantics: close/return from Detail without selection or replacement and preserve the previously confirmed Song lookup state;
