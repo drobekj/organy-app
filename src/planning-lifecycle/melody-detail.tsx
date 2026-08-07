@@ -45,6 +45,12 @@ export function melodyMembersForDetail(candidate: CandidateQueryResult): { autho
   };
 }
 
+export function openedMelodyMemberFirst(members: CandidateMelodyMember[], openedSongId: string): CandidateMelodyMember[] {
+  const opened = members.find((member) => member.songId === openedSongId);
+  if (!opened) return members;
+  return [opened, ...members.filter((member) => member.songId !== openedSongId)];
+}
+
 export function replacementCandidateForMember(memberSongId: string, eligibilityCandidates: CandidateQueryResult[]): CandidateQueryResult | undefined {
   return eligibilityCandidates.find((candidate) => candidate.songId === memberSongId);
 }
@@ -81,8 +87,9 @@ export function nextDetailMemberIndex(current: number, key: string, activatable:
 export function MelodyClassDetail(props: MelodyClassDetailProps) {
   const regionRef = useRef<HTMLElement>(null);
   const rowRefs = useRef(new Map<string, HTMLLIElement>());
-  const { authoritative, members } = useMemo(() => melodyMembersForDetail(props.candidate), [props.candidate]);
+  const { authoritative, members: classMembers } = useMemo(() => melodyMembersForDetail(props.candidate), [props.candidate]);
   const [openedSongId, setOpenedSongId] = useState(props.candidate.songId);
+  const members = useMemo(() => openedMelodyMemberFirst(classMembers, openedSongId), [classMembers, openedSongId]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [pendingCandidateReturn, setPendingCandidateReturn] = useState<string | undefined>();
   const classHasRepertoire = members.some((member) => member.repertoire);
@@ -110,11 +117,11 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   }, [props.mode, props.candidate.songId, pendingCandidateReturn, props.onBack]);
 
   useEffect(() => {
-    const openedIndex = members.findIndex((member, index) => member.songId === props.candidate.songId && activatable[index]);
+    const openedIndex = members.findIndex((member, index) => member.songId === openedSongId && activatable[index]);
     const initial = openedIndex >= 0 ? openedIndex : activatable.findIndex(Boolean);
     setActiveIndex(initial);
     queueMicrotask(() => regionRef.current?.focus());
-  }, [props.mode, props.candidate.songId, props.currentSongId, props.serviceLanguage, members.map((member) => member.songId).join("|"), activatable.join("|")]);
+  }, [props.mode, openedSongId, props.currentSongId, props.serviceLanguage, members.map((member) => member.songId).join("|"), activatable.join("|")]);
 
   function escape() {
     if (props.onEscape) props.onEscape();
@@ -243,8 +250,8 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                       <span>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
                       <span>Aggregate preference {member.aggregatePreferenceScore}</span>
                       {eligibility && <span>Signal {eligibility.signal}</span>}
-                      {isCurrent && <span className="candidate-current-marker">Currently selected</span>}
                       {unavailableReason && <span className="candidate-unavailable-reason">{unavailableReason}</span>}
+                      {!member.sheetMusicUrl && <span className="field-help melody-score-missing">Score not available</span>}
                     </div>
                   )}
                 </div>
@@ -259,20 +266,21 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                       aria-label={`Open score for ${member.number} ${member.title}`}
                     >Score</a>
                   )}
-                  {isOpened && !member.sheetMusicUrl && <span className="field-help melody-score-missing">Score not available</span>}
-                  <button
-                    type="button"
-                    className="candidate-inline-detail melody-member-detail-button"
-                    style={{ alignItems: "center", borderRadius: "0.65rem", display: "inline-flex", height: "2rem", justifyContent: "center", lineHeight: 1, minWidth: "4.7rem", padding: "0 0.65rem" }}
-                    aria-expanded={isOpened}
-                    onClick={(event) => {
-                      stopRowActivation(event);
-                      setOpenedSongId(member.songId);
-                      if (rowActivatable) setActiveIndex(index);
-                    }}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    aria-label={`Show detail for ${member.number} ${member.title}`}
-                  >Detail</button>
+                  {!isOpened && (
+                    <button
+                      type="button"
+                      className="candidate-inline-detail melody-member-detail-button"
+                      style={{ alignItems: "center", borderRadius: "0.65rem", display: "inline-flex", height: "2rem", justifyContent: "center", lineHeight: 1, minWidth: "4.7rem", padding: "0 0.65rem" }}
+                      aria-expanded={false}
+                      onClick={(event) => {
+                        stopRowActivation(event);
+                        setOpenedSongId(member.songId);
+                        if (rowActivatable) setActiveIndex(index);
+                      }}
+                      onKeyDown={(event) => event.stopPropagation()}
+                      aria-label={`Show detail for ${member.number} ${member.title}`}
+                    >Detail</button>
+                  )}
                 </div>
               </div>
             </li>
