@@ -11,7 +11,7 @@ export type CandidateListSelectedSong = {
 };
 
 export type CandidateDetailState = {
-  mode: MelodyClassDetailMode;
+  mode?: MelodyClassDetailMode;
   candidate: CandidateQueryResult;
   eligibilityCandidates: CandidateQueryResult[];
   loading: boolean;
@@ -38,6 +38,9 @@ type CandidateComboboxProps = {
   onCancel: () => void;
   onRetry: () => void;
   onOpenDetail?: (candidate: CandidateQueryResult) => void;
+  onBackFromDetail?: () => void;
+  onRetryDetail?: () => void;
+  onShowDetailCandidate?: (songId: string) => void;
   onEscapeDetail?: () => void;
   onActivateDetailMember?: (songId: string) => void;
 };
@@ -192,7 +195,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       />
       {props.detail && (
         <MelodyClassDetail
-          mode={props.detail.mode}
+          mode={props.detail.mode ?? "candidate"}
           rowLabel={props.rowLabel}
           candidate={props.detail.candidate}
           serviceLanguage={props.serviceLanguage}
@@ -200,7 +203,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           eligibilityCandidates={props.detail.eligibilityCandidates}
           loading={props.detail.loading}
           error={props.detail.error}
-          onEscape={() => props.onEscapeDetail?.()}
+          onBack={props.onBackFromDetail}
+          onClose={props.onEscapeDetail ?? props.onBackFromDetail ?? (() => undefined)}
+          onRetry={props.onRetryDetail ?? (() => undefined)}
+          onShowCandidate={props.onShowDetailCandidate}
+          onEscape={props.onEscapeDetail}
           onActivateMember={props.onActivateDetailMember}
         />
       )}
