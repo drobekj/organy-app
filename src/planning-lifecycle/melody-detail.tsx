@@ -13,7 +13,12 @@ export type MelodyClassDetailProps = {
   eligibilityCandidates: CandidateQueryResult[];
   loading: boolean;
   error?: string;
-  onEscape: () => void;
+  onBack?: () => void;
+  onClose: () => void;
+  onRetry: () => void;
+  onShowCandidate?: (songId: string) => void;
+  onReplace?: (candidate: CandidateQueryResult) => void;
+  onEscape?: () => void;
   onActivateMember?: (songId: string) => void;
 };
 
@@ -79,15 +84,19 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   const { authoritative, members } = useMemo(() => melodyMembersForDetail(props.candidate), [props.candidate]);
   const [openedSongId, setOpenedSongId] = useState(props.candidate.songId);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [pendingCandidateReturn, setPendingCandidateReturn] = useState<string | undefined>();
   const classHasRepertoire = members.some((member) => member.repertoire);
   const eligibilityBySongId = useMemo(() => new Map(props.eligibilityCandidates.map((candidate) => [candidate.songId, candidate])), [props.eligibilityCandidates]);
+  const activationEnabled = props.mode === "candidate"
+    ? Boolean(props.onActivateMember || props.onBack || props.onShowCandidate)
+    : Boolean(props.onActivateMember || props.onReplace);
   const activatable = members.map((member) => isDetailMemberActivatable({
     mode: props.mode,
     memberSongId: member.songId,
     currentSongId: props.currentSongId,
     languageAllowed: isMemberLanguageAllowed(member.language, props.serviceLanguage),
     eligibility: eligibilityBySongId.get(member.songId),
-    activationEnabled: Boolean(props.onActivateMember),
+    activationEnabled,
   }));
 
   useEffect(() => {
@@ -95,14 +104,22 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   }, [props.candidate.songId]);
 
   useEffect(() => {
-    const openedIndex = members.findIndex((member) => member.songId === props.candidate.songId && activatable[members.indexOf(member)]);
+    if (props.mode !== "candidate" || !pendingCandidateReturn || props.candidate.songId !== pendingCandidateReturn) return;
+    setPendingCandidateReturn(undefined);
+    props.onBack?.();
+  }, [props.mode, props.candidate.songId, pendingCandidateReturn, props.onBack]);
+
+  useEffect(() => {
+    const openedIndex = members.findIndex((member, index) => member.songId === props.candidate.songId && activatable[index]);
     const initial = openedIndex >= 0 ? openedIndex : activatable.findIndex(Boolean);
     setActiveIndex(initial);
     queueMicrotask(() => regionRef.current?.focus());
   }, [props.mode, props.candidate.songId, props.currentSongId, props.serviceLanguage, members.map((member) => member.songId).join("|"), activatable.join("|")]);
 
   function escape() {
-    props.onEscape();
+    if (props.onEscape) props.onEscape();
+    else if (props.mode === "candidate" && props.onBack) props.onBack();
+    else props.onClose();
   }
 
   function activateMember(index: number) {
@@ -112,7 +129,29 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
       escape();
       return;
     }
-    props.onActivateMember?.(member.songId);
+    if (props.onActivateMember) {
+      props.onActivateMember(member.songId);
+      return;
+    }
+    if (props.mode === "selected") {
+      if (member.songId === props.currentSongId) {
+        props.onClose();
+        return;
+      }
+      const eligibility = eligibilityBySongId.get(member.songId);
+      if (eligibility?.availability.kind === "available") props.onReplace?.(eligibility);
+      return;
+    }
+    if (member.songId === props.candidate.songId) {
+      props.onBack?.();
+      return;
+    }
+    if (props.onShowCandidate && props.onBack) {
+      setPendingCandidateReturn(member.songId);
+      props.onShowCandidate(member.songId);
+      return;
+    }
+    props.onBack?.();
   }
 
   function moveActive(key: string) {
@@ -189,9 +228,15 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
               onClick={() => activateMember(index)}
               data-melody-member={member.songId}
             >
-              <div className="melody-member-summary">
-                <div className={`melody-member-content${rowActivatable ? "" : " melody-member-content-muted"}`}>
-                  <span className="candidate-option-main"><strong>{member.number}</strong><span>{member.title}</span></span>
+              <div
+                className="melody-member-summary"
+                style={{ alignItems: "center", display: "grid", gap: "0.4rem", gridTemplateColumns: "minmax(0, 1fr) auto" }}
+              >
+                <div
+                  className={`melody-member-content${rowActivatable ? "" : " melody-member-content-muted"}`}
+                  style={{ display: "grid", gap: "0.35rem", opacity: rowActivatable ? 1 : 0.58 }}
+                >
+                  <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem" }}><strong>{member.number}</strong><span>{member.title}</span></span>
                   {isOpened && (
                     <div className="melody-member-meta">
                       <span>{member.language}</span>
@@ -203,7 +248,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                     </div>
                   )}
                 </div>
-                <div className="melody-member-actions">
+                <div className="melody-member-actions" onClick={stopRowActivation}>
                   {isOpened && member.sheetMusicUrl && (
                     <a
                       href={member.sheetMusicUrl}
@@ -218,6 +263,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                   <button
                     type="button"
                     className="candidate-inline-detail melody-member-detail-button"
+                    style={{ alignItems: "center", borderRadius: "0.65rem", display: "inline-flex", height: "2rem", justifyContent: "center", lineHeight: 1, minWidth: "4.7rem", padding: "0 0.65rem" }}
                     aria-expanded={isOpened}
                     onClick={(event) => {
                       stopRowActivation(event);
