@@ -307,8 +307,8 @@ function scrollOptionInsideList(container: HTMLDivElement | null, index: number)
   if (!container || index < 0) return;
   const option = container.querySelectorAll<HTMLElement>("[data-candidate-option]")[index];
   if (!option) return;
-  const top = option.offsetTop;
-  const bottom = top + option.offsetHeight;
-  if (top < container.scrollTop) container.scrollTop = top;
-  else if (bottom > container.scrollTop + container.clientHeight) container.scrollTop = bottom - container.clientHeight;
+  const containerRect = container.getBoundingClientRect();
+  const optionRect = option.getBoundingClientRect();
+  if (optionRect.top < containerRect.top) container.scrollTop -= containerRect.top - optionRect.top;
+  else if (optionRect.bottom > containerRect.bottom) container.scrollTop += optionRect.bottom - containerRect.bottom;
 }
