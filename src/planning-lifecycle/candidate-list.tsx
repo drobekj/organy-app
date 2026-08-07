@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { CandidateQueryResult } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
-import { MelodyClassDetail } from "./melody-detail";
+import { MelodyClassDetail, type MelodyClassDetailMode } from "./melody-detail";
 
 export type CandidateListSelectedSong = {
   songId?: string;
@@ -11,6 +11,7 @@ export type CandidateListSelectedSong = {
 };
 
 export type CandidateDetailState = {
+  mode: MelodyClassDetailMode;
   candidate: CandidateQueryResult;
   eligibilityCandidates: CandidateQueryResult[];
   loading: boolean;
@@ -37,9 +38,8 @@ type CandidateComboboxProps = {
   onCancel: () => void;
   onRetry: () => void;
   onOpenDetail?: (candidate: CandidateQueryResult) => void;
-  onBackFromDetail?: () => void;
-  onRetryDetail?: () => void;
-  onShowDetailCandidate?: (songId: string) => void;
+  onEscapeDetail?: () => void;
+  onActivateDetailMember?: (songId: string) => void;
 };
 
 export function candidateIndexForKey(current: number, key: string, length: number): number {
@@ -192,7 +192,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       />
       {props.detail && (
         <MelodyClassDetail
-          mode="candidate"
+          mode={props.detail.mode}
           rowLabel={props.rowLabel}
           candidate={props.detail.candidate}
           serviceLanguage={props.serviceLanguage}
@@ -200,10 +200,8 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           eligibilityCandidates={props.detail.eligibilityCandidates}
           loading={props.detail.loading}
           error={props.detail.error}
-          onBack={() => props.onBackFromDetail?.()}
-          onClose={() => props.onBackFromDetail?.()}
-          onRetry={() => props.onRetryDetail?.()}
-          onShowCandidate={(songId) => props.onShowDetailCandidate?.(songId)}
+          onEscape={() => props.onEscapeDetail?.()}
+          onActivateMember={props.onActivateDetailMember}
         />
       )}
       {props.open && (
