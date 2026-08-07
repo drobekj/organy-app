@@ -142,6 +142,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const suppressOpenOnPointerDown = useRef(false);
   const autoScrolled = useRef(false);
   const pendingFullCandidateDismiss = useRef(false);
+  const suppressOutsideDetailClick = useRef<HTMLElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [detailReturnSongId, setDetailReturnSongId] = useState<string | undefined>();
   const [detailReturnCandidates, setDetailReturnCandidates] = useState<CandidateQueryResult[] | undefined>();
@@ -164,6 +165,21 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const effectiveFocusSongId = detailReturnSongId ?? props.focusSongId;
 
   useEffect(() => {
+    function suppressCandidateDismissClick(event: MouseEvent) {
+      const button = suppressOutsideDetailClick.current;
+      const target = event.target;
+      if (!button) return;
+      suppressOutsideDetailClick.current = null;
+      if (target instanceof Node && button.contains(target)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+    document.addEventListener("click", suppressCandidateDismissClick, true);
+    return () => document.removeEventListener("click", suppressCandidateDismissClick, true);
+  }, []);
+
+  useEffect(() => {
     if (!props.open && !candidateDetailOpen) return;
     function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target;
@@ -173,9 +189,13 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         if (listRef.current?.contains(target) || detailRegion?.contains(target)) return;
         pendingFullCandidateDismiss.current = true;
         setSuppressCandidateOverlay(true);
-        if (target instanceof Element && target.closest('[id^="selected-song-detail-button-"]')) {
-          event.preventDefault();
-          event.stopPropagation();
+        if (target instanceof Element) {
+          const rightDetailButton = target.closest<HTMLElement>('[id^="selected-song-detail-button-"]');
+          if (rightDetailButton) {
+            suppressOutsideDetailClick.current = rightDetailButton;
+            event.preventDefault();
+            event.stopPropagation();
+          }
         }
         if (props.onBackFromDetail) props.onBackFromDetail();
         else {
