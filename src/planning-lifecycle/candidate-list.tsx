@@ -94,6 +94,8 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const visibleLoading = detailReturnCandidates ? false : props.loading;
   const visibleError = detailReturnCandidates ? undefined : props.error;
   const allOccupied = visibleCandidates.length > 0 && visibleCandidates.every((candidate) => !isCandidateSelectable(candidate));
+  const detailMode = props.detail?.mode ?? "candidate";
+  const candidateListVisible = props.open || Boolean(props.detail && detailMode === "candidate");
   const activeDescendant = props.open && !blockedByPrerequisite && activeIndex >= 0 ? optionId(listboxId, visibleCandidates[activeIndex]?.songId) : undefined;
   const candidateIds = useMemo(() => visibleCandidates.map((candidate) => candidate.songId).join("|"), [visibleCandidates]);
   const effectiveFocusSongId = detailReturnSongId ?? props.focusSongId;
@@ -182,15 +184,15 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         if (props.open && next instanceof Node && !event.currentTarget.contains(next)) props.onCancel();
       }}
     >
-      <style>{`.row-icon-palette { top: 0 !important; transform: translateY(-50%); }`}</style>
+      <style>{`.row-icon-palette { top: 0 !important; transform: translateY(-100%); }`}</style>
       <input
         ref={inputRef}
         type="text"
         role="combobox"
         aria-label="Song lookup"
         aria-autocomplete="list"
-        aria-expanded={props.open}
-        aria-controls={props.open ? listboxId : undefined}
+        aria-expanded={candidateListVisible}
+        aria-controls={candidateListVisible ? listboxId : undefined}
         aria-activedescendant={activeDescendant}
         value={props.value}
         onPointerDown={(event) => {
@@ -228,7 +230,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       />
       {props.detail && (
         <MelodyClassDetail
-          mode={props.detail.mode ?? "candidate"}
+          mode={detailMode}
           rowLabel={props.rowLabel}
           candidate={props.detail.candidate}
           serviceLanguage={props.serviceLanguage}
@@ -245,7 +247,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           onReturnToCandidates={captureDetailReturn}
         />
       )}
-      {props.open && (
+      {candidateListVisible && (
         <div
           id={listboxId}
           ref={listRef}
@@ -253,6 +255,14 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           role="listbox"
           aria-label={`Song candidates for ${props.rowLabel}`}
           aria-busy={!blockedByPrerequisite && visibleLoading}
+          style={props.detail && detailMode === "candidate" ? {
+            gridColumn: 1,
+            gridRow: 2,
+            justifySelf: "start",
+            marginTop: "0.35rem",
+            position: "relative",
+            zIndex: 1,
+          } : undefined}
         >
           {blockedByPrerequisite && (
             <div className="candidate-list-state candidate-list-prerequisite" role="status">
