@@ -232,7 +232,12 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
               <div
                 key={candidate.songId}
                 className={`candidate-option-row${current ? " candidate-option-current" : ""}`}
-                style={current ? { border: "1px solid #84adff", borderRadius: "0.65rem" } : undefined}
+                style={{
+                  alignItems: "center",
+                  minHeight: "2.2rem",
+                  padding: "0.1rem 0.15rem",
+                  ...(current ? { background: "#eff6ff", border: "1px solid #84adff", borderRadius: "0.65rem" } : {}),
+                }}
               >
                 <div
                   id={optionId(listboxId, candidate.songId)}
@@ -244,11 +249,32 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
                   data-candidate-option
                   onClick={() => { if (selectable) props.onSelect(candidate); }}
                 >
-                  <div className="candidate-option-content" style={current ? { background: "transparent" } : undefined}>
-                    <span className="candidate-option-main"><strong>{candidate.number}</strong><span>{candidate.title}</span></span>
+                  <div
+                    className="candidate-option-content"
+                    style={{ alignItems: "center", minHeight: "2rem", padding: "0 0.35rem", ...(current ? { background: "transparent" } : {}) }}
+                  >
+                    <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem" }}>
+                      <strong>{candidate.number}</strong><span>{candidate.title}</span>
+                    </span>
                   </div>
                 </div>
-                <button type="button" className="candidate-inline-detail" onClick={() => props.onOpenDetail?.(candidate)} aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}>Detail</button>
+                <button
+                  type="button"
+                  className="candidate-inline-detail"
+                  style={{
+                    alignItems: "center",
+                    alignSelf: "center",
+                    borderRadius: "0.65rem",
+                    display: "inline-flex",
+                    height: "2rem",
+                    justifyContent: "center",
+                    lineHeight: 1,
+                    minWidth: "4.7rem",
+                    padding: "0 0.65rem",
+                  }}
+                  onClick={() => props.onOpenDetail?.(candidate)}
+                  aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}
+                >Detail</button>
               </div>
             );
           })}
