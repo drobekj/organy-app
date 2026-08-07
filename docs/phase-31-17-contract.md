@@ -19,9 +19,9 @@ Approved by the user on 2026-08-06. Baseline: `fb23295fba224d0ccbc645b77358d5e51
 
 Focused Phase 31.17 tests, all prior phase gates, typecheck, complete tests and production build must pass. One real browser HUMAN checkpoint is required before Ready for review.
 
-## HUMAN checkpoint status — candidate-list refinement pending
+## HUMAN checkpoint status — editable lookup refinement pending
 
-The 2026-08-07 replacement browser checkpoint confirmed the compact invariant Planning-row protocol. The user then requested one further candidate-list refinement before approval. The inline/selected-song Detail presentation is intentionally left unchanged until the candidate-list refinement passes its own browser HUMAN check.
+The compact Planning-row protocol and the reduced candidate-list presentation, including the final compact candidate geometry, have passed browser HUMAN review. The user then requested one further Song lookup interaction refinement before Detail itself is changed. The inline/selected-song Detail presentation remains intentionally unchanged until this lookup refinement passes its focused browser check.
 
 ## HUMAN row-UX refinement — 2026-08-06
 
@@ -54,6 +54,26 @@ The candidate-list presentation is further reduced while preserving Phase 31.17 
 - clicking the already-open `Song lookup` field closes the candidate list without changing the confirmed selection;
 - outside click, focus departure and Escape continue to close the list without changing the confirmed selection;
 - candidate selection, disabled-state semantics, keyboard navigation and Detail opening remain otherwise unchanged;
+- the selected candidate is shown with one blue outer contour plus light-blue fill around number/title and Detail;
+- number/title and Detail are vertically centered and the row is compact;
+- candidate Detail is a compact rounded rectangle matching the visual language of the Detail control beside Song lookup;
 - the contents and behavior of candidate Detail and selected-song Detail are deliberately not changed in this refinement.
 
-A fresh exact-head automated gate and focused browser HUMAN checkpoint are required after this candidate-list refinement.
+The user confirmed this candidate-list presentation and final geometry in the browser on 2026-08-07.
+
+## HUMAN editable Song lookup refinement — 2026-08-07
+
+The Song lookup interaction is refined without changing the existing row validation rules:
+
+- activating a non-empty Song lookup selects its whole visible value so the next typed character replaces it;
+- non-empty manually typed text is only a live query, never an accepted song by itself;
+- every manual text change refreshes the open candidate list;
+- candidate matching remains case-insensitive against either song number or song title;
+- the active candidate can be accepted directly with Enter in the Song lookup field, while clicking a candidate continues to accept it;
+- leaving the lookup with non-empty unconfirmed text restores the last confirmed song;
+- explicitly clearing the lookup to empty removes the confirmed song/candidate immediately while preserving the row note and keeping the candidate list open;
+- after an explicit clear, closing the lookup preserves the valid empty/no-song state instead of restoring the former song;
+- the empty/no-song row continues to be evaluated only by the already established Planning-row validation and persistence rules;
+- Detail contents and behavior remain unchanged pending the next user step.
+
+A fresh exact-head automated gate and focused browser HUMAN checkpoint are required after this editable lookup refinement.
