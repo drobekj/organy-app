@@ -802,3 +802,86 @@ textarea {
     right: 0.45rem;
   }
 }
+
+/* Unified in-row melody detail: same slot and compact geometry for both entry paths. */
+.row-card {
+  display: grid;
+  column-gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 0.55rem;
+}
+
+.compact-row-fields,
+.song-field-row {
+  display: contents;
+}
+
+.row-card .candidate-combobox {
+  grid-column: 1;
+  min-width: 0;
+  order: 1;
+}
+
+.row-card .song-field-detail {
+  grid-column: 2;
+  order: 1;
+}
+
+.row-card > .melody-detail {
+  grid-column: 1;
+  order: 2;
+}
+
+.row-card .row-note-input {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+.row-card > .validation-list {
+  grid-column: 1 / -1;
+  order: 4;
+}
+
+.melody-detail {
+  margin-top: 0.35rem;
+}
+
+.melody-detail:focus {
+  outline: none;
+}
+
+.melody-member {
+  min-height: 2.2rem;
+  padding: 0.1rem 0.15rem;
+}
+
+.melody-member-opened {
+  border-color: #84adff;
+  padding: 0.55rem;
+}
+
+.melody-member-activatable {
+  cursor: pointer;
+}
+
+.melody-member-unavailable {
+  cursor: default;
+}
+
+.melody-member-active {
+  outline: 3px solid #84adff;
+  outline-offset: -3px;
+}
+
+.melody-member-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.melody-member-detail-button {
+  flex: 0 0 auto;
+}
+
+.melody-score-missing {
+  white-space: nowrap;
+}
