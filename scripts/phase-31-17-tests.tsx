@@ -252,7 +252,7 @@ assert.doesNotMatch(candidateListSource, /Currently selected/);
 assert.match(detailSource, /openedMelodyMemberFirst\(classMembers, props\.candidate\.songId\)/, "Detail ordering is anchored to the song used to enter this Detail session");
 assert.doesNotMatch(detailSource, /openedMelodyMemberFirst\(classMembers, openedSongId\)/, "switching the expanded member must not reorder the Detail session");
 assert.match(detailSource, /setOpenedSongId\(member\.songId\)/, "Detail still expands another member in place");
-assert.match(detailSource, /className={`melody-detail melody-detail-\$\{props\.mode\}`}\}/, "both Detail origins use the same panel with an origin class only for context");
+assert.equal(detailSource.includes('className={`melody-detail melody-detail-${props.mode}`}'), true, "both Detail origins use the same panel with an origin class only for context");
 assert.match(detailSource, /justifySelf: "end"/);
 assert.match(detailSource, /width: "min\(82%, 46rem\)"/);
 assert.match(detailSource, /background: "#f5f5f4"/);
