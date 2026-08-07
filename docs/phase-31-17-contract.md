@@ -29,6 +29,7 @@ The browser checkpoint confirmed the compact invariant Planning-row protocol:
 - every row keeps one outer `Row N` fieldset in all empty, partial and selected states;
 - the upper border carries `Row N` on the left and the compact control palette on the right;
 - palette order and meaning are `↑` move up, `↓` move down, `↶` clear row contents, `×` remove row;
+- the rounded control squares are vertically centered on the same upper-border axis as the `Row N` legend;
 - the interior has exactly two permanent base fields: song lookup and text note, with no visible labels above them;
 - empty-field guidance is provided by the placeholders `Song lookup` and `Text note`;
 - after selection, the collapsed song field contains only `number · title`;
@@ -104,12 +105,14 @@ Their navigation/selection semantics belong directly to the member fields.
 
 ### Candidate-detail activation and lossless return
 
-- clicking an available member field closes Detail and returns to the normal candidate list focused/scrolled to that concrete member;
+- clicking an available member field closes Detail and returns to the candidate list focused/scrolled to that concrete member;
 - this action does not select the member into Song lookup;
 - clicking the originally opened available member has the same return-to-list meaning;
 - returning from candidate Detail must never clear, replace or rewrite the confirmed Song lookup field;
-- the candidate list is reopened through its normal unfiltered/open behavior, while the clicked member id is carried only as a local focus/scroll target;
-- therefore the confirmed `number · title` display is not reused as a candidate query and cannot produce a false empty-list message;
+- for that returned list, the fresh hard-filtered eligibility snapshot already loaded by Detail is retained for the duration of the open list, so the clicked equivalent cannot disappear during a background candidate refresh;
+- the clicked member id is carried as the highest-priority local focus/scroll target, ahead of the currently selected song;
+- therefore the confirmed `number · title` display is not reused as a candidate query and cannot produce a false empty-list message or redirect focus back to the selected song;
+- editing Song lookup after the return releases the retained snapshot and resumes normal live candidate querying;
 - return scrolling uses the candidate's real geometry relative to the scroll container, not a nested grid-local `offsetTop`, so the target row is actually visible at its corresponding list position.
 
 ### Selected-song-detail activation and collapsed return
