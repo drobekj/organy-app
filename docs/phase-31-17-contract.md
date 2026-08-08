@@ -180,3 +180,7 @@ Latest refinement pending a focused browser check:
 - row-level blocking validation is removed from each `Row N`; one action-level bullet list sits between the last Planning row and the `Save working set` / action palette;
 - if at least one row lacks both a complete song and a non-empty text note, that list contains exactly one unified message: `Every row must include either a complete song reference or a non-empty textual note.`;
 - other current missing/invalid data that disable Planning actions may share the same list, while permission/lifecycle state is not misrepresented as validation.
+
+## Exact-head CI trigger note — 2026-08-08
+
+The isolated macOS refinement runner already passed focused Phase 31.17 acceptance, typecheck, the complete test suite and production build on product commit `b32fb5447b5c7bdbc10ab1cf718bc3e9f67cceaa`. This documentation follow-up exists only to produce a normal non-bot PR head so the repository's standard exact-head CI and fresh Automatic Review Gate can run before the browser checkpoint.
