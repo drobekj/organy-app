@@ -227,9 +227,10 @@ async function verifyReferenceCandidateLifecycle(pool: Pool) {
 async function verifyStrictRoute() {
   const invalidValues: unknown[] = [
     { ...baseQuery(), referenceAntiphonId: null },
-    { ...baseQuery(), referenceAntiphonId: "czech:799" },
-    { ...baseQuery(), referenceAntiphonId: "czech:916" },
-    { ...baseQuery(), referenceAntiphonId: "polish:800" },
+    { ...baseQuery(), referenceAntiphonId: "czech:0" },
+    { ...baseQuery(), referenceAntiphonId: "polish:0" },
+    { ...baseQuery(), referenceAntiphonId: "english:1" },
+    { ...baseQuery(), referenceAntiphonId: "czech:-1" },
     { ...baseQuery(), extra: true },
     { ...baseQuery(), serviceLanguage: "english" },
     { ...baseQuery(), serviceDate: "2026-02-31" },
