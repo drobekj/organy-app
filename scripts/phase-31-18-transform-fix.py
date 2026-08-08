@@ -14,5 +14,11 @@ if text.count(old_subn) != 1:
     raise RuntimeError("Expected one replace_regex re.subn implementation anchor.")
 text = text.replace(old_subn, new_subn)
 
+old_message = "replace_exact('app/api/interaction/route.ts', 'referenceAntiphonId must be an authoritative Czech antiphon id.', 'referenceAntiphonId must be an authoritative Czech or Polish antiphon id.')"
+new_message = "replace_exact('app/api/interaction/route.ts', 'referenceAntiphonId must be an authoritative Czech antiphon id.', 'referenceAntiphonId must be an authoritative Czech or Polish antiphon id.', count=2)"
+if text.count(old_message) != 1:
+    raise RuntimeError("Expected one interaction antiphon-message transformation anchor.")
+text = text.replace(old_message, new_message)
+
 path.write_text(text, encoding="utf-8")
-print(f"Corrected {escape_count} anchor escape(s) and made regex replacement literal-safe.")
+print(f"Corrected {escape_count} anchor escape(s), regex replacement handling, and API message cardinality.")
