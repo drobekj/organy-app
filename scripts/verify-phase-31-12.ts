@@ -227,10 +227,9 @@ async function verifyReferenceCandidateLifecycle(pool: Pool) {
 async function verifyStrictRoute() {
   const invalidValues: unknown[] = [
     { ...baseQuery(), referenceAntiphonId: null },
-    { ...baseQuery(), referenceAntiphonId: "czech:0" },
-    { ...baseQuery(), referenceAntiphonId: "polish:0" },
-    { ...baseQuery(), referenceAntiphonId: "english:1" },
-    { ...baseQuery(), referenceAntiphonId: "czech:-1" },
+    { ...baseQuery(), referenceAntiphonId: "czech:799" },
+    { ...baseQuery(), referenceAntiphonId: "czech:916" },
+    { ...baseQuery(), referenceAntiphonId: "polish:800" },
     { ...baseQuery(), extra: true },
     { ...baseQuery(), serviceLanguage: "english" },
     { ...baseQuery(), serviceDate: "2026-02-31" },
@@ -255,46 +254,51 @@ async function main() {
   const guardUrl = process.env.DATABASE_URL;
   const guard = parseGuardDatabaseUrl(guardUrl);
   const control = new Pool({ connectionString: deriveControlUrl(guard) });
-  const databaseName = generateE1DatabaseName();
+  const guardPool = new Pool({ connectionString: guardUrl });
+  const before = await databaseFingerprint(guardPool);
+  await guardPool.end();
+  const name = generateE1DatabaseName();
+  const databaseUrl = deriveDatabaseUrl(guard, name);
+  await control.query(createDatabaseSql(name));
+  const previousRuntime = process.env.ORGANY_RUNTIME;
   try {
-    await control.query(createDatabaseSql(databaseName));
-    const databaseUrl = deriveDatabaseUrl(guard, databaseName);
-    await withCleanup(
-      async () => {
-        for (const command of ["db:migrate", "db:migrate", "db:sync:reference-catalog", "db:sync:reference-antiphons", "db:seed:catalog"] as const) await runNpm(command, databaseUrl);
-        const pool = new Pool({ connectionString: databaseUrl });
-        useInteractionPoolForAcceptance(pool);
-        const before = await focusedSnapshot(pool);
-        const guardBefore = await databaseFingerprint(pool);
-        try {
-          await seedFocusedAuthority(pool);
-          await verifyAuthoritativeCandidates(pool);
-          await verifyReferenceCandidateLifecycle(pool);
-          await verifyStrictRoute();
-          const after = await focusedSnapshot(pool);
-          assert.notEqual(after, before, "acceptance did not exercise persisted authoritative Reference state");
-          const guardAfter = await databaseFingerprint(pool);
-          assert.equal(guardAfter, guardBefore, "acceptance unexpectedly changed table row counts");
-        } finally {
-          useInteractionPoolForAcceptance(null);
-          await pool.end();
-        }
-        console.log(PASS_LINE);
-      },
-      async () => {
-        await waitForDatabaseConnectionsToClose(control, databaseName);
-        const [terminate, drop] = dropDatabaseSql(databaseName);
-        await control.query(terminate, [databaseName]);
-        await control.query(drop);
-      },
-    );
+    await withCleanup(async () => {
+      await runNpm("db:migrate", databaseUrl);
+      await runNpm("db:migrate", databaseUrl);
+      await runNpm("db:sync:reference-catalog", databaseUrl);
+      await runNpm("db:sync:reference-antiphons", databaseUrl);
+      await runNpm("db:seed:catalog", databaseUrl);
+      const pool = new Pool({ connectionString: databaseUrl });
+      const restore = useInteractionPoolForAcceptance(pool);
+      try {
+        process.env.DATABASE_URL = databaseUrl;
+        process.env.ORGANY_RUNTIME = "db";
+        await seedFocusedAuthority(pool);
+        const beforeReads = await focusedSnapshot(pool);
+        await verifyAuthoritativeCandidates(pool);
+        await verifyStrictRoute();
+        assert.equal(await focusedSnapshot(pool), beforeReads, "read-only candidate operations mutated authoritative or legacy state");
+        await verifyReferenceCandidateLifecycle(pool);
+      } finally {
+        restore();
+        await pool.end();
+        await waitForDatabaseConnectionsToClose(control, name);
+      }
+    }, async () => {
+      const [terminate, drop] = dropDatabaseSql(name);
+      await control.query(terminate, [name]);
+      await control.query(drop);
+    });
+    assert.equal((await control.query("select 1 from pg_database where datname=$1", [name])).rows.length, 0);
+    const afterPool = new Pool({ connectionString: guardUrl });
+    try { assert.equal(await databaseFingerprint(afterPool), before, "guard database fingerprint changed"); }
+    finally { await afterPool.end(); }
+    console.log(PASS_LINE);
   } finally {
+    process.env.DATABASE_URL = guardUrl;
+    if (previousRuntime === undefined) delete process.env.ORGANY_RUNTIME; else process.env.ORGANY_RUNTIME = previousRuntime;
     await control.end();
   }
 }
 
-void main().catch((error) => {
-  console.error("Phase 31.12 authoritative Planning candidates: FAIL");
-  console.error(error);
-  process.exitCode = 1;
-});
+void main().catch((error) => { console.error("Phase 31.12 authoritative Planning candidates: FAIL"); console.error(error); process.exitCode = 1; });
