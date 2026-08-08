@@ -86,67 +86,77 @@ export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongP
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const window = knowledge.melodyWindow ?? { months: 2 };
   const recentClassIds = getRecentMelodyClassIds(knowledge.melodyClasses, input, window);
-  const queryText = input.queryText?.trim().toLowerCase();
+  const queryText = input.queryText?.trim().toLocaleLowerCase() ?? "";
   const threshold = input.preferenceThreshold ?? 0;
   const songsById = new Map(songs.map((song) => [song.songId, song]));
-  const groups = new Map<string, CatalogSong[]>();
+  const candidates: CandidateQueryResult[] = [];
 
   for (const song of songs) {
     if (!song.active || !languageSet.has(song.language)) continue;
-    const melody = knowledge.melodyClasses.find((m) => m.songIds.includes(song.songId));
+    const melody = knowledge.melodyClasses.find((item) => item.songIds.includes(song.songId));
     const classId = melody?.id ?? `song:${song.songId}`;
     if (melody && recentClassIds.has(melody.id)) continue;
-    const groupSongs = groups.get(classId) ?? [];
-    groupSongs.push(song);
-    groups.set(classId, groupSongs);
-  }
+    const allClassSongIds = melody?.songIds ?? [song.songId];
+    if (!allClassSongIds.some((songId) => repertoire.has(songId))) continue;
 
-  const candidates: CandidateQueryResult[] = [];
-  for (const [classId, groupSongs] of groups) {
-    const melody = knowledge.melodyClasses.find((m) => m.id === classId);
-    const allClassSongIds = melody?.songIds ?? groupSongs.map((song) => song.songId);
-    const hasRepertoire = allClassSongIds.some((songId) => repertoire.has(songId));
-    if (!hasRepertoire) continue;
+    const aggregatePreferenceScore = preferences.filter((preference) => preference.songId === song.songId).reduce((sum, preference) => sum + preference.score, 0);
+    if (aggregatePreferenceScore < threshold) continue;
+    if (queryText && !song.number.toLocaleLowerCase().includes(queryText) && !song.title.toLocaleLowerCase().includes(queryText)) continue;
 
-    const scored = groupSongs.map((song) => {
-      const aggregatePreferenceScore = preferences.filter((pref) => pref.songId === song.songId).reduce((sum, pref) => sum + pref.score, 0);
-      const antiphonMatch = Boolean(input.antiphonKey && knowledge.antiphons.some((m) => m.key === input.antiphonKey && m.songId === song.songId));
-      const seasonMatch = Boolean(input.liturgicalSeasonKey && knowledge.seasons.some((m) => m.key === input.liturgicalSeasonKey && m.songId === song.songId));
-      const signal = getCandidateSignal({ antiphonMatch, seasonMatch });
-      return { song, aggregatePreferenceScore, antiphonMatch, seasonMatch, signal, repertoire: repertoire.has(song.songId) };
-    });
-
-    const groupPreference = Math.max(...scored.map((item) => item.aggregatePreferenceScore), 0);
-    if (groupPreference < threshold) continue;
-    if (queryText && !scored.some((item) => item.song.number.toLowerCase().includes(queryText) || item.song.title.toLowerCase().includes(queryText))) continue;
-
-    scored.sort((a, b) => `${a.repertoire ? 0 : 1}:${b.signal === "antiphon" ? 1 : 0}:${999 - b.aggregatePreferenceScore}:${a.song.language}:${a.song.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${a.signal === "antiphon" ? 1 : 0}:${999 - a.aggregatePreferenceScore}:${b.song.language}:${b.song.number}`));
-    const primary = scored[0];
-    const equivalentNumbers = allClassSongIds
-      .filter((songId) => songId !== primary.song.songId)
-      .map((songId) => ({ songId, number: songsById.get(songId)?.number ?? songId, repertoire: repertoire.has(songId) }))
-      .sort((a, b) => `${a.repertoire ? 0 : 1}:${a.number}`.localeCompare(`${b.repertoire ? 0 : 1}:${b.number}`));
+    const antiphonMatch = Boolean(input.antiphonKey && knowledge.antiphons.some((mapping) => mapping.key === input.antiphonKey && mapping.songId === song.songId));
+    const seasonMatch = Boolean(input.liturgicalSeasonKey && knowledge.seasons.some((mapping) => mapping.key === input.liturgicalSeasonKey && mapping.songId === song.songId));
+    const signal = getCandidateSignal({ antiphonMatch, seasonMatch });
+    const melodyMembers = buildMemoryMelodyMembers(song, allClassSongIds, songsById, preferences, repertoire);
+    const equivalentNumbers = melodyMembers
+      .filter((member) => member.songId !== song.songId)
+      .map((member) => ({ songId: member.songId, number: member.number, repertoire: member.repertoire }));
 
     candidates.push({
-      songId: primary.song.songId,
-      language: primary.song.language,
-      number: primary.song.number,
-      title: primary.song.title,
+      songId: song.songId,
+      language: song.language,
+      number: song.number,
+      title: song.title,
       equivalentNumbers,
-      aggregatePreferenceScore: primary.aggregatePreferenceScore,
-      antiphonMatch: primary.antiphonMatch,
-      seasonMatch: primary.seasonMatch,
-      signal: primary.signal,
-      preferenceShade: getPreferenceShade(primary.aggregatePreferenceScore),
-      repertoire: primary.repertoire,
+      melodyClassId: classId,
+      melodyMembers,
+      aggregatePreferenceScore,
+      antiphonMatch,
+      seasonMatch,
+      signal,
+      preferenceShade: getPreferenceShade(aggregatePreferenceScore),
+      repertoire: repertoire.has(song.songId),
       availability: availabilityForClass(knowledge.melodyClasses, classId, input.candidateUsages ?? []),
       suppressedByMelodyWindow: false,
-      ...(primary.song.sheetMusicUrl ? { sheetMusicUrl: primary.song.sheetMusicUrl } : {}),
-      orderKey: `${primary.signal === "antiphon" ? 0 : primary.signal === "season" ? 1 : 2}:${primary.repertoire ? 0 : 1}:${999 - primary.aggregatePreferenceScore}:${primary.song.language}:${primary.song.number}`,
+      ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}),
+      orderKey: memoryConcreteOrderKey(song),
     });
   }
-  return candidates.sort((a, b) => a.orderKey.localeCompare(b.orderKey));
+  return candidates.sort((left, right) => left.orderKey.localeCompare(right.orderKey));
 }
+
+function memoryConcreteOrderKey(song: CatalogSong): string {
+  const match = song.number.match(/^(\d+)(?:\/(\d+))?$/);
+  const numberKey = match
+    ? `${String(Number(match[1])).padStart(8, "0")}:${String(Number(match[2] ?? 0)).padStart(3, "0")}`
+    : song.number;
+  return `${song.language === "czech" ? 0 : 1}:${numberKey}:${song.songId}`;
+}
+function buildMemoryMelodyMembers(primary: CatalogSong, classSongIds: string[], songsById: Map<string, CatalogSong>, preferences: SongPreference[], repertoire: Set<string>) {
+  const members = classSongIds
+    .map((songId) => songsById.get(songId))
+    .filter((song): song is CatalogSong => Boolean(song?.active));
+  const ordered = [primary, ...members.filter((song) => song.songId !== primary.songId).sort((left, right) => `${left.language}:${left.number}:${left.songId}`.localeCompare(`${right.language}:${right.number}:${right.songId}`))];
+  return ordered.map((song) => ({
+    songId: song.songId,
+    language: song.language,
+    number: song.number,
+    title: song.title,
+    repertoire: repertoire.has(song.songId),
+    aggregatePreferenceScore: preferences.filter((preference) => preference.songId === song.songId).reduce((sum, preference) => sum + preference.score, 0),
+    ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}),
+  }));
+}
+
 function ok<T>(value: T): InteractionResult<T> { return { success: true, value }; }
 function fail<T>(code: "permissionDenied" | "notFound" | "invalidInput", message: string): InteractionResult<T> { return { success: false, error: { code, message } }; }
 
@@ -204,6 +214,8 @@ export function hydrateCandidatesFromData(songs: CatalogSong[], preferences: Son
       number: storedSong.number,
       title: storedSong.title,
       equivalentNumbers,
+      melodyClassId: melody?.id ?? `song:${storedSong.songId}`,
+      melodyMembers: buildMemoryMelodyMembers(storedSong, classSongIds, songsById, preferences, repertoire),
       aggregatePreferenceScore,
       antiphonMatch,
       seasonMatch,

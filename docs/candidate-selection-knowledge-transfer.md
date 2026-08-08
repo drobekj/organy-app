@@ -19,7 +19,8 @@ Use it together with:
 - Phase 31.13, authoritative Czech and Polish thematic-section knowledge, is merged on `main` as commit `50fae1326534d4058157bab6fca6c7f9e2a26948`.
 - Phase 31.14, concrete-song authoritative Planning candidates, is merged on `main` as commit `93f1e1f836cadca5d286a5b9b2678334614d9ee0`.
 - Phase 31.15, current-service occupancy and collision validation, is merged on `main` as commit `db67b168a05fb7604f22ccf25efbb4f48e3b61c2`.
-- Phase 31.16 is authorized by issue #137 and implements the single-open concrete candidate-list UI.
+- Phase 31.16, concrete candidate-list UI and organist repertoire prerequisite, is merged on `main` as commit `fb23295fba224d0ccbc645b77358d5e51c2f19ff`.
+- Phase 31.17 is authorized by issue #139 and implements inline melody-class detail and equivalent navigation.
 - This file supersedes the documentation-only draft PR #129.
 - Later phases remain separately gated and must not be pulled into Phase 31.15.
 
@@ -283,7 +284,7 @@ Completed and merged:
 
 ### Phase 31.16 — concrete candidate-list UI
 
-Current phase:
+Completed and merged:
 
 - one open list;
 - concrete rows;

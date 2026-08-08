@@ -1,29 +1,38 @@
-name: CI
+name: Phase 31.17 isolated final refinement
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
+concurrency:
+  group: phase-31-17-isolated-final-refinement
+  cancel-in-progress: true
+
 jobs:
-  compact-row-refine:
+  refine:
     if: github.head_ref == 'codex/phase-31-17-compact-row-runner'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: codex/phase-31-17-inline-melody-detail
+          ref: codex/phase-31-17-compact-row-runner
           fetch-depth: 0
+      - name: Preserve refinement script and switch to product branch
+        run: |
+          cp scripts/phase-31-17-final-refinement.py /tmp/phase-31-17-final-refinement.py
+          git fetch origin codex/phase-31-17-inline-melody-detail
+          git switch --force-create codex/phase-31-17-inline-melody-detail origin/codex/phase-31-17-inline-melody-detail
+          test "$(git rev-parse HEAD)" = "fdc9cafa41778c4ebec6462f2b873ba6de707746"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund --loglevel=error
-      - name: Apply compact-row refinement
-        run: |
-          python3 scripts/phase-31-17-row-ux-fix.py
-          python3 scripts/phase-31-17-row-ux-test-fix.py
+      - name: Apply approved final refinement
+        run: python3 /tmp/phase-31-17-final-refinement.py
       - name: Focused Phase 31.17 acceptance
         run: npm run test:phase-31-17
       - name: Typecheck
@@ -39,14 +48,10 @@ jobs:
           git add \
             app/globals.css \
             app/planning-lifecycle-client.tsx \
-            docs/candidate-selection-knowledge-transfer.md \
             docs/phase-31-17-contract.md \
-            scripts/phase-30-1-candidate-flow-tests.ts \
-            scripts/phase-31-16-tests.tsx \
             scripts/phase-31-17-tests.tsx \
             scripts/planning-ui-workflow-static-tests.ts \
-            src/planning-lifecycle/candidate-flow.ts \
             src/planning-lifecycle/candidate-list.tsx
           git diff --cached --check
-          git commit -m "Phase 31.17 — compact invariant Planning rows"
+          git commit -m "Phase 31.17 — finalize candidate focus and action validation"
           git push origin HEAD:codex/phase-31-17-inline-melody-detail
