@@ -15,6 +15,7 @@ for (const required of [
   "placeholder=\"Text note\"",
   "planning-action-validation-list",
   "Every row must include either a complete song reference or a non-empty textual note.",
+  "Every candidate must be available.",
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",

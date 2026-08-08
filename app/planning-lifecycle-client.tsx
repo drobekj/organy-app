@@ -22,7 +22,7 @@ import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, mel
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
-import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, getPlanningCandidateRowLookupState, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
@@ -46,6 +46,8 @@ type EditableRow = {
 };
 
 type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
+type SelectedCandidateAvailability = "available" | "unavailable" | "error";
+type SelectedCandidateAvailabilitySnapshot = { key: string; byRow: Record<number, SelectedCandidateAvailability> };
 
 type WorkingSetSnapshot = {
   serviceDate: string;
@@ -342,6 +344,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [detailEligibilityLoading, setDetailEligibilityLoading] = useState(false);
   const [detailEligibilityError, setDetailEligibilityError] = useState<string | undefined>();
   const detailEligibilityRequest = useRef(0);
+  const [selectedCandidateAvailability, setSelectedCandidateAvailability] = useState<SelectedCandidateAvailabilitySnapshot>({ key: "", byRow: {} });
+  const selectedCandidateAvailabilityRequest = useRef(0);
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
@@ -477,9 +481,36 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     : false;
   const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
-  const rowLookupStates = rows.map((row) => row.lookupOpen && row.songSearch.trim() ? { kind: "lookup" as const, text: row.songSearch } : row.selectedSong?.songId ? { kind: "selected" as const, songId: row.selectedSong.songId } : row.note.trim() ? { kind: "noteOnly" as const, note: row.note } : { kind: "empty" as const });
+  const rowLookupStates = rows.map(getPlanningCandidateRowLookupState);
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
   const workspaceLeaveState = canLeaveWorkspace(rowLookupStates);
+  const selectedCandidateRows = rows.flatMap((row) => row.selectedSong?.songId ? [{ rowId: row.id, songId: row.selectedSong.songId, language: row.selectedSong.language }] : []);
+  const candidateAvailabilityKey = JSON.stringify({
+    runtimeMode,
+    serviceContextGeneration,
+    serviceDate,
+    serviceLanguage,
+    organistId: organistId ?? "",
+    referenceAntiphonId: referenceAntiphon?.id ?? "",
+    candidateAntiphonKey,
+    candidateSeasonKey,
+    currentPlanId: persistedSet?.id ?? "",
+    selected: selectedCandidateRows,
+    activePlans: savedDbSets.map((set) => [set.id, set.status, set.serviceContext.serviceDate, set.rows.map((row) => row.song?.songId ?? "")]),
+    completed: completedRecords.map((record) => [record.id, record.serviceContext.serviceDate, record.set.rows.map((row) => row.song?.songId ?? "")]),
+  });
+  const candidateAvailabilityCurrent = selectedCandidateAvailability.key === candidateAvailabilityKey;
+  const hasUnavailableCandidates = selectedCandidateRows.some((selected) => {
+    if (serviceLanguage !== "mixed" && selected.language !== serviceLanguage) return true;
+    return candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[selected.rowId] === "unavailable";
+  });
+  const hasCandidateAvailabilityError = candidateAvailabilityCurrent && selectedCandidateRows.some((selected) => selectedCandidateAvailability.byRow[selected.rowId] === "error");
+  const candidateAvailabilityPending = selectedCandidateRows.length > 0 && !candidateAvailabilityCurrent;
+  const hasCandidateAvailabilityBlock = candidateAvailabilityPending || hasUnavailableCandidates || hasCandidateAvailabilityError;
+  const rowCandidateUnavailable = (row: EditableRow) => Boolean(row.selectedSong?.songId) && (
+    (serviceLanguage !== "mixed" && row.selectedSong!.language !== serviceLanguage)
+    || (candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[row.id] === "unavailable")
+  );
   const hasEmptyRowValidation = validationResults.some((result) => result.issues.some((issue) => issue.path === "row"));
   const planningActionValidationMessages = [
     ...(!serviceDate ? ["Service date is required."] : []),
@@ -487,6 +518,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     ...(!priestId ? ["Priest must be selected from lookup."] : []),
     ...(!organistId ? ["Organist must be selected from lookup."] : []),
     ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
+    ...(hasUnavailableCandidates ? ["Every candidate must be available."] : []),
+    ...(hasCandidateAvailabilityError ? ["Candidate availability could not be checked."] : []),
     ...validationResults.flatMap((result, index) => result.issues
       .filter((issue) => issue.path !== "row")
       .map((issue) => `Row ${index + 1}: ${issue.message}`)),
@@ -494,6 +527,51 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     ...(melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen ? [melodyFinalizationReason] : []),
     ...(completeDateReason ? [`Complete service disabled: ${completeDateReason}`] : []),
   ].filter((message, index, messages) => messages.indexOf(message) === index);
+
+  useEffect(() => {
+    const request = ++selectedCandidateAvailabilityRequest.current;
+    if (selectedCandidateRows.length === 0) {
+      setSelectedCandidateAvailability({ key: candidateAvailabilityKey, byRow: {} });
+      return;
+    }
+    if (!serviceDate || !organistId) {
+      setSelectedCandidateAvailability({
+        key: candidateAvailabilityKey,
+        byRow: Object.fromEntries(selectedCandidateRows.map((selected) => [selected.rowId, "unavailable"])) as Record<number, SelectedCandidateAvailability>,
+      });
+      return;
+    }
+    void Promise.all(selectedCandidateRows.map(async (selected) => {
+      if (serviceLanguage !== "mixed" && selected.language !== serviceLanguage) return [selected.rowId, "unavailable"] as const;
+      try {
+        const candidates = await interactionClient.queryCandidates({
+          serviceDate,
+          serviceLanguage,
+          organistPersonId: organistId,
+          referenceAntiphonId: referenceAntiphon?.id,
+          antiphonKey: candidateAntiphonKey,
+          liturgicalSeasonKey: candidateSeasonKey,
+          queryText: "",
+          preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD,
+          candidateUsages: getCanonicalCandidateUsages(selected.rowId),
+          currentPlanId: persistedSet?.id,
+        });
+        const candidate = candidates.find((item) => item.songId === selected.songId);
+        return [selected.rowId, candidate?.availability.kind === "available" ? "available" : "unavailable"] as const;
+      } catch {
+        return [selected.rowId, "error"] as const;
+      }
+    })).then((entries) => {
+      if (request !== selectedCandidateAvailabilityRequest.current) return;
+      setSelectedCandidateAvailability({
+        key: candidateAvailabilityKey,
+        byRow: Object.fromEntries(entries) as Record<number, SelectedCandidateAvailability>,
+      });
+    });
+    return () => {
+      if (selectedCandidateAvailabilityRequest.current === request) selectedCandidateAvailabilityRequest.current += 1;
+    };
+  }, [candidateAvailabilityKey, interactionClient]);
   const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
   const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
   const visibleCatalogSongs = useMemo(() => {
@@ -1138,6 +1216,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function saveWorkingSet() {
     if (isCompletedRecordOpen || isFinalSetOpen) return;
     if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
+    if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
     if (!hasServiceContext) {
       setServiceError({
         code: "invalidInput",
@@ -1268,6 +1347,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function saveCompletedChanges() {
     if (!completedRecord || selectedRole !== "admin") return;
+    if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
 
     const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
     if (languageDeviationConfirmation.cancelled) {
@@ -1551,6 +1631,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                                               prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
                                               serviceLanguage={serviceLanguage}
                                               disabled={!canEditRows}
+                                              selectionUnavailable={rowCandidateUnavailable(row) && Boolean(row.selectedSong && row.songSearch === formatPlanningSongField(row.selectedSong))}
                                               onOpen={() => openCandidateList(row.id)}
                                               onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
                                               onSelect={(candidate) => selectCandidate(row.id, candidate)}
@@ -1612,10 +1693,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
+                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasMelodyCollisions}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions}>
                       Finalize set
                     </button>
                   </>
@@ -1632,7 +1713,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock}>
                       Save completed changes
                     </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>

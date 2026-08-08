@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CandidateQueryResult } from "../src/application/interaction-contracts";
 import { queryCandidatesFromData, hydrateCandidatesFromData } from "../src/application/interaction-service";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
-import { formatPlanningSongField, planningCandidateRowReducer } from "../src/planning-lifecycle/candidate-flow";
+import { formatPlanningSongField, getPlanningCandidateRowLookupState, planningCandidateRowReducer } from "../src/planning-lifecycle/candidate-flow";
 import {
   MelodyClassDetail,
   isDetailMemberActivatable,
@@ -179,6 +179,8 @@ const knowledge = { antiphons: [], seasons: [], melodyClasses: [{ id: "demo-clas
 const memoryCandidates = queryCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { serviceDate: "2026-08-09", serviceLanguage: "mixed", organistPersonId: "demo-organist", preferenceThreshold: 0 });
 assert.deepEqual(memoryCandidates.map((candidate) => candidate.songId), ["demo-cz", "demo-pl"]);
 assert.equal(memoryCandidates[0]?.melodyClassId, "demo-class");
+const polishContextCandidates = queryCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { serviceDate: "2026-08-09", serviceLanguage: "polish", organistPersonId: "demo-organist", preferenceThreshold: 0 });
+assert.equal(polishContextCandidates.some((candidate) => candidate.songId === "demo-cz"), false, "a Czech selected song is not an available candidate after the service language changes to Polish");
 assert.deepEqual(memoryCandidates[0]?.melodyMembers?.map((member) => member.songId), [memoryCandidates[0]?.songId, memoryCandidates[0]?.songId === "demo-cz" ? "demo-pl" : "demo-cz"]);
 const hydrated = hydrateCandidatesFromData(songs, preferences, new Set(["demo-cz"]), knowledge, { songs: [{ songId: "demo-pl", language: "polish", number: "101", title: "Stored Polish" }], organistPersonId: "demo-organist" });
 assert.deepEqual(hydrated[0]?.melodyMembers?.map((member) => member.songId), ["demo-pl", "demo-cz"]);
@@ -195,6 +197,8 @@ const openedRow = planningCandidateRowReducer({
 assert.equal(openedRow.songSearch, "29 · Czech song", "opening candidates must preserve the confirmed number/title display");
 assert.equal(openedRow.selectedSong?.songId, available.songId);
 assert.equal(openedRow.lookupOpen, true);
+assert.deepEqual(getPlanningCandidateRowLookupState(openedRow), { kind: "selected", songId: available.songId }, "opening candidates over unchanged confirmed text remains a valid selected-row state");
+assert.equal(getPlanningCandidateRowLookupState({ ...openedRow, songSearch: "30" }).kind, "lookup", "only edited non-confirmed lookup text blocks persistence/workspace departure");
 
 const clearedRow = planningCandidateRowReducer({
   id: 1,
@@ -283,5 +287,14 @@ assert.doesNotMatch(detailSource, /Currently selected|Back to candidates|Show th
 assert.match(cssSource, /\.compact-row-fields,\s*\.song-field-row\s*\{\s*display: contents;/);
 assert.match(cssSource, /\.row-card \.row-note-input\s*\{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?order: 3;/, "Text note stays in the permanent base row flow while overlays do not consume height");
 assert.match(cssSource, /\.melody-member-active\s*\{[\s\S]*?outline: 3px solid #84adff;/);
+
+assert.match(clientSource, /rows\.map\(getPlanningCandidateRowLookupState\)/, "confirmed lookup text is distinguished from a genuinely edited lookup query");
+assert.match(clientSource, /candidateAvailabilityKey[\s\S]*?interactionClient\.queryCandidates[\s\S]*?candidateUsages: getCanonicalCandidateUsages\(selected\.rowId\)/, "selected candidates are revalidated against the current authoritative candidate context and row-specific occupancy");
+assert.match(clientSource, /Every candidate must be available\./, "unavailable selected candidates share one set-level blocking message");
+assert.match(clientSource, /hasCandidateAvailabilityBlock/, "candidate availability blocks persistence while stale, unavailable or failed to validate");
+assert.match(clientSource, /selectionUnavailable=\{rowCandidateUnavailable\(row\)/, "the confirmed invalid Song lookup receives an explicit visual state");
+assert.match(candidateListSource, /candidate-selection-unavailable/, "CandidateCombobox exposes the unavailable-selection visual class");
+assert.match(candidateListSource, /aria-invalid=\{props\.selectionUnavailable \|\| undefined\}/, "the muted unavailable selection is also identified semantically");
+assert.match(cssSource, /\.candidate-combobox input::placeholder,[\s\S]*?\.candidate-combobox input\.candidate-selection-unavailable[\s\S]*?color: var\(--muted\)/, "invalid confirmed text uses the same muted color as the empty Song lookup placeholder");
 
 console.log("Phase 31.17 inline melody-class detail and equivalent navigation: PASS");

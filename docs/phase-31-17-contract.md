@@ -184,3 +184,24 @@ Latest refinement pending a focused browser check:
 ## Exact-head CI trigger note — 2026-08-08
 
 The isolated macOS refinement runner already passed focused Phase 31.17 acceptance, typecheck, the complete test suite and production build on product commit `b32fb5447b5c7bdbc10ab1cf718bc3e9f67cceaa`. This documentation follow-up exists only to produce a normal non-bot PR head so the repository's standard exact-head CI and fresh Automatic Review Gate can run before the browser checkpoint.
+
+
+## HUMAN checkpoint update — context-sensitive selected-candidate validity (2026-08-08)
+
+Browser-confirmed before this implementation:
+
+- heavier row-control glyphs: PASS;
+- active candidate contour encloses number/title/Detail: PASS;
+- centralized Planning action validation placement and unified empty-row message: PASS.
+
+Refinement now required:
+
+- opening candidates over an unchanged confirmed and currently available Song lookup is a valid selected-row state; it must not emit `Select a candidate or cancel the active lookup before leaving Planning.` and must not by itself block Save Working Set;
+- only manually changed non-confirmed lookup text is an active lookup state that blocks persistence/workspace departure;
+- every selected catalog song is revalidated against the current authoritative candidate context whenever candidate-relevant Service context or current-row occupancy changes;
+- candidate-relevant context includes service date, service language, organist/repertoire, authoritative antiphon/context candidate inputs, current plan identity and the current/historical usage snapshot used by the melody window and occupancy rules;
+- if at least one selected candidate is no longer available, action-level validation contains one unified `Every candidate must be available.` message and persistence/finalization actions are blocked;
+- a confirmed unavailable Song lookup remains visible so the user can repair it, but its text is muted to the same visual color as the empty `Song lookup` placeholder;
+- changing Czech → Polish therefore leaves a previously selected Czech song visible but unavailable/muted until replaced (or the context is changed back);
+- a failed fresh availability check blocks persistence with `Candidate availability could not be checked.` rather than silently trusting a stale snapshot;
+- historical song snapshots without a catalog song id keep the established historical fallback behavior and are not falsely classified as current catalog candidates.

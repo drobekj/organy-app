@@ -1,7 +1,7 @@
 export const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
 
 import type { CatalogSong } from "../application/catalog";
-import type { CandidateQueryInput, CandidateQueryResult, CandidateUsage } from "../application/interaction-contracts";
+import type { CandidateQueryInput, CandidateQueryResult, CandidateUsage, RowLookupState } from "../application/interaction-contracts";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
 
 export type CandidatePopupAction = "select" | "cancel";
@@ -177,6 +177,22 @@ export function openSingleCandidateRow<T extends PlanningCandidateEditableRow>(r
   return rows.map((row) => row.id === targetRowId
     ? planningCandidateRowReducer(row, { type: "lookupOpened" }) as T
     : row.lookupOpen ? restoreConfirmedCandidate(row) : row);
+}
+
+export function getPlanningCandidateRowLookupState(row: PlanningCandidateEditableRow): RowLookupState {
+  const confirmedLabel = row.selectedSong ? formatPlanningSongField(row.selectedSong) : "";
+  const hasUnconfirmedLookupText = Boolean(row.lookupOpen && row.songSearch.trim() && row.songSearch !== confirmedLabel);
+  if (hasUnconfirmedLookupText) {
+    const previous: Exclude<RowLookupState, { kind: "lookup" }> = row.selectedSong?.songId
+      ? { kind: "selected", songId: row.selectedSong.songId }
+      : row.note.trim()
+        ? { kind: "noteOnly", note: row.note }
+        : { kind: "empty" };
+    return { kind: "lookup", text: row.songSearch, previous };
+  }
+  if (row.selectedSong?.songId) return { kind: "selected", songId: row.selectedSong.songId };
+  if (row.note.trim()) return { kind: "noteOnly", note: row.note };
+  return { kind: "empty" };
 }
 
 export function formatPlanningSongField(song: { number: string; title?: string }): string {

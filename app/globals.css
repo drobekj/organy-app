@@ -891,3 +891,14 @@ textarea {
 .planning-action-validation-list {
   margin: 0;
 }
+
+
+/* Phase 31.17: a confirmed song that fails the current candidate context stays visible but muted. */
+.candidate-combobox input::placeholder,
+.candidate-combobox input.candidate-selection-unavailable {
+  color: var(--muted);
+}
+
+.candidate-combobox input::placeholder {
+  opacity: 1;
+}

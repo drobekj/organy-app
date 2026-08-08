@@ -30,6 +30,7 @@ type CandidateComboboxProps = {
   prerequisiteMessage?: string;
   serviceLanguage: ServiceLanguage;
   disabled?: boolean;
+  selectionUnavailable?: boolean;
   focusSongId?: string;
   detail?: CandidateDetailState;
   onOpen: () => void;
@@ -290,6 +291,8 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         ref={inputRef}
         type="text"
         role="combobox"
+        className={props.selectionUnavailable ? "candidate-selection-unavailable" : undefined}
+        aria-invalid={props.selectionUnavailable || undefined}
         aria-label="Song lookup"
         aria-autocomplete="list"
         aria-expanded={candidateListVisible}
