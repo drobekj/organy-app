@@ -11,7 +11,7 @@ type Row = {
   language: "czech" | "polish";
   canonical_number: number;
   title: string;
-  source_url: string;
+  source_url: string | null;
 };
 
 function mapRecord(row: Row): ReferenceAntiphonRecord {
@@ -21,9 +21,11 @@ function mapRecord(row: Row): ReferenceAntiphonRecord {
     canonicalNumber: row.canonical_number,
     displayNumber: String(row.canonical_number),
     title: row.title,
-    sourceUrl: row.source_url,
+    ...(row.source_url ? { sourceUrl: row.source_url } : {}),
   };
 }
+
+const ORDER = "case language when 'czech' then 0 else 1 end, canonical_number asc, id asc";
 
 /** Read-only provider whose filtering, ordering, counts, and paging execute in PostgreSQL. */
 export class PostgresReferenceAntiphonProvider implements ReferenceAntiphonProvider {
@@ -38,8 +40,13 @@ export class PostgresReferenceAntiphonProvider implements ReferenceAntiphonProvi
     }
     const search = input.search?.trim() ?? "";
     if (search) {
-      values.push(/^\d+$/.test(search) ? Number(search) : `%${search}%`);
-      conditions.push(/^\d+$/.test(search) ? `canonical_number = $${values.length}` : `title ILIKE $${values.length}`);
+      if (/^\d+$/.test(search)) {
+        values.push(`${search}%`);
+        conditions.push(`canonical_number::text like $${values.length}`);
+      } else {
+        values.push(`%${search}%`);
+        conditions.push(`title ilike $${values.length}`);
+      }
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const total = Number((await this.pool.query(`SELECT count(*)::int AS count FROM reference_antiphons ${where}`, values)).rows[0].count);
@@ -48,7 +55,7 @@ export class PostgresReferenceAntiphonProvider implements ReferenceAntiphonProvi
     const page = Math.min(input.page ?? 0, pageCount - 1);
     const pageValues = [...values, pageSize, page * pageSize];
     const rows = (await this.pool.query(
-      `SELECT id, language, canonical_number, title, source_url FROM reference_antiphons ${where} ORDER BY canonical_number ASC LIMIT $${pageValues.length - 1} OFFSET $${pageValues.length}`,
+      `SELECT id, language, canonical_number, title, source_url FROM reference_antiphons ${where} ORDER BY ${ORDER} LIMIT $${pageValues.length - 1} OFFSET $${pageValues.length}`,
       pageValues,
     )).rows as Row[];
     return { records: rows.map(mapRecord), total, page, pageSize, pageCount, counts: await this.counts() };

@@ -9,7 +9,12 @@ import {
 import type { ReferenceAntiphonRecord } from "../src/application/reference-antiphon-contract";
 import type { ServiceAntiphonReference } from "../src/planning-lifecycle";
 
-const identity: ServiceContextAntiphonSearchIdentity = { runtimeMode: "db", contextKey: "new:1", editable: true };
+const identity: ServiceContextAntiphonSearchIdentity = {
+  runtimeMode: "db",
+  contextKey: "new:1",
+  editable: true,
+  serviceLanguage: "czech",
+};
 const record = (number: number): ReferenceAntiphonRecord => ({
   id: `czech:${number}`,
   language: "czech",
@@ -22,6 +27,14 @@ const snapshot = (number: number): ServiceAntiphonReference => {
   const value = record(number);
   return { id: value.id, displayNumber: value.displayNumber, title: value.title, sourceUrl: value.sourceUrl };
 };
+const noops = {
+  onOpen: () => undefined,
+  onQueryChange: (_: string) => undefined,
+  onKeyDown: () => undefined,
+  onSelect: (_: ReferenceAntiphonRecord) => undefined,
+  onActiveIndexChange: (_: number) => undefined,
+  onClear: () => undefined,
+};
 
 function staleResponseCoverage() {
   const state = new ServiceContextReferenceAntiphonUiState(identity);
@@ -32,24 +45,29 @@ function staleResponseCoverage() {
   assert.equal(state.complete(newer, [record(801)]), true);
   assert.deepEqual(state.snapshot().records.map((item) => item.id), ["czech:801"]);
 
+  const languageChange = state.begin();
+  state.changeIdentity({ ...identity, serviceLanguage: "polish" });
+  assert.equal(state.complete(languageChange, [record(802)]), false, "search survived language change");
+  assert.deepEqual(state.snapshot().records, []);
+
   const recordChange = state.begin();
   state.changeIdentity({ ...identity, contextKey: "set:2:working" });
-  assert.equal(state.complete(recordChange, [record(802)]), false, "search survived opening another record");
+  assert.equal(state.complete(recordChange, [record(803)]), false, "search survived opening another record");
   assert.deepEqual(state.snapshot().records, []);
 
   const runtimeChange = state.begin();
-  state.changeIdentity({ runtimeMode: "memory", contextKey: "set:2:working", editable: true });
-  assert.equal(state.complete(runtimeChange, [record(803)]), false, "DB search survived runtime change");
+  state.changeIdentity({ ...identity, runtimeMode: "memory", contextKey: "set:2:working" });
+  assert.equal(state.complete(runtimeChange, [record(804)]), false, "DB search survived runtime change");
 
-  state.changeIdentity({ runtimeMode: "db", contextKey: "set:2:working", editable: true });
+  state.changeIdentity({ ...identity, contextKey: "set:2:working" });
   const lockChange = state.begin();
-  state.changeIdentity({ runtimeMode: "db", contextKey: "set:2:final", editable: false });
-  assert.equal(state.complete(lockChange, [record(804)]), false, "search survived read-only transition");
+  state.changeIdentity({ ...identity, contextKey: "set:2:final", editable: false });
+  assert.equal(state.complete(lockChange, [record(805)]), false, "search survived read-only transition");
 
   state.changeIdentity(identity);
   const cleared = state.begin();
   state.cancel();
-  assert.equal(state.complete(cleared, [record(805)]), false, "search survived clear/deselect");
+  assert.equal(state.complete(cleared, [record(806)]), false, "search survived clear/deselect");
   assert.equal(state.snapshot().loading, false);
   assert.equal(state.snapshot().error, null);
   assert.deepEqual(state.snapshot().records, []);
@@ -63,41 +81,49 @@ function staleResponseCoverage() {
 
 function renderCoverage() {
   const state = new ServiceContextReferenceAntiphonUiState(identity);
-  const noops = { onQueryChange: (_: string) => undefined, onSelect: (_: ReferenceAntiphonRecord) => undefined, onRemove: () => undefined };
-  const empty = renderToStaticMarkup(<ServiceContextReferenceAntiphonFieldView runtime="db" editable selected={undefined} query="" snapshot={state.snapshot()} {...noops} />);
-  assert.match(empty, /<h3>Antiphon<\/h3>/);
-  assert.match(empty, /No antiphon selected/);
-  assert.match(empty, /Service Context antiphon search/);
-  assert.doesNotMatch(empty, /Remove antiphon/);
+  const empty = renderToStaticMarkup(
+    <ServiceContextReferenceAntiphonFieldView editable selected={undefined} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+  );
+  assert.match(empty, /placeholder="Select antiphon"/);
+  assert.doesNotMatch(empty, /Find antiphon|No antiphon selected|Remove antiphon|<h3>/);
+  assert.doesNotMatch(empty, /role="listbox"/);
 
   state.complete(state.begin(), [record(800)]);
-  const results = renderToStaticMarkup(<ServiceContextReferenceAntiphonFieldView runtime="db" editable selected={undefined} query="800" snapshot={state.snapshot()} {...noops} />);
-  assert.match(results, />800 · Antiphon 800</);
+  const results = renderToStaticMarkup(
+    <ServiceContextReferenceAntiphonFieldView editable selected={undefined} open dirty query="80" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+  );
+  assert.match(results, /role="listbox"/);
+  assert.match(results, />800</);
+  assert.match(results, /Antiphon 800/);
+  assert.match(results, /href="https:\/\/www\.evangelickykancional\.cz/);
 
-  const selected = renderToStaticMarkup(<ServiceContextReferenceAntiphonFieldView runtime="db" editable selected={snapshot(800)} query="" snapshot={state.snapshot()} {...noops} />);
-  assert.match(selected, /800 · Antiphon 800/);
+  const selected = renderToStaticMarkup(
+    <ServiceContextReferenceAntiphonFieldView editable selected={snapshot(800)} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+  );
+  assert.match(selected, /value="800 · Antiphon 800"/);
   assert.match(selected, /href="https:\/\/www\.evangelickykancional\.cz/);
-  assert.match(selected, /Remove antiphon/);
+  assert.match(selected, /Clear antiphon/);
 
-  const readOnly = renderToStaticMarkup(<ServiceContextReferenceAntiphonFieldView runtime="db" editable={false} selected={snapshot(800)} query="" snapshot={state.snapshot()} {...noops} />);
-  assert.match(readOnly, /800 · Antiphon 800/);
-  assert.doesNotMatch(readOnly, /Service Context antiphon search/);
-  assert.doesNotMatch(readOnly, /Remove antiphon/);
+  const readOnly = renderToStaticMarkup(
+    <ServiceContextReferenceAntiphonFieldView editable={false} selected={snapshot(800)} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+  );
+  assert.match(readOnly, /value="800 · Antiphon 800"/);
+  assert.match(readOnly, /readOnly=""/);
+  assert.doesNotMatch(readOnly, /Clear antiphon/);
 
-  const memoryEmpty = renderToStaticMarkup(<ServiceContextReferenceAntiphonFieldView runtime="memory" editable selected={undefined} query="" snapshot={state.snapshot()} {...noops} />);
-  assert.match(memoryEmpty, /Authoritative antiphon selection is available only in DB runtime\./);
-  assert.doesNotMatch(memoryEmpty, /Service Context antiphon search/);
-
-  const memoryHistorical = renderToStaticMarkup(<ServiceContextReferenceAntiphonFieldView runtime="memory" editable={false} selected={snapshot(800)} query="" snapshot={state.snapshot()} {...noops} />);
-  assert.match(memoryHistorical, /800 · Antiphon 800/);
-  assert.doesNotMatch(memoryHistorical, /available only in DB runtime/);
+  const invalid = renderToStaticMarkup(
+    <ServiceContextReferenceAntiphonFieldView editable selected={snapshot(800)} invalid open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+  );
+  assert.match(invalid, /aria-invalid="true"/);
+  assert.match(invalid, /service-antiphon-control-invalid/);
 }
 
 async function staticBoundaryCoverage() {
-  const [planning, model, migration, schema, candidateFlow, recommendationPanel] = await Promise.all([
+  const [planning, model, originalMigration, bilingualMigration, schema, candidateFlow, recommendationPanel] = await Promise.all([
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
     readFile("src/planning-lifecycle/model.ts", "utf8"),
     readFile("drizzle/0014_phase_31_11_service_context_reference_antiphon.sql", "utf8"),
+    readFile("drizzle/0016_phase_31_18_bilingual_antiphons.sql", "utf8"),
     readFile("src/db/schema/index.ts", "utf8"),
     readFile("src/planning-lifecycle/candidate-flow.ts", "utf8"),
     readFile("app/reference-antiphon-recommendation-panel.tsx", "utf8"),
@@ -105,10 +131,14 @@ async function staticBoundaryCoverage() {
   assert.equal((planning.match(/<ServiceContextReferenceAntiphonField/g) ?? []).length, 1, "selector must be rendered exactly once");
   assert.match(planning, /referenceAntiphon \? \{ referenceAntiphon:/);
   assert.match(planning, /referenceAntiphonId: (?:set|record)\.serviceContext\.referenceAntiphon\?\.id|referenceAntiphonId: referenceAntiphon\?\.id/);
-  assert.match(planning, /Legacy synthetic\/demo candidate signal/);
+  assert.doesNotMatch(planning, />Candidate antiphon key</, "legacy synthetic antiphon key leaked into normal Service Context UI");
+  assert.match(planning, /referenceAntiphons: new MemoryReferenceAntiphonProvider\(\)/, "memory Planning persistence lacks authoritative Antiphon validation");
+  assert.match(planning, /Selected antiphon must match the service language\./);
   assert.match(model, /referenceAntiphon\?: ServiceAntiphonReference/);
-  assert.match(migration, /reference_antiphon_id/);
-  assert.doesNotMatch(migration, /REFERENCES\s+"reference_antiphons"/i, "historical snapshot must not have a foreign key");
+  assert.match(model, /sourceUrl\?: string/);
+  assert.match(originalMigration, /reference_antiphon_id/);
+  assert.doesNotMatch(originalMigration, /REFERENCES\s+"reference_antiphons"/i, "historical snapshot must not have a foreign key");
+  assert.match(bilingualMigration, /\(czech\|polish\)/);
   assert.match(schema, /serviceContexts_reference_antiphon|service_contexts_reference_antiphon/);
   assert.match(candidateFlow, /referenceAntiphonId\?: string/);
   assert.match(candidateFlow, /input\.referenceAntiphonId\?\.trim\(\)/);

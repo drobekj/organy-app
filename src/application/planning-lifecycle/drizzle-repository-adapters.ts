@@ -469,12 +469,12 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
     priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
     organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
     ...(context.note ? { note: context.note } : {}),
-    ...(context.referenceAntiphonId && context.referenceAntiphonDisplayNumber && context.referenceAntiphonTitle && context.referenceAntiphonSourceUrl
+    ...(context.referenceAntiphonId && context.referenceAntiphonDisplayNumber && context.referenceAntiphonTitle
       ? { referenceAntiphon: {
           id: context.referenceAntiphonId,
           displayNumber: context.referenceAntiphonDisplayNumber,
           title: context.referenceAntiphonTitle,
-          sourceUrl: context.referenceAntiphonSourceUrl,
+          ...(context.referenceAntiphonSourceUrl ? { sourceUrl: context.referenceAntiphonSourceUrl } : {}),
         } }
       : {}),
     ...(context.antiphonKey ? { antiphonKey: context.antiphonKey } : {}),

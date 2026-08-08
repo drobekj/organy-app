@@ -40,14 +40,18 @@ export const referenceAntiphons = pgTable("reference_antiphons", {
   language: songLanguage("language").notNull(),
   canonicalNumber: integer("canonical_number").notNull(),
   title: text("title").notNull(),
-  sourceUrl: text("source_url").notNull(),
+  sourceUrl: text("source_url"),
 }, (table) => ({
   languageCanonicalNumber: uniqueIndex("reference_antiphons_language_canonical_number_idx").on(table.language, table.canonicalNumber),
   positiveNumber: check("reference_antiphons_number_positive", sql`${table.canonicalNumber} > 0`),
   idMatchesNumber: check("reference_antiphons_id_matches_number", sql`${table.id} = ${table.language}::text || ':' || ${table.canonicalNumber}::text`),
   nonEmptyId: check("reference_antiphons_id_non_empty", sql`btrim(${table.id}) <> ''`),
   nonEmptyTitle: check("reference_antiphons_title_non_empty", sql`btrim(${table.title}) <> ''`),
-  validSourceUrl: check("reference_antiphons_source_url_valid", sql`${table.sourceUrl} ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'`),
+  validSourceUrl: check("reference_antiphons_source_url_valid", sql`(
+    ${table.language} = 'czech' and ${table.sourceUrl} is not null and ${table.sourceUrl} ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'
+  ) or (
+    ${table.language} = 'polish' and (${table.sourceUrl} is null or ${table.sourceUrl} ~ '^https://')
+  )`),
 }));
 
 export const catalogPersons = pgTable("catalog_persons", {
@@ -107,25 +111,23 @@ export const serviceContexts = pgTable(
       ) or (
         ${table.referenceAntiphonId} is not null and
         ${table.referenceAntiphonDisplayNumber} is not null and
-        ${table.referenceAntiphonTitle} is not null and
-        ${table.referenceAntiphonSourceUrl} is not null
+        ${table.referenceAntiphonTitle} is not null
       )`,
     ),
     referenceAntiphonIdentity: check(
       "service_contexts_reference_antiphon_identity",
-      sql`${table.referenceAntiphonId} is null or ${table.referenceAntiphonId} ~ '^czech:(8[0-9]{2}|90[0-9]|91[0-5])$'`,
+      sql`${table.referenceAntiphonId} is null or ${table.referenceAntiphonId} ~ '^(czech|polish):[1-9][0-9]*$'`,
     ),
     referenceAntiphonSnapshotNonEmpty: check(
       "service_contexts_reference_antiphon_snapshot_non_empty",
       sql`${table.referenceAntiphonId} is null or (
         btrim(${table.referenceAntiphonDisplayNumber}) <> '' and
-        btrim(${table.referenceAntiphonTitle}) <> '' and
-        btrim(${table.referenceAntiphonSourceUrl}) <> ''
+        btrim(${table.referenceAntiphonTitle}) <> ''
       )`,
     ),
     referenceAntiphonSourceUrlValid: check(
       "service_contexts_reference_antiphon_source_url_valid",
-      sql`${table.referenceAntiphonSourceUrl} is null or ${table.referenceAntiphonSourceUrl} ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'`,
+      sql`${table.referenceAntiphonSourceUrl} is null or ${table.referenceAntiphonSourceUrl} ~ '^https://'`,
     ),
   }),
 );

@@ -1,9 +1,54 @@
 import catalog from "../../data/catalog/catalog-czech-antiphons.json";
 import type { ReferenceAntiphonPage, ReferenceAntiphonProvider, ReferenceAntiphonQuery, ReferenceAntiphonRecord } from "./reference-antiphon-contract";
-type Raw={number:number;title:string;url:string};
-export const referenceAntiphonRecords: ReferenceAntiphonRecord[]=(catalog as Raw[]).map(r=>({id:`czech:${r.number}`,language:"czech",canonicalNumber:r.number,displayNumber:String(r.number),title:r.title,sourceUrl:r.url}));
+
+const bundledCzechRecords: ReferenceAntiphonRecord[] = catalog.map((record) => ({
+  id: `czech:${record.number}`,
+  language: "czech",
+  canonicalNumber: record.number,
+  displayNumber: String(record.number),
+  title: record.title,
+  sourceUrl: record.url,
+}));
+
+const languageRank = (language: ReferenceAntiphonRecord["language"]) => language === "czech" ? 0 : 1;
+const compareRecords = (left: ReferenceAntiphonRecord, right: ReferenceAntiphonRecord) =>
+  languageRank(left.language) - languageRank(right.language)
+  || left.canonicalNumber - right.canonicalNumber
+  || left.id.localeCompare(right.id);
+
+/**
+ * Read-only in-memory provider. Production ships only the frozen Czech catalog;
+ * explicit fixture records let bilingual behavior be proved without inventing Polish production data.
+ */
 export class MemoryReferenceAntiphonProvider implements ReferenceAntiphonProvider {
- constructor(private readonly records=referenceAntiphonRecords) {}
- async list(input:ReferenceAntiphonQuery={}):Promise<ReferenceAntiphonPage>{const language=input.language??"all",search=input.search?.trim()??"";const filtered=this.records.filter(r=>(language==="all"||r.language===language)&&(!search||(/^\d+$/.test(search)?r.canonicalNumber===Number(search):r.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()))));const pageSize=input.pageSize??50,pageCount=Math.max(1,Math.ceil(filtered.length/pageSize)),page=Math.min(input.page??0,pageCount-1);return{records:filtered.slice(page*pageSize,(page+1)*pageSize),total:filtered.length,page,pageSize,pageCount,counts:{all:116,czech:116,polish:0}};}
- async getById(id:string){return this.records.find(r=>r.id===id);}
+  constructor(private readonly sourceRecords: readonly ReferenceAntiphonRecord[] = bundledCzechRecords) {}
+
+  async list(input: ReferenceAntiphonQuery = {}): Promise<ReferenceAntiphonPage> {
+    const language = input.language ?? "all";
+    const search = input.search?.trim() ?? "";
+    const lowerSearch = search.toLocaleLowerCase();
+    const numericSearch = /^\d+$/.test(search);
+    const filtered = this.sourceRecords
+      .filter((record) => language === "all" || record.language === language)
+      .filter((record) => !search || (numericSearch
+        ? record.displayNumber.startsWith(search)
+        : record.title.toLocaleLowerCase().includes(lowerSearch)))
+      .map((record) => ({ ...record }))
+      .sort(compareRecords);
+    const pageSize = input.pageSize ?? 50;
+    const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const page = Math.min(input.page ?? 0, pageCount - 1);
+    const start = page * pageSize;
+    const counts = {
+      all: this.sourceRecords.length,
+      czech: this.sourceRecords.filter((record) => record.language === "czech").length,
+      polish: this.sourceRecords.filter((record) => record.language === "polish").length,
+    };
+    return { records: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize, pageCount, counts };
+  }
+
+  async getById(id: string): Promise<ReferenceAntiphonRecord | undefined> {
+    const found = this.sourceRecords.find((record) => record.id === id);
+    return found ? { ...found } : undefined;
+  }
 }
