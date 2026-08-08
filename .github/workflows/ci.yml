@@ -225,6 +225,17 @@ jobs:
           name: phase-31-16-log
           path: phase-31-16.log
           if-no-files-found: ignore
+      - name: Phase 31.17 inline melody-class detail and equivalent navigation
+        run: |
+          set -o pipefail
+          npm run verify:phase-31-17 2>&1 | tee phase-31-17.log
+      - name: Upload Phase 31.17 log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-31-17-log
+          path: phase-31-17.log
+          if-no-files-found: ignore
       - name: Database migration
         run: |
           set -o pipefail

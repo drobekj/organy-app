@@ -85,7 +85,7 @@ function renderCoverage() {
     />,
   );
   assert.match(html, /Select an active organist in Service context to see candidates/);
-  assert.match(html, />Cancel</);
+  assert.doesNotMatch(html, />Cancel</, "the compact candidate list has no visible Cancel button, including prerequisite state");
   assert.doesNotMatch(html, /Loading candidates|Candidate lookup failed|Retry|No songs satisfy/);
   assert.match(html, /aria-busy="false"/);
 }
@@ -101,6 +101,7 @@ async function staticCoverage() {
   assert.equal(client.includes("if (!organistId) {"), true);
   assert.equal(client.includes("if (!organistId) {"), true);
   assert.equal(component.includes("blockedByPrerequisite"), true);
+  assert.equal(component.includes("candidate-list-cancel"), false);
   assert.equal(authoritative.includes("if (!input.organistPersonId) return [];"), true);
   assert.equal(memory.includes("if (!input.organistPersonId) return [];"), true);
   assert.equal(contracts.includes("if (!input.organistPersonId) return [];"), true);

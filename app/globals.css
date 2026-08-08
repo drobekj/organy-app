@@ -607,7 +607,8 @@ textarea {
   width: 100%;
 }
 
-.candidate-option-active .candidate-option-content {
+.candidate-option-row.candidate-option-active {
+  border-radius: 0.65rem;
   outline: 3px solid #84adff;
   outline-offset: -3px;
 }
@@ -651,4 +652,253 @@ textarea {
 .candidate-list-cancel {
   justify-self: start;
   margin-top: 0.35rem;
+}
+
+
+.candidate-option-row {
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+
+.candidate-option-row .candidate-option {
+  border-bottom: 0;
+}
+
+.candidate-inline-detail {
+  align-self: center;
+}
+
+.melody-detail {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.melody-detail:focus {
+  outline: 3px solid #84adff;
+  outline-offset: 2px;
+}
+
+.melody-detail-header,
+.melody-member-main,
+.melody-member-meta,
+.melody-member-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.melody-detail-header h3,
+.melody-detail-header p,
+.melody-member p {
+  margin: 0;
+}
+
+.melody-member-list {
+  display: grid;
+  gap: 0.55rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.melody-member {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem;
+}
+
+.melody-member-opened {
+  border-color: #84adff;
+}
+
+.melody-member-current {
+  background: #eff6ff;
+}
+
+.melody-member-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  justify-content: flex-start;
+}
+
+
+/* Phase 31.17 HUMAN refinement: invariant compact Planning row. */
+.row-card {
+  position: relative;
+}
+
+.row-icon-palette {
+  align-items: center;
+  background: var(--surface);
+  display: flex;
+  gap: 0.2rem;
+  padding: 0 0.35rem;
+  position: absolute;
+  right: 0.75rem;
+  top: -1rem;
+}
+
+.row-icon-button {
+  align-items: center;
+  border-radius: 0.35rem;
+  display: inline-flex;
+  font-size: 1.05rem;
+  height: 1.9rem;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 1.9rem;
+}
+
+.row-icon-remove {
+  color: var(--danger);
+}
+
+.compact-row-fields {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.song-field-row {
+  align-items: start;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.song-field-detail {
+  align-self: start;
+  border-radius: 0.65rem;
+  min-width: 4.7rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.row-note-input {
+  width: 100%;
+}
+
+@media (max-width: 520px) {
+  .row-card {
+    padding-top: 1.35rem;
+  }
+
+  .row-icon-palette {
+    right: 0.45rem;
+  }
+}
+
+/* Unified in-row melody detail: same slot and compact geometry for both entry paths. */
+.row-card {
+  display: grid;
+  column-gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 0.55rem;
+}
+
+.compact-row-fields,
+.song-field-row {
+  display: contents;
+}
+
+.row-card .candidate-combobox {
+  grid-column: 1;
+  min-width: 0;
+  order: 1;
+}
+
+.row-card .song-field-detail {
+  grid-column: 2;
+  order: 1;
+}
+
+.row-card > .melody-detail {
+  grid-column: 1;
+  order: 2;
+}
+
+.row-card .row-note-input {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+.row-card > .validation-list {
+  grid-column: 1 / -1;
+  order: 4;
+}
+
+.melody-detail {
+  margin-top: 0.35rem;
+}
+
+.melody-detail:focus {
+  outline: none;
+}
+
+.melody-member {
+  min-height: 2.2rem;
+  padding: 0.1rem 0.15rem;
+}
+
+.melody-member-opened {
+  border-color: #84adff;
+  padding: 0.55rem;
+}
+
+.melody-member-activatable {
+  cursor: pointer;
+}
+
+.melody-member-unavailable {
+  cursor: default;
+}
+
+.melody-member-active {
+  outline: 3px solid #84adff;
+  outline-offset: -3px;
+}
+
+.melody-member-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.melody-member-detail-button {
+  flex: 0 0 auto;
+}
+
+.melody-score-missing {
+  white-space: nowrap;
+}
+
+
+.planning-action-validation-list {
+  margin: 0;
+}
+
+
+/* Phase 31.17: a confirmed song that fails the current candidate context stays visible but muted. */
+.candidate-combobox input::placeholder,
+.candidate-combobox input.candidate-selection-unavailable {
+  color: var(--muted);
+}
+
+.candidate-combobox input::placeholder {
+  opacity: 1;
 }

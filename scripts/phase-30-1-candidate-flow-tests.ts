@@ -94,16 +94,16 @@ assert.equal(queryContext.liturgicalSeasonKey, "service-season");
 assert(!JSON.stringify(queryContext).includes("synthetic-entry"), "lookup query context must not inject hard-coded antiphon values");
 assert(!JSON.stringify(queryContext).includes("synthetic-advent"), "lookup query context must not inject hard-coded season values");
 
-const confirmed: PlanningCandidateEditableRow = { id: 1, songSearch: "czech 101 — Visible", selectedSong: { songId: "visible", language: "czech", number: "101", title: "Visible" }, selectedCandidate: visible, note: "Keep this note", lookupOpen: false };
+const confirmed: PlanningCandidateEditableRow = { id: 1, songSearch: "101 · Visible", selectedSong: { songId: "visible", language: "czech", number: "101", title: "Visible" }, selectedCandidate: visible, note: "Keep this note", lookupOpen: false };
 const invalidLookup = planningCandidateRowReducer(confirmed, { type: "lookupChanged", text: "bad temporary text" });
 assert.equal(invalidLookup.selectedSong?.songId, "visible", "invalid lookup must keep the confirmed song snapshot");
 assert.equal(invalidLookup.selectedCandidate?.songId, "visible", "invalid lookup must keep the confirmed candidate snapshot");
 const escaped = planningCandidateRowReducer(invalidLookup, { type: "lookupCancelled" });
-assert.equal(escaped.songSearch, "czech 101 — Visible");
+assert.equal(escaped.songSearch, "101 · Visible");
 assert.equal(escaped.selectedSong?.songId, "visible");
 assert.equal(escaped.lookupOpen, false);
 const switchedAway = planningCandidateRowReducer(invalidLookup, { type: "rowDeactivated" });
-assert.equal(switchedAway.songSearch, "czech 101 — Visible", "row deactivation must restore the confirmed lookup label");
+assert.equal(switchedAway.songSearch, "101 · Visible", "row deactivation must restore the confirmed lookup label");
 
 
 const canonicalUsages = buildCanonicalCandidateUsages({

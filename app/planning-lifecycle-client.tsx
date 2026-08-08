@@ -18,11 +18,11 @@ import {
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
-import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionRowIssues, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
+import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
-import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
-import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatSongLabel, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
+import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, getPlanningCandidateRowLookupState, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
@@ -46,6 +46,8 @@ type EditableRow = {
 };
 
 type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
+type SelectedCandidateAvailability = "available" | "unavailable" | "error";
+type SelectedCandidateAvailabilitySnapshot = { key: string; byRow: Record<number, SelectedCandidateAvailability> };
 
 type WorkingSetSnapshot = {
   serviceDate: string;
@@ -55,6 +57,12 @@ type WorkingSetSnapshot = {
   organist: string;
   rows: PlanningRow[];
 };
+
+type PlanningExpansion =
+  | { kind: "candidateList"; rowId: number; focusSongId?: string }
+  | { kind: "candidateDetail"; rowId: number; songId: string; candidate: CandidateQueryResult; returnQuery: string }
+  | { kind: "selectedSongDetail"; rowId: number; songId: string; candidate: CandidateQueryResult }
+  | null;
 
 type CatalogClient = CatalogService | DbCatalogClient;
 type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; referenceAntiphonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
@@ -84,7 +92,7 @@ function createEmptyRow(id: number, _serviceLanguage: ServiceLanguage): Editable
 function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
   return {
     id,
-    songSearch: row.song ? formatSongLabel(row.song) : "",
+    songSearch: row.song ? formatPlanningSongField(row.song) : "",
     selectedSong: row.song ? { ...row.song } : undefined,
     selectedCandidate: row.song ? rehydrateCandidateFromSelectedSong(row.song, row.note ?? "") : undefined,
     note: row.note ?? "",
@@ -327,10 +335,17 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [draftPeopleDefaults, setDraftPeopleDefaults] = useState<DraftPeopleDefaults>({ priest: { displayName: "" }, organist: { displayName: "" } });
   const [songResults, setSongResults] = useState<Record<number, CatalogSong[]>>({});
   const [candidateResults, setCandidateResults] = useState<Record<number, CandidateQueryResult[]>>({});
-  const [openCandidateRowId, setOpenCandidateRowId] = useState<number | null>(null);
+  const [planningExpansion, setPlanningExpansion] = useState<PlanningExpansion>(null);
+  const openCandidateRowId = planningExpansion?.kind === "candidateList" ? planningExpansion.rowId : null;
   const [candidateLoading, setCandidateLoading] = useState<Record<number, boolean>>({});
   const [candidateErrors, setCandidateErrors] = useState<Record<number, string | undefined>>({});
   const [candidateRefreshGeneration, setCandidateRefreshGeneration] = useState(0);
+  const [detailEligibilityCandidates, setDetailEligibilityCandidates] = useState<CandidateQueryResult[]>([]);
+  const [detailEligibilityLoading, setDetailEligibilityLoading] = useState(false);
+  const [detailEligibilityError, setDetailEligibilityError] = useState<string | undefined>();
+  const detailEligibilityRequest = useRef(0);
+  const [selectedCandidateAvailability, setSelectedCandidateAvailability] = useState<SelectedCandidateAvailabilitySnapshot>({ key: "", byRow: {} });
+  const selectedCandidateAvailabilityRequest = useRef(0);
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
@@ -422,11 +437,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     songId: row.selectedSong?.songId,
     melodyClassId: row.selectedCandidate?.melodyClassId,
   }))), [rows]);
-  const melodyIssuesByRow = useMemo(() => {
-    const issues = new Map<number, ReturnType<typeof melodyCollisionRowIssues>>();
-    for (const issue of melodyCollisionRowIssues(melodyCollisions)) issues.set(issue.rowId, [...(issues.get(issue.rowId) ?? []), issue]);
-    return issues;
-  }, [melodyCollisions]);
   const melodyFinalizationReason = melodyCollisionSummary(melodyCollisions);
   const hasMelodyCollisions = melodyCollisions.length > 0;
   const isCompletedRecordOpen = Boolean(completedRecord);
@@ -444,13 +454,19 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCandidateLoading({});
     setCandidateErrors({});
     if (recordChanged) {
-      setOpenCandidateRowId(null);
+      detailEligibilityRequest.current += 1;
+      setDetailEligibilityCandidates([]);
+      setDetailEligibilityLoading(false);
+      setDetailEligibilityError(undefined);
+      setPlanningExpansion(null);
       setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
       return;
     }
     if (openCandidateRowId !== null) {
       const openRow = rows.find((row) => row.id === openCandidateRowId);
       if (openRow) void queryCandidateResults(openRow.id, openRow.songSearch);
+    } else if (planningExpansion && planningExpansion.kind !== "candidateList") {
+      void loadDetailEligibility(planningExpansion.rowId);
     }
   }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, serviceLanguage, serviceDate, lookupTracker, candidateRefreshGeneration]);
   const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
@@ -465,9 +481,97 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     : false;
   const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
-  const rowLookupStates = rows.map((row) => row.lookupOpen && row.songSearch.trim() ? { kind: "lookup" as const, text: row.songSearch } : row.selectedSong?.songId ? { kind: "selected" as const, songId: row.selectedSong.songId } : row.note.trim() ? { kind: "noteOnly" as const, note: row.note } : { kind: "empty" as const });
+  const rowLookupStates = rows.map(getPlanningCandidateRowLookupState);
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
   const workspaceLeaveState = canLeaveWorkspace(rowLookupStates);
+  const selectedCandidateRows = rows.flatMap((row) => row.selectedSong?.songId ? [{ rowId: row.id, songId: row.selectedSong.songId, language: row.selectedSong.language }] : []);
+  const candidateAvailabilityKey = JSON.stringify({
+    runtimeMode,
+    serviceContextGeneration,
+    serviceDate,
+    serviceLanguage,
+    organistId: organistId ?? "",
+    referenceAntiphonId: referenceAntiphon?.id ?? "",
+    candidateAntiphonKey,
+    candidateSeasonKey,
+    currentPlanId: persistedSet?.id ?? "",
+    selected: selectedCandidateRows,
+    activePlans: savedDbSets.map((set) => [set.id, set.status, set.serviceContext.serviceDate, set.rows.map((row) => row.song?.songId ?? "")]),
+    completed: completedRecords.map((record) => [record.id, record.serviceContext.serviceDate, record.set.rows.map((row) => row.song?.songId ?? "")]),
+  });
+  const candidateAvailabilityCurrent = selectedCandidateAvailability.key === candidateAvailabilityKey;
+  const hasUnavailableCandidates = selectedCandidateRows.some((selected) => {
+    if (serviceLanguage !== "mixed" && selected.language !== serviceLanguage) return true;
+    return candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[selected.rowId] === "unavailable";
+  });
+  const hasCandidateAvailabilityError = candidateAvailabilityCurrent && selectedCandidateRows.some((selected) => selectedCandidateAvailability.byRow[selected.rowId] === "error");
+  const candidateAvailabilityPending = selectedCandidateRows.length > 0 && !candidateAvailabilityCurrent;
+  const hasCandidateAvailabilityBlock = candidateAvailabilityPending || hasUnavailableCandidates || hasCandidateAvailabilityError;
+  const rowCandidateUnavailable = (row: EditableRow) => Boolean(row.selectedSong?.songId) && (
+    (serviceLanguage !== "mixed" && row.selectedSong!.language !== serviceLanguage)
+    || (candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[row.id] === "unavailable")
+  );
+  const hasEmptyRowValidation = validationResults.some((result) => result.issues.some((issue) => issue.path === "row"));
+  const planningActionValidationMessages = [
+    ...(!serviceDate ? ["Service date is required."] : []),
+    ...(!isValidServiceTime(serviceTime) ? ["Service time is required in HH:mm format between 00:00 and 23:59."] : []),
+    ...(!priestId ? ["Priest must be selected from lookup."] : []),
+    ...(!organistId ? ["Organist must be selected from lookup."] : []),
+    ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
+    ...(hasUnavailableCandidates ? ["Every candidate must be available."] : []),
+    ...(hasCandidateAvailabilityError ? ["Candidate availability could not be checked."] : []),
+    ...validationResults.flatMap((result, index) => result.issues
+      .filter((issue) => issue.path !== "row")
+      .map((issue) => `Row ${index + 1}: ${issue.message}`)),
+    ...(hasInvalidLookupState ? [workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving."] : []),
+    ...(melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen ? [melodyFinalizationReason] : []),
+    ...(completeDateReason ? [`Complete service disabled: ${completeDateReason}`] : []),
+  ].filter((message, index, messages) => messages.indexOf(message) === index);
+
+  useEffect(() => {
+    const request = ++selectedCandidateAvailabilityRequest.current;
+    if (selectedCandidateRows.length === 0) {
+      setSelectedCandidateAvailability({ key: candidateAvailabilityKey, byRow: {} });
+      return;
+    }
+    if (!serviceDate || !organistId) {
+      setSelectedCandidateAvailability({
+        key: candidateAvailabilityKey,
+        byRow: Object.fromEntries(selectedCandidateRows.map((selected) => [selected.rowId, "unavailable"])) as Record<number, SelectedCandidateAvailability>,
+      });
+      return;
+    }
+    void Promise.all(selectedCandidateRows.map(async (selected) => {
+      if (serviceLanguage !== "mixed" && selected.language !== serviceLanguage) return [selected.rowId, "unavailable"] as const;
+      try {
+        const candidates = await interactionClient.queryCandidates({
+          serviceDate,
+          serviceLanguage,
+          organistPersonId: organistId,
+          referenceAntiphonId: referenceAntiphon?.id,
+          antiphonKey: candidateAntiphonKey,
+          liturgicalSeasonKey: candidateSeasonKey,
+          queryText: "",
+          preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD,
+          candidateUsages: getCanonicalCandidateUsages(selected.rowId),
+          currentPlanId: persistedSet?.id,
+        });
+        const candidate = candidates.find((item) => item.songId === selected.songId);
+        return [selected.rowId, candidate?.availability.kind === "available" ? "available" : "unavailable"] as const;
+      } catch {
+        return [selected.rowId, "error"] as const;
+      }
+    })).then((entries) => {
+      if (request !== selectedCandidateAvailabilityRequest.current) return;
+      setSelectedCandidateAvailability({
+        key: candidateAvailabilityKey,
+        byRow: Object.fromEntries(entries) as Record<number, SelectedCandidateAvailability>,
+      });
+    });
+    return () => {
+      if (selectedCandidateAvailabilityRequest.current === request) selectedCandidateAvailabilityRequest.current += 1;
+    };
+  }, [candidateAvailabilityKey, interactionClient]);
   const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
   const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
   const visibleCatalogSongs = useMemo(() => {
@@ -863,11 +967,123 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
   }
 
+  async function loadDetailEligibility(rowId: number) {
+    const request = ++detailEligibilityRequest.current;
+    setDetailEligibilityCandidates([]);
+    setDetailEligibilityError(undefined);
+    if (!organistId) {
+      setDetailEligibilityLoading(false);
+      return;
+    }
+    setDetailEligibilityLoading(true);
+    try {
+      const candidates = await interactionClient.queryCandidates({
+        serviceDate,
+        serviceLanguage,
+        organistPersonId: organistId,
+        referenceAntiphonId: referenceAntiphon?.id,
+        antiphonKey: candidateAntiphonKey,
+        liturgicalSeasonKey: candidateSeasonKey,
+        queryText: "",
+        preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD,
+        candidateUsages: getCanonicalCandidateUsages(rowId),
+        currentPlanId: persistedSet?.id,
+      });
+      if (request !== detailEligibilityRequest.current) return;
+      setDetailEligibilityCandidates(candidates);
+      setPlanningExpansion((current) => {
+        if (!current || current.kind === "candidateList" || current.rowId !== rowId) return current;
+        const refreshedCandidate = candidates.find((candidate) => candidate.songId === current.songId);
+        return refreshedCandidate ? { ...current, candidate: refreshedCandidate } : current;
+      });
+      setDetailEligibilityLoading(false);
+    } catch (error) {
+      if (request !== detailEligibilityRequest.current) return;
+      setDetailEligibilityCandidates([]);
+      setDetailEligibilityLoading(false);
+      setDetailEligibilityError(error instanceof Error ? error.message : "Replacement eligibility could not be checked.");
+    }
+  }
+
+  function resetDetailEligibility() {
+    detailEligibilityRequest.current += 1;
+    setDetailEligibilityCandidates([]);
+    setDetailEligibilityLoading(false);
+    setDetailEligibilityError(undefined);
+  }
+
+  function openCandidateDetail(rowId: number, candidate: CandidateQueryResult) {
+    const row = rows.find((item) => item.id === rowId);
+    setPlanningExpansion({ kind: "candidateDetail", rowId, songId: candidate.songId, candidate, returnQuery: row?.songSearch ?? "" });
+    void loadDetailEligibility(rowId);
+  }
+
+  function backToCandidateList() {
+    if (planningExpansion?.kind !== "candidateDetail") return;
+    const { rowId, songId, returnQuery } = planningExpansion;
+    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: returnQuery }) : row));
+    setPlanningExpansion({ kind: "candidateList", rowId, focusSongId: songId });
+    resetDetailEligibility();
+    void queryCandidateResults(rowId, returnQuery);
+  }
+
+  function showCandidateFromDetail(songId: string) {
+    if (planningExpansion?.kind !== "candidateDetail") return;
+    const target = detailEligibilityCandidates.find((candidate) => candidate.songId === songId);
+    if (!target) return;
+    const rowId = planningExpansion.rowId;
+    setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupChanged", text: "" }) : row));
+    setCandidateResults((current) => ({ ...current, [rowId]: detailEligibilityCandidates }));
+    setPlanningExpansion({ kind: "candidateDetail", rowId, songId: target.songId, candidate: target, returnQuery: "" });
+  }
+
+  function openSelectedSongDetail(rowId: number, candidate: CandidateQueryResult) {
+    lookupTracker.invalidatePrefix("song:");
+    setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+    setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
+    setPlanningExpansion({ kind: "selectedSongDetail", rowId, songId: candidate.songId, candidate });
+    void loadDetailEligibility(rowId);
+  }
+
+  function closeSelectedSongDetail(rowId: number) {
+    setPlanningExpansion(null);
+    resetDetailEligibility();
+    queueMicrotask(() => document.getElementById(`selected-song-detail-button-${rowId}`)?.focus());
+  }
+
+  function replaceFromSelectedDetail(rowId: number, candidate: CandidateQueryResult) {
+    if (candidate.availability.kind !== "available") {
+      setDetailEligibilityError(`Same melody is already used in ${candidate.availability.rows.map((row) => row.label).join(" and ")}.`);
+      return;
+    }
+    const currentRow = rows.find((row) => row.id === rowId);
+    if (currentRow?.selectedSong?.songId === candidate.songId) {
+      closeSelectedSongDetail(rowId);
+      return;
+    }
+    lookupTracker.invalidatePrefix("song:");
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId
+      ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate })
+      : row)));
+    setPlanningExpansion(null);
+    resetDetailEligibility();
+    setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
+  }
+
+  function retryDetailEligibility() {
+    if (planningExpansion && planningExpansion.kind !== "candidateList") void loadDetailEligibility(planningExpansion.rowId);
+  }
+
   function openCandidateList(rowId: number) {
-    if (!canEditRows || openCandidateRowId === rowId) return;
+    if (!canEditRows || (planningExpansion?.kind === "candidateList" && planningExpansion.rowId === rowId)) return;
+    resetDetailEligibility();
     lookupTracker.invalidatePrefix("song:");
     setRows((currentRows) => openSingleCandidateRow(currentRows, rowId));
-    setOpenCandidateRowId(rowId);
+    setPlanningExpansion({ kind: "candidateList", rowId });
     setCandidateResults({});
     setCandidateLoading({ [rowId]: Boolean(organistId) });
     setCandidateErrors({});
@@ -882,7 +1098,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function closeCandidateList(rowId: number) {
     lookupTracker.invalidate(getSongLookupScope(rowId));
     setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
-    if (openCandidateRowId === rowId) setOpenCandidateRowId(null);
+    if (openCandidateRowId === rowId) setPlanningExpansion(null);
     setCandidateResults((current) => { const next = { ...current }; delete next[rowId]; return next; });
     setCandidateLoading((current) => { const next = { ...current }; delete next[rowId]; return next; });
     setCandidateErrors((current) => { const next = { ...current }; delete next[rowId]; return next; });
@@ -900,19 +1116,31 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     } else {
       guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "candidateSelected", song: candidateToSelectedSong(candidate), candidate }) : row)));
     }
-    setOpenCandidateRowId(null);
+    setPlanningExpansion(null);
     setCandidateResults({});
     setCandidateLoading({});
     setCandidateErrors({});
   }
 
-  function clearSong(rowId: number) {
+  function clearRow(rowId: number) {
+    resetDetailEligibility();
     lookupTracker.invalidatePrefix("song:");
-    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "songCleared" }) : row)));
-    setOpenCandidateRowId(null);
+    guardedEditorUpdate(() => setRows((currentRows) => currentRows.map((row) => row.id === rowId ? planningCandidateRowReducer(row, { type: "rowCleared" }) : row)));
+    setPlanningExpansion(null);
     setCandidateResults({});
     setCandidateLoading({});
     setCandidateErrors({});
+  }
+
+  function focusNoteField(rowId: number) {
+    lookupTracker.invalidatePrefix("song:");
+    setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
+    setPlanningExpansion(null);
+    resetDetailEligibility();
+    setCandidateResults({});
+    setCandidateLoading({});
+    setCandidateErrors({});
+    activateExistingRow(rowId);
   }
 
   function cancelActiveLookup(rowId: number) {
@@ -941,8 +1169,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   function removeRow(id: number) {
     lookupTracker.invalidatePrefix("song:");
     guardedEditorUpdate(() => setRows((currentRows) => currentRows.filter((row) => row.id !== id)));
-    if (openCandidateRowId === id) setOpenCandidateRowId(null);
-    else if (openCandidateRowId !== null) setCandidateRefreshGeneration((generation) => generation + 1);
+    if (planningExpansion?.rowId === id) {
+      setPlanningExpansion(null);
+      resetDetailEligibility();
+    } else if (planningExpansion !== null) setCandidateRefreshGeneration((generation) => generation + 1);
     setSongResults({});
     setCandidateResults({});
     setCandidateLoading({});
@@ -968,7 +1198,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     setCandidateResults({});
     setCandidateLoading({});
     setCandidateErrors({});
-    if (openCandidateRowId !== null) setCandidateRefreshGeneration((generation) => generation + 1);
+    if (planningExpansion !== null) setCandidateRefreshGeneration((generation) => generation + 1);
     setSaveState("unsaved");
     setServiceError(null);
   }
@@ -986,6 +1216,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function saveWorkingSet() {
     if (isCompletedRecordOpen || isFinalSetOpen) return;
     if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
+    if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
     if (!hasServiceContext) {
       setServiceError({
         code: "invalidInput",
@@ -1116,6 +1347,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function saveCompletedChanges() {
     if (!completedRecord || selectedRole !== "admin") return;
+    if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
 
     const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
     if (languageDeviationConfirmation.cancelled) {
@@ -1215,7 +1447,8 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     }
     if (nextWorkspace !== workspace && workspace === "planning") {
       lookupTracker.invalidatePrefix("song:");
-      setOpenCandidateRowId(null);
+      setPlanningExpansion(null);
+      resetDetailEligibility();
       setCandidateResults({});
       setCandidateLoading({});
       setCandidateErrors({});
@@ -1368,94 +1601,102 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
           <div className="rows-list">
             {rows.map((row, index) => {
-              const validation = validationResults[index];
-              const melodyIssues = melodyIssuesByRow.get(row.id) ?? [];
-              const rowIssues = [...validation.issues, ...melodyIssues.map((issue) => ({ path: "song", message: issue.message }))];
-
               return (
                 <fieldset className="row-card" key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
-                  <div className="row-actions">
-                    <button type="button" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>
-                      Move up
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveRow(index, 1)}
-                      disabled={!canEditRows || index === rows.length - 1}
-                    >
-                      Move down
-                    </button>
-                    <button type="button" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>
-                      Remove
-                    </button>
+                  <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
+                    <button type="button" className="row-icon-button" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
+                    <button type="button" className="row-icon-button" aria-label="Move row down" title="Move row down" onClick={() => moveRow(index, 1)} disabled={!canEditRows || index === rows.length - 1}>↓</button>
+                    <button type="button" className="row-icon-button" aria-label="Clear row" title="Clear row" onClick={() => clearRow(row.id)} disabled={!canEditRows || (!row.selectedSong && !row.note.trim() && !row.songSearch.trim() && planningExpansion?.rowId !== row.id)}>↶</button>
+                    <button type="button" className="row-icon-button row-icon-remove" aria-label="Remove row" title="Remove row" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>×</button>
                   </div>
-                  <div className="row-fields">
-                    <label>
-                      Song lookup
+                  <div className="compact-row-fields">
+                    <div className="song-field-row">
                       <CandidateCombobox
-                        rowId={row.id}
-                        rowLabel={`Row ${index + 1}`}
-                        open={openCandidateRowId === row.id}
-                        value={row.songSearch}
-                        selectedSong={row.selectedSong}
-                        candidates={candidateResults[row.id] ?? []}
-                        loading={candidateLoading[row.id] ?? false}
-                        error={candidateErrors[row.id]}
-                        prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
-                        serviceLanguage={serviceLanguage}
-                        disabled={!canEditRows}
-                        onOpen={() => openCandidateList(row.id)}
-                        onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
-                        onSelect={(candidate) => selectCandidate(row.id, candidate)}
-                        onCancel={() => cancelActiveLookup(row.id)}
-                        onRetry={() => { void queryCandidateResults(row.id, row.songSearch); }}
-                      />
-                      {row.selectedSong ? (
-                        <CandidateLine
-                          candidate={row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong)}
-                          variant="selected"
-                          note={row.note}
-                          readOnly={!canEditRows}
-                          onOpenDetail={() => row.selectedSong?.songId && openCatalogSongDetail(row.selectedSong.songId, row.id)}
-                          onNoteChange={(note) => updateRow(row.id, { note })}
-                        />
-                      ) : row.songSearch ? <span className="field-help">Lookup text is temporary — select a candidate or cancel before saving or adding rows.</span> : <span className="field-help">No song selected; use the note field for note-only rows.</span>}
-                      {row.selectedSong && canEditRows && <button type="button" onClick={() => clearSong(row.id)}>Clear song</button>}
-                    </label>
-                    {!row.selectedSong && (
-                      <label className="note-field">
-                        Text note
-                        <input
-                          type="text"
-                          value={row.note}
-                          onChange={(event) => updateRow(row.id, { note: event.target.value })}
-                          placeholder="Optional note without a song"
-                          disabled={!canEditRows}
-                        />
-                      </label>
-                    )}
+                                              rowId={row.id}
+                                              rowLabel={`Row ${index + 1}`}
+                                              open={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id}
+                                              focusSongId={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id ? planningExpansion.focusSongId : undefined}
+                                              detail={planningExpansion?.kind === "candidateDetail" && planningExpansion.rowId === row.id ? {
+                                                candidate: planningExpansion.candidate,
+                                                eligibilityCandidates: detailEligibilityCandidates,
+                                                loading: detailEligibilityLoading,
+                                                error: detailEligibilityError,
+                                              } : undefined}
+                                              value={row.songSearch}
+                                              selectedSong={row.selectedSong}
+                                              candidates={candidateResults[row.id] ?? []}
+                                              loading={candidateLoading[row.id] ?? false}
+                                              error={candidateErrors[row.id]}
+                                              prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
+                                              serviceLanguage={serviceLanguage}
+                                              disabled={!canEditRows}
+                                              selectionUnavailable={rowCandidateUnavailable(row) && Boolean(row.selectedSong && row.songSearch === formatPlanningSongField(row.selectedSong))}
+                                              onOpen={() => openCandidateList(row.id)}
+                                              onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
+                                              onSelect={(candidate) => selectCandidate(row.id, candidate)}
+                                              onCancel={() => cancelActiveLookup(row.id)}
+                                              onRetry={() => { void queryCandidateResults(row.id, row.songSearch); }}
+                                              onOpenDetail={(candidate) => openCandidateDetail(row.id, candidate)}
+                                              onBackFromDetail={backToCandidateList}
+                                              onRetryDetail={retryDetailEligibility}
+                                              onShowDetailCandidate={showCandidateFromDetail}
+                                            />
+                      <button
+                        id={`selected-song-detail-button-${row.id}`}
+                        type="button"
+                        className="song-field-detail"
+                        disabled={!row.selectedSong}
+                        onClick={() => row.selectedSong && openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong))}
+                      >
+                        Detail
+                      </button>
+                    </div>
+                    <input
+                      className="row-note-input"
+                      aria-label={`Text note for Row ${index + 1}`}
+                      type="text"
+                      value={row.note}
+                      readOnly={!canEditRows}
+                      onFocus={() => focusNoteField(row.id)}
+                      onChange={(event) => updateRow(row.id, { note: event.target.value })}
+                      placeholder="Text note"
+                    />
                   </div>
-                  {rowIssues.length > 0 && (
-                    <ul className="validation-list" aria-label={`Row ${index + 1} validation errors`}>
-                      {rowIssues.map((issue) => (
-                        <li key={`${issue.path}-${issue.message}`}>{issue.message}</li>
-                      ))}
-                    </ul>
+                  {planningExpansion?.kind === "selectedSongDetail" && planningExpansion.rowId === row.id && (
+                    <MelodyClassDetail
+                      mode="selected"
+                      rowLabel={`Row ${index + 1}`}
+                      candidate={planningExpansion.candidate}
+                      serviceLanguage={serviceLanguage}
+                      currentSongId={row.selectedSong?.songId}
+                      eligibilityCandidates={detailEligibilityCandidates}
+                      loading={detailEligibilityLoading}
+                      error={detailEligibilityError}
+                      onClose={() => closeSelectedSongDetail(row.id)}
+                      onRetry={retryDetailEligibility}
+                      onReplace={canEditRows ? (candidate) => replaceFromSelectedDetail(row.id, candidate) : undefined}
+                    />
                   )}
                 </fieldset>
               );
             })}
           </div>
 
+          {planningActionValidationMessages.length > 0 && (
+            <ul className="validation-list planning-action-validation-list" aria-label="Planning action validation errors">
+              {planningActionValidationMessages.map((message) => <li key={message}>{message}</li>)}
+            </ul>
+          )}
+
           <div className="form-actions">
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
+                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasMelodyCollisions}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions}>
                       Finalize set
                     </button>
                   </>
@@ -1472,7 +1713,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState}>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock}>
                       Save completed changes
                     </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>
@@ -1480,8 +1721,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
               </>
           </div>
-          {melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen && <p className="field-help" role="alert">{melodyFinalizationReason}</p>}
-          {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>
         )}
 
