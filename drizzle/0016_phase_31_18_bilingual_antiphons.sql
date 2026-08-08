@@ -5,6 +5,12 @@ ALTER TABLE "reference_antiphons" ADD CONSTRAINT "reference_antiphons_source_url
   ("language" = 'polish' AND ("source_url" IS NULL OR "source_url" ~ '^https://'))
 );
 
+DELETE FROM "reference_antiphon_recommendations" AS r
+USING "reference_antiphons" AS a, "reference_catalog_songs" AS s
+WHERE r."antiphon_id" = a."id"
+  AND r."reference_song_id" = s."id"
+  AND a."language" <> s."language";
+
 ALTER TABLE "service_contexts" DROP CONSTRAINT IF EXISTS "service_contexts_reference_antiphon_snapshot_complete";
 ALTER TABLE "service_contexts" DROP CONSTRAINT IF EXISTS "service_contexts_reference_antiphon_identity";
 ALTER TABLE "service_contexts" DROP CONSTRAINT IF EXISTS "service_contexts_reference_antiphon_snapshot_non_empty";
