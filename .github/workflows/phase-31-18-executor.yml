@@ -1,0 +1,66 @@
+name: Phase 31.18 verified transformation
+
+on:
+  push:
+    branches:
+      - codex/phase-31-18-service-context-antiphon-lookup
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-18-service-context-antiphon-lookup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Apply approved transformation
+        run: python3 scripts/phase-31-18-transform.py
+      - name: Typecheck transformed tree
+        run: npm run typecheck
+      - name: Focused Phase 31.18 acceptance
+        run: npm run verify:phase-31-18
+      - name: Regression Phase 31.9
+        run: npm run verify:phase-31-9
+      - name: Regression Phase 31.10a
+        run: npm run verify:phase-31-10a
+      - name: Regression Phase 31.11
+        run: npm run verify:phase-31-11
+      - name: Complete non-DB regression suite
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Remove temporary executor
+        run: rm .github/workflows/phase-31-18-executor.yml scripts/phase-31-18-transform.py
+      - name: Commit verified product tree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Phase 31.18 — implement bilingual Antiphon lookup"
+          git push origin HEAD:codex/phase-31-18-service-context-antiphon-lookup
