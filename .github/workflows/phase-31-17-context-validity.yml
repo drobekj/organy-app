@@ -1,0 +1,60 @@
+name: Phase 31.17 context validity refinement
+
+on:
+  push:
+    branches:
+      - codex/phase-31-17-context-validity-runner
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase-31-17-context-validity
+  cancel-in-progress: true
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-17-context-validity-runner
+          fetch-depth: 0
+      - name: Preserve refinement script and switch to exact product branch
+        run: |
+          cp scripts/phase-31-17-context-validity-fix.py /tmp/phase-31-17-context-validity-fix.py
+          git fetch origin codex/phase-31-17-inline-melody-detail
+          git checkout -B codex/phase-31-17-inline-melody-detail origin/codex/phase-31-17-inline-melody-detail
+          test "$(git rev-parse HEAD)" = "4cecbeaa5bc8509791a7d92ec4d07e16270c43f9"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Apply approved context-validity refinement
+        run: python3 /tmp/phase-31-17-context-validity-fix.py
+      - name: Diff check
+        run: git diff --check
+      - name: Focused Phase 31.17 acceptance
+        run: npm run test:phase-31-17
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Commit verified refinement to PR branch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            app/globals.css \
+            app/planning-lifecycle-client.tsx \
+            docs/phase-31-17-contract.md \
+            scripts/phase-31-17-tests.tsx \
+            scripts/planning-ui-workflow-static-tests.ts \
+            src/planning-lifecycle/candidate-flow.ts \
+            src/planning-lifecycle/candidate-list.tsx
+          git diff --cached --check
+          git commit -m "Phase 31.17 — revalidate selected candidates on context changes"
+          git push origin HEAD:codex/phase-31-17-inline-melody-detail
