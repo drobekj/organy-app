@@ -164,3 +164,19 @@ Their navigation/selection semantics belong directly to the member fields.
 ## Latest refinement verification
 
 The selected-song `Detail` switch exception above is the latest approved correction. It requires a fresh exact-head Phase 31.17/CI/Automatic Review Gate and one focused HUMAN browser checkpoint before Ready for review.
+
+## HUMAN checkpoint update — 2026-08-08
+
+Browser-confirmed PASS:
+
+- clicking an exposed candidate row beneath candidate-origin Detail closes Detail back to exactly that candidate without selecting/replacing Song lookup;
+- generic outside-dismiss outside the union of candidate list + candidate Detail closes both overlays and preserves the confirmed row values;
+- the selected-song right-side `Detail` switch exception remains separately HUMAN-passed.
+
+Latest refinement pending a focused browser check:
+
+- the already accepted row-control vertical center and square size remain unchanged, while arrow glyphs receive additional visual stroke weight;
+- the active candidate cursor contour encloses the whole candidate row, including its right-side `Detail` control, matching the whole-item contour used in expanded melody Detail;
+- row-level blocking validation is removed from each `Row N`; one action-level bullet list sits between the last Planning row and the `Save working set` / action palette;
+- if at least one row lacks both a complete song and a non-empty text note, that list contains exactly one unified message: `Every row must include either a complete song reference or a non-empty textual note.`;
+- other current missing/invalid data that disable Planning actions may share the same list, while permission/lifecycle state is not misrepresented as validation.

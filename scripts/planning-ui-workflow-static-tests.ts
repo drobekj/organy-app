@@ -13,6 +13,8 @@ for (const required of [
   "openSelectedSongDetail(row.id",
   "row-icon-palette",
   "placeholder=\"Text note\"",
+  "planning-action-validation-list",
+  "Every row must include either a complete song reference or a non-empty textual note.",
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",

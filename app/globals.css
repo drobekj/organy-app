@@ -607,7 +607,8 @@ textarea {
   width: 100%;
 }
 
-.candidate-option-active .candidate-option-content {
+.candidate-option-row.candidate-option-active {
+  border-radius: 0.65rem;
   outline: 3px solid #84adff;
   outline-offset: -3px;
 }
@@ -884,4 +885,9 @@ textarea {
 
 .melody-score-missing {
   white-space: nowrap;
+}
+
+
+.planning-action-validation-list {
+  margin: 0;
 }

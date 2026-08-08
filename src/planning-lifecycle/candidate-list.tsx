@@ -56,6 +56,10 @@ const planningOverlayCss = `
   padding: 0;
   width: 1.72rem;
 }
+.row-icon-palette .row-icon-button:not(.row-icon-remove) {
+  -webkit-text-stroke: 0.35px currentColor;
+  text-shadow: 0.25px 0 currentColor, -0.25px 0 currentColor;
+}
 .row-card .candidate-combobox { position: relative; }
 .row-card .candidate-combobox > .candidate-listbox,
 .row-card .candidate-combobox > .melody-detail-candidate {
@@ -379,7 +383,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
             return (
               <div
                 key={candidate.songId}
-                className={`candidate-option-row${current ? " candidate-option-current" : ""}`}
+                className={`candidate-option-row${current ? " candidate-option-current" : ""}${index === activeIndex && !current ? " candidate-option-active" : ""}`}
                 style={{
                   alignItems: "center",
                   minHeight: "2.2rem",
@@ -389,7 +393,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
               >
                 <div
                   id={optionId(listboxId, candidate.songId)}
-                  className={`candidate-option${index === activeIndex && !current ? " candidate-option-active" : ""}${selectable ? "" : " candidate-option-disabled"}`}
+                  className={`candidate-option${selectable ? "" : " candidate-option-disabled"}`}
                   role="option"
                   aria-selected={current}
                   aria-disabled={!selectable}

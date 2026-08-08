@@ -18,7 +18,7 @@ import {
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
-import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionRowIssues, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
+import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
@@ -433,11 +433,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     songId: row.selectedSong?.songId,
     melodyClassId: row.selectedCandidate?.melodyClassId,
   }))), [rows]);
-  const melodyIssuesByRow = useMemo(() => {
-    const issues = new Map<number, ReturnType<typeof melodyCollisionRowIssues>>();
-    for (const issue of melodyCollisionRowIssues(melodyCollisions)) issues.set(issue.rowId, [...(issues.get(issue.rowId) ?? []), issue]);
-    return issues;
-  }, [melodyCollisions]);
   const melodyFinalizationReason = melodyCollisionSummary(melodyCollisions);
   const hasMelodyCollisions = melodyCollisions.length > 0;
   const isCompletedRecordOpen = Boolean(completedRecord);
@@ -485,6 +480,20 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const rowLookupStates = rows.map((row) => row.lookupOpen && row.songSearch.trim() ? { kind: "lookup" as const, text: row.songSearch } : row.selectedSong?.songId ? { kind: "selected" as const, songId: row.selectedSong.songId } : row.note.trim() ? { kind: "noteOnly" as const, note: row.note } : { kind: "empty" as const });
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
   const workspaceLeaveState = canLeaveWorkspace(rowLookupStates);
+  const hasEmptyRowValidation = validationResults.some((result) => result.issues.some((issue) => issue.path === "row"));
+  const planningActionValidationMessages = [
+    ...(!serviceDate ? ["Service date is required."] : []),
+    ...(!isValidServiceTime(serviceTime) ? ["Service time is required in HH:mm format between 00:00 and 23:59."] : []),
+    ...(!priestId ? ["Priest must be selected from lookup."] : []),
+    ...(!organistId ? ["Organist must be selected from lookup."] : []),
+    ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
+    ...validationResults.flatMap((result, index) => result.issues
+      .filter((issue) => issue.path !== "row")
+      .map((issue) => `Row ${index + 1}: ${issue.message}`)),
+    ...(hasInvalidLookupState ? [workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving."] : []),
+    ...(melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen ? [melodyFinalizationReason] : []),
+    ...(completeDateReason ? [`Complete service disabled: ${completeDateReason}`] : []),
+  ].filter((message, index, messages) => messages.indexOf(message) === index);
   const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
   const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
   const visibleCatalogSongs = useMemo(() => {
@@ -1512,10 +1521,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
           <div className="rows-list">
             {rows.map((row, index) => {
-              const validation = validationResults[index];
-              const melodyIssues = melodyIssuesByRow.get(row.id) ?? [];
-              const rowIssues = [...validation.issues, ...melodyIssues.map((issue) => ({ path: "song", message: issue.message }))];
-
               return (
                 <fieldset className="row-card" key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
@@ -1592,17 +1597,16 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                       onReplace={canEditRows ? (candidate) => replaceFromSelectedDetail(row.id, candidate) : undefined}
                     />
                   )}
-                  {rowIssues.length > 0 && (
-                    <ul className="validation-list" aria-label={`Row ${index + 1} validation errors`}>
-                      {rowIssues.map((issue) => (
-                        <li key={`${issue.path}-${issue.message}`}>{issue.message}</li>
-                      ))}
-                    </ul>
-                  )}
                 </fieldset>
               );
             })}
           </div>
+
+          {planningActionValidationMessages.length > 0 && (
+            <ul className="validation-list planning-action-validation-list" aria-label="Planning action validation errors">
+              {planningActionValidationMessages.map((message) => <li key={message}>{message}</li>)}
+            </ul>
+          )}
 
           <div className="form-actions">
             <>
@@ -1636,8 +1640,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
               </>
           </div>
-          {melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen && <p className="field-help" role="alert">{melodyFinalizationReason}</p>}
-          {completeDateReason && <p className="field-help">Complete service disabled: {completeDateReason}</p>}
         </form>
         )}
 
