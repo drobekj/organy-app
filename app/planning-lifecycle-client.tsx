@@ -26,6 +26,7 @@ import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSel
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
+import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";
 import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recommendation-panel";
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import {
@@ -298,6 +299,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             planningSets: repositories.planningSets,
             completedServiceRecords: repositories.completedServiceRecords,
             catalog: catalogRepository,
+            referenceAntiphons: new MemoryReferenceAntiphonProvider(),
           }),
     [repositories, runtimeMode, catalogRepository],
   );
