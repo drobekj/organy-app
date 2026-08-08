@@ -55,8 +55,10 @@ jobs:
         run: npm test
       - name: Production build
         run: npm run build
-      - name: Remove temporary executor
-        run: rm .github/workflows/phase-31-18-executor.yml scripts/phase-31-18-transform.py scripts/phase-31-18-transform-fix.py
+      - name: Prepare pushable verified product tree
+        run: |
+          git checkout HEAD -- .github/workflows/ci.yml .github/workflows/phase-31-18-executor.yml
+          rm scripts/phase-31-18-transform.py scripts/phase-31-18-transform-fix.py
       - name: Commit verified product tree
         run: |
           git config user.name "github-actions[bot]"
