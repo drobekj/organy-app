@@ -100,14 +100,14 @@ function referenceMelodyInput(value: unknown, merge: boolean): { referenceSongId
 function referenceAntiphonRecommendationInput(value: unknown, mutation: boolean): { antiphonId: string; referenceSongId?: string | null } {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is required.");
   const input = value as Record<string, unknown>; const allowed = mutation ? ["antiphonId", "referenceSongId"] : ["antiphonId"];
-  if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key)) || typeof input.antiphonId !== "string" || !/^czech:(?:8\d\d|9(?:0\d|1[0-5]))$/.test(input.antiphonId)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is malformed.");
+  if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key)) || typeof input.antiphonId !== "string" || !/^(?:czech|polish):[1-9]\d*$/.test(input.antiphonId)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is malformed.");
   if (mutation && input.referenceSongId !== null && (typeof input.referenceSongId !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId))) throw new LocalActorError("invalidInput", "referenceSongId must be a valid Reference song id or null.");
   return { antiphonId: input.antiphonId, ...(mutation ? { referenceSongId: input.referenceSongId as string | null } : {}) };
 }
 function respond<T>(result: { success: true; value: T } | { success: false; error: { code: string; message: string } }) { if (result.success) return NextResponse.json(result); const status = result.error.code === "invalidInput" ? 400 : result.error.code === "notFound" ? 404 : 403; return NextResponse.json(result, { status }); }
 
 
-const REFERENCE_ANTIPHON_ID = /^czech:(?:8\d\d|9(?:0\d|1[0-5]))$/;
+const REFERENCE_ANTIPHON_ID = /^(?:czech|polish):[1-9]\d*$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function referenceCandidateQueryInput(value: unknown): CandidateQueryInput {
@@ -122,7 +122,7 @@ export function referenceCandidateQueryInput(value: unknown): CandidateQueryInpu
   validateOptionalString(input, "liturgicalSeasonKey");
   validateOptionalString(input, "queryText");
   validateOptionalNonEmptyString(input, "currentPlanId");
-  if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId must be an authoritative Czech antiphon id.");
+  if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId must be an authoritative Czech or Polish antiphon id.");
   if (input.preferenceThreshold !== undefined && (typeof input.preferenceThreshold !== "number" || !Number.isFinite(input.preferenceThreshold))) throw new LocalActorError("invalidInput", "preferenceThreshold must be a finite number.");
   const candidateUsages = parseCandidateUsages(input.candidateUsages);
   return {
@@ -147,7 +147,7 @@ export function referenceCandidateHydrationInput(value: unknown): CandidateHydra
   validateOptionalNonEmptyString(input, "organistPersonId");
   validateOptionalString(input, "antiphonKey");
   validateOptionalString(input, "liturgicalSeasonKey");
-  if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId must be an authoritative Czech antiphon id.");
+  if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId must be an authoritative Czech or Polish antiphon id.");
   const songs = input.songs.map((value, index) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", `Candidate hydration song ${index + 1} is malformed.`);
     const song = value as Record<string, unknown>; const songKeys = new Set(["songId", "language", "number", "title"]);

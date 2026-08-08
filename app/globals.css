@@ -902,3 +902,110 @@ textarea {
 .candidate-combobox input::placeholder {
   opacity: 1;
 }
+
+
+/* Phase 31.18: compact optional Service Context Antiphon lookup. */
+.service-antiphon-lookup {
+  align-self: end;
+  min-width: 0;
+  position: relative;
+}
+
+.service-antiphon-control {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  min-width: 0;
+}
+
+.service-antiphon-control:focus-within {
+  outline: 2px solid #84adff;
+  outline-offset: 1px;
+}
+
+.service-antiphon-control input {
+  border: 0;
+  min-width: 0;
+  outline: 0;
+}
+
+.service-antiphon-control input::placeholder,
+.service-antiphon-control-invalid input {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.service-antiphon-source {
+  color: #175cd3;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.45rem 0.55rem;
+  white-space: nowrap;
+}
+
+.service-antiphon-clear {
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--muted);
+  line-height: 1;
+  margin-right: 0.25rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.service-antiphon-listbox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.75rem 1.5rem rgb(31 41 51 / 12%);
+  direction: rtl;
+  left: 0;
+  margin-top: 0.35rem;
+  max-height: min(32rem, 70vh);
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 60;
+}
+
+.service-antiphon-listbox > * {
+  direction: ltr;
+}
+
+.service-antiphon-option {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.45rem;
+  scroll-margin-block: 0.35rem;
+}
+
+.service-antiphon-option:last-child {
+  border-bottom: 0;
+}
+
+.service-antiphon-option-active {
+  border-radius: 0.55rem;
+  outline: 3px solid #84adff;
+  outline-offset: -3px;
+}
+
+.service-antiphon-option[aria-selected="true"] {
+  background: #eff6ff;
+}
+
+.service-antiphon-list-state {
+  color: var(--muted);
+  padding: 0.65rem 0.75rem;
+}
+
+.service-antiphon-list-error {
+  color: var(--danger);
+}

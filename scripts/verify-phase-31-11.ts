@@ -104,9 +104,8 @@ async function verifyLifecycle(pool: Pool) {
     { id: "czech:800" },
     { id: "czech:800", displayNumber: 800, title: "x", sourceUrl: "https://www.evangelickykancional.cz/x" },
     { ...forged("czech:800"), extra: true },
-    forged("czech:799"),
-    forged("czech:916"),
-    forged("polish:800"),
+    forged("czech:0"),
+    forged("polish:0"),
   ];
   for (const value of malformedValues) {
     const rejected = await invoke("saveWorkingSet", { existingSetId: setId, serviceContext: baseContext(value), set: workingSet });

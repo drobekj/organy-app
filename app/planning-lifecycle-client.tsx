@@ -18,7 +18,7 @@ import {
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
-import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, validatePlanningRow } from "../src/planning-lifecycle";
+import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, serviceAntiphonMatchesLanguage, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
@@ -441,6 +441,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const hasMelodyCollisions = melodyCollisions.length > 0;
   const isCompletedRecordOpen = Boolean(completedRecord);
   const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim() && priestId && organistId);
+  const hasAntiphonLanguageMismatch = Boolean(referenceAntiphon && !serviceAntiphonMatchesLanguage(referenceAntiphon, serviceLanguage));
   const isFinalSetOpen = persistedSet?.status === "final";
   const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
@@ -517,6 +518,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     ...(!isValidServiceTime(serviceTime) ? ["Service time is required in HH:mm format between 00:00 and 23:59."] : []),
     ...(!priestId ? ["Priest must be selected from lookup."] : []),
     ...(!organistId ? ["Organist must be selected from lookup."] : []),
+    ...(hasAntiphonLanguageMismatch ? ["Selected antiphon must match the service language."] : []),
     ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
     ...(hasUnavailableCandidates ? ["Every candidate must be available."] : []),
     ...(hasCandidateAvailabilityError ? ["Candidate availability could not be checked."] : []),
@@ -1216,6 +1218,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   async function saveWorkingSet() {
     if (isCompletedRecordOpen || isFinalSetOpen) return;
     if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
+    if (hasAntiphonLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected antiphon must match the service language." }); setSaveState("errors"); return; }
     if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
     if (!hasServiceContext) {
       setServiceError({
@@ -1291,6 +1294,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
     if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") {
       return;
     }
+    if (hasAntiphonLanguageMismatch) {
+      setServiceError({ code: "invalidInput", message: "Selected antiphon must match the service language." });
+      setSaveState("errors");
+      return;
+    }
     if (hasMelodyCollisions) {
       setServiceError({ code: "invalidInput", message: melodyFinalizationReason ?? "Cannot finalize: the same melody is used more than once." });
       setSaveState("errors");
@@ -1347,6 +1355,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
 
   async function saveCompletedChanges() {
     if (!completedRecord || selectedRole !== "admin") return;
+    if (hasAntiphonLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected antiphon must match the service language." }); setSaveState("errors"); return; }
     if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
 
     const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
@@ -1578,14 +1587,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
               runtime={runtimeMode}
               editable={!isEditorLocked}
               contextKey={serviceContextRecordKey}
+              serviceLanguage={serviceLanguage}
               selected={referenceAntiphon}
+              invalid={hasAntiphonLanguageMismatch}
               onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined)); }}
             />
-            <label>
-              Candidate antiphon key
-              <input type="text" disabled={isEditorLocked} value={candidateAntiphonKey} onChange={(event) => guardedEditorUpdate(() => setCandidateAntiphonKey(event.target.value))} placeholder="Optional synthetic/demo antiphon key" />
-              <span className="field-help">Legacy synthetic/demo candidate signal; it is not populated from the authoritative Antiphon selection.</span>
-            </label>
             <label>
               Candidate season key
               <input type="text" disabled={isEditorLocked} value={candidateSeasonKey} onChange={(event) => guardedEditorUpdate(() => setCandidateSeasonKey(event.target.value))} placeholder="Optional synthetic/demo season key" />
@@ -1693,10 +1699,10 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock}>
+                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
                       Finalize set
                     </button>
                   </>
@@ -1713,7 +1719,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock}>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
                       Save completed changes
                     </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>

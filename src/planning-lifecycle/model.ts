@@ -28,7 +28,7 @@ export type ServiceAntiphonReference = {
   id: string;
   displayNumber: string;
   title: string;
-  sourceUrl: string;
+  sourceUrl?: string;
 };
 
 export type ServiceContext = {
@@ -39,7 +39,7 @@ export type ServiceContext = {
   organist: ServicePersonReference;
   /** Optional service-level note. Whitespace-only values are normalized away before persistence. */
   note?: string;
-  /** Optional authoritative Czech antiphon snapshot selected for this concrete service. */
+  /** Optional authoritative Czech/Polish antiphon snapshot selected for this concrete service. */
   referenceAntiphon?: ServiceAntiphonReference;
   /** Optional synthetic/demo antiphon key used to rehydrate candidate metadata. */
   antiphonKey?: string;

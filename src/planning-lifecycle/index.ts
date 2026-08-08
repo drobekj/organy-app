@@ -21,6 +21,7 @@ export {
 export type { PlanningValidationIssue, PlanningValidationResult } from "./validation";
 
 export { isValidServiceTime, normalizeServiceTime } from "./service-time";
+export { serviceAntiphonLanguageFromId, serviceAntiphonMatchesLanguage } from "./service-antiphon";
 export {
   findMelodyCollisions,
   melodyCollisionRowIssues,

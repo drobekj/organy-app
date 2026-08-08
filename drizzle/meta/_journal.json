@@ -113,6 +113,13 @@
       "when": 1785950000000,
       "tag": "0015_phase_31_13_reference_thematic_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0016_phase_31_18_bilingual_antiphons",
+      "breakpoints": true
     }
   ]
 }
