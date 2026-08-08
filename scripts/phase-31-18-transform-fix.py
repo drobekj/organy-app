@@ -20,5 +20,11 @@ if text.count(old_message) != 1:
     raise RuntimeError("Expected one interaction antiphon-message transformation anchor.")
 text = text.replace(old_message, new_message)
 
+old_render_assertion = "assert.doesNotMatch(html,/href=/);assert.match(html,/service-antiphon-option-active/);"
+new_render_assertion = "const control=html.match(/^<div class=\\\"service-antiphon-control[^>]*>[\\s\\S]*?<\\/div>/)?.[0]??\\\"\\\";assert.doesNotMatch(control,/href=/);assert.match(html,/service-antiphon-option-active/);"
+if text.count(old_render_assertion) != 1:
+    raise RuntimeError("Expected one Phase 31.18 optional-Source render assertion anchor.")
+text = text.replace(old_render_assertion, new_render_assertion)
+
 path.write_text(text, encoding="utf-8")
-print(f"Corrected {escape_count} anchor escape(s), regex replacement handling, and API message cardinality.")
+print(f"Corrected {escape_count} anchor escape(s), regex replacement handling, API cardinality, and render-test scope.")
