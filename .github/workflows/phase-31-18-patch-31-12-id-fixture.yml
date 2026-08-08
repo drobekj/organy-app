@@ -1,0 +1,68 @@
+name: Phase 31.18 patch Phase 31.12 ID fixture
+
+on:
+  push:
+    branches:
+      - codex/phase-31-18-service-context-antiphon-lookup
+
+permissions:
+  contents: write
+
+jobs:
+  correct:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-18-service-context-antiphon-lookup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Align strict route fixture with bilingual ID syntax
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('scripts/verify-phase-31-12.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '''    { ...baseQuery(), referenceAntiphonId: "czech:799" },
+              { ...baseQuery(), referenceAntiphonId: "czech:916" },
+              { ...baseQuery(), referenceAntiphonId: "polish:800" },'''
+          new = '''    { ...baseQuery(), referenceAntiphonId: "czech:0" },
+              { ...baseQuery(), referenceAntiphonId: "polish:0" },
+              { ...baseQuery(), referenceAntiphonId: "english:1" },
+              { ...baseQuery(), referenceAntiphonId: "czech:-1" },'''
+          if text.count(old) != 1:
+              raise SystemExit('Unexpected Phase 31.12 strict-route fixture anchor.')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+      - name: Verify correction
+        run: |
+          npm run typecheck
+          npm run verify:phase-31-12
+      - name: Commit verified fixture correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/verify-phase-31-12.ts
+          git commit -m "Phase 31.18 — align Phase 31.12 bilingual ID fixture"
+          git push origin HEAD:codex/phase-31-18-service-context-antiphon-lookup
