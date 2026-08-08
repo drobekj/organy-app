@@ -1,0 +1,63 @@
+name: Phase 31.18 memory integration correction
+
+on:
+  push:
+    branches:
+      - codex/phase-31-18-service-context-antiphon-lookup
+
+permissions:
+  contents: write
+
+jobs:
+  correct:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-18-service-context-antiphon-lookup
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Apply memory integration correction
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app = Path('app/planning-lifecycle-client.tsx')
+          text = app.read_text(encoding='utf-8')
+          old_import = 'import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";\n'
+          new_import = old_import + 'import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";\n'
+          if text.count(old_import) != 1 or 'MemoryReferenceAntiphonProvider' in text:
+              raise SystemExit('Unexpected Planning client import anchor.')
+          text = text.replace(old_import, new_import)
+          old_dep = '            catalog: catalogRepository,\n          }),'
+          new_dep = '            catalog: catalogRepository,\n            referenceAntiphons: new MemoryReferenceAntiphonProvider(),\n          }),'
+          if text.count(old_dep) != 1:
+              raise SystemExit('Unexpected PlanningLifecycleService dependency anchor.')
+          app.write_text(text.replace(old_dep, new_dep), encoding='utf-8')
+
+          test = Path('scripts/phase-31-18-tests.tsx')
+          test_text = test.read_text(encoding='utf-8')
+          anchor = 'assert.match(planning,/hasAntiphonLanguageMismatch/);'
+          replacement = anchor + 'assert.match(planning,/referenceAntiphons: new MemoryReferenceAntiphonProvider\\(\\)/);'
+          if test_text.count(anchor) != 1:
+              raise SystemExit('Unexpected Phase 31.18 static-test anchor.')
+          test.write_text(test_text.replace(anchor, replacement), encoding='utf-8')
+          PY
+      - name: Verify correction
+        run: |
+          npm run typecheck
+          npm run test:phase-31-18
+          npm test
+          npm run build
+      - name: Commit verified product correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/planning-lifecycle-client.tsx scripts/phase-31-18-tests.tsx
+          git commit -m "Phase 31.18 — persist Antiphon selection in memory runtime"
+          git push origin HEAD:codex/phase-31-18-service-context-antiphon-lookup
