@@ -16,6 +16,9 @@ for (const required of [
   "planning-action-validation-list",
   "Every row must include either a complete song reference or a non-empty textual note.",
   "Every candidate must be available.",
+  "getPlanningCandidateRowLookupState",
+  "candidateAvailabilityKey",
+  "hasCandidateAvailabilityBlock",
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",
@@ -31,12 +34,12 @@ for (const required of [
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }
 
-for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current", ".row-icon-palette", ".compact-row-fields"]) {
+for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current", ".row-icon-palette", ".compact-row-fields", ".candidate-selection-unavailable"]) {
   assert(css.includes(required), `Planning UI CSS is missing ${required}`);
 }
 
 console.log("Planning UI static workflow coverage passed.");
 
-for (const required of ["role=\"listbox\"", "role=\"combobox\"", "aria-activedescendant", "Loading candidates", "No candidate matches", "Retry"]) {
+for (const required of ["role=\"listbox\"", "role=\"combobox\"", "aria-activedescendant", "Loading candidates", "No candidate matches", "Retry", "candidate-selection-unavailable", "selectionUnavailable"]) {
   assert(candidateList.includes(required), `Candidate list UI is missing ${required}`);
 }
