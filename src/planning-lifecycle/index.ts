@@ -8,6 +8,7 @@ export type {
   ServiceLanguage,
   ServicePersonReference,
   ServiceSetStatus,
+  ServiceTopicReference,
   SongReference,
 } from "./model";
 export { canPerformPlanningAction } from "./permissions";
@@ -22,6 +23,7 @@ export type { PlanningValidationIssue, PlanningValidationResult } from "./valida
 
 export { isValidServiceTime, normalizeServiceTime } from "./service-time";
 export { serviceAntiphonLanguageFromId, serviceAntiphonMatchesLanguage } from "./service-antiphon";
+export { serviceTopicLanguageFromId, serviceTopicMatchesLanguage } from "./service-topic";
 export {
   findMelodyCollisions,
   melodyCollisionRowIssues,

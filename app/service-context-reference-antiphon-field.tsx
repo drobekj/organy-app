@@ -26,6 +26,7 @@ type ViewProps = {
   query: string;
   snapshot: ServiceContextAntiphonSearchSnapshot;
   activeIndex: number;
+  serviceLanguage?: ServiceLanguage;
   onOpen: () => void;
   onQueryChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -45,6 +46,15 @@ export function moveAntiphonActiveIndex(currentIndex: number, recordCount: numbe
 }
 
 const label = (selected?: ServiceAntiphonReference) => selected ? `${selected.displayNumber} · ${selected.title}` : "";
+
+export function mixedServiceCandidateStyle(serviceLanguage: ServiceLanguage | undefined, language: "czech" | "polish") {
+  if (serviceLanguage !== "mixed") return undefined;
+  return {
+    background: language === "polish"
+      ? "linear-gradient(90deg, #ffffff 0%, #eef0f3 100%)"
+      : "linear-gradient(90deg, #eef0f3 0%, #ffffff 100%)",
+  };
+}
 
 export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
   const displayValue = props.open && props.dirty ? props.query : label(props.selected);
@@ -78,6 +88,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         id={`service-antiphon-option-${record.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
         key={record.id}
         className={`service-antiphon-option${index === props.activeIndex ? " service-antiphon-option-active" : ""}`}
+        style={mixedServiceCandidateStyle(props.serviceLanguage, record.language)}
         role="option"
         aria-selected={props.selected?.id === record.id}
         onPointerMove={() => props.onActiveIndexChange(index)}
@@ -187,8 +198,9 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   };
 
   return <div className="service-antiphon-lookup" ref={wrapperRef}>
+    <style>{`.service-antiphon-topic-row { grid-column: 1 / -1; }`}</style>
     <ServiceContextReferenceAntiphonFieldView
-      editable={editable} selected={selected} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex}
+      editable={editable} selected={selected} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
       onOpen={openLookup}
       onQueryChange={(value) => { if (!open) setOpen(true); setDirty(true); setQuery(value); setActiveIndex(0); }}
       onKeyDown={onKeyDown}

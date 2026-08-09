@@ -77,7 +77,9 @@
     "verify:phase-31-17": "npm run test:phase-31-17 && npm run verify:phase-31-16",
     "verify:phase-31-17:local": "tsx scripts/verify-phase-31-17-local.ts",
     "test:phase-31-18": "tsx scripts/phase-31-18-tests.tsx",
-    "verify:phase-31-18": "tsx scripts/verify-phase-31-18.ts && npm run test:phase-31-18"
+    "verify:phase-31-18": "tsx scripts/verify-phase-31-18.ts && npm run test:phase-31-18",
+    "test:phase-31-20": "tsx scripts/phase-31-20-tests.tsx",
+    "verify:phase-31-20": "npm run test:phase-31-20 && tsx scripts/verify-phase-31-20.ts"
   },
   "dependencies": {
     "next": "16.2.10",

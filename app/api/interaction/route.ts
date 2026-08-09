@@ -108,12 +108,13 @@ function respond<T>(result: { success: true; value: T } | { success: false; erro
 
 
 const REFERENCE_ANTIPHON_ID = /^(?:czech|polish):[1-9]\d*$/;
+const REFERENCE_TOPIC_ID = /^(?:czech|polish):[a-z0-9][a-z0-9:-]*$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function referenceCandidateQueryInput(value: unknown): CandidateQueryInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Candidate query input is required.");
   const input = value as Record<string, unknown>;
-  const allowed = new Set(["serviceDate", "serviceLanguage", "organistPersonId", "referenceAntiphonId", "antiphonKey", "liturgicalSeasonKey", "queryText", "preferenceThreshold", "currentPlanId", "candidateUsages"]);
+  const allowed = new Set(["serviceDate", "serviceLanguage", "organistPersonId", "referenceAntiphonId", "referenceTopicId", "antiphonKey", "liturgicalSeasonKey", "queryText", "preferenceThreshold", "currentPlanId", "candidateUsages"]);
   if (Object.keys(input).some((key) => !allowed.has(key))) throw new LocalActorError("invalidInput", "Candidate query input contains unsupported fields.");
   if (typeof input.serviceDate !== "string" || !isValidIsoDate(input.serviceDate)) throw new LocalActorError("invalidInput", "A valid serviceDate is required.");
   if (input.serviceLanguage !== "czech" && input.serviceLanguage !== "polish" && input.serviceLanguage !== "mixed") throw new LocalActorError("invalidInput", "A valid serviceLanguage is required.");
@@ -123,6 +124,7 @@ export function referenceCandidateQueryInput(value: unknown): CandidateQueryInpu
   validateOptionalString(input, "queryText");
   validateOptionalNonEmptyString(input, "currentPlanId");
   if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId must be an authoritative Czech or Polish antiphon id.");
+  if (input.referenceTopicId !== undefined && (typeof input.referenceTopicId !== "string" || !REFERENCE_TOPIC_ID.test(input.referenceTopicId))) throw new LocalActorError("invalidInput", "referenceTopicId must be an authoritative Czech or Polish Topic id.");
   if (input.preferenceThreshold !== undefined && (typeof input.preferenceThreshold !== "number" || !Number.isFinite(input.preferenceThreshold))) throw new LocalActorError("invalidInput", "preferenceThreshold must be a finite number.");
   const candidateUsages = parseCandidateUsages(input.candidateUsages);
   return {
@@ -130,6 +132,7 @@ export function referenceCandidateQueryInput(value: unknown): CandidateQueryInpu
     serviceLanguage: input.serviceLanguage,
     ...(input.organistPersonId !== undefined ? { organistPersonId: input.organistPersonId as string } : {}),
     ...(input.referenceAntiphonId !== undefined ? { referenceAntiphonId: input.referenceAntiphonId as string } : {}),
+    ...(input.referenceTopicId !== undefined ? { referenceTopicId: input.referenceTopicId as string } : {}),
     ...(input.antiphonKey !== undefined ? { antiphonKey: input.antiphonKey as string } : {}),
     ...(input.liturgicalSeasonKey !== undefined ? { liturgicalSeasonKey: input.liturgicalSeasonKey as string } : {}),
     ...(input.queryText !== undefined ? { queryText: input.queryText as string } : {}),
@@ -142,12 +145,13 @@ export function referenceCandidateQueryInput(value: unknown): CandidateQueryInpu
 export function referenceCandidateHydrationInput(value: unknown): CandidateHydrationInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Candidate hydration input is required.");
   const input = value as Record<string, unknown>;
-  const allowed = new Set(["songs", "organistPersonId", "referenceAntiphonId", "antiphonKey", "liturgicalSeasonKey"]);
+  const allowed = new Set(["songs", "organistPersonId", "referenceAntiphonId", "referenceTopicId", "antiphonKey", "liturgicalSeasonKey"]);
   if (Object.keys(input).some((key) => !allowed.has(key)) || !Array.isArray(input.songs)) throw new LocalActorError("invalidInput", "Candidate hydration input is malformed.");
   validateOptionalNonEmptyString(input, "organistPersonId");
   validateOptionalString(input, "antiphonKey");
   validateOptionalString(input, "liturgicalSeasonKey");
   if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId must be an authoritative Czech or Polish antiphon id.");
+  if (input.referenceTopicId !== undefined && (typeof input.referenceTopicId !== "string" || !REFERENCE_TOPIC_ID.test(input.referenceTopicId))) throw new LocalActorError("invalidInput", "referenceTopicId must be an authoritative Czech or Polish Topic id.");
   const songs = input.songs.map((value, index) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", `Candidate hydration song ${index + 1} is malformed.`);
     const song = value as Record<string, unknown>; const songKeys = new Set(["songId", "language", "number", "title"]);
@@ -160,6 +164,7 @@ export function referenceCandidateHydrationInput(value: unknown): CandidateHydra
     songs,
     ...(input.organistPersonId !== undefined ? { organistPersonId: input.organistPersonId as string } : {}),
     ...(input.referenceAntiphonId !== undefined ? { referenceAntiphonId: input.referenceAntiphonId as string } : {}),
+    ...(input.referenceTopicId !== undefined ? { referenceTopicId: input.referenceTopicId as string } : {}),
     ...(input.antiphonKey !== undefined ? { antiphonKey: input.antiphonKey as string } : {}),
     ...(input.liturgicalSeasonKey !== undefined ? { liturgicalSeasonKey: input.liturgicalSeasonKey as string } : {}),
   };
