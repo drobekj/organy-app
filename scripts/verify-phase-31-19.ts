@@ -54,7 +54,7 @@ async function verifyMemory() {
   assert.ok(polish.records.every((record) => record.language === "polish" && record.sourceUrl === undefined));
   const all = await provider.list({ language: "all", pageSize: 300 });
   assert.equal(all.records.length, 232);
-  assert.deepEqual([all.records[0].id, all.records[115].id, all.records[116].id, all.records.at(-1)?.id], ["czech:800", "czech:915", "polish:1", "polish:116"]);
+  assert.deepEqual([all.records[0].id, all.records[115].id, all.records[116].id, all.records.at(-1)?.id], ["polish:1", "polish:116", "czech:800", "czech:915"]);
   assert.deepEqual((await provider.list({ language: "polish", search: "POGRZEBOWE", pageSize: 200 })).records.map((record) => record.id), ["polish:116"]);
   assert.deepEqual((await provider.list({ language: "polish", search: "11", pageSize: 200 })).records.map((record) => record.id), ["polish:11", "polish:110", "polish:111", "polish:112", "polish:113", "polish:114", "polish:115", "polish:116"]);
   assert.equal((await provider.getById("polish:44"))?.title, "Wielkanoc – Rezurekcja / Nabożeństwo główne");
@@ -97,7 +97,7 @@ async function main() {
         assert.deepEqual([polish.records[0].id, polish.records.at(-1)?.id], ["polish:1", "polish:116"]);
         const all = await provider.list({ language: "all", pageSize: 300 });
         assert.deepEqual(all.counts, { all: 232, czech: 116, polish: 116 });
-        assert.deepEqual([all.records[115].id, all.records[116].id], ["czech:915", "polish:1"]);
+        assert.deepEqual([all.records[0].id, all.records[115].id, all.records[116].id, all.records.at(-1)?.id], ["polish:1", "polish:116", "czech:800", "czech:915"]);
         assert.deepEqual((await provider.list({ language: "polish", search: "pogrzebowe", pageSize: 200 })).records.map((record) => record.id), ["polish:116"]);
         const rollbackSnapshot = JSON.stringify((await pool.query("select id,language,canonical_number,title,source_url from reference_antiphons order by language,canonical_number")).rows);
         await assert.rejects(() => synchronizeProductionReferenceAntiphons(pool, { czechRecords, polishRecords: polishRecords.map((record, index) => index === 0 ? { ...record, title: "Temporary valid title" } : record), failBeforeCommit: true }));
