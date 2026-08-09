@@ -25,7 +25,7 @@ function mapRecord(row: Row): ReferenceAntiphonRecord {
   };
 }
 
-const ORDER = "case language when 'czech' then 0 else 1 end, canonical_number asc, id asc";
+const ORDER = "case language when 'polish' then 0 else 1 end, canonical_number asc, id asc";
 
 /** Read-only provider whose filtering, ordering, counts, and paging execute in PostgreSQL. */
 export class PostgresReferenceAntiphonProvider implements ReferenceAntiphonProvider {
