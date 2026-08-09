@@ -16,7 +16,7 @@ Baseline `main`: `1ed92b593bb2b9d46576b5fb97925355ed73ce04`.
 - Production DB synchronization is authoritative for both languages, idempotently upserts the two catalogs and removes same-language rows absent from the authoritative inputs.
 - Production counts after synchronization are exactly Czech 116, Polish 116, total 232.
 - `polish` Service Language exposes only Polish antiphons.
-- `mixed` keeps the established ordering: all Czech antiphons first, then all Polish antiphons; each language is ordered by canonical number.
+- User refinement after HUMAN inspection: `mixed` ordering is all Polish antiphons first, then all Czech antiphons; each language is ordered by canonical number.
 - Existing number/title search, selection, keyboard navigation, optional-source rendering, language validation, historical snapshots and exact-song recommendation behavior do not change.
 - No Polish antiphon recommendation mappings are invented or seeded.
 - Topic and wider Service Context layout remain out of scope.
@@ -24,11 +24,11 @@ Baseline `main`: `1ed92b593bb2b9d46576b5fb97925355ed73ce04`.
 ## Acceptance
 
 - Source validation proves the exact frozen Polish file hash, keys, count, ordered contiguous range 1–116 and trimmed non-empty titles.
-- Focused memory verification uses the real production catalog and checks Polish-only filtering, Mixed ordering and search.
-- Focused DB verification proves 116/116/232 counts, idempotence, stale Polish cleanup and nullable Polish source URLs.
+- Focused memory verification uses the real production catalog and checks Polish-only filtering, Mixed Polish→Czech ordering and search.
+- Focused DB verification proves 116/116/232 counts, idempotence, stale Polish cleanup, nullable Polish source URLs and Mixed Polish→Czech ordering.
 - Existing Phase 31.2–31.18 gates, typecheck, complete tests and production build remain green.
 - Fresh Automatic Review Gate has no blocking finding or open thread before HUMAN browser acceptance.
-- HUMAN browser acceptance is limited to the newly populated Polish data: Polish list/search/select and Mixed Czech→Polish ordering transition.
+- HUMAN browser acceptance covers Polish list/search/select; the user explicitly requested the final Mixed ordering refinement to Polish→Czech after the initial browser inspection.
 
 ## Merge rule
 
