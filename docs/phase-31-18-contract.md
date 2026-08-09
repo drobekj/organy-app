@@ -15,7 +15,7 @@ Baseline `main`: `b0a36ebced4a1c177f08b63b28b9c11b14a8346b`.
 - New/changed selections are server-authoritative; unchanged historical snapshots survive later catalog changes/removal.
 - Compact optional lookup: empty `Select antiphon`; selected `number · title` plus optional `Source`.
 - No helper text, panel heading, `Find antiphon`, `No antiphon selected`, `Remove antiphon`, Detail or nested expansion in normal Service Context.
-- Language-only browse filter: Czech, Polish, or Mixed = Czech then Polish.
+- Language-only browse filter: Czech, Polish, or Mixed. The later Phase 31.19 user refinement defines Mixed ordering as Polish first, then Czech.
 - Overlay uses a max height, independent out-of-flow placement and left scrollbar.
 - Candidate rows show number, title and optional `Source`; Source never selects the row.
 - Live number/title filtering; typed text is transient only and never becomes persisted data.
