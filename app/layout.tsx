@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./service-context-minimal.css";
 
 export const metadata: Metadata = {
   title: "Organ Planner",
