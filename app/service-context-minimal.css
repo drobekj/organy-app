@@ -1,0 +1,90 @@
+/* Phase 31.21 — minimal Service Context presentation only. */
+
+.field-group:has(> .service-antiphon-topic-row) {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+/* Date / Time / Language — three equal columns. */
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(1),
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(2),
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(3) {
+  grid-column: span 2;
+  order: 1;
+}
+
+/* Compact visible labels while keeping the more descriptive DOM label text. */
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(1),
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(2),
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(3) {
+  font-size: 0;
+}
+
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(1)::before,
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(2)::before,
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(3)::before {
+  font-size: 0.9rem;
+  line-height: normal;
+}
+
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(1)::before {
+  content: "Date";
+}
+
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(2)::before {
+  content: "Time";
+}
+
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(3)::before {
+  content: "Language";
+}
+
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(-n + 3) > input,
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(-n + 3) > select {
+  font-size: 1rem;
+}
+
+/* Priest / Organist — two equal columns. */
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(4),
+.field-group:has(> .service-antiphon-topic-row) > label:nth-of-type(5) {
+  grid-column: span 3;
+  order: 2;
+}
+
+/* Antiphon / Topic — full row with their accepted internal 50:50 grid. */
+.field-group:has(> .service-antiphon-topic-row) > .service-antiphon-topic-row {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+/* Service note — full-width final row, visually unlabeled and one input-line high. */
+.field-group:has(> .service-antiphon-topic-row) > .note-field {
+  font-size: 0;
+  gap: 0;
+  grid-column: 1 / -1;
+  order: 4;
+}
+
+.field-group:has(> .service-antiphon-topic-row) > .note-field > textarea {
+  font-size: 1rem;
+  height: 2.65rem;
+  min-height: 2.65rem;
+  overflow-y: hidden;
+  resize: none;
+}
+
+/* Minimal scheme: no persistent helper/status prose beneath Service Context controls. */
+.field-group:has(> .service-antiphon-topic-row) > label > .field-help {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .field-group:has(> .service-antiphon-topic-row) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .field-group:has(> .service-antiphon-topic-row) > label,
+  .field-group:has(> .service-antiphon-topic-row) > .service-antiphon-topic-row,
+  .field-group:has(> .service-antiphon-topic-row) > .note-field {
+    grid-column: 1;
+  }
+}
