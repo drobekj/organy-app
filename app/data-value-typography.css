@@ -1,0 +1,67 @@
+/* Phase 31.23 — authoritative selections, free text and one unified empty-state typography. */
+
+:root {
+  --choice-value-font-weight: 700;
+  --free-text-font-weight: 400;
+  --data-field-font-size: 1rem;
+  --empty-field-font-weight: 400;
+  --empty-field-color: rgb(95 107 122 / 62%);
+}
+
+/* Every editable data control in Service Context and Planning Rows uses one text size. */
+.field-group:has(> .service-antiphon-topic-row) input,
+.field-group:has(> .service-antiphon-topic-row) select,
+.field-group:has(> .service-antiphon-topic-row) textarea,
+.row-card input,
+.row-card select,
+.row-card textarea {
+  font-size: var(--data-field-font-size);
+}
+
+/* Filled Service Context authoritative/predefined values are visually strong. */
+.field-group:has(> .service-antiphon-topic-row) input,
+.field-group:has(> .service-antiphon-topic-row) select {
+  font-weight: var(--choice-value-font-weight);
+}
+
+/* Service Context free-text note stays Regular. */
+.field-group:has(> .service-antiphon-topic-row) > .note-field > textarea {
+  font-weight: var(--free-text-font-weight);
+}
+
+/* Planning Rows: Song Lookup/query is an authoritative-choice field. */
+.row-card input,
+.row-card select,
+.row-card textarea {
+  font-weight: var(--choice-value-font-weight);
+}
+
+/* Planning Row free-text note is the deliberate filled-value exception. */
+.row-card .row-note-input {
+  font-weight: var(--free-text-font-weight);
+}
+
+/* All visible empty-state strings share one cut, size and grey. */
+.service-antiphon-control input::placeholder,
+.row-card .candidate-combobox > input::placeholder,
+.row-card .row-note-input::placeholder {
+  color: var(--empty-field-color);
+  font-size: var(--data-field-font-size);
+  font-weight: var(--empty-field-font-weight);
+  opacity: 1;
+}
+
+/* Native empty selects (currently Priest / Organist fallbacks) use the same empty-state typography. */
+.field-group:has(> .service-antiphon-topic-row) select:has(> option[value=""]:checked) {
+  color: var(--empty-field-color);
+  font-size: var(--data-field-font-size);
+  font-weight: var(--empty-field-font-weight);
+}
+
+/* Service note renders its concise visible prompt through ::after; normalize it to the same token. */
+.field-group:has(> .service-antiphon-topic-row) > .note-field:has(> textarea:placeholder-shown)::after {
+  color: var(--empty-field-color);
+  font-size: var(--data-field-font-size);
+  font-weight: var(--empty-field-font-weight);
+  opacity: 1;
+}
