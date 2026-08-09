@@ -11,7 +11,11 @@ export type RecommendedReferenceSong = {
   title: string;
 };
 export type ReferenceAntiphonRecommendation = { antiphonId: string; recommendedSong: RecommendedReferenceSong | null };
-type SetResult = { kind: "ok"; value: ReferenceAntiphonRecommendation } | { kind: "antiphonNotFound" } | { kind: "songNotFound" };
+type SetResult =
+  | { kind: "ok"; value: ReferenceAntiphonRecommendation }
+  | { kind: "antiphonNotFound" }
+  | { kind: "songNotFound" }
+  | { kind: "languageMismatch" };
 
 export interface ReferenceAntiphonRecommendationRepository {
   get(antiphonId: string): Promise<ReferenceAntiphonRecommendation | undefined>;
@@ -31,13 +35,22 @@ export class PgReferenceAntiphonRecommendationRepository implements ReferenceAnt
     const client = await this.pool.connect();
     try {
       await client.query("begin");
-      if (!(await client.query("select 1 from reference_antiphons where id=$1 for update", [antiphonId])).rows.length) {
+      const antiphon = (await client.query("select language from reference_antiphons where id=$1 for update", [antiphonId])).rows[0] as { language: "czech" | "polish" } | undefined;
+      if (!antiphon) {
         await client.query("rollback");
         return { kind: "antiphonNotFound" };
       }
-      if (referenceSongId !== null && !(await client.query("select 1 from reference_catalog_songs where id=$1 for update", [referenceSongId])).rows.length) {
-        await client.query("rollback");
-        return { kind: "songNotFound" };
+      let song: { language: "czech" | "polish" } | undefined;
+      if (referenceSongId !== null) {
+        song = (await client.query("select language from reference_catalog_songs where id=$1 for update", [referenceSongId])).rows[0] as { language: "czech" | "polish" } | undefined;
+        if (!song) {
+          await client.query("rollback");
+          return { kind: "songNotFound" };
+        }
+        if (song.language !== antiphon.language) {
+          await client.query("rollback");
+          return { kind: "languageMismatch" };
+        }
       }
       if (referenceSongId === null) {
         await client.query("delete from reference_antiphon_recommendations where antiphon_id=$1", [antiphonId]);
@@ -82,8 +95,9 @@ export class ReferenceAntiphonRecommendationService {
     const result = await this.repo.set(antiphonId, referenceSongId);
     if (result.kind === "antiphonNotFound") return fail("notFound", "Reference antiphon was not found.");
     if (result.kind === "songNotFound") return fail("notFound", "Reference catalog record was not found.");
+    if (result.kind === "languageMismatch") return fail("invalidInput", "Recommended song must match the antiphon language.");
     return ok(result.value);
   }
 }
 const ok = <T>(value: T): InteractionResult<T> => ({ success: true, value });
-const fail = <T>(code: "permissionDenied" | "notFound", message: string): InteractionResult<T> => ({ success: false, error: { code, message } });
+const fail = <T>(code: "permissionDenied" | "notFound" | "invalidInput", message: string): InteractionResult<T> => ({ success: false, error: { code, message } });

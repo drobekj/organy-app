@@ -2,6 +2,8 @@ import {
   canPerformPlanningAction,
   isValidServiceTime,
   normalizeServiceTime,
+  serviceAntiphonLanguageFromId,
+  serviceAntiphonMatchesLanguage,
   validatePlanningSet,
   findMelodyCollisions,
   melodyCollisionSummary,
@@ -389,6 +391,14 @@ export class PlanningLifecycleService {
       });
     }
 
+    if (!serviceAntiphonMatchesLanguage(candidate, serviceContext.language)) {
+      return failure({
+        code: "invalidInput",
+        message: "Selected antiphon must match the service language.",
+        issues: [{ path: "serviceContext.referenceAntiphon", message: "Selected antiphon must match the service language." }],
+      });
+    }
+
     const previous = existing?.serviceContext.referenceAntiphon;
     if (previous && sameServiceAntiphonReference(previous, candidate)) {
       return success({ ...serviceContext, referenceAntiphon: { ...previous } });
@@ -398,7 +408,7 @@ export class PlanningLifecycleService {
       return failure({
         code: "invalidInput",
         message: "Authoritative antiphon identity is invalid.",
-        issues: [{ path: "serviceContext.referenceAntiphon.id", message: "Antiphon id must be czech:800 through czech:915." }],
+        issues: [{ path: "serviceContext.referenceAntiphon.id", message: "Antiphon id must be a positive Czech or Polish authoritative id." }],
       });
     }
 
@@ -407,7 +417,8 @@ export class PlanningLifecycleService {
     }
 
     const authoritative = await this.referenceAntiphons.getById(candidate.id);
-    if (!authoritative || authoritative.language !== "czech") {
+    const expectedLanguage = serviceAntiphonLanguageFromId(candidate.id);
+    if (!authoritative || !expectedLanguage || authoritative.language !== expectedLanguage) {
       return failure({ code: "notFound", message: "Authoritative antiphon was not found." });
     }
 
@@ -495,27 +506,25 @@ function normalizeServiceContext(context: ServiceContext): ServiceContext {
 function isServiceAntiphonReference(value: unknown): value is ServiceAntiphonReference {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  if (Object.keys(record).sort().join(",") !== "displayNumber,id,sourceUrl,title") return false;
-  return typeof record.id === "string" && typeof record.displayNumber === "string" &&
-    typeof record.title === "string" && typeof record.sourceUrl === "string" &&
-    record.id.trim() === record.id && record.displayNumber.trim().length > 0 &&
-    record.title.trim().length > 0 && record.sourceUrl.trim().length > 0;
+  const keys = Object.keys(record).sort();
+  if (keys.some((key) => !["displayNumber", "id", "sourceUrl", "title"].includes(key))) return false;
+  if (!keys.includes("id") || !keys.includes("displayNumber") || !keys.includes("title")) return false;
+  if (typeof record.id !== "string" || typeof record.displayNumber !== "string" || typeof record.title !== "string") return false;
+  if (record.sourceUrl !== undefined && (typeof record.sourceUrl !== "string" || !record.sourceUrl.trim())) return false;
+  return record.id.trim() === record.id && record.displayNumber.trim().length > 0 && record.title.trim().length > 0;
 }
 
 function isAcceptedReferenceAntiphonId(id: string): boolean {
-  const match = /^czech:(\d+)$/.exec(id);
-  if (!match) return false;
-  const number = Number(match[1]);
-  return Number.isInteger(number) && number >= 800 && number <= 915 && String(number) === match[1];
+  return /^(czech|polish):[1-9]\d*$/.test(id);
 }
 
 function sameServiceAntiphonReference(left: ServiceAntiphonReference, right: ServiceAntiphonReference): boolean {
   return left.id === right.id && left.displayNumber === right.displayNumber &&
-    left.title === right.title && left.sourceUrl === right.sourceUrl;
+    left.title === right.title && (left.sourceUrl ?? "") === (right.sourceUrl ?? "");
 }
 
 function serviceAntiphonSnapshot(record: ReferenceAntiphonRecord): ServiceAntiphonReference {
-  return { id: record.id, displayNumber: record.displayNumber, title: record.title, sourceUrl: record.sourceUrl };
+  return { id: record.id, displayNumber: record.displayNumber, title: record.title, ...(record.sourceUrl ? { sourceUrl: record.sourceUrl } : {}) };
 }
 
 function getRowsFromExisting(existing: PersistedPlanningSet | CompletedServiceRecord): PlanningRow[] {

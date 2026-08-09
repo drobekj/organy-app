@@ -29,6 +29,7 @@ export async function loadAndValidateReferenceAntiphons(path = PATH): Promise<Pe
   return records;
 }
 
+/** Synchronize only the frozen Czech source. Future Polish knowledge is a separate data boundary and is preserved. */
 export async function synchronizeReferenceAntiphons(pool: Pool, options: { records?: PersistedReferenceAntiphon[]; failBeforeCommit?: boolean } = {}) {
   const records = options.records ?? await loadAndValidateReferenceAntiphons();
   if (records.length !== 116 || records.some((record, index) => record.id !== `czech:${record.canonicalNumber}` || record.language !== "czech" || record.canonicalNumber !== 800 + index || !record.title || record.title !== record.title.trim() || !validSourceUrl(record.sourceUrl))) throw new Error("Incoming reference antiphons are invalid.");
@@ -39,9 +40,9 @@ export async function synchronizeReferenceAntiphons(pool: Pool, options: { recor
     const values: unknown[] = []; const tuples = records.map((r) => { const n=values.length; values.push(r.id,r.language,r.canonicalNumber,r.title,r.sourceUrl); return `($${n+1},$${n+2},$${n+3},$${n+4},$${n+5})`; });
     if (tuples.length) await client.query(`INSERT INTO incoming_reference_antiphons(id,language,canonical_number,title,source_url) VALUES ${tuples.join(",")}`, values);
     await client.query("INSERT INTO reference_antiphons SELECT * FROM incoming_reference_antiphons ON CONFLICT(id) DO UPDATE SET language=excluded.language,canonical_number=excluded.canonical_number,title=excluded.title,source_url=excluded.source_url");
-    await client.query("DELETE FROM reference_antiphons a WHERE NOT EXISTS (SELECT 1 FROM incoming_reference_antiphons i WHERE i.id=a.id)");
+    await client.query("DELETE FROM reference_antiphons a WHERE a.language='czech' AND NOT EXISTS (SELECT 1 FROM incoming_reference_antiphons i WHERE i.id=a.id)");
     if (options.failBeforeCommit) throw new Error("Injected antiphon synchronization failure.");
-    const counts=await databaseReferenceAntiphonCounts(client); if (counts.czech!==116 || counts.polish!==0 || counts.total!==116) throw new Error("Synchronized antiphon counts are invalid.");
+    const counts=await databaseReferenceAntiphonCounts(client); if (counts.czech!==116 || counts.total!==116+counts.polish) throw new Error("Synchronized antiphon counts are invalid.");
     await client.query("COMMIT"); return counts;
   } catch(error) { await client.query("ROLLBACK").catch(()=>undefined); throw error; } finally { client.release(); }
 }

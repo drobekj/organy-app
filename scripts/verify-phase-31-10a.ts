@@ -76,7 +76,8 @@ async function verifyReadWriteAndExactShape(pool: Pool): Promise<void> {
   assert.ok((await pool.query("select updated_at > $1 advanced from reference_antiphon_recommendations where antiphon_id='czech:858'", [firstUpdatedAt])).rows[0].advanced);
   assert.deepEqual(await client.get("czech:858"), { success: true, value: { antiphonId: "czech:858", recommendedSong: expectedSong } });
   const replacement = await client.set("czech:858", "polish:1");
-  assert.equal(replacement.success && replacement.value.recommendedSong?.referenceSongId, "polish:1");
+  assert.deepEqual(replacement, { success: false, error: { code: "invalidInput", message: "Recommended song must match the antiphon language." } });
+  assert.equal((await client.get("czech:858")).success, true);
   assert.equal(Number((await pool.query("select count(*) n from reference_antiphon_recommendations where antiphon_id='czech:858'")).rows[0].n), 1);
   assert.deepEqual(await client.set("czech:858", null), { success: true, value: { antiphonId: "czech:858", recommendedSong: null } });
   assert.deepEqual(await client.set("czech:858", null), { success: true, value: { antiphonId: "czech:858", recommendedSong: null } });
@@ -94,9 +95,8 @@ async function verifyStructuredErrors(): Promise<void> {
   }
   assert.deepEqual(await invoke("getReferenceAntiphonRecommendation", { antiphonId: "czech:800" }), { status: 200, body: { success: true, value: { antiphonId: "czech:800", recommendedSong: null } } });
   assert.equal((await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858", referenceSongId: "czech:99999" })).status, 404);
-  for (const antiphonId of ["czech:799", "czech:916", "czech:999", "polish:800", "bad"]) {
-    assert.equal((await invoke("getReferenceAntiphonRecommendation", { antiphonId })).status, 400);
-  }
+  for (const antiphonId of ["czech:0", "polish:0", "bad"]) assert.equal((await invoke("getReferenceAntiphonRecommendation", { antiphonId })).status, 400);
+  for (const antiphonId of ["czech:799", "czech:916", "czech:999", "polish:800"]) assert.equal((await invoke("getReferenceAntiphonRecommendation", { antiphonId })).status, 404);
   assert.equal((await invoke("getReferenceAntiphonRecommendation", { antiphonId: "czech:858", extra: true })).status, 400);
   assert.equal((await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858" })).status, 400);
   assert.equal((await invoke("setReferenceAntiphonRecommendation", { antiphonId: "czech:858", referenceSongId: false })).status, 400);
@@ -133,7 +133,7 @@ async function verifyIsolationRollbackAndConcurrency(pool: Pool): Promise<void> 
   const sameAntiphon = await Promise.all([repository.set("czech:858", "czech:1"), repository.set("czech:858", "czech:2")]);
   assert.ok(sameAntiphon.every((result) => result.kind === "ok"));
   assert.equal(Number((await pool.query("select count(*) n from reference_antiphon_recommendations where antiphon_id='czech:858'")).rows[0].n), 1);
-  const differentAntiphons = await Promise.all([repository.set("czech:860", "czech:1"), repository.set("czech:861", "polish:1")]);
+  const differentAntiphons = await Promise.all([repository.set("czech:860", "czech:1"), repository.set("czech:861", "czech:2")]);
   assert.ok(differentAntiphons.every((result) => result.kind === "ok"));
   assert.deepEqual((await pool.query("select antiphon_id from reference_antiphon_recommendations where antiphon_id in ('czech:860','czech:861') order by antiphon_id")).rows.map((row) => row.antiphon_id), ["czech:860", "czech:861"]);
   await pool.query("delete from reference_antiphon_recommendations");
