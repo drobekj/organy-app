@@ -17,7 +17,7 @@ jobs:
           ref: codex/phase-31-20-service-topic
           fetch-depth: 0
       - name: Assert transformation source
-        run: test "$(git rev-parse HEAD)" = "44caa7f37f41af8add4f7fc7e966ce1f4c5555a6"
+        run: test "$(git rev-parse HEAD)" = "60637208b36f448b2221b74175ebe32afa6feb3d"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -26,6 +26,7 @@ jobs:
       - name: Apply approved Topic transformations
         run: |
           python3 scripts/phase-31-20-backend-transform.py
+          python3 scripts/phase-31-20-transform-fix.py
           python3 scripts/phase-31-20-ui-transform.py
       - name: Typecheck transformed tree
         run: npm run typecheck
