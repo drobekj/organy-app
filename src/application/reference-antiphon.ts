@@ -19,8 +19,8 @@ const bundledPolishRecords: ReferenceAntiphonRecord[] = polishCatalog.map((recor
   title: record.title,
 }));
 
-const bundledRecords: ReferenceAntiphonRecord[] = [...bundledCzechRecords, ...bundledPolishRecords];
-const languageRank = (language: ReferenceAntiphonRecord["language"]) => language === "czech" ? 0 : 1;
+const bundledRecords: ReferenceAntiphonRecord[] = [...bundledPolishRecords, ...bundledCzechRecords];
+const languageRank = (language: ReferenceAntiphonRecord["language"]) => language === "polish" ? 0 : 1;
 const compareRecords = (left: ReferenceAntiphonRecord, right: ReferenceAntiphonRecord) =>
   languageRank(left.language) - languageRank(right.language)
   || left.canonicalNumber - right.canonicalNumber
