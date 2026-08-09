@@ -1,0 +1,49 @@
+name: Phase 31.20 isolated Topic transformation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.head_ref == 'codex/phase-31-20-transform-runner'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-20-service-topic
+          fetch-depth: 0
+      - name: Assert transformation source
+        run: test "$(git rev-parse HEAD)" = "44caa7f37f41af8add4f7fc7e966ce1f4c5555a6"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Apply approved Topic transformations
+        run: |
+          python3 scripts/phase-31-20-backend-transform.py
+          python3 scripts/phase-31-20-ui-transform.py
+      - name: Typecheck transformed tree
+        run: npm run typecheck
+      - name: Commit transformed product tree
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            app/api/interaction/route.ts \
+            app/api/planning-lifecycle/route.ts \
+            app/globals.css \
+            app/planning-lifecycle-client.tsx \
+            src/application/interaction-contracts.ts \
+            src/application/planning-lifecycle/drizzle-repository-adapters.ts \
+            src/application/planning-lifecycle/service.ts \
+            src/application/reference-candidate-service.ts \
+            src/db/schema/index.ts \
+            src/planning-lifecycle/candidate-flow.ts
+          git diff --cached --check
+          git commit -m "Phase 31.20 — wire authoritative Service Topic"
+          git push origin HEAD:codex/phase-31-20-service-topic
