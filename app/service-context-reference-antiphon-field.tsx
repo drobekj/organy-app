@@ -34,6 +34,16 @@ type ViewProps = {
   onClear: () => void;
 };
 
+type AntiphonNavigationKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
+
+export function moveAntiphonActiveIndex(currentIndex: number, recordCount: number, key: AntiphonNavigationKey): number {
+  if (recordCount <= 0) return 0;
+  if (key === "Home") return 0;
+  if (key === "End") return recordCount - 1;
+  if (key === "ArrowDown") return Math.min(currentIndex + 1, recordCount - 1);
+  return Math.max(currentIndex - 1, 0);
+}
+
 const label = (selected?: ServiceAntiphonReference) => selected ? `${selected.displayNumber} · ${selected.title}` : "";
 
 export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
@@ -70,7 +80,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         className={`service-antiphon-option${index === props.activeIndex ? " service-antiphon-option-active" : ""}`}
         role="option"
         aria-selected={props.selected?.id === record.id}
-        onMouseEnter={() => props.onActiveIndexChange(index)}
+        onPointerMove={() => props.onActiveIndexChange(index)}
         onPointerDown={(event) => { event.preventDefault(); props.onSelect(record); }}
       >
         <strong>{record.displayNumber}</strong>
@@ -170,11 +180,10 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
     if (event.key === "Escape") { if (open) { event.preventDefault(); closeRestore(); } return; }
     if (!open && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) { event.preventDefault(); openLookup(); return; }
     if (!open) return;
-    if (event.key === "ArrowDown") { event.preventDefault(); setActiveIndex((index) => snapshot.records.length ? (index + 1) % snapshot.records.length : 0); }
-    else if (event.key === "ArrowUp") { event.preventDefault(); setActiveIndex((index) => snapshot.records.length ? (index - 1 + snapshot.records.length) % snapshot.records.length : 0); }
-    else if (event.key === "Home") { event.preventDefault(); setActiveIndex(0); }
-    else if (event.key === "End") { event.preventDefault(); setActiveIndex(Math.max(0, snapshot.records.length - 1)); }
-    else if (event.key === "Enter") { const record = snapshot.records[activeIndex]; if (record) { event.preventDefault(); select(record); } }
+    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      setActiveIndex((index) => moveAntiphonActiveIndex(index, snapshot.records.length, event.key as AntiphonNavigationKey));
+    } else if (event.key === "Enter") { const record = snapshot.records[activeIndex]; if (record) { event.preventDefault(); select(record); } }
   };
 
   return <div className="service-antiphon-lookup" ref={wrapperRef}>
