@@ -58,6 +58,8 @@ type ServiceContextRecord = {
   referenceAntiphonDisplayNumber: string | null;
   referenceAntiphonTitle: string | null;
   referenceAntiphonSourceUrl: string | null;
+  referenceTopicId: string | null;
+  referenceTopicTitle: string | null;
   antiphonKey: string | null;
   liturgicalSeasonKey: string | null;
 };
@@ -371,13 +373,14 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
 }
 
 export function createDbBackedPlanningLifecycleService(
-  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now" | "referenceAntiphons" | "referenceSongs" | "referenceMelodyClasses">>,
+  dependencies: PlanningLifecycleDrizzleAdapterDependencies & Partial<Pick<PlanningLifecycleServiceDependencies, "now" | "referenceAntiphons" | "referenceTopics" | "referenceSongs" | "referenceMelodyClasses">>,
 ): PlanningLifecycleService {
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
     catalog: new DrizzleCatalogRepository(dependencies.db),
     referenceAntiphons: dependencies.referenceAntiphons,
+    referenceTopics: dependencies.referenceTopics,
     referenceSongs: dependencies.referenceSongs,
     referenceMelodyClasses: dependencies.referenceMelodyClasses,
     now: dependencies.now,
@@ -477,6 +480,9 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
           ...(context.referenceAntiphonSourceUrl ? { sourceUrl: context.referenceAntiphonSourceUrl } : {}),
         } }
       : {}),
+    ...(context.referenceTopicId && context.referenceTopicTitle
+      ? { referenceTopic: { id: context.referenceTopicId, title: context.referenceTopicTitle } }
+      : {}),
     ...(context.antiphonKey ? { antiphonKey: context.antiphonKey } : {}),
     ...(context.liturgicalSeasonKey ? { liturgicalSeasonKey: context.liturgicalSeasonKey } : {}),
   };
@@ -495,6 +501,8 @@ function mapServiceContextToContextValues(context: ServiceContext) {
     referenceAntiphonDisplayNumber: context.referenceAntiphon?.displayNumber ?? null,
     referenceAntiphonTitle: context.referenceAntiphon?.title ?? null,
     referenceAntiphonSourceUrl: context.referenceAntiphon?.sourceUrl ?? null,
+    referenceTopicId: context.referenceTopic?.id ?? null,
+    referenceTopicTitle: context.referenceTopic?.title ?? null,
     antiphonKey: context.antiphonKey?.trim() || null,
     liturgicalSeasonKey: context.liturgicalSeasonKey?.trim() || null,
   };

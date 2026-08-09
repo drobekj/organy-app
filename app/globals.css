@@ -1009,3 +1009,21 @@ textarea {
 .service-antiphon-list-error {
   color: var(--danger);
 }
+
+
+/* Phase 31.20: Antiphon + Topic are peer Service Context lookups. */
+.service-antiphon-topic-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.service-antiphon-topic-row > * {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .service-antiphon-topic-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

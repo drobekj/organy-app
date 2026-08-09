@@ -7,6 +7,7 @@ import * as schema from "../../../src/db/schema";
 import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
 import { PostgresReferenceAntiphonProvider } from "../../../src/application/postgres-reference-antiphon";
 import { PostgresReferenceCatalogProvider } from "../../../src/application/postgres-reference-catalog";
+import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
 import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
 
 type PlanningLifecycleAction =
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
     const service = createDbBackedPlanningLifecycleService({
       ...adapterDependencies,
       referenceAntiphons: new PostgresReferenceAntiphonProvider(pool),
+      referenceTopics: new PostgresReferenceThematicSectionProvider(pool),
       referenceSongs: new PostgresReferenceCatalogProvider(pool),
       referenceMelodyClasses: new PostgresReferenceMelodyClassProvider(pool),
     });

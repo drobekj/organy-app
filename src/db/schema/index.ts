@@ -94,6 +94,8 @@ export const serviceContexts = pgTable(
     referenceAntiphonDisplayNumber: text("reference_antiphon_display_number"),
     referenceAntiphonTitle: text("reference_antiphon_title"),
     referenceAntiphonSourceUrl: text("reference_antiphon_source_url"),
+    referenceTopicId: text("reference_topic_id"),
+    referenceTopicTitle: text("reference_topic_title"),
     antiphonKey: text("antiphon_key"),
     liturgicalSeasonKey: text("liturgical_season_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -128,6 +130,18 @@ export const serviceContexts = pgTable(
     referenceAntiphonSourceUrlValid: check(
       "service_contexts_reference_antiphon_source_url_valid",
       sql`${table.referenceAntiphonSourceUrl} is null or ${table.referenceAntiphonSourceUrl} ~ '^https://'`,
+    ),
+    referenceTopicSnapshotComplete: check(
+      "service_contexts_reference_topic_snapshot_complete",
+      sql`(${table.referenceTopicId} is null and ${table.referenceTopicTitle} is null) or (${table.referenceTopicId} is not null and ${table.referenceTopicTitle} is not null)`,
+    ),
+    referenceTopicIdentity: check(
+      "service_contexts_reference_topic_identity",
+      sql`${table.referenceTopicId} is null or ${table.referenceTopicId} ~ '^(czech|polish):.+$'`,
+    ),
+    referenceTopicTitleNonEmpty: check(
+      "service_contexts_reference_topic_title_non_empty",
+      sql`${table.referenceTopicId} is null or btrim(${table.referenceTopicTitle}) <> ''`,
     ),
   }),
 );

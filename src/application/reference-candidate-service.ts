@@ -50,7 +50,10 @@ export type ReferenceCandidateData = {
   songs: ReferenceCandidateSong[];
   melodyWindowMonths: number;
   recommendedReferenceSongId?: string;
+  referenceTopic?: { language: "czech" | "polish"; ranges: { from: number; to: number }[] };
 };
+
+type TopicRangeRow = { language: "czech" | "polish"; from_number: number; to_number: number };
 
 type CandidateRow = {
   id: string;
@@ -73,16 +76,16 @@ export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
 
   async queryCandidates(input: CandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
-    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId);
+    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId);
     return queryReferenceCandidatesFromData(data, input);
   }
 
   async hydrateCandidates(input: CandidateHydrationInput): Promise<CandidateQueryResult[]> {
-    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId);
+    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId);
     return hydrateReferenceCandidatesFromData(data, input);
   }
 
-  private async loadData(organistPersonId?: string, referenceAntiphonId?: string): Promise<ReferenceCandidateData> {
+  private async loadData(organistPersonId?: string, referenceAntiphonId?: string, referenceTopicId?: string): Promise<ReferenceCandidateData> {
     const songRowsPromise = this.pool.query(
       `select
          s.id,
@@ -116,7 +119,17 @@ export class ReferenceCandidateService {
           [referenceAntiphonId],
         ).then((result) => result.rows as { reference_song_id: string | null }[])
       : Promise.resolve([] as { reference_song_id: string | null }[]);
-    const [songRows, melodyWindowRows, recommendationRows] = await Promise.all([songRowsPromise, windowPromise, recommendationPromise]);
+    const topicPromise = referenceTopicId
+      ? this.pool.query(
+          `select s.language, r.from_number, r.to_number
+           from reference_thematic_sections s
+           join reference_thematic_ranges r on r.section_id = s.id
+           where s.id = $1
+           order by r.range_order`,
+          [referenceTopicId],
+        ).then((result) => result.rows as TopicRangeRow[])
+      : Promise.resolve([] as TopicRangeRow[]);
+    const [songRows, melodyWindowRows, recommendationRows, topicRows] = await Promise.all([songRowsPromise, windowPromise, recommendationPromise, topicPromise]);
 
     const songs = songRows.map((row): ReferenceCandidateSong => {
       const canonicalNumber = Number(row.canonical_number);
@@ -136,10 +149,12 @@ export class ReferenceCandidateService {
     });
 
     const recommendationRow = recommendationRows[0];
+    const topicLanguage = topicRows[0]?.language;
     return {
       songs,
       melodyWindowMonths: Number(melodyWindowRows[0]?.months ?? 2),
       ...(recommendationRow?.reference_song_id ? { recommendedReferenceSongId: String(recommendationRow.reference_song_id) } : {}),
+      ...(topicLanguage ? { referenceTopic: { language: topicLanguage, ranges: topicRows.map((row) => ({ from: Number(row.from_number), to: Number(row.to_number) })) } } : {}),
     };
   }
 }
@@ -177,7 +192,8 @@ export function queryReferenceCandidatesFromData(
     const availability: CandidateAvailability = occupiedRows.length > 0
       ? { kind: "occupiedByCurrentRows", rows: occupiedRows }
       : { kind: "available" };
-    candidates.push(toCandidate(song, allMembers, antiphonMatch, false, availability));
+    const seasonMatch = referenceTopicMatchesSong(data.referenceTopic, song);
+    candidates.push(toCandidate(song, allMembers, antiphonMatch, seasonMatch, availability));
   }
 
   return candidates.sort(compareConcreteResults);
@@ -195,8 +211,9 @@ export function hydrateReferenceCandidatesFromData(
     if (!stored) return historicalCandidate(reference);
     const antiphonMatch = stored.id === data.recommendedReferenceSongId;
     const allMembers = membersByClass.get(stored.classId) ?? [stored];
+    const seasonMatch = referenceTopicMatchesSong(data.referenceTopic, stored);
     return {
-      ...toCandidate(stored, allMembers, antiphonMatch, false),
+      ...toCandidate(stored, allMembers, antiphonMatch, seasonMatch),
       number: reference.number,
       title: reference.title ?? stored.title,
       orderKey: concreteOrderKey(stored),
@@ -267,6 +284,12 @@ function historicalCandidate(reference: CandidateHydrationInput["songs"][number]
     suppressedByMelodyWindow: false,
     orderKey: `rehydrated:${reference.language}:${reference.number}:${songId}`,
   };
+}
+
+function referenceTopicMatchesSong(topic: ReferenceCandidateData["referenceTopic"], song: ReferenceCandidateSong): boolean {
+  if (!topic || topic.language !== song.language) return false;
+  const baseNumber = referenceNumberParts(song.canonicalNumber).base;
+  return topic.ranges.some((range) => baseNumber >= range.from && baseNumber <= range.to);
 }
 
 function groupSongsByClass(songs: ReferenceCandidateSong[]): Map<string, ReferenceCandidateSong[]> {

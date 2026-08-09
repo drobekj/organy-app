@@ -14,12 +14,12 @@ export type KnowledgeMapping = { id: string; key: string; songId: string; synthe
 export type MelodyNonRepetitionConfig = { months: number };
 export type CandidateUsageSource = "completed" | "working" | "final" | "current";
 export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number; rowLabel?: string };
-export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
+export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
 export type CandidateMelodyMember = { songId: string; language: ConcreteSongLanguage; number: string; title: string; repertoire: boolean; aggregatePreferenceScore: number; sheetMusicUrl?: string };
 export type CandidateOccupyingRow = { rowId: number; label: string };
 export type CandidateAvailability = { kind: "available" } | { kind: "occupiedByCurrentRows"; rows: CandidateOccupyingRow[] };
 export type CandidateQueryResult = { songId: string; language: ConcreteSongLanguage; number: string; title: string; equivalentNumbers: { songId: string; number: string; repertoire: boolean }[]; melodyClassId?: string; melodyMembers?: CandidateMelodyMember[]; aggregatePreferenceScore: number; antiphonMatch: boolean; seasonMatch: boolean; signal: "antiphon" | "season" | "none"; preferenceShade: "none" | "low" | "medium" | "high"; repertoire: boolean; availability: CandidateAvailability; suppressedByMelodyWindow: boolean; sheetMusicUrl?: string; orderKey: string };
-export type CandidateHydrationInput = { songs: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }[]; organistPersonId?: string; referenceAntiphonId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
+export type CandidateHydrationInput = { songs: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }[]; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
 
 export function preferenceScoreLimit(category: PreferenceProfileCategory): number { return category === "priest" ? 3 : category === "organist" ? 2 : 1; }
 export function validateOwnPreferenceScore(category: PreferenceProfileCategory, score: number): boolean { return Number.isInteger(score) && score >= 0 && score <= preferenceScoreLimit(category); }

@@ -4,6 +4,8 @@ import {
   normalizeServiceTime,
   serviceAntiphonLanguageFromId,
   serviceAntiphonMatchesLanguage,
+  serviceTopicLanguageFromId,
+  serviceTopicMatchesLanguage,
   validatePlanningSet,
   findMelodyCollisions,
   melodyCollisionSummary,
@@ -13,10 +15,12 @@ import {
   type PlanningSet,
   type ServiceAntiphonReference,
   type ServiceContext,
+  type ServiceTopicReference,
 } from "../../planning-lifecycle";
 import type { CatalogRepository } from "../catalog";
 import type { ReferenceAntiphonProvider, ReferenceAntiphonRecord } from "../reference-antiphon-contract";
 import type { ReferenceCatalogRecord } from "../reference-catalog-contract";
+import type { ReferenceThematicSection, ReferenceThematicSectionProvider } from "../reference-thematic-section-contract";
 import type { ReferenceMelodyClassProvider } from "../reference-melody-class-provider";
 import { isEligiblePerson, languagesForService } from "../catalog";
 import type {
@@ -33,6 +37,7 @@ export type PlanningLifecycleServiceDependencies = {
   completedServiceRecords: CompletedServiceRecordRepository;
   catalog: CatalogRepository;
   referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
+  referenceTopics?: Pick<ReferenceThematicSectionProvider, "getSectionById">;
   referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
   referenceMelodyClasses?: ReferenceMelodyClassProvider;
   now?: () => Date;
@@ -90,6 +95,7 @@ export class PlanningLifecycleService {
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
   private readonly catalog: CatalogRepository;
   private readonly referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
+  private readonly referenceTopics?: Pick<ReferenceThematicSectionProvider, "getSectionById">;
   private readonly referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
   private readonly referenceMelodyClasses?: ReferenceMelodyClassProvider;
   private readonly enforceCatalogSelections: boolean;
@@ -99,6 +105,7 @@ export class PlanningLifecycleService {
     this.completedServiceRecords = dependencies.completedServiceRecords;
     this.catalog = dependencies.catalog;
     this.referenceAntiphons = dependencies.referenceAntiphons;
+    this.referenceTopics = dependencies.referenceTopics;
     this.referenceSongs = dependencies.referenceSongs;
     this.referenceMelodyClasses = dependencies.referenceMelodyClasses;
     this.enforceCatalogSelections = dependencies.enforceCatalogSelections ?? true;
@@ -142,7 +149,9 @@ export class PlanningLifecycleService {
     const existingSet = input.existingSetId ? await this.planningSets.findById(input.existingSetId) : undefined;
     const antiphonContext = await this.validateAndNormalizeReferenceAntiphon(rawServiceContext, existingSet);
     if (!antiphonContext.success) return antiphonContext;
-    const serviceContext = antiphonContext.value;
+    const topicContext = await this.validateAndNormalizeReferenceTopic(antiphonContext.value, existingSet);
+    if (!topicContext.success) return topicContext;
+    const serviceContext = topicContext.value;
     const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existingSet, input.allowLanguageDeviations === true);
     if (normalized.issues.length > 0) {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
@@ -294,7 +303,9 @@ export class PlanningLifecycleService {
 
     const antiphonContext = await this.validateAndNormalizeReferenceAntiphon(rawServiceContext, existing);
     if (!antiphonContext.success) return antiphonContext;
-    const serviceContext = antiphonContext.value;
+    const topicContext = await this.validateAndNormalizeReferenceTopic(antiphonContext.value, existing);
+    if (!topicContext.success) return topicContext;
+    const serviceContext = topicContext.value;
     const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existing, input.allowLanguageDeviations === true);
     if (normalized.issues.length > 0) {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
@@ -425,6 +436,30 @@ export class PlanningLifecycleService {
     return success({ ...serviceContext, referenceAntiphon: serviceAntiphonSnapshot(authoritative) });
   }
 
+  private async validateAndNormalizeReferenceTopic(
+    serviceContext: ServiceContext,
+    existing?: PersistedPlanningSet | CompletedServiceRecord,
+  ): Promise<PlanningServiceResult<ServiceContext>> {
+    const candidate = (serviceContext as ServiceContext & { referenceTopic?: unknown }).referenceTopic;
+    if (candidate === undefined) return success({ ...serviceContext, referenceTopic: undefined });
+    if (!isServiceTopicReference(candidate)) {
+      return failure({ code: "invalidInput", message: "Authoritative Topic selection is malformed.", issues: [{ path: "serviceContext.referenceTopic", message: "Select a Topic from the authoritative catalog." }] });
+    }
+    if (!serviceTopicMatchesLanguage(candidate, serviceContext.language)) {
+      return failure({ code: "invalidInput", message: "Selected topic must match the service language.", issues: [{ path: "serviceContext.referenceTopic", message: "Selected topic must match the service language." }] });
+    }
+    const previous = existing?.serviceContext.referenceTopic;
+    if (previous && sameServiceTopicReference(previous, candidate)) return success({ ...serviceContext, referenceTopic: { ...previous } });
+    if (!isAcceptedReferenceTopicId(candidate.id)) {
+      return failure({ code: "invalidInput", message: "Authoritative Topic identity is invalid.", issues: [{ path: "serviceContext.referenceTopic.id", message: "Topic id must be a Czech or Polish authoritative thematic-section id." }] });
+    }
+    if (!this.referenceTopics) return failure({ code: "invalidInput", message: "Authoritative Topic selection is unavailable in this runtime." });
+    const authoritative = await this.referenceTopics.getSectionById(candidate.id);
+    const expectedLanguage = serviceTopicLanguageFromId(candidate.id);
+    if (!authoritative || !expectedLanguage || authoritative.language !== expectedLanguage) return failure({ code: "notFound", message: "Authoritative Topic was not found." });
+    return success({ ...serviceContext, referenceTopic: serviceTopicSnapshot(authoritative) });
+  }
+
   private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord, allowLanguageDeviations = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
     const issues: { path: string; message: string }[] = [];
     if (!this.enforceCatalogSelections) {
@@ -498,6 +533,11 @@ function normalizeServiceContext(context: ServiceContext): ServiceContext {
       : context.referenceAntiphon === undefined
         ? { referenceAntiphon: undefined }
         : { referenceAntiphon: context.referenceAntiphon as never }),
+    ...(isServiceTopicReference(context.referenceTopic)
+      ? { referenceTopic: { ...context.referenceTopic } }
+      : context.referenceTopic === undefined
+        ? { referenceTopic: undefined }
+        : { referenceTopic: context.referenceTopic as never }),
     ...(context.antiphonKey?.trim() ? { antiphonKey: context.antiphonKey.trim() } : { antiphonKey: undefined }),
     ...(context.liturgicalSeasonKey?.trim() ? { liturgicalSeasonKey: context.liturgicalSeasonKey.trim() } : { liturgicalSeasonKey: undefined }),
   };
@@ -516,6 +556,26 @@ function isServiceAntiphonReference(value: unknown): value is ServiceAntiphonRef
 
 function isAcceptedReferenceAntiphonId(id: string): boolean {
   return /^(czech|polish):[1-9]\d*$/.test(id);
+}
+
+function isServiceTopicReference(value: unknown): value is ServiceTopicReference {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  if (keys.length !== 2 || keys[0] !== "id" || keys[1] !== "title") return false;
+  return typeof record.id === "string" && record.id.trim() === record.id && record.id.length > 0 && typeof record.title === "string" && record.title.trim().length > 0;
+}
+
+function isAcceptedReferenceTopicId(id: string): boolean {
+  return /^(czech|polish):[a-z0-9][a-z0-9:-]*$/.test(id);
+}
+
+function sameServiceTopicReference(left: ServiceTopicReference, right: ServiceTopicReference): boolean {
+  return left.id === right.id && left.title === right.title;
+}
+
+function serviceTopicSnapshot(section: ReferenceThematicSection): ServiceTopicReference {
+  return { id: section.id, title: section.title };
 }
 
 function sameServiceAntiphonReference(left: ServiceAntiphonReference, right: ServiceAntiphonReference): boolean {
