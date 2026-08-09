@@ -1,7 +1,8 @@
-import catalog from "../../data/catalog/catalog-czech-antiphons.json";
+import czechCatalog from "../../data/catalog/catalog-czech-antiphons.json";
+import polishCatalog from "../../data/catalog/catalog-polish-antiphons.json";
 import type { ReferenceAntiphonPage, ReferenceAntiphonProvider, ReferenceAntiphonQuery, ReferenceAntiphonRecord } from "./reference-antiphon-contract";
 
-const bundledCzechRecords: ReferenceAntiphonRecord[] = catalog.map((record) => ({
+const bundledCzechRecords: ReferenceAntiphonRecord[] = czechCatalog.map((record) => ({
   id: `czech:${record.number}`,
   language: "czech",
   canonicalNumber: record.number,
@@ -10,18 +11,24 @@ const bundledCzechRecords: ReferenceAntiphonRecord[] = catalog.map((record) => (
   sourceUrl: record.url,
 }));
 
+const bundledPolishRecords: ReferenceAntiphonRecord[] = polishCatalog.map((record) => ({
+  id: `polish:${record.number}`,
+  language: "polish",
+  canonicalNumber: record.number,
+  displayNumber: String(record.number),
+  title: record.title,
+}));
+
+const bundledRecords: ReferenceAntiphonRecord[] = [...bundledCzechRecords, ...bundledPolishRecords];
 const languageRank = (language: ReferenceAntiphonRecord["language"]) => language === "czech" ? 0 : 1;
 const compareRecords = (left: ReferenceAntiphonRecord, right: ReferenceAntiphonRecord) =>
   languageRank(left.language) - languageRank(right.language)
   || left.canonicalNumber - right.canonicalNumber
   || left.id.localeCompare(right.id);
 
-/**
- * Read-only in-memory provider. Production ships only the frozen Czech catalog;
- * explicit fixture records let bilingual behavior be proved without inventing Polish production data.
- */
+/** Read-only in-memory provider backed by the frozen Czech and Polish production catalogs. */
 export class MemoryReferenceAntiphonProvider implements ReferenceAntiphonProvider {
-  constructor(private readonly sourceRecords: readonly ReferenceAntiphonRecord[] = bundledCzechRecords) {}
+  constructor(private readonly sourceRecords: readonly ReferenceAntiphonRecord[] = bundledRecords) {}
 
   async list(input: ReferenceAntiphonQuery = {}): Promise<ReferenceAntiphonPage> {
     const language = input.language ?? "all";
