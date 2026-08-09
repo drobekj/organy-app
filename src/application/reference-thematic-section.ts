@@ -1,3 +1,5 @@
+import czechArtifact from "../../data/catalog/catalog-czech-thematic-sections.json";
+import polishArtifact from "../../data/catalog/catalog-polish-thematic-sections.json";
 import { referenceNumberParts } from "./reference-catalog-contract";
 import type {
   ReferenceThematicLanguage,
@@ -5,11 +7,16 @@ import type {
   ReferenceThematicSectionProvider,
 } from "./reference-thematic-section-contract";
 
+const bundledSections: ReferenceThematicSection[] = [
+  ...(czechArtifact.sections as ReferenceThematicSection[]),
+  ...(polishArtifact.sections as ReferenceThematicSection[]),
+];
+
 export class MemoryReferenceThematicSectionProvider implements ReferenceThematicSectionProvider {
   private readonly byId: Map<string, ReferenceThematicSection>;
   private readonly byLanguage: Map<ReferenceThematicLanguage, ReferenceThematicSection[]>;
 
-  constructor(sections: readonly ReferenceThematicSection[]) {
+  constructor(sections: readonly ReferenceThematicSection[] = bundledSections) {
     this.byId = new Map(sections.map((section) => [section.id, clone(section)]));
     this.byLanguage = new Map((["czech", "polish"] as const).map((language) => [
       language,
