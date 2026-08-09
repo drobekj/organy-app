@@ -1,0 +1,30 @@
+name: Phase 31.22 Service Context toggle parity acceptance
+
+on:
+  pull_request:
+    branches:
+      - codex/phase-31-21-minimal-service-context
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Phase 31.22 toggle parity and note prompt
+        run: npx tsx scripts/phase-31-22-tests.tsx
+      - name: Phase 31.21 presentation regression
+        run: node scripts/phase-31-21-tests.mjs
+      - name: Phase 31.20 behavior regression
+        run: npm run test:phase-31-20
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
