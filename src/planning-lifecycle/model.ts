@@ -31,6 +31,12 @@ export type ServiceAntiphonReference = {
   sourceUrl?: string;
 };
 
+/** Stable authoritative thematic-section identity plus the historical title snapshot saved with a service. */
+export type ServiceTopicReference = {
+  id: string;
+  title: string;
+};
+
 export type ServiceContext = {
   serviceDate: string;
   serviceTime: string;
@@ -41,9 +47,11 @@ export type ServiceContext = {
   note?: string;
   /** Optional authoritative Czech/Polish antiphon snapshot selected for this concrete service. */
   referenceAntiphon?: ServiceAntiphonReference;
+  /** Optional authoritative Czech/Polish Topic snapshot selected for this concrete service. */
+  referenceTopic?: ServiceTopicReference;
   /** Optional synthetic/demo antiphon key used to rehydrate candidate metadata. */
   antiphonKey?: string;
-  /** Optional synthetic/demo liturgical season key used to rehydrate candidate metadata. */
+  /** Optional synthetic/demo liturgical season key retained for legacy/internal compatibility. */
   liturgicalSeasonKey?: string;
 };
 
