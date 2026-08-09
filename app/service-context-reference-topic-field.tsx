@@ -5,7 +5,7 @@ import { DbReferenceTopicClient, MemoryReferenceTopicClient } from "../src/appli
 import type { ReferenceThematicSection, ReferenceThematicSectionProvider } from "../src/application/reference-thematic-section-contract";
 import { ServiceContextReferenceTopicUiState, type ServiceContextTopicSearchSnapshot } from "../src/application/service-context-reference-topic-ui-state";
 import type { ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
-import { mixedServiceCandidateStyle } from "./service-context-reference-antiphon-field";
+import { mixedServiceCandidateStyle, serviceContextLookupInputClickAction } from "./service-context-reference-antiphon-field";
 
 export type ServiceContextReferenceTopicFieldProps = {
   runtime: "memory" | "db";
@@ -29,6 +29,8 @@ type ViewProps = {
   activeIndex: number;
   serviceLanguage?: ServiceLanguage;
   onOpen: () => void;
+  onInputPointerDown?: () => void;
+  onInputClick?: () => void;
   onQueryChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   onSelect: (record: ReferenceThematicSection) => void;
@@ -62,8 +64,9 @@ export function ServiceContextReferenceTopicFieldView(props: ViewProps) {
         readOnly={!props.editable}
         value={displayValue}
         placeholder="Select topic"
+        onPointerDown={props.onInputPointerDown}
         onFocus={props.onOpen}
-        onClick={props.onOpen}
+        onClick={props.onInputClick ?? props.onOpen}
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={props.onKeyDown}
       />
@@ -105,6 +108,7 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
   if (!machineRef.current) machineRef.current = new ServiceContextReferenceTopicUiState(identity);
   const machine = machineRef.current;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const inputWasOpenOnPointerDown = useRef(false);
   const [open, setOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [query, setQuery] = useState("");
@@ -168,6 +172,14 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
     setOpen(true); setDirty(false); setQuery("");
     queueMicrotask(() => wrapperRef.current?.querySelector<HTMLInputElement>("input")?.select());
   };
+  const handleInputClick = () => {
+    if (!editable) return;
+    if (serviceContextLookupInputClickAction(inputWasOpenOnPointerDown.current) === "close") {
+      closeRestore();
+      return;
+    }
+    if (!open) openLookup();
+  };
   const select = (record: ReferenceThematicSection) => { onChange({ id: record.id, title: record.title }); closeRestore(); };
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") { if (open) { event.preventDefault(); closeRestore(); } return; }
@@ -186,6 +198,8 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
     <ServiceContextReferenceTopicFieldView
       editable={editable} selected={selected} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
       onOpen={openLookup}
+      onInputPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
+      onInputClick={handleInputClick}
       onQueryChange={(value) => { if (!open) setOpen(true); setDirty(true); setQuery(value); setActiveIndex(0); }}
       onKeyDown={onKeyDown}
       onSelect={select}

@@ -28,6 +28,8 @@ type ViewProps = {
   activeIndex: number;
   serviceLanguage?: ServiceLanguage;
   onOpen: () => void;
+  onInputPointerDown?: () => void;
+  onInputClick?: () => void;
   onQueryChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   onSelect: (record: ReferenceAntiphonRecord) => void;
@@ -43,6 +45,10 @@ export function moveAntiphonActiveIndex(currentIndex: number, recordCount: numbe
   if (key === "End") return recordCount - 1;
   if (key === "ArrowDown") return Math.min(currentIndex + 1, recordCount - 1);
   return Math.max(currentIndex - 1, 0);
+}
+
+export function serviceContextLookupInputClickAction(wasOpenOnPointerDown: boolean): "open" | "close" {
+  return wasOpenOnPointerDown ? "close" : "open";
 }
 
 const label = (selected?: ServiceAntiphonReference) => selected ? `${selected.displayNumber} · ${selected.title}` : "";
@@ -72,8 +78,9 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         readOnly={!props.editable}
         value={displayValue}
         placeholder="Select antiphon"
+        onPointerDown={props.onInputPointerDown}
         onFocus={props.onOpen}
-        onClick={props.onOpen}
+        onClick={props.onInputClick ?? props.onOpen}
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={props.onKeyDown}
       />
@@ -118,6 +125,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   if (!machineRef.current) machineRef.current = new ServiceContextReferenceAntiphonUiState(identity);
   const machine = machineRef.current;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const inputWasOpenOnPointerDown = useRef(false);
   const [open, setOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [query, setQuery] = useState("");
@@ -183,6 +191,14 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
     setOpen(true); setDirty(false); setQuery("");
     queueMicrotask(() => wrapperRef.current?.querySelector<HTMLInputElement>("input")?.select());
   };
+  const handleInputClick = () => {
+    if (!editable) return;
+    if (serviceContextLookupInputClickAction(inputWasOpenOnPointerDown.current) === "close") {
+      closeRestore();
+      return;
+    }
+    if (!open) openLookup();
+  };
   const select = (record: ReferenceAntiphonRecord) => {
     onChange({ id: record.id, displayNumber: record.displayNumber, title: record.title, ...(record.sourceUrl ? { sourceUrl: record.sourceUrl } : {}) });
     closeRestore();
@@ -202,6 +218,8 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
     <ServiceContextReferenceAntiphonFieldView
       editable={editable} selected={selected} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
       onOpen={openLookup}
+      onInputPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
+      onInputClick={handleInputClick}
       onQueryChange={(value) => { if (!open) setOpen(true); setDirty(true); setQuery(value); setActiveIndex(0); }}
       onKeyDown={onKeyDown}
       onSelect={select}
