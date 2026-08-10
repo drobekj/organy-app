@@ -57,7 +57,7 @@ export function NonRepetitionPeriodPanel({
 
   async function save() {
     const months = Number(draftMonths);
-    if (!draftMonths.trim() || !validateMelodyWindowMonths(months) || String(months) !== draftMonths.trim()) {
+    if (!draftMonths.trim() || !validateMelodyWindowMonths(months)) {
       setFeedback({ kind: "error", message: "Melody non-repetition period must be a finite non-negative integer number of calendar months." });
       return;
     }
