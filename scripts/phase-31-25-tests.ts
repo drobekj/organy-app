@@ -41,6 +41,13 @@ function context(serviceDate: string, serviceTime: string, marker = "Phase 31.25
   };
 }
 
+function errorChainContains(error: unknown, needle: string): boolean {
+  if (typeof error === "string") return error.includes(needle);
+  if (!(error instanceof Error)) return false;
+  if (error.message.includes(needle)) return true;
+  return errorChainContains((error as Error & { cause?: unknown }).cause, needle);
+}
+
 async function memoryAcceptance() {
   assert.equal(pragueCalendarDate(new Date("2026-08-09T21:59:59.999Z")), "2026-08-09");
   assert.equal(pragueCalendarDate(new Date("2026-08-09T22:00:00.000Z")), "2026-08-10", "Prague DST midnight boundary is authoritative");
@@ -110,6 +117,8 @@ async function dbAcceptance() {
   const marker = `Phase 31.25 ${process.pid}-${Date.now()}`;
   const deps: PlanningLifecycleDrizzleAdapterDependencies & { now: () => Date } = { db, now: () => new Date(fixedNow) };
   const planningSets = new DrizzlePlanningSetRepository(deps);
+  let rollbackFunctionName: string | undefined;
+  let rollbackTriggerName: string | undefined;
 
   try {
     const pastA = await planningSets.saveFinalSet(finalRows, context("2026-08-09", "23:59", `${marker} past-a`));
@@ -165,30 +174,34 @@ async function dbAcceptance() {
 
     // Atomic rollback: inject a marker-scoped DELETE failure after Completed insert would have happened.
     const failureFinal = await planningSets.saveFinalSet(finalRows, context("2026-08-07", "12:00", `${marker} rollback`));
-    const functionName = `p3125_fail_${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, "_");
-    const triggerName = `${functionName}_trigger`;
+    rollbackFunctionName = `p3125_fail_${process.pid}_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, "_");
+    rollbackTriggerName = `${rollbackFunctionName}_trigger`;
     const numericFailureId = Number(failureFinal.id);
-    await pool.query(`create function ${functionName}() returns trigger language plpgsql as $$ begin if OLD.id = ${numericFailureId} then raise exception 'phase-31-25-injected-delete-failure'; end if; return OLD; end $$`);
-    await pool.query(`create trigger ${triggerName} before delete on service_sets for each row execute function ${functionName}()`);
+    await pool.query(`create function ${rollbackFunctionName}() returns trigger language plpgsql as $$ begin if OLD.id = ${numericFailureId} then raise exception 'phase-31-25-injected-delete-failure'; end if; return OLD; end $$`);
+    await pool.query(`create trigger ${rollbackTriggerName} before delete on service_sets for each row execute function ${rollbackFunctionName}()`);
     const beforeRollbackCount = await pool.query("select count(*)::int as count from completed_services cs join service_contexts sc on sc.id = cs.service_context_id where sc.priest_display_name = $1", [`${marker} rollback Priest`]);
     let failed = false;
     try {
       await new DrizzleFinalSetCompletionRepository(deps).completeFinalSet(failureFinal.id, fixedNow);
     } catch (error) {
-      failed = String(error).includes("phase-31-25-injected-delete-failure");
+      failed = errorChainContains(error, "phase-31-25-injected-delete-failure");
     }
     assert.equal(failed, true, "injected delete failure reaches atomic completion transaction");
     assert.ok(await planningSets.findById(failureFinal.id), "failed conversion keeps Final set");
     const afterRollbackCount = await pool.query("select count(*)::int as count from completed_services cs join service_contexts sc on sc.id = cs.service_context_id where sc.priest_display_name = $1", [`${marker} rollback Priest`]);
     assert.equal(afterRollbackCount.rows[0].count, beforeRollbackCount.rows[0].count, "failed conversion rolls back Completed insert");
-    await pool.query(`drop trigger ${triggerName} on service_sets`);
-    await pool.query(`drop function ${functionName}()`);
+    await pool.query(`drop trigger ${rollbackTriggerName} on service_sets`);
+    await pool.query(`drop function ${rollbackFunctionName}()`);
+    rollbackTriggerName = undefined;
+    rollbackFunctionName = undefined;
 
     const retry = await new DrizzleFinalSetCompletionRepository(deps).completeFinalSet(failureFinal.id, fixedNow);
     assert.equal(retry.status, "completed", "retry after rollback succeeds");
     const idempotentRetry = await new DrizzleFinalSetCompletionRepository(deps).completeFinalSet(failureFinal.id, fixedNow);
     assert.equal(idempotentRetry.status, "notFound", "completed Final cannot be duplicated");
   } finally {
+    if (rollbackTriggerName) await pool.query(`drop trigger if exists ${rollbackTriggerName} on service_sets`).catch(() => undefined);
+    if (rollbackFunctionName) await pool.query(`drop function if exists ${rollbackFunctionName}()`).catch(() => undefined);
     await pool.query("delete from service_contexts where priest_display_name like $1", [`${marker}%`]).catch(() => undefined);
     await pool.end();
   }
