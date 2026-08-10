@@ -26,6 +26,8 @@ import { isEligiblePerson, languagesForService } from "../catalog";
 import type {
   CompletedServiceRecord,
   CompletedServiceRecordRepository,
+  FinalSetCompletionPersistenceResult,
+  FinalSetCompletionRepository,
   PersistedPlanningSet,
   PlanningSetId,
   PlanningSetRepository,
@@ -35,6 +37,7 @@ import { failure, success, type PlanningServiceResult } from "./results";
 export type PlanningLifecycleServiceDependencies = {
   planningSets: PlanningSetRepository;
   completedServiceRecords: CompletedServiceRecordRepository;
+  finalSetCompletion?: FinalSetCompletionRepository;
   catalog: CatalogRepository;
   referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
   referenceTopics?: Pick<ReferenceThematicSectionProvider, "getSectionById">;
@@ -93,6 +96,8 @@ export class PlanningLifecycleService {
   private readonly now: () => Date;
   private readonly planningSets: PlanningSetRepository;
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
+  private readonly finalSetCompletion?: FinalSetCompletionRepository;
+  private fallbackCompletionTail: Promise<void> = Promise.resolve();
   private readonly catalog: CatalogRepository;
   private readonly referenceAntiphons?: Pick<ReferenceAntiphonProvider, "getById">;
   private readonly referenceTopics?: Pick<ReferenceThematicSectionProvider, "getSectionById">;
@@ -103,6 +108,7 @@ export class PlanningLifecycleService {
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
     this.planningSets = dependencies.planningSets;
     this.completedServiceRecords = dependencies.completedServiceRecords;
+    this.finalSetCompletion = dependencies.finalSetCompletion;
     this.catalog = dependencies.catalog;
     this.referenceAntiphons = dependencies.referenceAntiphons;
     this.referenceTopics = dependencies.referenceTopics;
@@ -114,10 +120,12 @@ export class PlanningLifecycleService {
 
 
   async listPlanningSets(): Promise<PlanningServiceResult<PersistedPlanningSet[]>> {
+    await this.reconcilePastFinalSets();
     return success(await this.planningSets.list());
   }
 
   async listCompletedRecords(): Promise<PlanningServiceResult<CompletedServiceRecord[]>> {
+    await this.reconcilePastFinalSets();
     return success(await this.completedServiceRecords.list());
   }
 
@@ -360,16 +368,64 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: `Future service ${finalSet.serviceContext.serviceDate} at ${finalSet.serviceContext.serviceTime || "Time missing"} cannot be completed.` });
     }
 
-    const completedAt = this.now();
-    const completedRecord = await this.completedServiceRecords.createFromFinalSet({
-      sourceFinalSetId: input.finalSetId,
-      set: { status: "final", language: finalSet.language, rows: finalSet.rows },
-      serviceContext: finalSet.serviceContext,
-      completedAt,
-    });
+    const outcome = await this.persistFinalSetCompletion(finalSet as PersistedPlanningSet & { status: "final" }, this.now());
+    if (outcome.status === "notFound") {
+      return failure({ code: "notFound", message: "Final planning set was not found." });
+    }
+    if (outcome.status === "notFinal") {
+      return failure({ code: "invalidStatus", message: "Only final planning sets can be completed." });
+    }
+    return success(outcome.record);
+  }
 
-    await this.planningSets.deleteById(input.finalSetId);
-    return success(completedRecord);
+  private async reconcilePastFinalSets(): Promise<void> {
+    const now = this.now();
+    const overdue = (await this.planningSets.list())
+      .filter((set): set is PersistedPlanningSet & { status: "final" } => set.status === "final" && isPastPragueDate(set.serviceContext.serviceDate, now))
+      .sort((left, right) => left.serviceContext.serviceDate.localeCompare(right.serviceContext.serviceDate) || left.id.localeCompare(right.id));
+
+    for (const finalSet of overdue) {
+      // A concurrent reconciliation/manual completion may win after the list snapshot.
+      // notFound/notFinal are therefore benign here; a completed outcome is already persisted.
+      await this.persistFinalSetCompletion(finalSet, now);
+    }
+  }
+
+  private async persistFinalSetCompletion(
+    finalSet: PersistedPlanningSet & { status: "final" },
+    completedAt: Date,
+  ): Promise<FinalSetCompletionPersistenceResult> {
+    if (this.finalSetCompletion) {
+      return this.finalSetCompletion.completeFinalSet(finalSet.id, completedAt);
+    }
+
+    // Memory/custom runtimes use one serialized fallback completion boundary.
+    // PostgreSQL supplies the runtime-specific atomic repository below.
+    return this.withFallbackCompletionLock(async () => {
+      const current = await this.planningSets.findById(finalSet.id);
+      if (!current) return { status: "notFound" };
+      if (current.status !== "final") return { status: "notFinal" };
+      const record = await this.completedServiceRecords.createFromFinalSet({
+        sourceFinalSetId: current.id,
+        set: { status: "final", language: current.language, rows: current.rows },
+        serviceContext: current.serviceContext,
+        completedAt,
+      });
+      await this.planningSets.deleteById(current.id);
+      return { status: "completed", record };
+    });
+  }
+
+  private async withFallbackCompletionLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.fallbackCompletionTail;
+    let release!: () => void;
+    this.fallbackCompletionTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
 
   private async getAuthoritativeMelodyCollisions(rows: PlanningRow[]): Promise<MelodyCollision[]> {
@@ -614,9 +670,16 @@ function songSnapshotKey(song: NonNullable<PlanningRow["song"]>): string {
   return JSON.stringify({ songId: song.songId, language: song.language, number: song.number, title: song.title });
 }
 
+export function pragueCalendarDate(now: Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+}
+
+export function isPastPragueDate(serviceDate: string, now: Date): boolean {
+  return serviceDate < pragueCalendarDate(now);
+}
+
 function isFuturePragueDate(serviceDate: string, now: Date): boolean {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  return serviceDate > today;
+  return serviceDate > pragueCalendarDate(now);
 }
 
 function reorderRowsByIndex(rows: PlanningRow[], rowOrder: number[]): PlanningRow[] | undefined {

@@ -155,7 +155,7 @@ Milestone outcomes:
 - Completed-service records preserve the ordered service rows and concrete song use as historical knowledge.
 - Completed-service records provide backward filtering input for melody non-repetition.
 - Completed-service records are not treated as non-completed plans.
-- Automatic conversion from final set to completed-service record remains open until timing and behavior are specified.
+- Automatic conversion is resolved: a Final set whose service date is strictly before the current `Europe/Prague` calendar date becomes Completed at the next normal application reconciliation opportunity; service time does not affect this transition.
 
 Traceability:
 
@@ -188,15 +188,12 @@ The following areas are intentionally not ready for implementation from this roa
 - UI components, screen layouts, interaction design, or visual styling.
 - Authentication, account infrastructure, deployment, operations, backups, or observability.
 - Legacy migration strategy or data-cleaning workflow.
-- Automatic final-set completion behavior.
 - Multi-congregation product generalization.
 - Audit or change-history design.
 - Any application code, tests, tooling changes, or implementation tasks.
 
 ## Open Roadmap Questions
 - What legacy migration strategy should be chosen after legacy data is assessed against the accepted domain model?
-- When should a final set automatically become a completed-service record, if automatic conversion is implemented?
-- What exact automatic final-set completion behavior should occur around that timing?
 - What future multi-congregation support may be needed, and what changes would be required before expanding beyond one local congregation?
 - What audit or change-history behavior is needed for knowledge changes, repertoire changes, preferences, planning state transitions, and historical records?
 - Which application technologies, storage technologies, and deployment model should be selected after implementation preparation begins?

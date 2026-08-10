@@ -58,9 +58,10 @@ Each requirement uses:
   - A final set is a saved final plan and is not directly editable.
   - If a final set must change, it must be deleted and recreated.
   - A completed-service record is historical and is not a non-completed plan.
-  - Priest and admin may convert a final set to a completed-service record.
-  - The system may also convert a final set to a completed-service record automatically after a default time.
-  - Automatic conversion is an allowed product direction, but the exact default time and automatic conversion behavior remain open product/workflow questions.
+  - Priest and admin may convert a final set to a completed-service record manually when the service date is today or in the past; a future service date cannot be completed manually.
+  - The system automatically converts a saved final set when its service date is strictly earlier than the current calendar date in `Europe/Prague`, at the next normal application reconciliation opportunity.
+  - Service time is informational only and does not affect automatic-completion timing. A final set dated today remains final for the whole Prague calendar day unless it is completed manually.
+  - Automatic conversion is idempotent and preserves the same Service Context snapshot and ordered rows as manual completion.
   - Deleting a saved working set or final set returns the service to `no set exists`.
   - The system does not require separate deleted or cancelled service-set states.
 - **Related decisions:** DEC-2026-07-06-04

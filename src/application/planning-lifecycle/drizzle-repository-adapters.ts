@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type * as planningLifecycleSchema from "../../db/schema";
 import {
@@ -11,6 +11,8 @@ import {
 import type {
   CompletedServiceRecord,
   CompletedServiceRecordRepository,
+  FinalSetCompletionPersistenceResult,
+  FinalSetCompletionRepository,
   PersistedPlanningSet,
   PlanningSetId,
   PlanningSetRepository,
@@ -232,6 +234,86 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
   }
 }
 
+export class DrizzleFinalSetCompletionRepository implements FinalSetCompletionRepository {
+  constructor(private readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
+
+  async completeFinalSet(finalSetId: PlanningSetId, completedAt: Date): Promise<FinalSetCompletionPersistenceResult> {
+    const numericId = parsePlanningSetId(finalSetId);
+    if (numericId === undefined) return { status: "notFound" };
+
+    return this.dependencies.db.transaction(async (tx) => {
+      // Serialize concurrent automatic/manual completion attempts for the same Final row.
+      await tx.execute(sql`select ${serviceSets.id} from ${serviceSets} where ${serviceSets.id} = ${numericId} for update`);
+
+      const [sourceFinalSet] = (await selectAll(tx)
+        .from(serviceSets)
+        .where(eq(serviceSets.id, numericId))
+        .limit(1)) as ServiceSetRecord[];
+      if (!sourceFinalSet) return { status: "notFound" };
+      if (sourceFinalSet.status !== "final") return { status: "notFinal" };
+
+      const [context] = (await selectAll(tx)
+        .from(serviceContexts)
+        .where(eq(serviceContexts.id, sourceFinalSet.serviceContextId))
+        .limit(1)) as ServiceContextRecord[];
+      if (!context) throw new Error(`Service context for final set '${finalSetId}' was not found.`);
+
+      const rows = (await selectAll(tx)
+        .from(serviceSetRows)
+        .where(eq(serviceSetRows.serviceSetId, numericId))
+        .orderBy(asc(serviceSetRows.position))) as ServiceSetRowRecord[];
+      const planningRows = rows.map(mapRowRecordToPlanningRow);
+      const now = new Date();
+
+      const [completedService] = (await insertInto(tx, completedServices)
+        .values({
+          serviceContextId: sourceFinalSet.serviceContextId,
+          serviceSetId: numericId,
+          completedAt,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning({
+          id: completedServices.id,
+          serviceSetId: completedServices.serviceSetId,
+          serviceContextId: completedServices.serviceContextId,
+          completedAt: completedServices.completedAt,
+        })) as CompletedServiceRecordRecord[];
+
+      if (planningRows.length > 0) {
+        await insertInto(tx, completedServiceRows).values(
+          planningRows.map((row, index) => ({
+            completedServiceId: completedService.id,
+            position: index + 1,
+            songId: row.song?.songId,
+            songLanguage: row.song?.language,
+            songNumber: row.song?.number,
+            songTitle: row.song?.title,
+            note: row.note,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        );
+      }
+
+      // Same transaction: FK changes completed_services.service_set_id to null,
+      // service_set_rows cascade away, while service_context survives via Completed.
+      await deleteFrom(tx, serviceSets).where(eq(serviceSets.id, numericId));
+
+      return {
+        status: "completed",
+        record: {
+          id: formatCompletedServiceRecordId(completedService.id),
+          sourceFinalSetId: finalSetId,
+          set: { status: "final", language: context.serviceLanguage, rows: planningRows },
+          serviceContext: mapContextRecordToServiceContext(context),
+          completedAt: new Date(completedService.completedAt),
+        },
+      };
+    });
+  }
+}
+
 export class DrizzleCompletedServiceRecordRepository implements CompletedServiceRecordRepository {
   constructor(private readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
 
@@ -378,6 +460,7 @@ export function createDbBackedPlanningLifecycleService(
   return new PlanningLifecycleService({
     planningSets: new DrizzlePlanningSetRepository(dependencies),
     completedServiceRecords: new DrizzleCompletedServiceRecordRepository(dependencies),
+    finalSetCompletion: new DrizzleFinalSetCompletionRepository(dependencies),
     catalog: new DrizzleCatalogRepository(dependencies.db),
     referenceAntiphons: dependencies.referenceAntiphons,
     referenceTopics: dependencies.referenceTopics,
