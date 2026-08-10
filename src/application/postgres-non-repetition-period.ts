@@ -9,10 +9,10 @@ import {
 } from "./non-repetition-period";
 
 type PersistedUsageRow = {
-  plan_id: string | number;
-  status: "working" | "final";
-  service_date: string | Date;
-  melody_class_id: string;
+  plan_id: unknown;
+  status: unknown;
+  service_date: unknown;
+  melody_class_id: unknown;
 };
 
 export class PostgresNonRepetitionPeriodService {
@@ -68,7 +68,7 @@ export class PostgresNonRepetitionPeriodService {
 }
 
 async function listSavedPlanMelodyUsages(client: PoolClient): Promise<NonRepetitionPlanMelodyUsage[]> {
-  const { rows } = await client.query<PersistedUsageRow>(
+  const result = await client.query(
     `select distinct
        ss.id as plan_id,
        ss.status,
@@ -82,15 +82,20 @@ async function listSavedPlanMelodyUsages(client: PoolClient): Promise<NonRepetit
      order by sc.service_date, ss.id, m.class_id`,
   );
 
-  return rows.map((row) => ({
+  return (result.rows as PersistedUsageRow[]).map((row) => ({
     planId: String(row.plan_id),
-    status: row.status,
+    status: persistedPlanStatus(row.status),
     serviceDate: normalizeDate(row.service_date),
     melodyClassId: String(row.melody_class_id),
   }));
 }
 
-function normalizeDate(value: string | Date): string {
+function persistedPlanStatus(value: unknown): NonRepetitionPlanMelodyUsage["status"] {
+  if (value === "working" || value === "final") return value;
+  throw new Error(`Unexpected saved planning-set status '${String(value)}'.`);
+}
+
+function normalizeDate(value: unknown): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value).slice(0, 10);
 }
