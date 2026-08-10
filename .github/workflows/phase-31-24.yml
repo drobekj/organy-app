@@ -37,6 +37,8 @@ jobs:
         run: npm run db:migrate
       - name: Phase 31.24 conflict-safe period acceptance
         run: npx tsx scripts/phase-31-24-tests.ts
+      - name: Phase 31.24 Knowledge UI acceptance
+        run: node scripts/phase-31-24-ui-tests.mjs
       - name: Phase 31.23 typography regression
         run: node scripts/phase-31-23-tests.mjs
       - name: Phase 31.22 interaction regression
