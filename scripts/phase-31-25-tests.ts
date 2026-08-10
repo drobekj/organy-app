@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import * as schema from "../src/db/schema";
+import { POST as planningLifecyclePost } from "../app/api/planning-lifecycle/route";
 import { InMemoryCatalogRepository } from "../src/application/catalog";
 import {
   DrizzleFinalSetCompletionRepository,
@@ -140,6 +141,27 @@ async function dbAcceptance() {
     const repeat = await serviceB.listCompletedRecords();
     assert.equal(repeat.success, true);
     if (repeat.success) assert.equal(repeat.value.filter((record) => record.serviceContext.priest.displayName.includes(marker) && record.serviceContext.priest.displayName.includes("past-")).length, 2);
+
+    // Prove the actual DB API list route is a reconciliation boundary, not a raw repository read.
+    const routePast = await planningSets.saveFinalSet(finalRows, context("2000-01-01", "23:59", `${marker} route-past`));
+    const routeActiveResponse = await planningLifecyclePost(new Request("http://localhost/api/planning-lifecycle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "listPlanningSets", input: {} }),
+    }));
+    assert.equal(routeActiveResponse.status, 200);
+    const routeActive = await routeActiveResponse.json() as { success: boolean; value?: { id: string }[] };
+    assert.equal(routeActive.success, true);
+    assert.equal(routeActive.value?.some((set) => set.id === routePast.id), false, "DB list route reconciles overdue Final before returning Plans");
+    const routeHistoryResponse = await planningLifecyclePost(new Request("http://localhost/api/planning-lifecycle", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "listCompletedRecords", input: {} }),
+    }));
+    assert.equal(routeHistoryResponse.status, 200);
+    const routeHistory = await routeHistoryResponse.json() as { success: boolean; value?: { serviceContext: ServiceContext }[] };
+    assert.equal(routeHistory.success, true);
+    assert.equal(routeHistory.value?.some((record) => record.serviceContext.priest.displayName === `${marker} route-past Priest`), true, "DB History route observes automatic completion");
 
     // Atomic rollback: inject a marker-scoped DELETE failure after Completed insert would have happened.
     const failureFinal = await planningSets.saveFinalSet(finalRows, context("2026-08-07", "12:00", `${marker} rollback`));
