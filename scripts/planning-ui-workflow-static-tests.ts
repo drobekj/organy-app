@@ -23,16 +23,18 @@ for (const required of [
   "Historical inactive priest",
   "Historical inactive organist",
   "Catalog sections",
-  "Set demo 2-month window",
+  "<NonRepetitionPeriodPanel",
+  "memoryPlanningSets={repositories.planningSets}",
   "interactionClient.saveOwnPreference",
   "interactionClient.setRepertoire",
-  "interactionClient.setMelodyWindow",
   "const selectedRole = activeActor.role",
   "interactionClient.queryCandidates",
   `this.transport("queryCandidates"`,
 ]) {
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }
+
+assert(!client.includes("Set demo 2-month window"), "Planning UI must not retain the legacy fixed demo melody-window control");
 
 for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current", ".row-icon-palette", ".compact-row-fields", ".candidate-selection-unavailable"]) {
   assert(css.includes(required), `Planning UI CSS is missing ${required}`);
