@@ -8,6 +8,7 @@ import { PgReferenceRepertoireRepository, ReferenceRepertoireService } from "../
 import { PgReferenceMelodyRepository, ReferenceMelodyService } from "../../../src/application/reference-melody";
 import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommendationService } from "../../../src/application/reference-antiphon-recommendation";
 import { ReferenceCandidateError, ReferenceCandidateService } from "../../../src/application/reference-candidate-service";
+import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
 import type { CandidateHydrationInput, CandidateQueryInput, CandidateUsage } from "../../../src/application/interaction-contracts";
 
 const pgCatalog = (pool: Pool) => ({ listSongs: async () => {
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
   const referenceMelody = new ReferenceMelodyService(new PgReferenceMelodyRepository(pool));
   const referenceAntiphonRecommendation = new ReferenceAntiphonRecommendationService(new PgReferenceAntiphonRecommendationRepository(pool));
   const referenceCandidates = new ReferenceCandidateService(pool);
+  const nonRepetitionPeriod = new PostgresNonRepetitionPeriodService(pool);
   try {
     const resolver = new PostgresLocalActorResolver(pool);
     switch (body.action) {
@@ -60,7 +62,8 @@ export async function POST(request: Request) {
       case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId)); }
       case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId, input.referenceSongId!)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
-      case "setMelodyWindow": { const input = asRecord(body.input); return NextResponse.json(await service.setMelodyWindow(await resolver.resolve(parseLocalActorContext(body.actor)), { months: Number(input.months) })); }
+      case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(await resolver.resolve(parseLocalActorContext(body.actor)))); }
+      case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
       case "queryCandidates": return respond({ success: true, value: await referenceCandidates.queryCandidates(referenceCandidateQueryInput(body.input)) });
       case "hydrateCandidates": return respond({ success: true, value: await referenceCandidates.hydrateCandidates(referenceCandidateHydrationInput(body.input)) });
@@ -104,7 +107,18 @@ function referenceAntiphonRecommendationInput(value: unknown, mutation: boolean)
   if (mutation && input.referenceSongId !== null && (typeof input.referenceSongId !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId))) throw new LocalActorError("invalidInput", "referenceSongId must be a valid Reference song id or null.");
   return { antiphonId: input.antiphonId, ...(mutation ? { referenceSongId: input.referenceSongId as string | null } : {}) };
 }
-function respond<T>(result: { success: true; value: T } | { success: false; error: { code: string; message: string } }) { if (result.success) return NextResponse.json(result); const status = result.error.code === "invalidInput" ? 400 : result.error.code === "notFound" ? 404 : 403; return NextResponse.json(result, { status }); }
+function validateMelodyWindowReadInput(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 0) throw new LocalActorError("invalidInput", "Melody non-repetition read input must be an empty object.");
+}
+function melodyWindowMutationInput(value: unknown): { months: number } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Melody non-repetition input is required.");
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).length !== 1 || !("months" in input) || typeof input.months !== "number" || !Number.isFinite(input.months) || !Number.isInteger(input.months) || input.months < 0) {
+    throw new LocalActorError("invalidInput", "Melody non-repetition period must be a finite non-negative integer number of calendar months.");
+  }
+  return { months: input.months };
+}
+function respond<T>(result: { success: true; value: T } | { success: false; error: { code: string; message: string } }) { if (result.success) return NextResponse.json(result); const status = result.error.code === "invalidInput" ? 400 : result.error.code === "notFound" ? 404 : result.error.code === "conflict" ? 409 : 403; return NextResponse.json(result, { status }); }
 
 
 const REFERENCE_ANTIPHON_ID = /^(?:czech|polish):[1-9]\d*$/;
