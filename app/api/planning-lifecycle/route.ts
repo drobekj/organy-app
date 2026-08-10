@@ -53,14 +53,18 @@ export async function POST(request: Request) {
       db: db as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"],
       schema,
     };
-    const planningSets = new (await import("../../../src/application/planning-lifecycle")).DrizzlePlanningSetRepository(adapterDependencies);
+
+    // List reads are the normal reconciliation boundary for Phase 31.25.
+    // They must go through the service rather than bypassing it with raw repositories.
+    const readService = createDbBackedPlanningLifecycleService(adapterDependencies);
     if (body.action === "listPlanningSets") {
-      return NextResponse.json({ success: true, value: await planningSets.list() });
+      return NextResponse.json(await readService.listPlanningSets());
     }
     if (body.action === "listCompletedRecords") {
-      const records = new (await import("../../../src/application/planning-lifecycle")).DrizzleCompletedServiceRecordRepository(adapterDependencies);
-      return NextResponse.json({ success: true, value: await records.list() });
+      return NextResponse.json(await readService.listCompletedRecords());
     }
+
+    const planningSets = new (await import("../../../src/application/planning-lifecycle")).DrizzlePlanningSetRepository(adapterDependencies);
     if (body.action === "loadCompletedRecord") {
       const recordId = isObjectWithRecordId(body.input) ? body.input.recordId : undefined;
       if (!recordId) return invalidInput("recordId is required.");
