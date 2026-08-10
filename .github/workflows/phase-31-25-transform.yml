@@ -1,0 +1,48 @@
+name: Phase 31.25 isolated automatic-completion transformation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.head_ref == 'codex/phase-31-25-transform-runner'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-25-automatic-final-completion
+          fetch-depth: 0
+      - name: Assert transformation source
+        run: test "$(git rev-parse HEAD)" = "d682b72057d4a58f91c4e6abe5c05e1fc4307eb4"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Apply approved Phase 31.25 transformation
+        run: python3 scripts/phase-31-25-transform.py
+      - name: Typecheck transformed tree
+        run: npm run typecheck
+      - name: Commit transformed product tree
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/phase-31-25-contract.md \
+            docs/requirements.md \
+            docs/workflows.md \
+            docs/backlog.md \
+            docs/roadmap.md \
+            src/application/planning-lifecycle/ports.ts \
+            src/application/planning-lifecycle/service.ts \
+            src/application/planning-lifecycle/drizzle-repository-adapters.ts \
+            src/application/planning-lifecycle/index.ts \
+            scripts/phase-31-25-tests.ts \
+            .github/workflows/phase-31-25.yml
+          git diff --cached --check
+          git commit -m "Phase 31.25 — automatic past-Final completion"
+          git push origin HEAD:codex/phase-31-25-automatic-final-completion
