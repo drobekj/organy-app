@@ -17,14 +17,16 @@ jobs:
           ref: codex/phase-31-25-automatic-final-completion
           fetch-depth: 0
       - name: Assert transformation source
-        run: test "$(git rev-parse HEAD)" = "d682b72057d4a58f91c4e6abe5c05e1fc4307eb4"
+        run: test "$(git rev-parse HEAD)" = "00c27edf0ac92d71e665e2a079034752e0ddcdaa"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund --loglevel=error
       - name: Apply approved Phase 31.25 transformation
-        run: python3 scripts/phase-31-25-transform.py
+        run: |
+          python3 scripts/phase-31-25-transform.py
+          python3 scripts/phase-31-25-transform-fix.py
       - name: Typecheck transformed tree
         run: npm run typecheck
       - name: Commit transformed product tree
