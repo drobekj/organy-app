@@ -31,6 +31,7 @@ import { MemoryReferenceThematicSectionProvider } from "../src/application/refer
 import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recommendation-panel";
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
+import { NonRepetitionPeriodPanel } from "./non-repetition-period-panel";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -1869,8 +1870,12 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
             {selectedCatalogTab === "knowledge" && (
               <fieldset className="field-group">
                 <legend>Knowledge {selectedRole !== "admin" ? "(read-only)" : ""}</legend>
-                <p className="field-help">Melody non-repetition is one shared configurable window: {interactionRepository.getMelodyWindow().months} calendar months before and after.</p>
-                {selectedRole === "admin" && <button type="button" onClick={() => interactionClient.setMelodyWindow({ actor: activeActor, months: 2 })}>Set demo 2-month window</button>}
+                <NonRepetitionPeriodPanel
+                  runtimeMode={runtimeMode}
+                  actor={activeActor}
+                  memoryInteractionRepository={interactionRepository}
+                  memoryPlanningSets={repositories.planningSets}
+                />
                 <ul className="saved-set-list">{interactionRepository.listKnowledge().melodyClasses.map((item) => <li key={item.id}>{item.label}: {item.songIds.join(", ")} ({item.synthetic ? "synthetic" : "production"})</li>)}</ul>
               </fieldset>
             )}
