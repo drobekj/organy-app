@@ -43,8 +43,7 @@ jobs:
             src/application/planning-lifecycle/service.ts \
             src/application/planning-lifecycle/drizzle-repository-adapters.ts \
             src/application/planning-lifecycle/index.ts \
-            scripts/phase-31-25-tests.ts \
-            .github/workflows/phase-31-25.yml
+            scripts/phase-31-25-tests.ts
           git diff --cached --check
           git commit -m "Phase 31.25 — automatic past-Final completion"
           git push origin HEAD:codex/phase-31-25-automatic-final-completion
