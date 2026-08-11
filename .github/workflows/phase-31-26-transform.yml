@@ -1,0 +1,34 @@
+name: Phase 31.26 documentation transform
+
+on:
+  push:
+    branches:
+      - codex/phase-31-26-audit-policy
+    paths:
+      - .github/workflows/phase-31-26-transform.yml
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-26-audit-policy
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply exact documentation transform
+        run: node scripts/phase-31-26-transform.mjs
+      - name: Commit documentation result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/backlog.md docs/architecture.md docs/roadmap.md docs/audit-change-history-policy.md docs/phase-31-26-contract.md
+          git diff --cached --check
+          git commit -m "Phase 31.26 — resolve audit policy"
+          git push origin HEAD:codex/phase-31-26-audit-policy
