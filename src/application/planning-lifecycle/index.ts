@@ -2,6 +2,8 @@ export type {
   CompletedServiceRecord,
   CompletedServiceRecordId,
   CompletedServiceRecordRepository,
+  FinalSetCompletionPersistenceResult,
+  FinalSetCompletionRepository,
   PersistedPlanningSet,
   PlanningSetId,
   PlanningSetRepository,
@@ -22,10 +24,13 @@ export type {
 export {
   createDbBackedPlanningLifecycleService,
   DrizzleCompletedServiceRecordRepository,
+  DrizzleFinalSetCompletionRepository,
   DrizzlePlanningSetRepository,
 } from "./drizzle-repository-adapters";
 export {
   PlanningLifecycleService,
+  isPastPragueDate,
+  pragueCalendarDate,
   type CompleteFinalSetInput,
   type DeleteCompletedRecordInput,
   type DeletePlanningSetInput,

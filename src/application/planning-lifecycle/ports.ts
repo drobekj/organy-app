@@ -33,3 +33,13 @@ export interface CompletedServiceRecordRepository {
   deleteById(id: CompletedServiceRecordId): Promise<void>;
   deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
 }
+
+export type FinalSetCompletionPersistenceResult =
+  | { status: "completed"; record: CompletedServiceRecord }
+  | { status: "notFound" }
+  | { status: "notFinal" };
+
+/** Optional runtime-specific atomic boundary used by automatic and manual Final → Completed conversion. */
+export interface FinalSetCompletionRepository {
+  completeFinalSet(finalSetId: PlanningSetId, completedAt: Date): Promise<FinalSetCompletionPersistenceResult>;
+}

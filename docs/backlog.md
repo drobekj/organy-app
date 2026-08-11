@@ -172,13 +172,13 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** A final set is changed only by authorized deletion and recreation, not by direct edit-in-place behavior.
 - **Status:** Accepted
 
-### PL-006 — Clarify automatic final-set completion
+### PL-006 — Automatically complete past Final sets
 
-- **Type:** Open question
-- **Goal:** Decide whether, when, and how a final set should automatically become a completed-service record.
-- **Source / traceability:** REQ-004; WF-006; Roadmap Phase 8 open outcome; Architecture Open Architecture Questions; History module.
-- **Acceptance direction:** Product/workflow decision clarifies automatic completion timing and behavior before any implementation details are decomposed.
-- **Status:** Open
+- **Type:** Product backlog item
+- **Goal:** Convert stale Final plans into historical Completed-service records without using informational service time as a trigger.
+- **Source / traceability:** REQ-004; WF-006; Roadmap Phase 8; History module; Phase 31.25 Contract Gate #161.
+- **Acceptance direction:** A Final set whose service date is strictly before the current `Europe/Prague` calendar date is converted idempotently at the next normal application reconciliation opportunity; today/future Finals remain active unless an authorized user completes today manually.
+- **Status:** Accepted
 
 ## 6. Candidate Selection
 
