@@ -223,7 +223,7 @@ Responsibilities:
 Boundaries:
 
 - History informs future planning but does not reopen or automatically revise past human decisions.
-- Automatic conversion from final set to completed-service record is allowed by product direction but remains insufficiently specified for detailed architecture.
+- Automatic conversion from Final to Completed is resolved: a Final whose service date is strictly before the current `Europe/Prague` calendar date is converted at the next normal application reconciliation opportunity; service time is informational and does not affect eligibility.
 
 ## Conceptual Data Flow
 
@@ -296,6 +296,5 @@ Operational decisions should respect the current one-local-congregation scope an
 
 ## Open Architecture Questions
 
-- How should final sets be converted to completed-service records automatically, if automatic conversion is implemented?
 - How should legacy data be assessed and migrated, if migration is chosen?
 - What application and storage technologies should implement these conceptual modules?
