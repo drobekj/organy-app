@@ -150,6 +150,7 @@ export type RuntimeMode = "memory" | "db";
 
 type PlanningLifecycleClientProps = {
   runtimeMode: RuntimeMode;
+  authenticatedUser?: AppUser;
 };
 
 class DbPlanningLifecycleClient {
@@ -306,7 +307,7 @@ async function callPlanningLifecycleApi(action: string, input: unknown, actor?: 
 const jsonHeaders = { "content-type": "application/json" };
 function actorContextFrom(input: unknown): LocalActorRequest | undefined { if (typeof input !== "object" || input === null || !("localActorUserId" in input)) return undefined; const value = input as { localActorUserId?: unknown; role?: unknown }; return typeof value.localActorUserId === "string" ? { userId: value.localActorUserId, ...(typeof value.role === "string" ? { role: value.role as PlanningRole } : {}) } : undefined; }
 
-export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecycleClientProps) {
+export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser }: PlanningLifecycleClientProps) {
   const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
   const interactionRepository = useMemo(() => new InMemoryInteractionRepository(), []);
   const repositories = useMemo<PlanningRepositories>(
@@ -414,12 +415,11 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
-  const [dbUsers, setDbUsers] = useState<AppUser[]>([]);
   const memoryUsers = useMemo(() => interactionRepository.listUsers(), [interactionRepository]);
-  const availableUsers = runtimeMode === "db" ? dbUsers : memoryUsers;
+  const availableUsers = runtimeMode === "db" ? (authenticatedUser ? [authenticatedUser] : []) : memoryUsers;
   const demoUsers = availableUsers.map((user) => ({ id: user.id, label: user.displayName, roles: user.roles }));
-  const [selectedUserId, setSelectedUserId] = useState("demo-priest-user");
-  const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>("priest");
+  const [selectedUserId, setSelectedUserId] = useState(authenticatedUser?.id ?? "demo-priest-user");
+  const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>(authenticatedUser?.roles[0] ?? "priest");
   const storedUser = availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0];
   const effectiveRole = storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0];
   const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
@@ -429,16 +429,6 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
   useEffect(() => {
     void refreshDbSets();
   }, [runtimeMode]);
-
-  useEffect(() => {
-    if (runtimeMode !== "db") return;
-    void callInteractionApi("listLocalActors", {}).then((result) => {
-      if (!result.success || !Array.isArray(result.value)) return;
-      const users = result.value as AppUser[];
-      setDbUsers(users);
-      if (users.length > 0 && !users.some((user) => user.id === selectedUserId)) { setSelectedUserId(users[0].id); setSelectedAssignedRole(users[0].roles[0]); }
-    });
-  }, [runtimeMode, selectedUserId]);
 
   useEffect(() => {
     void refreshCatalogAdmin();
@@ -1884,7 +1874,7 @@ export default function PlanningLifecycleClient({ runtimeMode }: PlanningLifecyc
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => setSelectedAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Development switches stable user IDs and stored assigned roles until authentication exists.</p></div>
+            {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => setSelectedAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Development switches stable user IDs and stored assigned roles for deterministic memory tests.</p></div> : <div><span className="guidance-label">Authenticated staff</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Active role<select value={effectiveRole} onChange={(event) => setSelectedAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>DB runtime uses the authenticated staff account; Change user is available only in memory development/test runtime.</p></div>}
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}

@@ -1,0 +1,2403 @@
+{
+  "id": "5809136e-4177-468a-ac2e-8354912f38c0",
+  "prevId": "c4afa37e-4844-4ff7-8984-227d2328e529",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.antiphon_mappings": {
+      "name": "antiphon_mappings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "antiphon_key": {
+          "name": "antiphon_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "synthetic": {
+          "name": "synthetic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "antiphon_mappings_song_id_catalog_songs_song_id_fk": {
+          "name": "antiphon_mappings_song_id_catalog_songs_song_id_fk",
+          "tableFrom": "antiphon_mappings",
+          "tableTo": "catalog_songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "song_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.app_user_roles": {
+      "name": "app_user_roles",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "app_user_roles_user_role_idx": {
+          "name": "app_user_roles_user_role_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "app_user_roles_user_id_app_users_id_fk": {
+          "name": "app_user_roles_user_id_app_users_id_fk",
+          "tableFrom": "app_user_roles",
+          "tableTo": "app_users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.app_users": {
+      "name": "app_users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "app_users_person_id_catalog_persons_id_fk": {
+          "name": "app_users_person_id_catalog_persons_id_fk",
+          "tableFrom": "app_users",
+          "tableTo": "catalog_persons",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.catalog_persons": {
+      "name": "catalog_persons",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "priest": {
+          "name": "priest",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "organist": {
+          "name": "organist",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.catalog_songs": {
+      "name": "catalog_songs",
+      "schema": "",
+      "columns": {
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "sheet_music_url": {
+          "name": "sheet_music_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "catalog_songs_language_number_idx": {
+          "name": "catalog_songs_language_number_idx",
+          "columns": [
+            {
+              "expression": "language",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.completed_service_rows": {
+      "name": "completed_service_rows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "completed_service_id": {
+          "name": "completed_service_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_language": {
+          "name": "song_language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_number": {
+          "name": "song_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_title": {
+          "name": "song_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "completed_service_rows_completed_service_id_position_idx": {
+          "name": "completed_service_rows_completed_service_id_position_idx",
+          "columns": [
+            {
+              "expression": "completed_service_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "completed_service_rows_completed_service_id_completed_services_id_fk": {
+          "name": "completed_service_rows_completed_service_id_completed_services_id_fk",
+          "tableFrom": "completed_service_rows",
+          "tableTo": "completed_services",
+          "columnsFrom": [
+            "completed_service_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "completed_service_rows_position_positive": {
+          "name": "completed_service_rows_position_positive",
+          "value": "\"completed_service_rows\".\"position\" > 0"
+        },
+        "completed_service_rows_complete_song_reference": {
+          "name": "completed_service_rows_complete_song_reference",
+          "value": "(\"completed_service_rows\".\"song_language\" is null and \"completed_service_rows\".\"song_number\" is null) or (\"completed_service_rows\".\"song_language\" is not null and \"completed_service_rows\".\"song_number\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.completed_services": {
+      "name": "completed_services",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_context_id": {
+          "name": "service_context_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_set_id": {
+          "name": "service_set_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "completed_services_service_context_id_service_contexts_id_fk": {
+          "name": "completed_services_service_context_id_service_contexts_id_fk",
+          "tableFrom": "completed_services",
+          "tableTo": "service_contexts",
+          "columnsFrom": [
+            "service_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "completed_services_service_set_id_service_sets_id_fk": {
+          "name": "completed_services_service_set_id_service_sets_id_fk",
+          "tableFrom": "completed_services",
+          "tableTo": "service_sets",
+          "columnsFrom": [
+            "service_set_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.liturgical_season_mappings": {
+      "name": "liturgical_season_mappings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "season_key": {
+          "name": "season_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "synthetic": {
+          "name": "synthetic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "liturgical_season_mappings_song_id_catalog_songs_song_id_fk": {
+          "name": "liturgical_season_mappings_song_id_catalog_songs_song_id_fk",
+          "tableFrom": "liturgical_season_mappings",
+          "tableTo": "catalog_songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "song_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.melody_equivalence_classes": {
+      "name": "melody_equivalence_classes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "synthetic": {
+          "name": "synthetic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.melody_non_repetition_config": {
+      "name": "melody_non_repetition_config",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "'global'"
+        },
+        "months": {
+          "name": "months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "melody_non_repetition_config_singleton": {
+          "name": "melody_non_repetition_config_singleton",
+          "value": "\"melody_non_repetition_config\".\"id\" = 'global'"
+        },
+        "melody_non_repetition_config_non_negative": {
+          "name": "melody_non_repetition_config_non_negative",
+          "value": "\"melody_non_repetition_config\".\"months\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organist_repertoire": {
+      "name": "organist_repertoire",
+      "schema": "",
+      "columns": {
+        "organist_person_id": {
+          "name": "organist_person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "organist_repertoire_person_song_idx": {
+          "name": "organist_repertoire_person_song_idx",
+          "columns": [
+            {
+              "expression": "organist_person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organist_repertoire_organist_person_id_catalog_persons_id_fk": {
+          "name": "organist_repertoire_organist_person_id_catalog_persons_id_fk",
+          "tableFrom": "organist_repertoire",
+          "tableTo": "catalog_persons",
+          "columnsFrom": [
+            "organist_person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "organist_repertoire_song_id_catalog_songs_song_id_fk": {
+          "name": "organist_repertoire_song_id_catalog_songs_song_id_fk",
+          "tableFrom": "organist_repertoire",
+          "tableTo": "catalog_songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "song_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.preference_profiles": {
+      "name": "preference_profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "preference_profile_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "preference_profiles_user_id_idx": {
+          "name": "preference_profiles_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "preference_profiles_user_id_app_users_id_fk": {
+          "name": "preference_profiles_user_id_app_users_id_fk",
+          "tableFrom": "preference_profiles",
+          "tableTo": "app_users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reference_antiphon_recommendations": {
+      "name": "reference_antiphon_recommendations",
+      "schema": "",
+      "columns": {
+        "antiphon_id": {
+          "name": "antiphon_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "reference_song_id": {
+          "name": "reference_song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reference_antiphon_recommendations_song_id_idx": {
+          "name": "reference_antiphon_recommendations_song_id_idx",
+          "columns": [
+            {
+              "expression": "reference_song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reference_antiphon_recommendations_antiphon_id_reference_antiphons_id_fk": {
+          "name": "reference_antiphon_recommendations_antiphon_id_reference_antiphons_id_fk",
+          "tableFrom": "reference_antiphon_recommendations",
+          "tableTo": "reference_antiphons",
+          "columnsFrom": [
+            "antiphon_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reference_antiphon_recommendations_reference_song_id_reference_catalog_songs_id_fk": {
+          "name": "reference_antiphon_recommendations_reference_song_id_reference_catalog_songs_id_fk",
+          "tableFrom": "reference_antiphon_recommendations",
+          "tableTo": "reference_catalog_songs",
+          "columnsFrom": [
+            "reference_song_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reference_antiphons": {
+      "name": "reference_antiphons",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_number": {
+          "name": "canonical_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "reference_antiphons_language_canonical_number_idx": {
+          "name": "reference_antiphons_language_canonical_number_idx",
+          "columns": [
+            {
+              "expression": "language",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "canonical_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "reference_antiphons_number_positive": {
+          "name": "reference_antiphons_number_positive",
+          "value": "\"reference_antiphons\".\"canonical_number\" > 0"
+        },
+        "reference_antiphons_id_matches_number": {
+          "name": "reference_antiphons_id_matches_number",
+          "value": "\"reference_antiphons\".\"id\" = \"reference_antiphons\".\"language\"::text || ':' || \"reference_antiphons\".\"canonical_number\"::text"
+        },
+        "reference_antiphons_id_non_empty": {
+          "name": "reference_antiphons_id_non_empty",
+          "value": "btrim(\"reference_antiphons\".\"id\") <> ''"
+        },
+        "reference_antiphons_title_non_empty": {
+          "name": "reference_antiphons_title_non_empty",
+          "value": "btrim(\"reference_antiphons\".\"title\") <> ''"
+        },
+        "reference_antiphons_source_url_valid": {
+          "name": "reference_antiphons_source_url_valid",
+          "value": "(\n    \"reference_antiphons\".\"language\" = 'czech' and \"reference_antiphons\".\"source_url\" is not null and \"reference_antiphons\".\"source_url\" ~ '^https://www\\.evangelickykancional\\.cz(?:/|$)'\n  ) or (\n    \"reference_antiphons\".\"language\" = 'polish' and (\"reference_antiphons\".\"source_url\" is null or \"reference_antiphons\".\"source_url\" ~ '^https://')\n  )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.reference_catalog_songs": {
+      "name": "reference_catalog_songs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "canonical_number": {
+          "name": "canonical_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "reference_catalog_songs_language_canonical_number_idx": {
+          "name": "reference_catalog_songs_language_canonical_number_idx",
+          "columns": [
+            {
+              "expression": "language",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "canonical_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reference_catalog_songs_language_source_id_idx": {
+          "name": "reference_catalog_songs_language_source_id_idx",
+          "columns": [
+            {
+              "expression": "language",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "reference_catalog_songs_canonical_number_positive": {
+          "name": "reference_catalog_songs_canonical_number_positive",
+          "value": "\"reference_catalog_songs\".\"canonical_number\" > 0"
+        },
+        "reference_catalog_songs_id_non_empty": {
+          "name": "reference_catalog_songs_id_non_empty",
+          "value": "btrim(\"reference_catalog_songs\".\"id\") <> ''"
+        },
+        "reference_catalog_songs_source_id_non_empty": {
+          "name": "reference_catalog_songs_source_id_non_empty",
+          "value": "btrim(\"reference_catalog_songs\".\"source_id\") <> ''"
+        },
+        "reference_catalog_songs_title_non_empty": {
+          "name": "reference_catalog_songs_title_non_empty",
+          "value": "btrim(\"reference_catalog_songs\".\"title\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.reference_melody_classes": {
+      "name": "reference_melody_classes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reference_organist_repertoire": {
+      "name": "reference_organist_repertoire",
+      "schema": "",
+      "columns": {
+        "organist_person_id": {
+          "name": "organist_person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference_song_id": {
+          "name": "reference_song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reference_organist_repertoire_person_song_idx": {
+          "name": "reference_organist_repertoire_person_song_idx",
+          "columns": [
+            {
+              "expression": "organist_person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reference_song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reference_organist_repertoire_organist_person_id_catalog_persons_id_fk": {
+          "name": "reference_organist_repertoire_organist_person_id_catalog_persons_id_fk",
+          "tableFrom": "reference_organist_repertoire",
+          "tableTo": "catalog_persons",
+          "columnsFrom": [
+            "organist_person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reference_organist_repertoire_reference_song_id_reference_catalog_songs_id_fk": {
+          "name": "reference_organist_repertoire_reference_song_id_reference_catalog_songs_id_fk",
+          "tableFrom": "reference_organist_repertoire",
+          "tableTo": "reference_catalog_songs",
+          "columnsFrom": [
+            "reference_song_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reference_song_melody_memberships": {
+      "name": "reference_song_melody_memberships",
+      "schema": "",
+      "columns": {
+        "reference_song_id": {
+          "name": "reference_song_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "class_id": {
+          "name": "class_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reference_song_melody_memberships_class_id_idx": {
+          "name": "reference_song_melody_memberships_class_id_idx",
+          "columns": [
+            {
+              "expression": "class_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reference_song_melody_memberships_reference_song_id_reference_catalog_songs_id_fk": {
+          "name": "reference_song_melody_memberships_reference_song_id_reference_catalog_songs_id_fk",
+          "tableFrom": "reference_song_melody_memberships",
+          "tableTo": "reference_catalog_songs",
+          "columnsFrom": [
+            "reference_song_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reference_song_melody_memberships_class_id_reference_melody_classes_id_fk": {
+          "name": "reference_song_melody_memberships_class_id_reference_melody_classes_id_fk",
+          "tableFrom": "reference_song_melody_memberships",
+          "tableTo": "reference_melody_classes",
+          "columnsFrom": [
+            "class_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reference_song_preferences": {
+      "name": "reference_song_preferences",
+      "schema": "",
+      "columns": {
+        "profile_id": {
+          "name": "profile_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reference_song_id": {
+          "name": "reference_song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "reference_song_preferences_profile_reference_song_idx": {
+          "name": "reference_song_preferences_profile_reference_song_idx",
+          "columns": [
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "reference_song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reference_song_preferences_profile_id_preference_profiles_id_fk": {
+          "name": "reference_song_preferences_profile_id_preference_profiles_id_fk",
+          "tableFrom": "reference_song_preferences",
+          "tableTo": "preference_profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reference_song_preferences_reference_song_id_reference_catalog_songs_id_fk": {
+          "name": "reference_song_preferences_reference_song_id_reference_catalog_songs_id_fk",
+          "tableFrom": "reference_song_preferences",
+          "tableTo": "reference_catalog_songs",
+          "columnsFrom": [
+            "reference_song_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "reference_song_preferences_score_range": {
+          "name": "reference_song_preferences_score_range",
+          "value": "\"reference_song_preferences\".\"score\" >= 0 and \"reference_song_preferences\".\"score\" <= 3"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.service_contexts": {
+      "name": "service_contexts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_date": {
+          "name": "service_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "CURRENT_DATE"
+        },
+        "service_time": {
+          "name": "service_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_language": {
+          "name": "service_language",
+          "type": "service_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'czech'"
+        },
+        "priest_id": {
+          "name": "priest_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priest_display_name": {
+          "name": "priest_display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "organist_id": {
+          "name": "organist_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "organist_display_name": {
+          "name": "organist_display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_antiphon_id": {
+          "name": "reference_antiphon_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_antiphon_display_number": {
+          "name": "reference_antiphon_display_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_antiphon_title": {
+          "name": "reference_antiphon_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_antiphon_source_url": {
+          "name": "reference_antiphon_source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_topic_id": {
+          "name": "reference_topic_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_topic_title": {
+          "name": "reference_topic_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "antiphon_key": {
+          "name": "antiphon_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "liturgical_season_key": {
+          "name": "liturgical_season_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "service_contexts_service_date_time_idx": {
+          "name": "service_contexts_service_date_time_idx",
+          "columns": [
+            {
+              "expression": "service_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "service_time",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "service_contexts_reference_antiphon_snapshot_complete": {
+          "name": "service_contexts_reference_antiphon_snapshot_complete",
+          "value": "(\n        \"service_contexts\".\"reference_antiphon_id\" is null and\n        \"service_contexts\".\"reference_antiphon_display_number\" is null and\n        \"service_contexts\".\"reference_antiphon_title\" is null and\n        \"service_contexts\".\"reference_antiphon_source_url\" is null\n      ) or (\n        \"service_contexts\".\"reference_antiphon_id\" is not null and\n        \"service_contexts\".\"reference_antiphon_display_number\" is not null and\n        \"service_contexts\".\"reference_antiphon_title\" is not null\n      )"
+        },
+        "service_contexts_reference_antiphon_identity": {
+          "name": "service_contexts_reference_antiphon_identity",
+          "value": "\"service_contexts\".\"reference_antiphon_id\" is null or \"service_contexts\".\"reference_antiphon_id\" ~ '^(czech|polish):[1-9][0-9]*$'"
+        },
+        "service_contexts_reference_antiphon_snapshot_non_empty": {
+          "name": "service_contexts_reference_antiphon_snapshot_non_empty",
+          "value": "\"service_contexts\".\"reference_antiphon_id\" is null or (\n        btrim(\"service_contexts\".\"reference_antiphon_display_number\") <> '' and\n        btrim(\"service_contexts\".\"reference_antiphon_title\") <> ''\n      )"
+        },
+        "service_contexts_reference_antiphon_source_url_valid": {
+          "name": "service_contexts_reference_antiphon_source_url_valid",
+          "value": "\"service_contexts\".\"reference_antiphon_source_url\" is null or \"service_contexts\".\"reference_antiphon_source_url\" ~ '^https://'"
+        },
+        "service_contexts_reference_topic_snapshot_complete": {
+          "name": "service_contexts_reference_topic_snapshot_complete",
+          "value": "(\"service_contexts\".\"reference_topic_id\" is null and \"service_contexts\".\"reference_topic_title\" is null) or (\"service_contexts\".\"reference_topic_id\" is not null and \"service_contexts\".\"reference_topic_title\" is not null)"
+        },
+        "service_contexts_reference_topic_identity": {
+          "name": "service_contexts_reference_topic_identity",
+          "value": "\"service_contexts\".\"reference_topic_id\" is null or \"service_contexts\".\"reference_topic_id\" ~ '^(czech|polish):.+$'"
+        },
+        "service_contexts_reference_topic_title_non_empty": {
+          "name": "service_contexts_reference_topic_title_non_empty",
+          "value": "\"service_contexts\".\"reference_topic_id\" is null or btrim(\"service_contexts\".\"reference_topic_title\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.service_set_rows": {
+      "name": "service_set_rows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_set_id": {
+          "name": "service_set_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_language": {
+          "name": "song_language",
+          "type": "song_language",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_number": {
+          "name": "song_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "song_title": {
+          "name": "song_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "service_set_rows_service_set_id_position_idx": {
+          "name": "service_set_rows_service_set_id_position_idx",
+          "columns": [
+            {
+              "expression": "service_set_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "service_set_rows_service_set_id_service_sets_id_fk": {
+          "name": "service_set_rows_service_set_id_service_sets_id_fk",
+          "tableFrom": "service_set_rows",
+          "tableTo": "service_sets",
+          "columnsFrom": [
+            "service_set_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "service_set_rows_position_positive": {
+          "name": "service_set_rows_position_positive",
+          "value": "\"service_set_rows\".\"position\" > 0"
+        },
+        "service_set_rows_complete_song_reference": {
+          "name": "service_set_rows_complete_song_reference",
+          "value": "(\"service_set_rows\".\"song_language\" is null and \"service_set_rows\".\"song_number\" is null) or (\"service_set_rows\".\"song_language\" is not null and \"service_set_rows\".\"song_number\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.service_sets": {
+      "name": "service_sets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "service_context_id": {
+          "name": "service_context_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "service_set_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'working'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "service_sets_service_context_id_service_contexts_id_fk": {
+          "name": "service_sets_service_context_id_service_contexts_id_fk",
+          "tableFrom": "service_sets",
+          "tableTo": "service_contexts",
+          "columnsFrom": [
+            "service_context_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.song_melody_equivalence": {
+      "name": "song_melody_equivalence",
+      "schema": "",
+      "columns": {
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "class_id": {
+          "name": "class_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "song_melody_equivalence_song_id_idx": {
+          "name": "song_melody_equivalence_song_id_idx",
+          "columns": [
+            {
+              "expression": "song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "song_melody_equivalence_song_id_catalog_songs_song_id_fk": {
+          "name": "song_melody_equivalence_song_id_catalog_songs_song_id_fk",
+          "tableFrom": "song_melody_equivalence",
+          "tableTo": "catalog_songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "song_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "song_melody_equivalence_class_id_melody_equivalence_classes_id_fk": {
+          "name": "song_melody_equivalence_class_id_melody_equivalence_classes_id_fk",
+          "tableFrom": "song_melody_equivalence",
+          "tableTo": "melody_equivalence_classes",
+          "columnsFrom": [
+            "class_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.song_preferences": {
+      "name": "song_preferences",
+      "schema": "",
+      "columns": {
+        "profile_id": {
+          "name": "profile_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "score": {
+          "name": "score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "song_preferences_profile_song_idx": {
+          "name": "song_preferences_profile_song_idx",
+          "columns": [
+            {
+              "expression": "profile_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "song_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "song_preferences_profile_id_preference_profiles_id_fk": {
+          "name": "song_preferences_profile_id_preference_profiles_id_fk",
+          "tableFrom": "song_preferences",
+          "tableTo": "preference_profiles",
+          "columnsFrom": [
+            "profile_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "song_preferences_song_id_catalog_songs_song_id_fk": {
+          "name": "song_preferences_song_id_catalog_songs_song_id_fk",
+          "tableFrom": "song_preferences",
+          "tableTo": "catalog_songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "song_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "song_preferences_score_range": {
+          "name": "song_preferences_score_range",
+          "value": "\"song_preferences\".\"score\" >= 0 and \"song_preferences\".\"score\" <= 3"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.auth_account": {
+      "name": "auth_account",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token_expires_at": {
+          "name": "access_token_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_expires_at": {
+          "name": "refresh_token_expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_account_userId_idx": {
+          "name": "auth_account_userId_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_account_user_id_auth_user_id_fk": {
+          "name": "auth_account_user_id_auth_user_id_fk",
+          "tableFrom": "auth_account",
+          "tableTo": "auth_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_session": {
+      "name": "auth_session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_session_userId_idx": {
+          "name": "auth_session_userId_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_session_user_id_auth_user_id_fk": {
+          "name": "auth_session_user_id_auth_user_id_fk",
+          "tableFrom": "auth_session",
+          "tableTo": "auth_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_session_token_unique": {
+          "name": "auth_session_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_user": {
+      "name": "auth_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "display_username": {
+          "name": "display_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_user_email_unique": {
+          "name": "auth_user_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        },
+        "auth_user_username_unique": {
+          "name": "auth_user_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_verification": {
+      "name": "auth_verification",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_verification_identifier_idx": {
+          "name": "auth_verification_identifier_idx",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.auth_user_actor_links": {
+      "name": "auth_user_actor_links",
+      "schema": "",
+      "columns": {
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "actor_user_id": {
+          "name": "actor_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_user_actor_links_actor_user_idx": {
+          "name": "auth_user_actor_links_actor_user_idx",
+          "columns": [
+            {
+              "expression": "actor_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_user_actor_links_auth_user_id_auth_user_id_fk": {
+          "name": "auth_user_actor_links_auth_user_id_auth_user_id_fk",
+          "tableFrom": "auth_user_actor_links",
+          "tableTo": "auth_user",
+          "columnsFrom": [
+            "auth_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "auth_user_actor_links_actor_user_id_app_users_id_fk": {
+          "name": "auth_user_actor_links_actor_user_id_app_users_id_fk",
+          "tableFrom": "auth_user_actor_links",
+          "tableTo": "app_users",
+          "columnsFrom": [
+            "actor_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.preference_profile_category": {
+      "name": "preference_profile_category",
+      "schema": "public",
+      "values": [
+        "priest",
+        "organist",
+        "congregation_member"
+      ]
+    },
+    "public.service_language": {
+      "name": "service_language",
+      "schema": "public",
+      "values": [
+        "czech",
+        "polish",
+        "mixed"
+      ]
+    },
+    "public.service_set_status": {
+      "name": "service_set_status",
+      "schema": "public",
+      "values": [
+        "working",
+        "final"
+      ]
+    },
+    "public.song_language": {
+      "name": "song_language",
+      "schema": "public",
+      "values": [
+        "czech",
+        "polish"
+      ]
+    },
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "priest",
+        "organist",
+        "admin",
+        "congregation_member"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { CatalogService, DrizzleCatalogRepository, type CatalogPerson } from "../../../src/application/catalog";
 import type { PlanningRole, ServiceLanguage } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
-import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { LocalActorError } from "../../../src/application/local-actor";
+import { requestedRoleFromActorEnvelope, resolveAuthenticatedActor } from "../../../src/application/authenticated-actor";
 
 type CatalogAction = "getPerson" | "getSong" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
 const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     const service = new CatalogService(new DrizzleCatalogRepository(drizzle(pool, { schema })));
     let input = body.input as Record<string, unknown>;
     if (body.action === "savePerson" || body.action === "setSongActive") {
-      const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
+      const actor = await resolveAuthenticatedActor(request.headers, pool, requestedRoleFromActorEnvelope(body.actor));
       input = { ...input, role: actor.role };
     }
     return NextResponse.json(await service[body.action](input as never));

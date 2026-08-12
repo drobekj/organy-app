@@ -3,7 +3,8 @@ import { Pool } from "pg";
 import { PgInteractionRepository } from "../../../src/application/db-interaction-repository";
 import { InteractionService } from "../../../src/application/interaction-service";
 import type { ActorIdentity } from "../../../src/application/interaction-contracts";
-import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { LocalActorError } from "../../../src/application/local-actor";
+import { requestedRoleFromActorEnvelope, resolveAuthenticatedActor } from "../../../src/application/authenticated-actor";
 import { PgReferenceRepertoireRepository, ReferenceRepertoireService } from "../../../src/application/reference-repertoire";
 import { PgReferenceMelodyRepository, ReferenceMelodyService } from "../../../src/application/reference-melody";
 import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommendationService } from "../../../src/application/reference-antiphon-recommendation";
@@ -45,25 +46,25 @@ export async function POST(request: Request) {
   const referenceCandidates = new ReferenceCandidateService(pool);
   const nonRepetitionPeriod = new PostgresNonRepetitionPeriodService(pool);
   try {
-    const resolver = new PostgresLocalActorResolver(pool);
+    const resolveActor = () => resolveAuthenticatedActor(request.headers, pool, requestedRoleFromActorEnvelope(body.actor));
     switch (body.action) {
-      case "listLocalActors": return NextResponse.json({ success: true, value: await resolver.listActiveUsers() });
-      case "resolveActor": return NextResponse.json({ success: true, value: await resolver.resolve(parseLocalActorContext(body.actor)) });
-      case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await service.saveOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.songId), Number(input.score))); }
+      case "listLocalActors": return NextResponse.json({ error: { code: "permissionDenied", message: "Local actor enumeration is disabled in protected DB runtime." } }, { status: 403 });
+      case "resolveActor": return NextResponse.json({ success: true, value: await resolveActor() });
+      case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await service.saveOwnPreference(await resolveActor(), String(input.songId), Number(input.score))); }
       case "getOwnReferencePreference":
-      case "getReferenceOwnPreference": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
+      case "getReferenceOwnPreference": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferenceOwnPreference(await resolveActor(), input.referenceSongId)); }
       case "saveOwnReferencePreference":
-      case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.score!)); }
-      case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
-      case "getReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId)); }
-      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId, input.active!)); }
-      case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
-      case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.mergeWithReferenceSongId!)); }
-      case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId)); }
-      case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId, input.referenceSongId!)); }
-      case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
-      case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(await resolver.resolve(parseLocalActorContext(body.actor)))); }
-      case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.months)); }
+      case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(await resolveActor(), input.referenceSongId, input.score!)); }
+      case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(await resolveActor(), input.referenceSongId)); }
+      case "getReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.get(await resolveActor(), input.referenceSongId, input.organistPersonId)); }
+      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(await resolveActor(), input.referenceSongId, input.organistPersonId, input.active!)); }
+      case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(await resolveActor(), input.referenceSongId)); }
+      case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(await resolveActor(), input.referenceSongId, input.mergeWithReferenceSongId!)); }
+      case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(await resolveActor(), input.antiphonId)); }
+      case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(await resolveActor(), input.antiphonId, input.referenceSongId!)); }
+      case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolveActor(), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
+      case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(await resolveActor())); }
+      case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(await resolveActor(), input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
       case "queryCandidates": return respond({ success: true, value: await referenceCandidates.queryCandidates(referenceCandidateQueryInput(body.input)) });
       case "hydrateCandidates": return respond({ success: true, value: await referenceCandidates.hydrateCandidates(referenceCandidateHydrationInput(body.input)) });

@@ -4,7 +4,8 @@ import {
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
-import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { LocalActorError } from "../../../src/application/local-actor";
+import { requestedRoleFromActorEnvelope, resolveAuthenticatedActor } from "../../../src/application/authenticated-actor";
 import { PostgresReferenceAntiphonProvider } from "../../../src/application/postgres-reference-antiphon";
 import { PostgresReferenceCatalogProvider } from "../../../src/application/postgres-reference-catalog";
 import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
       referenceSongs: new PostgresReferenceCatalogProvider(pool),
       referenceMelodyClasses: new PostgresReferenceMelodyClassProvider(pool),
     });
-    const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
+    const actor = await resolveAuthenticatedActor(request.headers, pool, requestedRoleFromActorEnvelope(body.actor));
     if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");
     if (body.action === "saveWorkingSet" && (!isRecord(body.input.serviceContext) || !isRecord(body.input.set))) return invalidInput("saveWorkingSet requires serviceContext and set objects.");
     const input = isRecord(body.input) ? { ...body.input, role: actor.role } : { role: actor.role };
