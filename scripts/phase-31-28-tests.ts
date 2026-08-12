@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { Pool } from "pg";
 import { POST as interactionPost } from "../app/api/interaction/route";
+import { POST as planningPost } from "../app/api/planning-lifecycle/route";
+import { POST as catalogPost } from "../app/api/catalog/route";
 import { ProtectedActorError, resolveProtectedActor } from "../src/application/protected-actor";
 import { auth } from "../src/auth/server";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
@@ -41,11 +43,41 @@ async function expectSignInFailure(username: string, password: string) {
   assert.equal(failed, true, `sign-in for ${username} must fail with rejected credentials`);
 }
 
+async function expectPublicSignupDisabled() {
+  let failed = false;
+  try {
+    const response = await auth.api.signUpEmail({
+      body: {
+        email: "public-signup-must-not-work@organy.invalid",
+        name: "Public signup must not work",
+        password: "PublicSignupMustNotWork!2026",
+        username: "public-signup-must-not-work",
+      },
+      asResponse: true,
+    });
+    failed = response.status >= 400;
+  } catch {
+    failed = true;
+  }
+  assert.equal(failed, true, "normal Better Auth instance must reject public privileged signup");
+}
+
 async function expectProtectedError(action: () => Promise<unknown>, code: ProtectedActorError["code"]) {
   let caught: unknown;
   try { await action(); } catch (error) { caught = error; }
   assert.ok(caught instanceof ProtectedActorError, `expected ProtectedActorError ${code}`);
   assert.equal(caught.code, code);
+}
+
+function apiRequest(path: string, body: unknown, cookie?: string) {
+  return new Request(`http://localhost${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(cookie ? { cookie } : {}),
+    },
+    body: JSON.stringify(body),
+  });
 }
 
 async function main() {
@@ -55,6 +87,8 @@ async function main() {
   } finally {
     await pool.end();
   }
+
+  await expectPublicSignupDisabled();
 
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   execFileSync(npm, ["run", "db:bootstrap:auth"], { env: process.env, stdio: "inherit" });
@@ -78,6 +112,13 @@ async function main() {
     assert.equal(Number((await db.query("select count(*)::int n from auth_sessions")).rows[0].n), 0, "bootstrap must not leave any staff account signed in");
 
     await expectProtectedError(() => resolveProtectedActor(new Headers(), db), "unauthenticated");
+    const unauthMutation = await interactionPost(apiRequest("/api/interaction", {
+      action: "setMelodyWindow",
+      input: { months: 1 },
+      actor: { role: "admin" },
+    }));
+    assert.equal(unauthMutation.status, 401, "real protected Interaction route rejects unauthenticated mutation");
+
     await expectSignInFailure("priest", `${priestPassword}-wrong`);
 
     const priestSignIn = await signIn("priest", priestPassword);
@@ -95,20 +136,20 @@ async function main() {
     );
     await expectProtectedError(() => resolveProtectedActor(priestHeaders, db, { role: "admin" }), "permissionDenied");
 
-    const spoofResponse = await interactionPost(new Request("http://localhost/api/interaction", {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: priestCookie },
-      body: JSON.stringify({ action: "setMelodyWindow", input: { months: 1 }, actor: { userId: "demo-admin-user", role: "admin" } }),
-    }));
+    const spoofResponse = await interactionPost(apiRequest("/api/interaction", {
+      action: "setMelodyWindow",
+      input: { months: 1 },
+      actor: { userId: "demo-admin-user", role: "admin" },
+    }, priestCookie));
     assert.equal(spoofResponse.status, 400, "real Interaction route rejects client-supplied user identity even with a valid session");
     const spoofBody = await spoofResponse.json() as { error?: { code?: string } };
     assert.equal(spoofBody.error?.code, "invalidInput");
 
-    const roleEscalation = await interactionPost(new Request("http://localhost/api/interaction", {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: priestCookie },
-      body: JSON.stringify({ action: "setMelodyWindow", input: { months: 1 }, actor: { role: "admin" } }),
-    }));
+    const roleEscalation = await interactionPost(apiRequest("/api/interaction", {
+      action: "setMelodyWindow",
+      input: { months: 1 },
+      actor: { role: "admin" },
+    }, priestCookie));
     assert.equal(roleEscalation.status, 403, "priest session cannot request unassigned admin role");
 
     await db.query("update app_users set active=false where id='demo-priest-user'");
@@ -131,14 +172,28 @@ async function main() {
     const adminSignIn = await signIn("admin", adminPassword);
     assert.equal(adminSignIn.status, 200);
     const adminCookie = cookieHeader(adminSignIn);
-    const adminMutation = await interactionPost(new Request("http://localhost/api/interaction", {
-      method: "POST",
-      headers: { "content-type": "application/json", cookie: adminCookie },
-      body: JSON.stringify({ action: "setMelodyWindow", input: { months: 2 }, actor: { role: "admin" } }),
-    }));
+    const adminMutation = await interactionPost(apiRequest("/api/interaction", {
+      action: "setMelodyWindow",
+      input: { months: 2 },
+      actor: { role: "admin" },
+    }, adminCookie));
     assert.equal(adminMutation.status, 200, "admin session authorizes a real protected DB mutation");
     const adminBody = await adminMutation.json() as { success?: boolean };
     assert.equal(adminBody.success, true);
+
+    const planningList = await planningPost(apiRequest("/api/planning-lifecycle", {
+      action: "listPlanningSets",
+      input: {},
+      actor: { role: "admin" },
+    }, adminCookie));
+    assert.equal(planningList.status, 200, "authenticated session crosses the Planning Lifecycle route boundary");
+
+    const catalogList = await catalogPost(apiRequest("/api/catalog", {
+      action: "listPeople",
+      input: {},
+      actor: { role: "admin" },
+    }, adminCookie));
+    assert.equal(catalogList.status, 200, "authenticated session crosses the Catalog route boundary");
 
     const signOutResponse = await auth.api.signOut({ headers: changedHeaders, asResponse: true });
     assert.equal(signOutResponse.status, 200, "sign-out endpoint succeeds");
