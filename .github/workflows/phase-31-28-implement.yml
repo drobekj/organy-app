@@ -22,12 +22,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: node scripts/phase-31-28-helper-anchor-fix.mjs
       - run: node scripts/phase-31-28-implement.mjs
       - name: Commit implementation baseline
         run: |
+          rm -f scripts/phase-31-28-helper-anchor-fix.mjs
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Implement Phase 31.28 protected staff auth baseline"
           git push origin HEAD:codex/phase-31-28-protected-staff-auth
-      # retry 3: exact app/page.tsx baseline normalized
+      # retry 4: preserve current release-guidance development UI
