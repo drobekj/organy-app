@@ -75,6 +75,7 @@ async function main() {
       assert.match(String(row.email), /^protected-[0-9a-f-]+@organy\.invalid$/i, "auth email stays synthetic/internal");
       assert.equal(String(row.email).includes(String(row.username)), false, "synthetic email does not derive from the visible username");
     }
+    assert.equal(Number((await db.query("select count(*)::int n from auth_sessions")).rows[0].n), 0, "bootstrap must not leave any staff account signed in");
 
     await expectProtectedError(() => resolveProtectedActor(new Headers(), db), "unauthenticated");
     await expectSignInFailure("priest", `${priestPassword}-wrong`);
