@@ -5,6 +5,13 @@ import { assertProtectedAuthConfigured, auth } from "../auth/server";
 
 const ROLE_ORDER: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
+type ProtectedActorAcceptanceResolver = (
+  headers: Headers,
+  pool: Pick<Pool, "query">,
+  requestedContext?: unknown,
+) => Promise<ActorIdentity>;
+let acceptanceResolver: ProtectedActorAcceptanceResolver | undefined;
+
 export class ProtectedActorError extends Error {
   constructor(
     public readonly code: "unauthenticated" | "invalidInput" | "permissionDenied",
@@ -12,6 +19,16 @@ export class ProtectedActorError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * Narrow in-process acceptance seam for pre-auth route regression tests.
+ * Production never installs this override; the default path below always uses Better Auth session state.
+ */
+export function useProtectedActorForAcceptance(resolver: ProtectedActorAcceptanceResolver): () => void {
+  const previous = acceptanceResolver;
+  acceptanceResolver = resolver;
+  return () => { acceptanceResolver = previous; };
 }
 
 export async function resolveProtectedUser(headers: Headers, pool: Pick<Pool, "query">): Promise<AppUser> {
@@ -44,6 +61,8 @@ export async function resolveProtectedActor(
   pool: Pick<Pool, "query">,
   requestedContext?: unknown,
 ): Promise<ActorIdentity> {
+  if (acceptanceResolver) return acceptanceResolver(headers, pool, requestedContext);
+
   const user = await resolveProtectedUser(headers, pool);
   const requestedRole = parseRequestedRole(requestedContext);
   if (requestedRole && !user.roles.includes(requestedRole)) {
