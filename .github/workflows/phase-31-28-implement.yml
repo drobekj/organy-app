@@ -30,4 +30,4 @@ jobs:
           git add -A
           git commit -m "Implement Phase 31.28 protected staff auth baseline"
           git push origin HEAD:codex/phase-31-28-protected-staff-auth
-      # retry 2: helper syntax fixed
+      # retry 3: exact app/page.tsx baseline normalized
