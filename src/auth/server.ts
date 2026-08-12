@@ -23,6 +23,7 @@ export function createOrganyAuth(options: { allowSignUp?: boolean } = {}) {
   return betterAuth({
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
     secret: process.env.BETTER_AUTH_SECRET ?? "organy-build-placeholder-secret-not-for-runtime",
+    disabledPaths: ["/sign-in/email"],
     database: drizzleAdapter(authDb, {
       provider: "pg",
       schema: {
