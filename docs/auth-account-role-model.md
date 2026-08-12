@@ -2,89 +2,105 @@
 
 ## 1. Purpose
 
-This document defines the logical authentication, account, actor, and role model for the future app. It connects the accepted single-congregation deployment assumption with the accepted roles and permissions without selecting any authentication provider, login method, account technology, storage technology, database schema, or implementation approach.
+This document defines the logical authentication, account, actor, and role model for the app and records the production authentication direction accepted in Phase 31.27.
 
-The model is intended to guide later ADRs and technical design so that authentication, authorization, account storage, legacy people mapping, and preference behavior remain aligned with the accepted domain model.
+The first production authentication direction is Better Auth with the existing PostgreSQL/Drizzle direction, database-backed sessions, and passwordless email magic-link sign-in. Account creation is invitation-only.
+
+The document keeps authentication identity separate from the application's Person, Actor, and RoleAssignment concepts so that authentication technology does not become the domain model.
 
 ## 2. Non-goals
 
 This document does not:
 
-- choose an authentication provider, login method, account framework, or account recovery mechanism;
-- select Auth.js, NextAuth, OAuth, password login, magic links, email login, or any other concrete authentication technology;
-- select a hosting provider or storage technology;
-- define physical database tables, migrations, Prisma schema, SQL, API endpoints, UI components, application code, or tests;
-- create or accept an authentication ADR;
-- mark any existing ADR as accepted;
-- introduce multi-congregation support;
-- equate legacy people records with authenticated users.
+- install or pin an auth package version;
+- define physical auth tables, migrations, SQL, API routes, UI components, or email templates;
+- select a transactional-email vendor, hosting provider, or production database provider;
+- introduce password login, social OAuth, passkeys, 2FA, anonymous accounts, or public self-registration;
+- introduce multi-congregation identity/tenancy behavior;
+- equate legacy people records with authenticated users;
+- define security telemetry, failed-login logging, or account/role audit persistence.
 
-## 3. Accepted deployment and role context
+Those implementation and operations details require later accepted work.
 
-The accepted first production-oriented deployment assumption is a single hosted web app for one congregation. The app must support direct access for the following roles:
+## 3. Accepted deployment and authentication context
+
+The accepted first production-oriented deployment assumption remains a single hosted web app for one congregation. The app supports direct access for:
 
 - priest;
 - organist;
 - admin;
 - congregation member / sborovník.
 
-Congregation member access is needed so members can enter their own preference votes. This access does not imply planning permissions. A real person can hold multiple roles, and multi-congregation support remains out of scope.
+Phase 31.27 resolves the first production authentication direction:
 
-Authentication provider, account technology, storage, account creation flow, and role assignment ownership remain unresolved.
+- Better Auth provides authentication identity and session handling;
+- the existing PostgreSQL direction is used through the Better Auth Drizzle adapter;
+- sessions are database-backed;
+- sign-in is passwordless email magic link;
+- account creation is invitation-only and admin-owned;
+- the concrete email-delivery provider remains a deployment/operations decision.
+
+Congregation member access is needed for own preference voting and does not imply planning permissions. One Actor may have multiple accepted application roles. Multi-congregation behavior remains out of scope.
 
 ## 4. Core logical concepts
 
 ### Person
 
-A person is a real-world individual or named participant relevant to the congregation, planning process, preferences, repertoire, service history, or legacy records.
+A Person is a real-world individual or named participant relevant to the congregation, planning process, preferences, repertoire, service history, or legacy records.
 
-A person may be active, inactive, historical, login-capable, or not login-capable depending on later design decisions. The logical concept of person should not be reduced to an authentication account.
+The current implementation concept is `catalog_persons`. A Person may remain meaningful historically even when they have no login account.
 
 ### Account
 
-An account is a login-capable identity if the later authentication design requires one. It represents a way to authenticate access to the app, not necessarily the full real-world person.
+An Account is the login-capable authentication identity. In the first production direction, Better Auth `user/account/session` data supplies this layer.
 
-One person may have one account, multiple accounts, or no login account depending on the future account model and authentication provider decision.
+An Account proves control of an invited email through passwordless magic-link authentication and owns authentication/session state. It does not itself define church-domain permissions.
 
 ### Actor
 
-An actor is the identity used when enforcing permissions and attributing actions. In many future designs an actor may correspond to a logged-in account connected to a person, but this document does not require that implementation.
+An Actor is the application identity used when enforcing permissions and attributing actions. The current implementation concept is `app_users`.
 
-The authorization model should reason about what the actor is allowed to do at the moment of a state-changing action.
+A production login-capable Account maps to exactly one active Actor. The exact physical reference is a later schema decision.
 
 ### Role
 
-A role is a domain-level responsibility or access category used for authorization. The accepted roles are priest, organist, admin, and congregation member.
+A Role is a domain-level authorization responsibility. The accepted roles remain:
 
-Roles are logical authorization concepts and are not tied to a specific authentication provider or storage representation.
+- priest;
+- organist;
+- admin;
+- congregation member.
 
 ### Role assignment
 
-A role assignment links an actor, person, or account-related identity to one or more roles, depending on later design. One actor may hold multiple roles.
+A RoleAssignment connects an Actor to one or more accepted Roles. The current implementation concept is `app_user_roles`.
 
-Whether role assignments are time-versioned, who may assign them, and how role changes affect existing records remain open questions.
+`app_user_roles` remains the sole source of truth for church-domain authorization roles. Better Auth must not become a parallel role source.
+
+Current authorization uses current RoleAssignments. Time-versioned role storage is not required by the first production auth slice; any historical review/audit of account or role administration requires a later explicit decision.
 
 ### Permission
 
-A permission is an allowed action or behavior derived from the actor's assigned role or roles. Permissions should be enforced by application/domain behavior, not only by user interface visibility.
+A Permission is an allowed application action derived from the active Actor's current RoleAssignments and the accepted permission model.
+
+Permissions are enforced server-side at protected behavior boundaries; UI visibility alone is not authorization.
 
 ### Historical person reference
 
-A historical person reference is a preserved name or reference needed to understand past services, repertoire, or imported legacy knowledge even when the person has no active account or no longer holds a role.
+A historical Person reference preserves a name or identity needed to understand past services, repertoire, or imported legacy knowledge even when that Person has no active Account or current RoleAssignment.
 
-Historical references allow service history and legacy-derived records to remain meaningful without treating every named legacy participant as an authenticated user.
+## 5. Person vs Account vs Actor
 
-## 5. Person vs account vs actor
+These concepts remain distinct:
 
-A person is a real-world individual or named participant. An account is a login-capable identity, if the future authentication design requires login accounts. An actor is the identity used when enforcing permissions and attributing actions.
+- a Person may exist without any Account;
+- a production login-capable Account maps to one application Actor;
+- an Actor may hold multiple Roles;
+- a historical Person may appear in service history or legacy-derived data without being login-capable;
+- authorization uses the authenticated Account only to resolve the active Actor, then uses current authoritative `app_user_roles`;
+- authentication identity must not be inferred from a Person name or legacy record.
 
-These concepts should remain distinct:
-
-- one person may have one account, multiple accounts, or no login account depending on later design;
-- one account may be associated with a person if the chosen authentication and account model supports that relationship;
-- one actor may hold multiple roles;
-- a historical person may appear in service history or legacy-derived data without having a current login account;
-- authorization should use the actor and current role assignments, not assumptions based only on a person's name or legacy record.
+The first production slice does not need multiple Accounts for one Actor or multiple Actors for one Account. Such generalization requires a later accepted decision.
 
 ## 6. Role model
 
@@ -92,123 +108,150 @@ The accepted logical roles are:
 
 - **priest** — participates in planning, final-set decisions, completed-service conversion, and own preference voting;
 - **organist** — participates in working-set planning, repertoire management, and own preference voting;
-- **admin** — manages knowledge/configuration, may manage congregation preferences, participates in planning where accepted, and has no own preference vote;
+- **admin** — manages shared knowledge/configuration and congregation preferences, participates in planning where accepted, and has no own preference vote;
 - **congregation member** — enters own preference votes and has no planning permissions.
 
-A real person may hold multiple roles. For example, a person may be both organist and admin, or priest and admin, if later role assignment decisions allow that combination. The admin role does not automatically imply priest or organist responsibilities.
+An Actor may hold multiple roles. Admin does not automatically imply priest or organist permissions.
 
-Role changes over time remain an open question. Later design should decide whether role assignments are current-only, time-versioned, or otherwise preserved for audit and historical interpretation.
+Priest/organist authorization roles and `catalog_persons.priest` / `catalog_persons.organist` planning-selector eligibility are intentionally distinct. Assigning an application role does not silently rewrite Person catalog eligibility. Person-bound priest/organist workflows require a suitable linked Person.
 
 ## 7. Permission model summary
 
 ### Planning permissions
 
-For service-set planning:
-
 - priest, organist, and admin may create, edit, and delete a working set;
 - priest and admin may save or delete a final set;
-- priest, admin, or a later system process may convert a final set to a completed-service record;
+- priest, admin, or the accepted system process may convert eligible final sets to completed-service records;
 - congregation members have no planning permissions.
 
 ### Knowledge-management permissions
 
-Admin manages shared knowledge and configuration. Admin-only knowledge includes:
-
-- melody equivalence;
-- base song catalog;
-- antiphon mappings;
-- liturgical-season mappings;
-- non-repetition period.
+Admin manages shared knowledge and configuration, including melody equivalence, base song catalog knowledge, Antiphon/Topic mappings where administration exists, and non-repetition configuration.
 
 ### Repertoire permissions
 
-Organist and admin may manage repertoire. Later design should clarify whether an organist manages only their own repertoire or whether additional delegated repertoire administration is needed.
+Organist and admin may manage repertoire according to accepted repertoire rules. Person linkage remains necessary where repertoire is tied to an organist Person.
 
 ### Preference permissions
 
-Priest, organist, and congregation member may manage their own song preferences. Admin may manage congregation preferences, but admin has no own preference vote.
-
-Preference permissions apply to concrete songs according to the accepted preference model. Congregation member preference entry must not grant planning, repertoire, or shared-knowledge administration rights.
+Priest, organist, and congregation member may manage their own song preferences. Admin may manage congregation preferences but has no own preference vote.
 
 ### Completed-service permissions
 
-Completed-service records are historical records. Converting a final set to a completed-service record is allowed for priest, admin, or a later system process. Direct editing, correction, or audit behavior for completed-service records remains a later design question unless already covered by accepted lifecycle behavior.
+Completed-service records are historical records. Manual completion remains priest/admin behavior and automatic completion remains the accepted system behavior from Phase 31.25.
 
-## 8. Congregation member access
+## 8. Invitation and sign-in model
 
-Congregation member / sborovník access is needed for entering own preference votes. This direct access is part of the accepted single hosted one-congregation deployment assumption.
+### Invitation-only provisioning
 
-Congregation member access is limited by default:
+There is no public production signup.
 
-- congregation members have no planning permissions;
-- congregation members do not manage repertoire;
-- congregation members do not manage shared knowledge or configuration;
-- congregation members manage only their own song preferences unless a later accepted decision expands capabilities.
+Admin owns account provisioning:
 
-Future capabilities for congregation members require later accepted decisions and should not be inferred from the existence of direct app access.
+1. admin creates a pending invitation for a specific email and intended initial application roles;
+2. the invited person proves control of that email through a single-use magic link;
+3. unknown-email account creation is accepted only when a valid invitation exists;
+4. successful acceptance idempotently creates or links the authentication Account to one Actor and applies the accepted initial RoleAssignments;
+5. the invitation is consumed and cannot provision another relationship.
 
-## 9. Admin role
+Invitation table shape, expiry policy, email transport, and UI are later implementation details.
 
-The admin role manages shared knowledge and configuration. Admin-only responsibilities include melody equivalence, base song catalog, antiphon mappings, liturgical-season mappings, and the non-repetition period.
+### Existing-account sign-in
 
-Admin may manage congregation preferences. Admin has no own preference vote in the accepted preference model.
+An existing allowed Account requests a magic link for its email and follows the valid single-use link to create an authenticated session.
 
-The admin role does not automatically mean the person is a priest or organist. If an admin also needs priest or organist permissions, that should be represented through multiple role assignments rather than by expanding the meaning of admin.
+The login response should not expose account existence unnecessarily. Production authorization still checks the linked Actor's current active state and roles after authentication.
+
+### Account recovery
+
+There is no password to recover in the first production slice. Normal access recovery is continued control of the account email. Loss/change of that email requires an explicit admin-controlled account recovery/re-provisioning procedure in later implementation/operations work; no hidden fallback credential is introduced.
+
+## 9. Admin account and role administration
+
+Admin owns:
+
+- invitation creation/revocation;
+- application role assignment/removal;
+- later account activation/deactivation operations.
+
+Normal administration must not be able to remove or deactivate the **last active admin**.
+
+There is no default production credential, seeded production demo account, or permanent bootstrap backdoor. The first admin is established through an explicit one-off bootstrap procedure in the implementation phase.
+
+Account deactivation causes the linked Actor to fail server authorization even if the browser still holds an otherwise valid session. Later implementation may additionally revoke stored sessions immediately.
 
 ## 10. Legacy people mapping
 
-The legacy SQL Server database contains `Kazatele` and `Varhanici`. These records may inform future priest/preacher references and organist references, but they must not be assumed to equal authenticated users.
+Legacy `Kazatele` and `Varhanici` records may inform Person records and historical references but do not automatically create Accounts, Actors, or current RoleAssignments.
 
-Legacy people records can be useful as source knowledge for:
-
-- named participants in historical services;
-- possible future person records;
-- possible role assignment candidates;
-- repertoire or planning context.
-
-However, a legacy `Kazatele` or `Varhanici` record does not automatically create a login account, authenticated actor, or active role assignment. Historical service records may need preserved historical names or references even when no active account exists.
+Historical service/person data remains meaningful without forcing every legacy participant to become login-capable.
 
 ## 11. Authorization enforcement
 
-UI hiding is not sufficient authorization enforcement. The application and domain behavior must enforce permissions for state-changing actions.
+Production authorization is derived server-side.
 
-Every state-changing action should be checked against the actor's roles and the accepted permission model. Future API routes, server actions, command handlers, or equivalent server-side behaviors must not trust UI-only constraints.
+For a protected state-changing action the server must:
 
-Authorization checks should be designed so that role combinations are handled explicitly and predictably. A person or actor with multiple roles should receive the union of allowed permissions only where those permissions are accepted for the assigned roles.
+1. validate the authenticated session;
+2. resolve the authenticated Account to the linked `app_users` Actor;
+3. reject missing or inactive Actors;
+4. read current authoritative roles from `app_user_roles`;
+5. enforce the accepted permission rule for the requested action.
 
-## 12. Attribution and audit readiness
+Client-supplied Actor IDs, role names, or permission claims are not authorization authority in production.
 
-Future design should be able to attribute important changes to an actor where needed. This is especially relevant for planning lifecycle transitions, knowledge changes, repertoire changes, preference administration, and completed-service conversion.
+UI hiding remains convenience only. Route handlers, server actions, command handlers, or equivalent mutation boundaries perform their own authorization checks close to the application/data boundary.
 
-Exact audit and change-history requirements remain open. This logical model only requires that later design not prevent attribution to an actor when attribution is needed.
+Because roles are read from current application state, role changes apply to subsequent protected operations without relying on a long-lived client role selector.
 
-## 13. First-slice implications
+## 12. Attribution, audit, and security boundary
 
-Planning Lifecycle First needs enough actor and role representation to enforce working-set, final-set, and completed-service permissions.
+Phase 31.26 resolved business audit/change-history policy for its accepted business domains. This auth model preserves stable Actor identity needed for attribution.
 
-Preference voting may not be implemented in the first slice, but the authentication and role model must not exclude congregation members. The future model must leave room for congregation members to access the app directly for own preference votes.
+Phase 31.27 does not silently widen that business-audit scope. Whether invitations, account activation/deactivation, RoleAssignment changes, sign-in failures, rate-limit events, or similar identity/security events belong in business audit history, a security log, or both remains a later explicit identity/security decision.
 
-Development and demo mode may use seeded or fake actors, but production-oriented design must support real role-bearing actors for priest, organist, admin, and congregation member access.
+## 13. Development and production runtime boundary
 
-## 14. Open questions
+Development/test memory runtime may keep seeded fake Actors and the `Change user` selector for deterministic local and HUMAN acceptance testing.
 
-- What is the account creation and invitation flow?
-- Do congregation members self-register, or are they created by admin?
-- Which login method or provider will be used?
-- How does account recovery work?
-- Who owns role assignment and role removal?
-- Are role assignments time-versioned?
-- What audit and change-history behavior is expected?
-- Do historical people without accounts remain separately stored?
+Production/database-backed operation must not treat that selector as authentication. Production Actor identity comes from the authenticated server session.
 
-## 15. What this enables for later ADR/design
+No production demo account is seeded by this model.
 
-This logical model enables later work on:
+## 14. Resolved and remaining questions
 
-- auth provider comparison;
-- account schema design;
-- authorization test strategy;
-- mapping from legacy `Kazatele` and `Varhanici` records;
-- storage and schema design for people, accounts, roles, and preferences.
+Resolved by Phase 31.27:
 
-Later ADRs and designs should use this document as a boundary: they may choose concrete technologies and storage structures only when those decisions are explicitly in scope, and they should preserve the distinction between person, account, actor, role assignment, and historical person reference.
+- authentication/session library direction — Better Auth;
+- login method — passwordless email magic link;
+- signup model — invitation-only, no public self-registration;
+- account provisioning ownership — admin;
+- domain-role authority — `app_user_roles`, not the auth library;
+- production authorization source — server session → active Actor → current RoleAssignments;
+- first-admin safety — explicit bootstrap plus last-active-admin protection;
+- historical people without Accounts remain valid.
+
+Still deferred:
+
+- exact Better Auth package version and physical schema/migration;
+- transactional-email vendor and delivery operations;
+- invitation persistence shape and expiry duration;
+- login/invitation/account-administration UI;
+- production hosting/secrets/backup design;
+- identity/security audit and telemetry policy;
+- account email-change/recovery operational procedure;
+- any future OAuth, passkey, 2FA, password, or multi-congregation expansion.
+
+## 15. What this enables next
+
+The next auth implementation phase can now design and implement a bounded slice around:
+
+- Better Auth package/configuration and Drizzle/PostgreSQL auth schema;
+- Account ↔ `app_users` linkage;
+- invitation persistence and bootstrap;
+- magic-link login route/UI and email callback;
+- server-side Actor resolution/authorization;
+- removing `Change user` as a production/database authentication mechanism while preserving memory test mode;
+- tests for invitation gating, inactive Actors, current roles, and last-admin protection.
+
+That implementation still requires its own Contract Gate and exact-head acceptance before merge.
