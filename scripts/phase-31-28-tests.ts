@@ -6,15 +6,17 @@ import { ProtectedActorError, resolveProtectedActor } from "../src/application/p
 import { auth } from "../src/auth/server";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required for Phase 31.28 acceptance.");
-if (!process.env.BETTER_AUTH_SECRET) throw new Error("BETTER_AUTH_SECRET is required for Phase 31.28 acceptance.");
-
-const priestPassword = process.env.ORGANY_BOOTSTRAP_PRIEST_PASSWORD;
-const adminPassword = process.env.ORGANY_BOOTSTRAP_ADMIN_PASSWORD;
-if (!priestPassword || !adminPassword || !process.env.ORGANY_BOOTSTRAP_ORGANIST_PASSWORD) {
-  throw new Error("All Phase 31.28 bootstrap password environment variables are required.");
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required for Phase 31.28 acceptance.`);
+  return value;
 }
+
+const databaseUrl = requiredEnv("DATABASE_URL");
+requiredEnv("BETTER_AUTH_SECRET");
+const priestPassword = requiredEnv("ORGANY_BOOTSTRAP_PRIEST_PASSWORD");
+const adminPassword = requiredEnv("ORGANY_BOOTSTRAP_ADMIN_PASSWORD");
+requiredEnv("ORGANY_BOOTSTRAP_ORGANIST_PASSWORD");
 
 async function signIn(username: string, password: string): Promise<Response> {
   return auth.api.signInUsername({ body: { username, password }, asResponse: true });
