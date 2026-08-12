@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the logical authentication, account, actor, voter-identity, and role model for the app and records the production access direction corrected in Phase 31.27.
+This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, and records the protected-staff authentication implementation established in Phase 31.28.
 
 The first production model deliberately distinguishes protected staff access from low-friction congregation voting:
 
@@ -15,18 +15,18 @@ Authentication identity remains separate from the application's Person, Actor, a
 
 This document does not:
 
-- install or pin an auth package version;
-- define physical auth tables, migrations, SQL, API routes, or final UI components;
-- define exact password-generation, credential-delivery, forgotten-password, or forced-first-change policy;
+- define the still-unimplemented congregation nickname-voter UI/persistence flow;
+- define a final admin-facing protected-account/role-management UI or username-management UI;
+- define exact password-generation, credential-delivery, forgotten-password/reset, or forced-first-change policy;
 - define exact nickname normalization or browser convenience persistence;
 - select a hosting provider or production database provider;
-- introduce email magic links, public privileged signup, social OAuth, passkeys, or 2FA;
+- introduce email login, email magic links, public privileged signup, social OAuth, passkeys, or 2FA;
 - introduce multi-congregation identity/tenancy behavior;
 - equate legacy people records with authenticated users;
 - add anti-abuse identity proof for congregation nickname voting;
 - define security telemetry or account/role audit persistence.
 
-Those implementation and operations details require later accepted work.
+Phase 31.28 now implements the bounded protected-staff mechanics that were previously deferred: pinned Better Auth/Drizzle dependencies, physical auth persistence and migration, username/password login, logout, own-password change, explicit bootstrap/server provisioning, and server-side session → active Actor → current RoleAssignment authorization. Deployment/operations and the remaining access-management/voter flows still require later accepted work.
 
 ## 3. Accepted access context
 
@@ -250,48 +250,49 @@ Protected production Actor identity comes from authenticated username/password s
 
 ## 15. Better Auth technical boundary
 
-Better Auth remains the selected implementation candidate because current official documentation supports username-based password sign-in, public signup disabling, password change, and database-backed operation.
+Phase 31.28 implements and pins the protected-staff authentication slice with Better Auth 1.6.25 and @better-auth/drizzle-adapter 1.6.25, using Drizzle ORM 0.45.2 / drizzle-kit 0.31.10 and PostgreSQL-backed sessions.
 
-Current Better Auth documentation also requires an email field on the auth user record. This is an implementation compatibility concern only. It does **not** change the accepted product behavior into email login, email verification, or magic links. The implementation phase must prove a clean non-user-facing handling of that field; otherwise the auth-library choice is revisited.
+The Better Auth username plugin provides the user-facing username + password flow. The protected handler disables public email signup, email/password sign-in, and username enumeration. Better Auth's mandatory email field is satisfied only by a unique synthetic internal address under `@organy.invalid`; the application does not request, display, verify, use for login, or use for password recovery that address.
+
+The auth persistence includes Better Auth's user/session/account/verification tables plus an explicit one-to-one auth-user → `app_users` link. Protected authorization does not use Better Auth roles as church-domain authority: every protected request resolves the authenticated session to exactly one active Actor and reloads current `app_user_roles` before applying application permission rules.
+
+If a later Better Auth upgrade can no longer preserve these product boundaries, the library choice or integration must be revisited rather than changing the accepted username/password product behavior.
 
 ## 16. Resolved and remaining questions
 
-Resolved by corrected Phase 31.27:
+Resolved by corrected Phase 31.27 and implemented for protected staff in Phase 31.28:
 
 - protected user experience — username + password;
-- protected signup model — none; admin provisions accounts;
-- initial access — admin/current priest/current organist Accounts exist before production handoff;
-- own password change — allowed for signed-in protected users;
-- congregation-member access — nickname-only voter profile, no protected Account or password;
-- nickname abuse prevention — intentionally not attempted;
-- domain-role authority — `app_user_roles`, not the auth library;
-- production protected authorization source — server session → active Actor → current RoleAssignments;
-- first-admin safety — explicit bootstrap plus last-active-admin protection;
-- historical people without Accounts remain valid.
+- protected signup model — none; admin/setup provisions accounts;
+- exact first protected implementation — Better Auth 1.6.25 + PostgreSQL/Drizzle-backed sessions;
+- auth persistence and one-to-one Account → Actor linkage;
+- synthetic mandatory auth email kept fully internal;
+- protected username login, logout, and own password change;
+- explicit initial staff bootstrap and authenticated-admin server provisioning path;
+- production protected authorization — server session → active Actor → current `app_user_roles`;
+- client-supplied Actor IDs are not protected authorization authority;
+- DB runtime no longer exposes `Change user`; memory runtime keeps it for deterministic tests;
+- inactive Actors and missing/non-protected role assignments are rejected without requiring re-login for role changes.
 
 Still deferred:
 
-- exact Better Auth package version and proof/handling of its mandatory internal email field;
-- physical auth schema/migration;
-- exact login/account-admin UI;
-- initial password generation/delivery, forgotten-password/reset, and forced-first-change policy;
-- nickname normalization and convenience persistence;
-- production hosting/secrets/backup design;
+- congregation nickname-voter UI/persistence and exact nickname normalization/browser convenience;
+- final admin-facing protected-account/role/username management UI and normal last-active-admin enforcement at that administration boundary;
+- initial password generation/delivery policy, forgotten-password/reset, and forced-first-change policy;
+- production hosting, deployment cutover, secrets operations, backup/restore, and observability;
 - identity/security audit and telemetry policy;
 - any future OAuth, passkey, 2FA, or multi-congregation expansion.
 
 ## 17. What this enables next
 
-The next auth implementation phase can design and implement a bounded slice around:
+With protected staff authentication implemented by Phase 31.28, later access work can stay separated into smaller concerns:
 
-- username/password authentication package/configuration and PostgreSQL/Drizzle auth persistence;
-- protected Account ↔ `app_users` linkage;
-- first-admin and initial priest/organist provisioning;
-- admin protected-account creation for later priest/organist access;
-- protected username/password login and own-password-change UI;
-- server-side Actor resolution/authorization;
-- nickname-only congregation voter creation/reuse and own preference boundary;
-- removing `Change user` as production protected authentication while preserving memory test mode;
-- tests for no public privileged signup, inactive Actors, current roles, last-admin protection, password change, and nickname-only permission isolation.
+- congregation nickname-only voter creation/reuse and own-preference authorization;
+- final admin-facing account/role administration, including last-active-admin protection;
+- credential-delivery, recovery/reset, and any forced-first-change policy;
+- production deployment/secrets/backup/restore and operational hardening;
+- identity/security logging policy;
+- future optional OAuth/passkey/2FA only if separately accepted.
 
-That implementation still requires its own Contract Gate and exact-head acceptance before merge.
+Phase 31.28 does not make the application production-deployed; it closes the protected staff authentication implementation slice only.
+

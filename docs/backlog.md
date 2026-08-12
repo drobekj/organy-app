@@ -410,13 +410,13 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future multi-congregation needs may be explored and decided later, but current backlog and implementation preparation do not decompose multi-congregation implementation work.
 - **Status:** Open
 
-### IP-009 — Compare future authentication providers
+### IP-009 — Establish protected staff authentication
 
 - **Type:** Product backlog item
-- **Goal:** Compare authentication provider options without selecting a concrete provider or login method.
-- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/deployment-assumptions.md`; Architecture Roles and Permissions module; ADR authorization boundary.
-- **Acceptance direction:** Future comparison evaluates how options support direct access for priest, organist, admin, and congregation member roles while keeping provider selection out of current implementation tasks.
-- **Status:** Proposed
+- **Goal:** Provide production-capable protected username/password authentication for admin, priest, and organist without turning authentication-library identity into the church-domain role model.
+- **Source / traceability:** Phase 31.27 Contract Gate #166; Phase 31.28 Contract Gate #168; `docs/auth-account-role-model.md`; `docs/production-auth-decision.md`; REQ-012.
+- **Acceptance direction:** Better Auth 1.6.25 provides username/password protected login, PostgreSQL-backed sessions, logout and own-password change; public signup/email login are disabled; the mandatory synthetic email stays internal; each auth identity links one-to-one to an active `app_users` Actor; protected authorization reloads current `app_user_roles` server-side and ignores client Actor IDs as authority.
+- **Status:** Accepted
 
 ### IP-010 — Design future account/person/actor schema
 
@@ -426,13 +426,13 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future schema design preserves the distinction between person, account, actor, role assignment, and historical person reference, and does not treat legacy people records as authenticated users by default.
 - **Status:** Proposed
 
-### IP-011 — Map first-slice authorization checks to actor-role subset
+### IP-011 — Enforce protected authorization through Actor and current roles
 
 - **Type:** Product backlog item
-- **Goal:** Map Planning Lifecycle First authorization checks to the minimal Person / Actor / RoleAssignment or equivalent actor-role subset before implementation design.
-- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/planning-lifecycle-first-schema-subset.md`; REQ-012; Architecture Roles and Permissions module; ADR authorization boundary.
-- **Acceptance direction:** Future authorization design identifies how priest, organist, admin, and congregation member checks are resolved at state-changing boundaries without selecting an auth provider or treating UI hiding as sufficient enforcement.
-- **Status:** Proposed
+- **Goal:** Keep protected authorization server-authoritative while preserving the Person / Account / Actor / RoleAssignment separation.
+- **Source / traceability:** Phase 31.28 Contract Gate #168; `docs/auth-account-role-model.md`; `docs/planning-lifecycle-first-schema-subset.md`; REQ-012; Architecture Roles and Permissions module.
+- **Acceptance direction:** Protected DB mutations validate a real auth session, resolve exactly one active `app_users` Actor, reload current `app_user_roles`, enforce the requested action there, and never treat UI hiding or client-supplied Actor IDs/roles as authorization authority.
+- **Status:** Accepted
 
 ### IP-012 — Design legacy people mapping from `Kazatele` and `Varhanici`
 
@@ -546,7 +546,7 @@ The following areas must not be decomposed from this backlog yet:
 - database schema;
 - API endpoints;
 - UI components;
-- authentication infrastructure;
+- remaining congregation nickname-voter access, final protected account/role administration UI, credential recovery/delivery policy, and production auth cutover/operations beyond the accepted Phase 31.28 staff slice;
 - deployment;
 - tests;
 - migration scripts;

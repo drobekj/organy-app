@@ -16,7 +16,7 @@ Admin provisions a protected Account, chooses its username, sets an initial pass
 
 The first production handoff must already have the initial admin and current priest/organist protected Accounts provisioned. When a new priest or organist later needs access, an admin provisions that Account; the newcomer does not register themselves.
 
-Better Auth remains the selected authentication/session candidate with the existing PostgreSQL direction through the Better Auth Drizzle adapter and database-backed sessions. The intended Better Auth capability set is username support over password credentials with public signup disabled. The exact package/configuration is reverified and pinned only in the implementation phase.
+Phase 31.28 implements the protected staff authentication/session layer with Better Auth 1.6.25 and @better-auth/drizzle-adapter 1.6.25 over PostgreSQL/Drizzle database-backed sessions. The protected handler accepts username + password only; public protected signup, email/password sign-in, and username enumeration are disabled.
 
 ### Congregation-member voting access
 
@@ -171,11 +171,20 @@ The first production access slice does not select or require:
 
 These may be revisited only by a later accepted decision.
 
-## Better Auth implementation caveat
+## Better Auth implementation result
 
-Current Better Auth documentation confirms username + password sign-in, disabling email/password signup, and changing the signed-in user's own password.
+Phase 31.28 completed the compatibility proof that Phase 31.27 required.
 
-Better Auth also currently requires an email field on its auth user record even when username authentication is used. The product **does not** therefore gain an email-login or email-verification requirement. The implementation phase must prove a clean non-user-facing treatment of that library field. If Better Auth would force email into the admin/user workflow in a way that conflicts with this accepted username/password product model, the authentication library choice must be revisited rather than changing the product behavior to fit the library.
+- Better Auth and its Drizzle adapter are pinned at 1.6.25 for this slice.
+- Drizzle ORM is aligned to 0.45.2 and drizzle-kit to 0.31.10.
+- Better Auth's mandatory email field is populated with a unique synthetic `auth-…@organy.invalid` value created server-side.
+- That synthetic email is not requested from staff, not displayed by the staff-session API/UI, not verified, not accepted for protected sign-in, and not used for recovery.
+- Protected public signup and email/password sign-in are disabled.
+- Username/password login, PostgreSQL-backed sessions, logout, and signed-in own-password change are implemented.
+- Better Auth identity is linked one-to-one to an existing active `app_users` Actor; current roles are reloaded from `app_user_roles` for protected authorization on every request.
+- An explicit bootstrap command establishes initial protected staff identities without a repository-stored default password; an authenticated domain admin server endpoint can provision later protected staff Accounts.
+
+The accepted user experience therefore remains username + password. The internal synthetic email exists only to satisfy the current library schema contract.
 
 ## Audit and security boundary
 
@@ -193,4 +202,4 @@ The corrected direction was checked against current official Better Auth documen
 - PostgreSQL/Drizzle-backed authentication/session direction;
 - the current mandatory auth-user email field.
 
-The exact library version is intentionally not frozen by this documentation-only phase and must be pinned and reverified in the implementation PR.
+Phase 31.28 pins and verifies the protected-staff implementation at Better Auth 1.6.25 with @better-auth/drizzle-adapter 1.6.25, Drizzle ORM 0.45.2, and drizzle-kit 0.31.10.
