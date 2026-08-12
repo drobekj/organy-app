@@ -92,12 +92,10 @@ export async function getAuthenticatedStaffUser(headers: Headers, pool: Pool): P
   const session = await auth.api.getSession({ headers });
   if (!session?.user?.id) throw new LocalActorError("permissionDenied", "Staff sign-in is required.");
   const { rows } = await pool.query(
-    `select u.id, u.display_name, u.person_id, u.active, array_remove(array_agg(r.role::text order by r.role::text), null) as roles
-       from auth_user_actor_links l
-       join app_users u on u.id = l.actor_user_id
-       left join app_user_roles r on r.user_id = u.id
-      where l.auth_user_id = $1
-      group by u.id, u.display_name, u.person_id, u.active`,
+    "select u.id, u.display_name, u.person_id, u.active, array_remove(array_agg(r.role::text order by r.role::text), null) as roles " +
+      "from auth_user_actor_links l join app_users u on u.id = l.actor_user_id " +
+      "left join app_user_roles r on r.user_id = u.id where l.auth_user_id = $1 " +
+      "group by u.id, u.display_name, u.person_id, u.active",
     [session.user.id],
   );
   if (rows.length !== 1) throw new LocalActorError("permissionDenied", "Authenticated account is not linked to exactly one application user.");
@@ -132,9 +130,9 @@ export async function provisionStaffAccount(pool: Pool, input: { actorUserId: st
   if (input.password.length < 8) throw new Error("Initial password must contain at least 8 characters.");
 
   const actorResult = await pool.query(
-    `select u.display_name, u.active, array_remove(array_agg(r.role::text), null) as roles
-       from app_users u left join app_user_roles r on r.user_id = u.id
-      where u.id = $1 group by u.id, u.display_name, u.active`,
+    "select u.display_name, u.active, array_remove(array_agg(r.role::text), null) as roles " +
+      "from app_users u left join app_user_roles r on r.user_id = u.id " +
+      "where u.id = $1 group by u.id, u.display_name, u.active",
     [actorUserId],
   );
   if (actorResult.rows.length !== 1 || !actorResult.rows[0].active) throw new Error("Target application user must exist and be active.");
@@ -143,7 +141,7 @@ export async function provisionStaffAccount(pool: Pool, input: { actorUserId: st
   const linked = await pool.query("select 1 from auth_user_actor_links where actor_user_id = $1", [actorUserId]);
   if (linked.rowCount) throw new Error("Target application user already has a protected account.");
 
-  const syntheticEmail = `auth-${randomUUID()}@organy.invalid`;
+  const syntheticEmail = "auth-" + randomUUID() + "@organy.invalid";
   await provisioningAuth.api.signUpEmail({ body: { email: syntheticEmail, name: String(actorResult.rows[0].display_name), password: input.password, username, displayUsername: username } });
   const created = await pool.query("select id from auth_user where email = $1", [syntheticEmail]);
   if (created.rows.length !== 1) throw new Error("Protected credential identity was not created deterministically.");
@@ -275,7 +273,7 @@ try {
   await pool.query("insert into app_users (id, display_name, person_id, active) values ($1,$2,$3,true) on conflict (id) do update set display_name = excluded.display_name, person_id = coalesce(excluded.person_id, app_users.person_id), active = true", [actorUserId, displayName, personId ?? null]);
   await pool.query("insert into app_user_roles (user_id, role) values ($1, $2::user_role) on conflict do nothing", [actorUserId, role]);
   const result = await provisionStaffAccount(pool, { actorUserId, username, password });
-  console.log(`Protected staff account provisioned for actor ${result.actorUserId} with username ${result.username}.`);
+  console.log("Protected staff account provisioned for actor " + result.actorUserId + " with username " + result.username + ".");
 } finally { await pool.end(); }
 `);
 
