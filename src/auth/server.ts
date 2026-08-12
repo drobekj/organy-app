@@ -21,7 +21,9 @@ function createStaffAuth(disableSignUp: boolean) {
     account: { modelName: "auth_account" },
     verification: { modelName: "auth_verification" },
     emailAndPassword: { enabled: true, disableSignUp, ...(disableSignUp ? {} : { autoSignIn: false }) },
-    disabledPaths: disableSignUp ? ["/sign-up/email", "/is-username-available"] : ["/is-username-available"],
+    disabledPaths: disableSignUp
+      ? ["/sign-up/email", "/sign-in/email", "/is-username-available"]
+      : ["/sign-in/email", "/is-username-available"],
     plugins: [username()],
   });
 }
