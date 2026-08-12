@@ -3,7 +3,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: "inherit", env: process.env });
 
-run("npm", ["install", "--save-exact", "better-auth@1.6.25", "@better-auth/drizzle-adapter@1.6.25"]);
+run("npm", ["install", "--save-exact", "drizzle-orm@0.45.2", "better-auth@1.6.25", "@better-auth/drizzle-adapter@1.6.25"]);
+run("npm", ["install", "--save-dev", "--save-exact", "drizzle-kit@0.31.10"]);
 
 mkdirSync("scripts", { recursive: true });
 writeFileSync("scripts/phase-31-28-auth-config.ts", `import { betterAuth } from "better-auth";
