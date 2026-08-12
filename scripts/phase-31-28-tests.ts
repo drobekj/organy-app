@@ -43,6 +43,16 @@ async function expectSignInFailure(username: string, password: string) {
   assert.equal(failed, true, `sign-in for ${username} must fail with rejected credentials`);
 }
 
+async function expectEmailSignInDisabled(email: string, password: string) {
+  const response = await auth.handler(new Request("http://localhost:3000/api/auth/sign-in/email", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  }));
+  assert.ok(response.status >= 400, "synthetic internal email must not be accepted as a login identifier");
+  assert.equal(response.headers.get("set-cookie")?.includes("session_token") ?? false, false, "disabled email sign-in must not create a session cookie");
+}
+
 async function expectPublicSignupDisabled() {
   let failed = false;
   try {
@@ -109,7 +119,10 @@ async function main() {
       assert.match(String(row.email), /^protected-[0-9a-f-]+@organy\.invalid$/i, "auth email stays synthetic/internal");
       assert.equal(String(row.email).includes(String(row.username)), false, "synthetic email does not derive from the visible username");
     }
-    assert.equal(Number((await db.query("select count(*)::int n from auth_sessions")).rows[0].n), 0, "bootstrap must not leave any staff account signed in");
+    const priestAccount = accountRows.rows.find((row) => row.username === "priest");
+    assert.ok(priestAccount, "bootstrap must create the protected priest account");
+    await expectEmailSignInDisabled(String(priestAccount.email), priestPassword);
+    assert.equal(Number((await db.query("select count(*)::int n from auth_sessions")).rows[0].n), 0, "bootstrap and rejected email sign-in must not leave any staff account signed in");
 
     await expectProtectedError(() => resolveProtectedActor(new Headers(), db), "unauthenticated");
     const unauthMutation = await interactionPost(apiRequest("/api/interaction", {
