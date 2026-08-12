@@ -1,0 +1,53 @@
+name: Phase 31.28 Protected staff authentication acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: organy
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d organy"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/organy
+      ORGANY_RUNTIME: db
+      BETTER_AUTH_SECRET: phase-31-28-ci-secret-that-is-long-enough-for-testing-only
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Database migration
+        run: npm run db:migrate
+      - name: Phase 31.28 protected staff auth acceptance
+        run: npx tsx scripts/phase-31-28-tests.ts
+      - name: Phase 31.25 automatic completion regression
+        run: npx tsx scripts/phase-31-25-tests.ts
+      - name: Phase 31.24 non-repetition regression
+        run: npx tsx scripts/phase-31-24-tests.ts
+      - name: Phase 31.20 behavior regression
+        run: npm run test:phase-31-20
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
