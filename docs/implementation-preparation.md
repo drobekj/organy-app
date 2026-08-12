@@ -32,6 +32,7 @@ This readiness summary is based on the accepted repository documentation:
 - `docs/first-slice-tooling-decision-preparation.md`
 - `docs/adr-first-slice-tooling.md`
 - `docs/auth-account-role-model.md`
+- `docs/production-auth-decision.md`
 
 If this document appears to conflict with those sources, the underlying source document should be corrected or clarified before implementation planning proceeds.
 
@@ -121,13 +122,12 @@ The following areas are not ready to implement from the current product/domain b
 - **Database schema.** Coding readiness remains blocked for persistence work. The domain model is conceptual and must not be treated as a target schema; future target schema design now has `docs/target-technical-schema-draft.md` as a storage-neutral draft input alongside `docs/target-domain-persistence-model.md` and `docs/legacy-to-domain-mapping.md`, with Planning Lifecycle First narrowed by `docs/planning-lifecycle-first-schema-subset.md`. Storage decision preparation exists in `docs/first-slice-storage-decision-preparation.md`, `docs/adr-first-slice-storage.md` accepts PostgreSQL-like relational storage at the direction level, and `docs/first-slice-schema-open-questions-resolution.md` resolves key first-slice schema questions at design level. A documentation-only physical schema draft now exists in `docs/first-slice-physical-schema-draft.md`, and `docs/adr-first-slice-tooling.md` selects Drizzle ORM plus `drizzle-kit`, schema location, migration location, config-file location, and reviewable generated SQL as the minimal Phase 6 baseline. Technical architecture remains unchecked for runtime persistence; physical schema files, migrations, database provider, hosting, auth, local database setup workflow, backup/export/restore design, seed strategy, and test strategy remain unresolved until later ADR/design work is complete. Accepting the minimal baseline still does not authorize coding, schema files, migrations, SQL, Drizzle schema, persistence package installation, DB config, or application implementation beyond the accepted scaffold/persistence baselines.
 - **API endpoints.** No API contracts, route structure, request/response shapes, or endpoint responsibilities have been selected.
 - **UI components.** Workflows are product-level processes, not component specifications or screen designs.
-- **Authentication infrastructure.** Roles and permissions are accepted conceptually, but the authentication approach, auth provider, account model, and authorization mechanism have not been chosen.
+- **Authentication infrastructure.** Phase 31.27 selects Better Auth with the existing PostgreSQL/Drizzle direction, database-backed sessions, invitation-only passwordless email magic links, and server-authoritative Account → active Actor → current `app_user_roles` authorization. Package installation/version, physical auth schema/migration, invitation/login/account-admin UI, email delivery, bootstrap implementation, deployment secrets, and production cutover are not implemented yet.
 - **Deployment.** The first-slice production-oriented deployment assumption is selected, but hosting provider, runtime, environments, release process, and detailed operations remain undecided.
 - **Tests.** No test strategy, test framework, test layers, or acceptance-test format has been selected.
 - **Migration scripts.** Legacy data has not been inspected in a form that supports migration design.
-- **Automatic final-set completion details.** Timing, triggering, safeguards, and exception handling for automatic conversion of final sets to completed-service records still need clarification.
 - **Multi-congregation support.** The current scope is one local congregation; multi-congregation behavior remains intentionally deferred.
-- **Audit/change-history behavior.** Expectations for auditability, version history, undo, attribution, and change review are not yet defined.
+- **Audit/change-history implementation.** Phase 31.26 resolves the product policy, but physical audit schema/storage, UI, retention/privacy operations, and identity/security telemetry remain later work.
 
 ## 4. Decisions Needed Before Technical Design
 
@@ -135,10 +135,10 @@ Before technical design begins, the following decisions or clarifications are ne
 
 1. **Technology stack.** Minimal scaffold baseline is accepted only for the first runnable scaffold PR: lightweight full-stack TypeScript app direction, Next.js App Router, npm, and TypeScript strict baseline. Runtime version, project layout details beyond scaffold defaults, production architecture, UI/API patterns, and broader supporting tooling remain unresolved.
 2. **Persistence approach.** Storage direction is selected as PostgreSQL-like relational storage for Planning Lifecycle First, and the minimal Phase 6 baseline selects PostgreSQL locally, Drizzle ORM plus `drizzle-kit`, `src/db/schema`, `drizzle`, `drizzle.config.ts`, `DATABASE_URL`, and reviewable generated SQL for the first migration. Physical schema files, migrations, package installation, exact versions/configuration content, production database provider, connection management beyond local `DATABASE_URL`, local database setup workflow, backup/export/restore design, seed strategy, and test strategy still need decisions after target-schema design, evaluated against the accepted single hosted one-congregation deployment assumption.
-3. **Authentication/authorization approach.** Decide how users authenticate and how accepted role permissions will be enforced, based on the logical auth/account/role model and evaluated against the accepted direct-access roles: priest, organist, admin, and congregation member. Authentication approach remains unresolved.
+3. **Authentication/authorization implementation.** Phase 31.27 resolves the approach: Better Auth, PostgreSQL/Drizzle-backed database sessions, invitation-only passwordless email magic links, `app_users` as Actor, and `app_user_roles` as sole church-domain role authority. Later implementation must pin packages, add auth/invitation persistence, choose email transport, implement bootstrap/login/admin UI, and replace client-selected production identity with server session-derived Actor resolution.
 4. **Legacy data inspection.** Decide whether legacy data must be inspected before schema design, and if so, what source is authoritative enough for read-only assessment.
-5. **Audit/change-history expectations.** Decide what changes must be attributable, reviewable, restorable, or historically visible.
-6. **Automatic final-set completion timing and safeguards.** Decide when final sets become completed-service records, what confirmation or automation is allowed, and how exceptions are handled.
+5. **Audit/change-history implementation mechanics.** Product policy is resolved by Phase 31.26; later work must choose physical audit persistence/UI/retention/privacy mechanics without turning audit into undo/event sourcing.
+6. **Identity/security logging boundary.** Phase 31.27 does not decide whether account/role administration and failed authentication events belong in business audit, security logging, or both.
 7. **First implementation slice / MVP boundary.** Selected as Planning Lifecycle First; keep excluded scope visible while technical design proceeds.
 
 ## 5. First Implementation Slice
@@ -174,7 +174,7 @@ Build the initial slice around creating, editing, saving, finalizing, deleting, 
 - Deleting a saved working or final set returns to `no set exists`.
 - Final set is not directly edited.
 - Priest/admin finalization and completion permissions.
-- Automatic final-set completion remains open and should not block the first manual lifecycle slice.
+- Automatic Final → Completed reconciliation is resolved and implemented by Phase 31.25; it no longer blocks the lifecycle slice.
 
 **Not included in this first slice**
 
@@ -184,7 +184,7 @@ Build the initial slice around creating, editing, saving, finalizing, deleting, 
 - Full preference system.
 - Legacy migration.
 - Multi-congregation support.
-- Automatic final-set completion details.
+- Production authentication implementation mechanics beyond the Phase 31.27 accepted direction.
 - Final database schema beyond what is needed for technical design.
 
 **Pros**
@@ -243,7 +243,8 @@ A schema draft, first-slice schema subset, storage decision preparation document
 - [x] Minimal Phase 6 persistence implementation baseline accepted: PostgreSQL local target, Drizzle ORM plus `drizzle-kit` package direction, `src/db/schema`, `drizzle`, `drizzle.config.ts`, `DATABASE_URL`, and reviewable generated SQL for the first migration.
 - [ ] Technical architecture beyond scaffold and minimal persistence baseline accepted; the application is not production-ready.
 - [ ] Physical schema files, migrations, package installation, database provider, connection management beyond local `DATABASE_URL`, local database setup workflow, and backup/export/restore design completed.
-- [ ] Authorization model mapped from accepted permissions and `docs/auth-account-role-model.md`; authentication approach remains unresolved.
+- [x] Production authentication/authorization direction selected in Phase 31.27: Better Auth + PostgreSQL/Drizzle DB sessions + invitation-only email magic links + server-side Actor/current-role authorization.
+- [ ] Production auth implementation completed: package/config pin, auth/invitation schema+migration, bootstrap, email transport, login/admin UI, session-derived Actor integration, and cutover tests.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
 
