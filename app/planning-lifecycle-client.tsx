@@ -273,7 +273,7 @@ class DbCatalogClient {
   async setSongActive(input: { role: PlanningRole; actorUserId?: string; songId: string; active: boolean }) { return callCatalogApi("setSongActive", input, input.actorUserId ? { userId: input.actorUserId, role: input.role } : undefined); }
 }
 
-type LocalActorRequest = { userId?: string; role?: PlanningRole };
+type LocalActorRequest = { userId: string; role?: PlanningRole };
 function protectedActorEnvelope(actor?: LocalActorRequest) { return actor ? { actor: { ...(actor.role ? { role: actor.role } : {}) } } : {}; }
 async function callInteractionApi(action: string, input: unknown, actor?: LocalActorRequest) {
   const response = await fetch("/api/interaction", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ action, input, ...protectedActorEnvelope(actor) }) });
