@@ -24,8 +24,8 @@ jobs:
           cache: npm
       - name: Install current dependencies
         run: npm ci --no-audit --no-fund --loglevel=error
-      - name: Pin Better Auth packages
-        run: npm install --save-exact --no-audit --no-fund --loglevel=error better-auth@1.6.25 @better-auth/drizzle-adapter@1.6.25
+      - name: Pin compatible authentication stack
+        run: npm install --save-exact --no-audit --no-fund --loglevel=error drizzle-orm@0.45.2 better-auth@1.6.25 @better-auth/drizzle-adapter@1.6.25
       - name: Apply Phase 31.28 transform
         run: node scripts/phase-31-28-transform.mjs
       - name: Generate Drizzle migration
