@@ -3,7 +3,7 @@
 ## Purpose
 This document describes the high-level conceptual application architecture for the liturgical music knowledge-management and planning-support system.
 
-It defines logical modules, responsibilities, boundaries, and data flow only. It does not choose technologies, design a database schema, define frontend components, create implementation tasks, or replace the accepted product, domain, decision, requirement, and workflow documents.
+It defines logical modules, responsibilities, boundaries, and data flow. Concrete technology directions are selected only by explicit accepted decision/implementation documents and may then be reflected here; this architecture does not independently invent technology choices, design a database schema, define frontend components, create implementation tasks, or replace the accepted product, domain, decision, requirement, and workflow documents.
 
 ## Architecture Principles
 
@@ -267,9 +267,9 @@ The first-slice runtime storage direction is now PostgreSQL-like relational stor
 
 ## Technology Choices
 
-No languages, frameworks, storage systems, infrastructure services, or deployment platforms are selected in this document.
+Technology directions are accepted only through explicit traced decisions/phases rather than being invented by this conceptual architecture. Current accepted directions reflected here include the existing Next.js/TypeScript application scaffold, PostgreSQL/Drizzle persistence direction, and Phase 31.27 Better Auth production authentication/session direction.
 
-Technology choices should be made later only when they can be traced to accepted requirements, decisions, constraints, and implementation goals.
+Exact package versions, production providers, hosting, physical auth schema, email delivery, deployment secrets, and other implementation/operations details remain governed by their own later Contract Gates and accepted decisions.
 
 ## Cross-Cutting Concerns
 
