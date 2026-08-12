@@ -112,7 +112,7 @@ The following must remain true while implementation planning and later technical
 - **Conflicts are only among non-completed plans.** Working sets and final sets that have not become completed-service records can conflict; completed-service records are historical input, not active plan conflicts.
 - **Completed-service records only provide backward non-repetition input.** They are not non-completed plans and are not judged as conflicts.
 - **Final sets are not directly edited.** If a final set must change, it is deleted and recreated according to accepted lifecycle behavior.
-- **Authorization design follows the logical auth/account/role model.** Future account modeling, actor identification, role assignments, and permission checks must use `docs/auth-account-role-model.md` as input while authentication approach remains unresolved.
+- **Authorization design follows the accepted production auth/account/role model.** Production authentication resolves through Better Auth Account/session identity to an active `app_user` Actor, while current church-domain permissions remain authoritative in `app_user_roles` according to Phase 31.27.
 - **First-slice implementation must not exclude congregation-member access.** Preference voting may be outside the first slice, but the first-slice design must leave room for direct congregation member access for own preference votes without granting planning permissions.
 
 ## 3. Not Ready for Implementation Yet
@@ -197,7 +197,7 @@ Build the initial slice around creating, editing, saving, finalizing, deleting, 
 
 - Candidate support may be weak until knowledge and filtering inputs exist.
 - Lifecycle implementation could accidentally force unresolved UI, permission, or persistence decisions too early.
-- Automatic final-set completion details remain unresolved and could block a complete lifecycle slice.
+- Production readiness still depends on later operational concerns such as authentication implementation, deployment, backup/restore, and broader production test strategy.
 
 ### Context Option C — Candidate Selection Prototype First
 
