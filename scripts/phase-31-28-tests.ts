@@ -75,6 +75,10 @@ async function main() {
     assert.equal(internalUsers.rows.length, 2);
     assert.ok(internalUsers.rows.every((row) => String(row.email).startsWith("auth-") && String(row.email).endsWith("@organy.invalid")), "Better Auth email must be synthetic internal data");
     assert.deepEqual(internalUsers.rows.map((row) => row.username), ["phaseadmin", "phasepriest"]);
+    const adminInternalEmail = String(internalUsers.rows.find((row) => row.username === "phaseadmin")?.email ?? "");
+    assert.ok(adminInternalEmail.endsWith("@organy.invalid"));
+    const emailLogin = await authRequest("/sign-in/email", { email: adminInternalEmail, password: "Initial-Admin-28!" });
+    assert.notEqual(emailLogin.status, 200, "protected staff authentication must not expose email/password sign-in");
     const storedPasswords = await pool.query("select password from auth_account order by account_id");
     assert.ok(storedPasswords.rows.every((row) => typeof row.password === "string" && !String(row.password).includes("Initial-")), "stored credentials must not contain plaintext initial passwords");
 
@@ -150,7 +154,10 @@ async function main() {
     assert.equal(changePassword.status, 200, "authenticated owner must change own password");
     const oldLogin = await authRequest("/sign-in/username", { username: "phaseadmin", password: "Initial-Admin-28!" });
     assert.notEqual(oldLogin.status, 200, "old password must stop working");
-    await signIn("phaseadmin", "Changed-Admin-28!");
+    const changedAdminCookie = await signIn("phaseadmin", "Changed-Admin-28!");
+    const signOut = await authRequest("/sign-out", {}, changedAdminCookie);
+    assert.equal(signOut.status, 200, "staff sign-out must succeed");
+    await expectRejected(() => authenticated.getAuthenticatedStaffUser(headers(changedAdminCookie), pool), /sign-in is required/i);
 
     process.env.ORGANY_INITIAL_PASSWORD = "Bootstrap-Admin-28!";
     execFileSync("npx", ["tsx", "scripts/auth-bootstrap-staff.ts", "--actor-id", "phase-31-28-bootstrap", "--display-name", "Bootstrap Admin", "--role", "admin", "--username", "phasebootstrap"], {
