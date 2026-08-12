@@ -3,7 +3,8 @@ import { Pool } from "pg";
 import { PgInteractionRepository } from "../../../src/application/db-interaction-repository";
 import { InteractionService } from "../../../src/application/interaction-service";
 import type { ActorIdentity } from "../../../src/application/interaction-contracts";
-import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { LocalActorError } from "../../../src/application/local-actor";
+import { ProtectedActorError, resolveProtectedActor } from "../../../src/application/protected-actor";
 import { PgReferenceRepertoireRepository, ReferenceRepertoireService } from "../../../src/application/reference-repertoire";
 import { PgReferenceMelodyRepository, ReferenceMelodyService } from "../../../src/application/reference-melody";
 import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommendationService } from "../../../src/application/reference-antiphon-recommendation";
@@ -45,31 +46,32 @@ export async function POST(request: Request) {
   const referenceCandidates = new ReferenceCandidateService(pool);
   const nonRepetitionPeriod = new PostgresNonRepetitionPeriodService(pool);
   try {
-    const resolver = new PostgresLocalActorResolver(pool);
+    const actor = await resolveProtectedActor(request.headers, pool, body.actor);
     switch (body.action) {
-      case "listLocalActors": return NextResponse.json({ success: true, value: await resolver.listActiveUsers() });
-      case "resolveActor": return NextResponse.json({ success: true, value: await resolver.resolve(parseLocalActorContext(body.actor)) });
-      case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await service.saveOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.songId), Number(input.score))); }
+      case "listLocalActors": return NextResponse.json({ success: true, value: [{ id: actor.userId, displayName: actor.displayName, ...(actor.personId ? { personId: actor.personId } : {}), active: true, roles: [actor.role] }] });
+      case "resolveActor": return NextResponse.json({ success: true, value: actor });
+      case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await service.saveOwnPreference(actor, String(input.songId), Number(input.score))); }
       case "getOwnReferencePreference":
-      case "getReferenceOwnPreference": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
+      case "getReferenceOwnPreference": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferenceOwnPreference(actor, input.referenceSongId)); }
       case "saveOwnReferencePreference":
-      case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.score!)); }
-      case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
-      case "getReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId)); }
-      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.organistPersonId, input.active!)); }
-      case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId)); }
-      case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(await resolver.resolve(parseLocalActorContext(body.actor)), input.referenceSongId, input.mergeWithReferenceSongId!)); }
-      case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId)); }
-      case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.antiphonId, input.referenceSongId!)); }
-      case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(await resolver.resolve(parseLocalActorContext(body.actor)), String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
-      case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(await resolver.resolve(parseLocalActorContext(body.actor)))); }
-      case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(await resolver.resolve(parseLocalActorContext(body.actor)), input.months)); }
+      case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(actor, input.referenceSongId, input.score!)); }
+      case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(actor, input.referenceSongId)); }
+      case "getReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.get(actor, input.referenceSongId, input.organistPersonId)); }
+      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(actor, input.referenceSongId, input.organistPersonId, input.active!)); }
+      case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(actor, input.referenceSongId)); }
+      case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(actor, input.referenceSongId, input.mergeWithReferenceSongId!)); }
+      case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(actor, input.antiphonId)); }
+      case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(actor, input.antiphonId, input.referenceSongId!)); }
+      case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(actor, String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
+      case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(actor)); }
+      case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(actor, input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
       case "queryCandidates": return respond({ success: true, value: await referenceCandidates.queryCandidates(referenceCandidateQueryInput(body.input)) });
       case "hydrateCandidates": return respond({ success: true, value: await referenceCandidates.hydrateCandidates(referenceCandidateHydrationInput(body.input)) });
       default: return NextResponse.json({ error: { code: "invalidInput", message: `Unsupported interaction action '${body.action}'.` } }, { status: 400 });
     }
   } catch (error) {
+    if (error instanceof ProtectedActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "unauthenticated" ? 401 : error.code === "invalidInput" ? 400 : 403 });
     if (error instanceof LocalActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : 403 });
     if (error instanceof ReferenceCandidateError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : error.code === "notFound" ? 404 : 500 });
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Interaction API request failed." } }, { status: 500 });

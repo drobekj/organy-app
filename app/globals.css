@@ -1027,3 +1027,53 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.auth-card {
+  width: min(26rem, 100%);
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid #d7d7d7;
+  border-radius: 0.75rem;
+  background: white;
+}
+
+.auth-card label,
+.protected-account-controls form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.auth-card input,
+.protected-account-controls input {
+  min-height: 2.5rem;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+}
+
+.auth-error { color: #a40000; }
+
+.protected-account-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 1rem;
+  border-bottom: 1px solid #e2e2e2;
+  background: #fafafa;
+}
+
+.protected-account-controls form {
+  flex-basis: 100%;
+  display: flex;
+  align-items: end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
