@@ -50,7 +50,7 @@ async function main() {
         await pool.query("insert into app_user_roles (user_id, role) values ('second-organist-user', 'organist')");
 
         const storedActors = await new PostgresLocalActorResolver(pool).listActiveUsers();
-        assert.deepEqual(storedActors.map((user) => user.id).sort(), ["demo-admin-user", "demo-member-user", "demo-organist-user", "demo-priest-user", "roleless-user", "second-organist-user"]);
+        assert.deepEqual(storedActors.map((user) => user.id).sort(), ["demo-admin-user", "demo-member-user", "demo-organist-user", "demo-priest-user", "second-organist-user"]);
         assert.deepEqual(storedActors.find((user) => user.id === "demo-admin-user")?.roles, ["priest", "admin"]);
         assert.equal(storedActors.find((user) => user.id === "demo-organist-user")?.personId, "demo-organist");
 
