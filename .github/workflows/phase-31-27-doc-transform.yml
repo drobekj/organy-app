@@ -1,0 +1,33 @@
+name: Phase 31.27 documentation transform
+
+on:
+  push:
+    branches:
+      - codex/phase-31-27-production-auth-decision
+    paths:
+      - .github/workflows/phase-31-27-doc-transform.yml
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-27-production-auth-decision
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply exact documentation transform
+        run: node scripts/phase-31-27-doc-transform.mjs
+      - name: Commit transformed source-of-truth docs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/architecture.md docs/roadmap.md docs/implementation-preparation.md
+          git diff --cached --check
+          git diff --cached --quiet && { echo "No transformed docs to commit"; exit 1; }
+          git commit -m "Align Phase 31.27 auth source-of-truth docs"
+          git push origin HEAD:codex/phase-31-27-production-auth-decision
