@@ -20,8 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
       - run: node scripts/phase-31-28-fix-verify-type.mjs
-      - run: npx tsc --noEmit
+      - run: npm run typecheck
       - name: Commit verifier type fix
         run: |
           git config user.name "github-actions[bot]"
