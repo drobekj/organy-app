@@ -1,0 +1,154 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { Pool } from "pg";
+import { POST as interactionPost } from "../app/api/interaction/route";
+import { ProtectedActorError, resolveProtectedActor } from "../src/application/protected-actor";
+import { auth } from "../src/auth/server";
+import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required for Phase 31.28 acceptance.");
+if (!process.env.BETTER_AUTH_SECRET) throw new Error("BETTER_AUTH_SECRET is required for Phase 31.28 acceptance.");
+
+const priestPassword = process.env.ORGANY_BOOTSTRAP_PRIEST_PASSWORD;
+const adminPassword = process.env.ORGANY_BOOTSTRAP_ADMIN_PASSWORD;
+if (!priestPassword || !adminPassword || !process.env.ORGANY_BOOTSTRAP_ORGANIST_PASSWORD) {
+  throw new Error("All Phase 31.28 bootstrap password environment variables are required.");
+}
+
+async function signIn(username: string, password: string): Promise<Response> {
+  return auth.api.signInUsername({ body: { username, password }, asResponse: true });
+}
+
+function cookieHeader(response: Response): string {
+  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+  const values = headers.getSetCookie?.() ?? (headers.get("set-cookie") ? [headers.get("set-cookie")!] : []);
+  const cookie = values.map((value) => value.split(";", 1)[0]).filter(Boolean).join("; ");
+  assert.ok(cookie, "successful username sign-in must return a session cookie");
+  return cookie;
+}
+
+async function expectSignInFailure(username: string, password: string) {
+  let failed = false;
+  try {
+    const response = await signIn(username, password);
+    failed = response.status >= 400;
+  } catch {
+    failed = true;
+  }
+  assert.equal(failed, true, `sign-in for ${username} must fail with rejected credentials`);
+}
+
+async function expectProtectedError(action: () => Promise<unknown>, code: ProtectedActorError["code"]) {
+  let caught: unknown;
+  try { await action(); } catch (error) { caught = error; }
+  assert.ok(caught instanceof ProtectedActorError, `expected ProtectedActorError ${code}`);
+  assert.equal(caught.code, code);
+}
+
+async function main() {
+  const pool = new Pool({ connectionString: databaseUrl });
+  try {
+    await seedDemoInteractionKnowledge(pool);
+  } finally {
+    await pool.end();
+  }
+
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  execFileSync(npm, ["run", "db:bootstrap:auth"], { env: process.env, stdio: "inherit" });
+  // Bootstrap is idempotent and must not reset an existing password.
+  execFileSync(npm, ["run", "db:bootstrap:auth"], { env: process.env, stdio: "inherit" });
+
+  const db = new Pool({ connectionString: databaseUrl });
+  try {
+    const accountRows = await db.query(`
+      select u.id auth_user_id, u.username, u.email, l.app_user_id
+      from auth_users u join protected_account_actor_links l on l.auth_user_id = u.id
+      order by u.username
+    `);
+    assert.equal(accountRows.rows.length, 3, "bootstrap creates exactly three protected acceptance accounts");
+    assert.deepEqual(accountRows.rows.map((row) => row.username), ["admin", "organist", "priest"]);
+    assert.deepEqual(accountRows.rows.map((row) => row.app_user_id).sort(), ["demo-admin-user", "demo-organist-user", "demo-priest-user"]);
+    for (const row of accountRows.rows) {
+      assert.match(String(row.email), /^protected-[0-9a-f-]+@organy\.invalid$/i, "auth email stays synthetic/internal");
+      assert.equal(String(row.email).includes(String(row.username)), false, "synthetic email does not derive from the visible username");
+    }
+
+    await expectProtectedError(() => resolveProtectedActor(new Headers(), db), "unauthenticated");
+    await expectSignInFailure("priest", `${priestPassword}-wrong`);
+
+    const priestSignIn = await signIn("priest", priestPassword);
+    assert.equal(priestSignIn.status, 200, "correct priest username/password signs in");
+    const priestCookie = cookieHeader(priestSignIn);
+    const priestHeaders = new Headers({ cookie: priestCookie });
+    const priestActor = await resolveProtectedActor(priestHeaders, db, { role: "priest" });
+    assert.equal(priestActor.userId, "demo-priest-user");
+    assert.equal(priestActor.role, "priest");
+    assert.equal(priestActor.personId, "demo-priest");
+
+    await expectProtectedError(
+      () => resolveProtectedActor(priestHeaders, db, { userId: "demo-admin-user", role: "admin" }),
+      "invalidInput",
+    );
+    await expectProtectedError(() => resolveProtectedActor(priestHeaders, db, { role: "admin" }), "permissionDenied");
+
+    const spoofResponse = await interactionPost(new Request("http://localhost/api/interaction", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: priestCookie },
+      body: JSON.stringify({ action: "setMelodyWindow", input: { months: 1 }, actor: { userId: "demo-admin-user", role: "admin" } }),
+    }));
+    assert.equal(spoofResponse.status, 400, "real Interaction route rejects client-supplied user identity even with a valid session");
+    const spoofBody = await spoofResponse.json() as { error?: { code?: string } };
+    assert.equal(spoofBody.error?.code, "invalidInput");
+
+    const roleEscalation = await interactionPost(new Request("http://localhost/api/interaction", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: priestCookie },
+      body: JSON.stringify({ action: "setMelodyWindow", input: { months: 1 }, actor: { role: "admin" } }),
+    }));
+    assert.equal(roleEscalation.status, 403, "priest session cannot request unassigned admin role");
+
+    await db.query("update app_users set active=false where id='demo-priest-user'");
+    await expectProtectedError(() => resolveProtectedActor(priestHeaders, db, { role: "priest" }), "permissionDenied");
+    await db.query("update app_users set active=true where id='demo-priest-user'");
+
+    const changedPassword = `${priestPassword}-changed`;
+    const changeResult = await auth.api.changePassword({
+      headers: priestHeaders,
+      body: { currentPassword: priestPassword, newPassword: changedPassword, revokeOtherSessions: true },
+    });
+    assert.ok(changeResult, "signed-in user can change own password");
+    await expectSignInFailure("priest", priestPassword);
+    const changedSignIn = await signIn("priest", changedPassword);
+    assert.equal(changedSignIn.status, 200, "new password signs in after own password change");
+    const changedCookie = cookieHeader(changedSignIn);
+    const changedHeaders = new Headers({ cookie: changedCookie });
+    assert.equal((await resolveProtectedActor(changedHeaders, db, { role: "priest" })).userId, "demo-priest-user");
+
+    const adminSignIn = await signIn("admin", adminPassword);
+    assert.equal(adminSignIn.status, 200);
+    const adminCookie = cookieHeader(adminSignIn);
+    const adminMutation = await interactionPost(new Request("http://localhost/api/interaction", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: adminCookie },
+      body: JSON.stringify({ action: "setMelodyWindow", input: { months: 2 }, actor: { role: "admin" } }),
+    }));
+    assert.equal(adminMutation.status, 200, "admin session authorizes a real protected DB mutation");
+    const adminBody = await adminMutation.json() as { success?: boolean };
+    assert.equal(adminBody.success, true);
+
+    const signOutResponse = await auth.api.signOut({ headers: changedHeaders, asResponse: true });
+    assert.equal(signOutResponse.status, 200, "sign-out endpoint succeeds");
+    await expectProtectedError(() => resolveProtectedActor(changedHeaders, db, { role: "priest" }), "unauthenticated");
+
+    console.log("Phase 31.28 protected username/password authentication acceptance: PASS");
+  } finally {
+    await db.end();
+  }
+}
+
+main().catch((error) => {
+  console.error("Phase 31.28 protected username/password authentication acceptance: FAIL");
+  console.error(error);
+  process.exitCode = 1;
+});
