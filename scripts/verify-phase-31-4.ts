@@ -40,7 +40,7 @@ async function main() {
     await withCleanup(async () => {
       await npmRun("db:migrate", isolatedUrl);
       const pool = new Pool({ connectionString: isolatedUrl });
-      let restoreInteractionPool = () => undefined;
+      let restoreInteractionPool: () => void = () => undefined;
       try {
         await seedDemoInteractionKnowledge(pool);
         await pool.query("insert into app_user_roles (user_id, role) values ('demo-admin-user', 'priest') on conflict do nothing");
