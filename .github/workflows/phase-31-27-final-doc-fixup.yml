@@ -1,0 +1,32 @@
+name: Phase 31.27 final documentation fixup
+
+on:
+  push:
+    branches:
+      - codex/phase-31-27-production-auth-decision
+    paths:
+      - .github/workflows/phase-31-27-final-doc-fixup.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fixup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-27-production-auth-decision
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/phase-31-27-final-doc-fixup.mjs
+      - name: Commit final fixup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/implementation-preparation.md
+          git diff --cached --check
+          git diff --cached --quiet && { echo "No fixup to commit"; exit 1; }
+          git commit -m "Remove final stale Phase 31.27 readiness statements"
+          git push origin HEAD:codex/phase-31-27-production-auth-decision
