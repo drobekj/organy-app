@@ -29,3 +29,4 @@ jobs:
           git add -A
           git commit -m "Generate Phase 31.28 Better Auth baseline"
           git push origin HEAD:codex/phase-31-28-protected-staff-auth
+      # retry 2: Drizzle versions aligned to Better Auth 1.6.25 peer requirements
