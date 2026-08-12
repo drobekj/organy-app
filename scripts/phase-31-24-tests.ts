@@ -10,6 +10,8 @@ import { PostgresNonRepetitionPeriodService } from "../src/application/postgres-
 import { ReferenceCandidateService } from "../src/application/reference-candidate-service";
 import { POST, useInteractionPoolForAcceptance } from "../app/api/interaction/route";
 import type { ActorIdentity } from "../src/application/interaction-contracts";
+import { auth } from "../src/auth/server";
+import { provisionStaffAccount } from "../src/auth/provisioning";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for Phase 31.24 acceptance.");
@@ -25,6 +27,7 @@ const polishSongId = "polish:990001";
 const unresolvedSongId = "czech:990003";
 const admin: ActorIdentity = { userId: adminUserId, displayName: "Phase 31.24 Admin", role: "admin" };
 const priest: ActorIdentity = { userId: priestUserId, displayName: "Phase 31.24 Priest", role: "priest" };
+const apiCookies = new Map<string, string>();
 let originalMonths = 2;
 let workingA = "";
 let workingC = "";
@@ -193,9 +196,18 @@ async function apiContractChecks() {
   const restorePool = useInteractionPoolForAcceptance(pool);
   const previousRuntime = process.env.ORGANY_RUNTIME;
   const previousUrl = process.env.DATABASE_URL;
+  const previousSecret = process.env.BETTER_AUTH_SECRET;
+  const previousBaseUrl = process.env.BETTER_AUTH_URL;
   process.env.ORGANY_RUNTIME = "db";
   process.env.DATABASE_URL = databaseUrl;
+  process.env.BETTER_AUTH_SECRET ||= "phase-31-24-regression-secret-long-enough-for-testing";
+  process.env.BETTER_AUTH_URL ||= "http://localhost";
   try {
+    await provisionStaffAccount(pool, { actorUserId: adminUserId, username: `${marker}-admin`.replace(/[^a-zA-Z0-9_]/g, ""), password: "Phase-31-24-Admin!" });
+    await provisionStaffAccount(pool, { actorUserId: priestUserId, username: `${marker}-priest`.replace(/[^a-zA-Z0-9_]/g, ""), password: "Phase-31-24-Priest!" });
+    apiCookies.set(adminUserId, await signIn(`${marker}-admin`.replace(/[^a-zA-Z0-9_]/g, ""), "Phase-31-24-Admin!"));
+    apiCookies.set(priestUserId, await signIn(`${marker}-priest`.replace(/[^a-zA-Z0-9_]/g, ""), "Phase-31-24-Priest!"));
+
     const read = await api("getMelodyWindow", {}, adminUserId, "admin");
     assert.equal(read.status, 200);
     assert.equal(read.body.success, true);
@@ -214,13 +226,29 @@ async function apiContractChecks() {
     restorePool();
     if (previousRuntime === undefined) delete process.env.ORGANY_RUNTIME; else process.env.ORGANY_RUNTIME = previousRuntime;
     if (previousUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousUrl;
+    if (previousSecret === undefined) delete process.env.BETTER_AUTH_SECRET; else process.env.BETTER_AUTH_SECRET = previousSecret;
+    if (previousBaseUrl === undefined) delete process.env.BETTER_AUTH_URL; else process.env.BETTER_AUTH_URL = previousBaseUrl;
   }
 }
 
+async function signIn(username: string, password: string): Promise<string> {
+  const response = await auth.handler(new Request("http://localhost/api/auth/sign-in/username", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://localhost" },
+    body: JSON.stringify({ username, password }),
+  }));
+  assert.equal(response.status, 200, `Phase 31.24 regression staff sign-in failed for ${username}`);
+  const setCookie = response.headers.get("set-cookie");
+  assert.ok(setCookie, "Phase 31.24 regression sign-in must set a session cookie");
+  return setCookie.split(";")[0];
+}
+
 async function api(action: string, input: unknown, userId: string, role: string) {
+  const cookie = apiCookies.get(userId);
+  assert.ok(cookie, `Missing authenticated regression session for ${userId}`);
   const response = await POST(new Request("http://localhost/api/interaction", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", cookie },
     body: JSON.stringify({ action, input, actor: { userId, role } }),
   }));
   return { status: response.status, body: await response.json() };
@@ -233,6 +261,7 @@ async function readMonths(): Promise<number> {
 
 async function cleanup() {
   await pool.query("delete from service_contexts where name like $1", [`${marker}-%`]);
+  await pool.query("delete from auth_user where id in (select auth_user_id from auth_user_actor_links where actor_user_id in ($1, $2))", [adminUserId, priestUserId]);
   await pool.query("delete from app_users where id in ($1, $2)", [adminUserId, priestUserId]);
   await pool.query("delete from catalog_persons where id = $1", [organistPersonId]);
   await pool.query("delete from reference_catalog_songs where id in ($1, $2, $3)", [czechSongId, polishSongId, unresolvedSongId]);
