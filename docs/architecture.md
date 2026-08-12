@@ -3,7 +3,7 @@
 ## Purpose
 This document describes the high-level conceptual application architecture for the liturgical music knowledge-management and planning-support system.
 
-It defines logical modules, responsibilities, boundaries, and data flow only. It does not choose technologies, design a database schema, define frontend components, create implementation tasks, or replace the accepted product, domain, decision, requirement, and workflow documents.
+It defines logical modules, responsibilities, boundaries, and data flow. Concrete technology directions are selected only by explicit accepted decision/implementation documents and may then be reflected here; this architecture does not independently invent technology choices, design a database schema, define frontend components, create implementation tasks, or replace the accepted product, domain, decision, requirement, and workflow documents.
 
 ## Architecture Principles
 
@@ -206,7 +206,7 @@ Boundaries:
 - Legacy `Kazatele` and `Varhanici` records may inform historical person references or future people records, but they are not automatically authenticated users.
 - UI hiding is not sufficient authorization enforcement.
 - Permissions for state-changing actions must be enforced in application/domain behavior, not only by hiding UI controls.
-- This document does not choose an authentication provider, account technology, authentication mechanism, account model, or security infrastructure.
+- Phase 31.27 selects two production access levels: protected admin/priest/organist Accounts use admin-provisioned username/password authentication with PostgreSQL/Drizzle-backed sessions and no public privileged signup; congregation members use nickname-only preference-voter Actors with no login Account or password. Physical auth schema, login/account-admin UI, password-recovery mechanics, nickname UI details, deployment secrets, and security operations remain later implementation concerns.
 
 ## History Module
 
@@ -263,19 +263,19 @@ The technical schema draft adds storage-neutral candidate concepts for later eva
 
 `docs/first-slice-physical-schema-draft.md` provides documentation-only relational table candidates for Planning Lifecycle First under the accepted PostgreSQL-like storage direction: `persons`, `actors`, `role_assignments`, `service_contexts`, `service_sets`, `service_set_rows`, `completed_service_records`, and `completed_service_rows`. The physical schema draft is now interpreted together with `docs/first-slice-schema-open-questions-resolution.md`: opaque stable IDs are accepted at design level; lifecycle timestamps are metadata; persisted service context is created on save or complete; priest and organist are required at application/domain validation for persisted planning/completed contexts; completed and active non-completed planning states should not coexist for the same service context; completed records must be self-contained; and minimal song reference validation remains shape-only until a catalog exists. These remain draft table candidates and design-level resolutions only, not accepted SQL, not Prisma, not migrations, and not implementation artifacts.
 
-The first-slice runtime storage direction is now PostgreSQL-like relational storage, accepted in `docs/adr-first-slice-storage.md`, and was evaluated against `docs/planning-lifecycle-first-schema-subset.md`, `docs/first-slice-storage-decision-preparation.md`, and the accepted single hosted one-congregation deployment assumption. The first-slice ORM/query/migration tooling direction is now Drizzle-like typed SQL/schema toolkit plus migrations, accepted in `docs/adr-first-slice-tooling.md` after evaluation against `docs/first-slice-tooling-decision-preparation.md`, `docs/first-slice-physical-schema-draft.md`, and `docs/first-slice-schema-open-questions-resolution.md`. This does not create schema files, migrations, SQL, package installation, provider selection, hosting selection, auth selection, or implementation. Schema/tooling must keep domain/application lifecycle validation explicit and must not replace it with generated/schema models. Physical schema files, migrations, exact package/version/configuration, hosting provider, database provider, connection management, local development workflow, backup/export/restore design, and auth provider remain unresolved.
+The first-slice runtime storage direction is now PostgreSQL-like relational storage, accepted in `docs/adr-first-slice-storage.md`, and was evaluated against `docs/planning-lifecycle-first-schema-subset.md`, `docs/first-slice-storage-decision-preparation.md`, and the accepted single hosted one-congregation deployment assumption. The first-slice ORM/query/migration tooling direction is now Drizzle-like typed SQL/schema toolkit plus migrations, accepted in `docs/adr-first-slice-tooling.md` after evaluation against `docs/first-slice-tooling-decision-preparation.md`, `docs/first-slice-physical-schema-draft.md`, and `docs/first-slice-schema-open-questions-resolution.md`. This does not create schema files, migrations, SQL, package installation, hosting selection, auth implementation, or deployment. Schema/tooling must keep domain/application lifecycle validation explicit and must not replace it with generated/schema models. Phase 31.27 separately selects admin-provisioned username/password protected Accounts for admin/priest/organist with database-backed sessions and no public privileged signup, while congregation preference voting uses nickname-only Actors without login Accounts; `app_users` / `app_user_roles` remain application Actor/RoleAssignment authority. Physical auth schema, exact auth package version/configuration and Better Auth compatibility proof, login/account-admin UI, password-recovery mechanics, nickname-voter UI/persistence, hosting provider, database provider, connection management, local development workflow, and backup/export/restore design remain later implementation/operations decisions.
 
 ## Technology Choices
 
-No languages, frameworks, storage systems, infrastructure services, or deployment platforms are selected in this document.
+Technology directions are accepted only through explicit traced decisions/phases rather than being invented by this conceptual architecture. Current accepted directions reflected here include the existing Next.js/TypeScript application scaffold, PostgreSQL/Drizzle persistence direction, and Phase 31.27 Better Auth production authentication/session direction.
 
-Technology choices should be made later only when they can be traced to accepted requirements, decisions, constraints, and implementation goals.
+Exact package versions, production providers, hosting, physical auth schema, email delivery, deployment secrets, and other implementation/operations details remain governed by their own later Contract Gates and accepted decisions.
 
 ## Cross-Cutting Concerns
 
 The following concerns must be addressed in future architecture and implementation work, but are not technically designed here:
 
-- authorization enforcement for accepted role permissions;
+- server-side authorization enforcement from authenticated Account → active `app_user` Actor → current `app_user_roles`, according to `docs/production-auth-decision.md`;
 - validation of domain rules in the application/domain layer;
 - preservation and auditability of successful state-changing business actions according to `docs/audit-change-history-policy.md`;
 - safe handling of historical completed-service records;

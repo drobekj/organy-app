@@ -170,6 +170,7 @@ Milestone outcomes:
 
 - Confirm that product, domain, decision, requirement, workflow, and architecture documents are accepted as the implementation baseline.
 - Audit/change-history product policy is resolved: successful state-changing business actions are recorded as append-only explanatory history, separate from Completed-service business history; implementation mechanics remain later work.
+- Production access direction is resolved in Phase 31.27: admin-provisioned username/password protected Accounts for admin/priest/organist, no public privileged signup, PostgreSQL/Drizzle-backed sessions and server-side authorization through the existing Actor/RoleAssignment model; congregation preference voting is nickname-only with no protected Account/password. Implementation mechanics remain later work.
 - Decompose accepted roadmap phases into backlog items only after roadmap acceptance.
 - Develop technical design only after implementation scope is chosen.
 - Design database schema only after technical design begins and accepted domain concepts are stable.
@@ -187,7 +188,7 @@ The following areas are intentionally not ready for implementation from this roa
 - Detailed engineering tickets or sprint-level tasks.
 - Database schema, migrations, import scripts, or persistence design.
 - UI components, screen layouts, interaction design, or visual styling.
-- Authentication, account infrastructure, deployment, operations, backups, or observability.
+- Authentication/account implementation mechanics (auth package installation/version and Better Auth compatibility proof, physical auth schema, protected login/account-admin/password-change UI, nickname-voter UI/persistence, secrets), deployment, operations, backups, or observability; the production access direction is resolved in Phase 31.27.
 - Legacy migration strategy or data-cleaning workflow.
 - Multi-congregation product generalization.
 - Audit/change-history implementation mechanics such as schema, storage, UI, and retention/privacy operations; the product policy is resolved in Phase 31.26.
