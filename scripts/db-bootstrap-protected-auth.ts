@@ -49,6 +49,12 @@ async function main() {
       },
     });
     const authUserId = result.user.id;
+
+    // Account provisioning must not implicitly sign the newly provisioned staff member in.
+    // Better Auth signup may create a database session even when called server-side, so
+    // bootstrap explicitly removes any such session before linking the Account to the Actor.
+    await authPool.query("delete from auth_sessions where user_id = $1", [authUserId]);
+
     await authPool.query(
       "insert into protected_account_actor_links (auth_user_id, app_user_id) values ($1, $2)",
       [authUserId, actorId],
