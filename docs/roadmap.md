@@ -169,6 +169,7 @@ Prepare for implementation only after the accepted product, domain, workflow, re
 Milestone outcomes:
 
 - Confirm that product, domain, decision, requirement, workflow, and architecture documents are accepted as the implementation baseline.
+- Audit/change-history product policy is resolved: successful state-changing business actions are recorded as append-only explanatory history, separate from Completed-service business history; implementation mechanics remain later work.
 - Decompose accepted roadmap phases into backlog items only after roadmap acceptance.
 - Develop technical design only after implementation scope is chosen.
 - Design database schema only after technical design begins and accepted domain concepts are stable.
@@ -189,13 +190,12 @@ The following areas are intentionally not ready for implementation from this roa
 - Authentication, account infrastructure, deployment, operations, backups, or observability.
 - Legacy migration strategy or data-cleaning workflow.
 - Multi-congregation product generalization.
-- Audit or change-history design.
+- Audit/change-history implementation mechanics such as schema, storage, UI, and retention/privacy operations; the product policy is resolved in Phase 31.26.
 - Any application code, tests, tooling changes, or implementation tasks.
 
 ## Open Roadmap Questions
 - What legacy migration strategy should be chosen after legacy data is assessed against the accepted domain model?
 - What future multi-congregation support may be needed, and what changes would be required before expanding beyond one local congregation?
-- What audit or change-history behavior is needed for knowledge changes, repertoire changes, preferences, planning state transitions, and historical records?
 - Which application technologies, storage technologies, and deployment model should be selected after implementation preparation begins?
 
 ## Change Log

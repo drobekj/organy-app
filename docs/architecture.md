@@ -223,7 +223,7 @@ Responsibilities:
 Boundaries:
 
 - History informs future planning but does not reopen or automatically revise past human decisions.
-- Automatic conversion from final set to completed-service record is allowed by product direction but remains insufficiently specified for detailed architecture.
+- Automatic conversion from Final to Completed is resolved: a Final whose service date is strictly before the current `Europe/Prague` calendar date is converted at the next normal application reconciliation opportunity; service time is informational and does not affect eligibility.
 
 ## Conceptual Data Flow
 
@@ -277,10 +277,16 @@ The following concerns must be addressed in future architecture and implementati
 
 - authorization enforcement for accepted role permissions;
 - validation of domain rules in the application/domain layer;
-- preservation and auditability of shared planning knowledge;
+- preservation and auditability of successful state-changing business actions according to `docs/audit-change-history-policy.md`;
 - safe handling of historical completed-service records;
 - configuration management for the non-repetition period;
 - traceability from implementation behavior to requirements and decisions.
+
+## Audit and Change-History Policy
+
+The product-level audit policy is resolved in `docs/audit-change-history-policy.md`. Audit/change history records successful state-changing business actions in shared knowledge, repertoire, preferences, and Planning lifecycle transitions. Each logical event must preserve stable explanatory context for when the change occurred, who or the system performed it, what business action and object were involved, and what changed. Human actor context is historical snapshot data; automatic transitions use actor kind `system`.
+
+Audit/change history is append-only explanatory history and is initially admin read-only. It is not event sourcing, restore/undo behavior, read telemetry, failed-authorization/security logging, or a replacement for Completed-service records. Completed-service records remain the authoritative business history of services. Physical schema, payload encoding, indexing, pagination, retention/privacy operations, and UI layout remain later implementation/operations decisions.
 
 ## Deployment and Operations
 
@@ -290,7 +296,5 @@ Operational decisions should respect the current one-local-congregation scope an
 
 ## Open Architecture Questions
 
-- How should final sets be converted to completed-service records automatically, if automatic conversion is implemented?
 - How should legacy data be assessed and migrated, if migration is chosen?
 - What application and storage technologies should implement these conceptual modules?
-- What audit or change-history behavior is needed for knowledge changes, repertoire changes, preferences, and planning state transitions?

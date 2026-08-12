@@ -308,13 +308,13 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Completed-service records preserve ordered rows and concrete song use, provide backward non-repetition input, and are not treated as editable non-completed plans.
 - **Status:** Accepted
 
-### HR-002 — Clarify audit and change-history needs
+### HR-002 — Preserve audit and change history for successful business changes
 
-- **Type:** Open question
-- **Goal:** Determine what auditability or change history is needed for shared knowledge changes, repertoire changes, preferences, planning transitions, and historical records.
-- **Source / traceability:** Architecture Cross-Cutting Concerns; Architecture Open Architecture Questions; Roadmap Open Roadmap Questions.
-- **Acceptance direction:** Product and architecture sources clarify audit/change-history expectations before detailed implementation planning defines mechanisms.
-- **Status:** Open
+- **Type:** Product backlog item
+- **Goal:** Preserve an explanatory, append-only history of successful state-changing business actions across shared knowledge, repertoire, preferences, and Planning lifecycle transitions.
+- **Source / traceability:** Architecture Cross-Cutting Concerns; `docs/audit-change-history-policy.md`; Phase 31.26 Contract Gate #164.
+- **Acceptance direction:** Audit records answer when, who/system, what action, what business object, and what changed; they preserve stable actor/system and before/after-or-delta context, remain separate from Completed-service business history, are initially admin read-only, and do not provide undo/restore behavior.
+- **Status:** Accepted
 
 ## 10. Roles and Permissions
 
