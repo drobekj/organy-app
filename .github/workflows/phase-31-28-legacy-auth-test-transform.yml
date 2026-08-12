@@ -1,0 +1,28 @@
+name: Phase 31.28 one-shot historical auth test adaptation
+
+on:
+  push:
+    branches:
+      - codex/phase-31-28-protected-auth
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/phase-31-28-protected-auth
+      - name: Adapt historical route tests
+        run: node scripts/phase-31-28-legacy-auth-test-transform.mjs
+      - name: Commit adapted tests
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add scripts/phase-31-24-tests.ts scripts/phase-31-25-tests.ts scripts/verify-phase-31-4.ts
+          git diff --cached --check
+          git commit -m "Phase 31.28 preserve historical route regressions"
+          git push origin HEAD:codex/phase-31-28-protected-auth
