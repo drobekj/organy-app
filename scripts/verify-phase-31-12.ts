@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import { POST, useInteractionPoolForAcceptance } from "../app/api/interaction/route";
 import { POST as planningLifecyclePOST } from "../app/api/planning-lifecycle/route";
 import type { CandidateQueryInput, CandidateQueryResult } from "../src/application/interaction-contracts";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import {
   createDatabaseSql,
   createNpmInvocation,
@@ -274,6 +275,7 @@ async function main() {
       try {
         process.env.DATABASE_URL = databaseUrl;
         process.env.ORGANY_RUNTIME = "db";
+        useLocalActorSimulatorForAcceptance({ userId: "demo-admin-user", role: "admin" });
         await seedFocusedAuthority(pool);
         const beforeReads = await focusedSnapshot(pool);
         await verifyAuthoritativeCandidates(pool);

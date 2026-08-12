@@ -8,6 +8,7 @@ import { DbInteractionClient, MemoryInteractionClient } from "../app/planning-li
 import { InMemoryInteractionRepository } from "../src/application/interaction-contracts";
 import { CatalogService, InMemoryCatalogRepository } from "../src/application/catalog";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 type Result = { status: number; body: any };
@@ -31,6 +32,7 @@ async function main() {
       await seedDb.query("insert into app_user_roles (user_id, role) values ('no-profile-user', 'priest'), ('inactive-preference-user', 'priest')");
     } finally { await seedDb.end(); }
     process.env.DATABASE_URL = isolatedUrl; process.env.ORGANY_RUNTIME = "db";
+    useLocalActorSimulatorForAcceptance({ userId: "demo-priest-user", role: "priest" });
     const priest = { userId: "demo-priest-user", role: "priest" }; const organist = { userId: "demo-organist-user", role: "organist" }; const member = { userId: "demo-member-user", role: "congregationMember" };
     for (const [actor, maximum, category] of [[priest, 3, "priest"], [organist, 2, "organist"], [member, 1, "congregationMember"]] as const) {
       const initial = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, actor); assert.equal(initial.status, 200); assert.equal(initial.body.value.score, null); assert.equal(initial.body.value.limit, maximum); assert.equal(initial.body.value.category, category);
@@ -61,7 +63,7 @@ async function main() {
     const noProfile = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, { userId: "no-profile-user", role: "priest" }); assert.equal(noProfile.status, 404); assert.equal(noProfile.body.error.code, "notFound");
     const adminWithoutProfile = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, { userId: "demo-admin-user", role: "admin" }); assert.equal(adminWithoutProfile.status, 404); assert.equal(adminWithoutProfile.body.error.code, "notFound");
     const forged = await invoke("saveReferenceOwnPreference", { referenceSongId: "czech:2", score: 3, profileId: "pref-priest", category: "priest" }, member); assert.equal(forged.status, 400); assert.equal(forged.body.error.code, "invalidInput");
-    for (const actor of [undefined, null, {}, { userId: "" }, { userId: "demo-priest-user", role: "bogus" }]) { const result = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, actor); assert.equal(result.status, 400); assert.equal(result.body.error.code, "invalidInput"); }
+    for (const actor of [null, {}, { userId: "" }, { userId: "demo-priest-user", role: "bogus" }]) { const result = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, actor); assert.equal(result.status, 400); assert.equal(result.body.error.code, "invalidInput"); }
     for (const actor of [{ userId: "unknown-user" }, { userId: "inactive-preference-user" }, { userId: "roleless-preference-user" }, { userId: "demo-priest-user", role: "organist" }]) { const result = await invoke("getReferenceOwnPreference", { referenceSongId: "czech:1" }, actor); assert.equal(result.status, 403); assert.equal(result.body.error.code, "permissionDenied"); }
     const tracker = new ReferencePreferenceRequestTracker(); const applied: string[] = []; const staleLoad = tracker.begin(); const currentLoad = tracker.begin(); if (tracker.isCurrent(staleLoad)) applied.push("stale-record-or-actor"); if (tracker.isCurrent(currentLoad)) applied.push("current-record-and-actor"); assert.deepEqual(applied, ["current-record-and-actor"]); tracker.invalidate(); if (tracker.isCurrent(currentLoad)) applied.push("stale-save"); assert.deepEqual(applied, ["current-record-and-actor"]);
     const memoryClient = new MemoryInteractionClient(new InMemoryInteractionRepository(), new CatalogService(new InMemoryCatalogRepository())); assert.equal((await memoryClient.getReferenceOwnPreference()).success, false); assert.equal((await memoryClient.saveReferenceOwnPreference()).success, false);

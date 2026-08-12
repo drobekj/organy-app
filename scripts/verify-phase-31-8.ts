@@ -11,6 +11,7 @@ import { seedDemoInteractionKnowledge } from "../src/application/interaction-see
 import { loadAndValidateReferenceCatalog, synchronizeReferenceCatalog } from "../src/application/reference-catalog-sync";
 import { PgReferenceMelodyRepository } from "../src/application/reference-melody";
 import { ReferenceMelodyRequestStateController } from "../src/application/reference-melody-request-state";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 type Result = { status: number; body: any }; type Actor = { userId: string; role?: any };
@@ -30,7 +31,7 @@ async function main() {
  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for Phase 31.8 verification.");
  const guardUrl=process.env.DATABASE_URL, guard=parseGuardDatabaseUrl(guardUrl), control=new Pool({connectionString:deriveControlUrl(guard)}), initialGuardPool=new Pool({connectionString:guardUrl}); const before=await fingerprint(initialGuardPool); await initialGuardPool.end(); const name=generateE1DatabaseName(); await control.query(createDatabaseSql(name)); const url=deriveDatabaseUrl(guard,name), oldRuntime=process.env.ORGANY_RUNTIME;
  try { await withCleanup(async()=>{
-  await run("db:migrate",url); await run("db:sync:reference-catalog",url); process.env.DATABASE_URL=url; process.env.ORGANY_RUNTIME="db"; const db=new Pool({connectionString:url});
+  await run("db:migrate",url); await run("db:sync:reference-catalog",url); process.env.DATABASE_URL=url; process.env.ORGANY_RUNTIME="db"; useLocalActorSimulatorForAcceptance(); const db=new Pool({connectionString:url});
   try {
    // 1-3: full schema, constraints, index, counts, and one membership per song.
    const columns=await db.query("select table_name,column_name,is_nullable,column_default,data_type from information_schema.columns where table_name in ('reference_melody_classes','reference_song_melody_memberships') order by table_name,ordinal_position"); assert.equal(columns.rows.length,6); assert.ok(columns.rows.every(r=>r.is_nullable==='NO')); assert.ok(columns.rows.filter(r=>String(r.column_name).endsWith('_at')).every(r=>String(r.data_type).includes('timestamp')&&r.column_default));

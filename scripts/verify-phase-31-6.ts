@@ -6,6 +6,7 @@ import { POST } from "../app/api/interaction/route";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
 import { DbInteractionClient } from "../app/planning-lifecycle-client";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 type Result = { status: number; body: any };
@@ -22,6 +23,7 @@ async function main() {
       await npmRun("db:migrate", isolatedUrl); await npmRun("db:sync:reference-catalog", isolatedUrl);
       const seed = new Pool({ connectionString: isolatedUrl }); try { await seedDemoInteractionKnowledge(seed); await seed.query("insert into app_users (id, display_name, active) values ('aggregate-no-profile', 'Aggregate Reader', true), ('aggregate-inactive', 'Inactive Reader', false)"); await seed.query("insert into app_user_roles (user_id, role) values ('aggregate-no-profile', 'priest'), ('aggregate-no-profile', 'organist'), ('aggregate-no-profile', 'congregation_member'), ('aggregate-no-profile', 'admin'), ('aggregate-inactive', 'priest')"); } finally { await seed.end(); }
       process.env.DATABASE_URL = isolatedUrl; process.env.ORGANY_RUNTIME = "db";
+      useLocalActorSimulatorForAcceptance();
       const priest = { userId: "demo-priest-user", role: "priest" }; const organist = { userId: "demo-organist-user", role: "organist" }; const member = { userId: "demo-member-user", role: "congregationMember" }; const admin = { userId: "demo-admin-user", role: "admin" };
       const beforeCandidates = await invoke("queryCandidates", { serviceDate: "2026-07-27", serviceLanguage: "czech", preferenceThreshold: 0, candidateUsages: [] }, priest);
       for (const actor of [priest, organist, member, admin]) { const empty = await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, actor); assert.equal(empty.status, 200); assert.deepEqual(empty.body.value, { referenceSongId: "czech:1", aggregateScore: 0 }); }

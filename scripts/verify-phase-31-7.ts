@@ -6,6 +6,7 @@ import { POST } from "../app/api/interaction/route";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
 import { DbInteractionClient } from "../app/planning-lifecycle-client";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 type Result = { status: number; body: any };
@@ -71,6 +72,7 @@ async function main() {
       } finally { await db.end(); }
 
       process.env.DATABASE_URL = isolatedUrl; process.env.ORGANY_RUNTIME = "db";
+      useLocalActorSimulatorForAcceptance();
       const organist = { userId: "demo-organist-user", role: "organist" }; const otherOrganist = { userId: "other-organist-user", role: "organist" }; const admin = { userId: "demo-admin-user", role: "admin" }; const priest = { userId: "demo-priest-user", role: "priest" }; const member = { userId: "demo-member-user", role: "congregationMember" };
       const beforeCandidates = await invoke("queryCandidates", { serviceDate: "2026-07-28", serviceLanguage: "czech", candidateUsages: [] }, priest);
       const beforePreference = await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, admin);
