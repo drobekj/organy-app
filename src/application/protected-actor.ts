@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type { ActorIdentity, AppUser } from "./interaction-contracts";
 import type { PlanningRole } from "../planning-lifecycle";
+import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver, type LocalActorContext } from "./local-actor";
 import { assertProtectedAuthConfigured, auth } from "../auth/server";
 
 const ROLE_ORDER: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
@@ -29,6 +30,24 @@ export function useProtectedActorForAcceptance(resolver: ProtectedActorAcceptanc
   const previous = acceptanceResolver;
   acceptanceResolver = resolver;
   return () => { acceptanceResolver = previous; };
+}
+
+/**
+ * Compatibility adapter used only by historical route acceptance tests that predate protected sessions.
+ * It preserves their actor/role business assertions without restoring client-selected identity in production.
+ */
+export function useLocalActorSimulatorForAcceptance(defaultContext?: LocalActorContext): () => void {
+  return useProtectedActorForAcceptance(async (_headers, pool, requestedContext) => {
+    try {
+      const context = requestedContext === undefined && defaultContext
+        ? defaultContext
+        : parseLocalActorContext(requestedContext);
+      return await new PostgresLocalActorResolver(pool).resolve(context);
+    } catch (error) {
+      if (error instanceof LocalActorError) throw new ProtectedActorError(error.code, error.message);
+      throw error;
+    }
+  });
 }
 
 export async function resolveProtectedUser(headers: Headers, pool: Pick<Pool, "query">): Promise<AppUser> {
