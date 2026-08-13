@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, and records the first protected staff implementation completed in Phase 31.28.
+This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, records the first protected staff implementation completed in Phase 31.28, and records the nickname-only congregation preference implementation completed in Phase 31.29.
 
 The first production model deliberately distinguishes protected staff access from low-friction congregation voting:
 
@@ -15,10 +15,10 @@ Authentication identity remains separate from the application's Person, Actor, a
 
 This document does not:
 
-- extend Phase 31.28 protected staff authentication into the still-deferred congregation nickname flow or admin account-management UI;
+- extend the implemented Phase 31.28/31.29 identity slices into the still-deferred admin account-management UI;
 - define the final production hosting/secrets/account-recovery operations beyond the implemented protected slice;
 - define exact password-generation, credential-delivery, forgotten-password, or forced-first-change policy;
-- define exact nickname normalization or browser convenience persistence;
+- define stronger nickname normalization, nickname recovery, or long-lived browser convenience persistence;
 - select a hosting provider or production database provider;
 - introduce email magic links, public privileged signup, social OAuth, passkeys, or 2FA;
 - introduce multi-congregation identity/tenancy behavior;
@@ -196,7 +196,7 @@ The nickname model deliberately accepts weak identity:
 - no prevention of one person using several nicknames;
 - reuse of an existing nickname is treated as the same voter profile because the application intentionally has no stronger identity proof.
 
-Exact nickname syntax/normalization and browser remembering of the nickname are implementation/UI details. They must not be mistaken for security boundaries.
+Phase 31.29 implements only trim-only nickname normalization: surrounding whitespace is removed and an empty result is rejected. The active browser voter context is carried separately from Better Auth by an HttpOnly same-site cookie containing only the lightweight congregation Actor id. That cookie is deliberately not proof of real-world nickname ownership, creates no Better Auth Account/session/link rows, and is never accepted by protected Planning/Interaction authorization. Entering the same nickname again intentionally recreates the same weak voter identity. Stronger normalization, nickname recovery, and longer-lived convenience persistence remain deferred.
 
 ## 10. Admin account and role administration
 
@@ -238,7 +238,7 @@ UI hiding remains convenience only for protected permissions. Server-side mutati
 
 Phase 31.26 resolved business audit/change-history policy for its accepted business domains. This model preserves stable protected Actor identity for privileged attribution and a deliberately weak nickname Actor identity for congregation votes.
 
-Phase 31.27 does not silently widen business-audit scope. Account provisioning, password administration, RoleAssignment changes, failed sign-ins, and nickname-voter changes remain later audit/security-policy questions unless already covered by accepted business audit behavior.
+Phase 31.29 does not silently widen business-audit scope. Account provisioning, password administration, RoleAssignment changes, failed sign-ins, and nickname-voter changes remain later audit/security-policy questions unless already covered by accepted business audit behavior.
 
 ## 14. Development and production runtime boundary
 
@@ -254,15 +254,18 @@ Phase 31.28 selects and implements Better Auth `1.6.25` with `@better-auth/drizz
 
 Better Auth's required auth-user email field remains internal implementation data. Phase 31.28 generates a random synthetic `@organy.invalid` value during protected bootstrap; staff do not enter or see that value and do not authenticate with it. This preserves the accepted username/password-only staff experience.
 
+Phase 31.29 does not extend Better Auth to congregation voters. Their lightweight Actor/profile and voter-context cookie remain outside Better Auth persistence and cannot authorize protected staff operations.
+
 ## 16. Resolved and remaining questions
 
-Resolved by corrected Phase 31.27 and implemented for protected staff in Phase 31.28:
+Resolved by corrected Phase 31.27 and implemented through Phase 31.29:
 
 - protected user experience — username + password;
 - protected signup model — none; admin provisions accounts;
 - initial access — admin/current priest/current organist Accounts exist before production handoff;
 - own password change — allowed for signed-in protected users;
 - congregation-member access — nickname-only voter profile, no protected Account or password;
+- congregation nickname-voter creation/reuse and own-preference boundary — implemented in Phase 31.29 with trim-only normalization and no protected authorization authority;
 - nickname abuse prevention — intentionally not attempted;
 - domain-role authority — `app_user_roles`, not the auth library;
 - production protected authorization source — server session → active Actor → current RoleAssignments;
@@ -272,18 +275,16 @@ Resolved by corrected Phase 31.27 and implemented for protected staff in Phase 3
 Still deferred:
 
 - admin account/role-management UI for provisioning future staff after the bootstrap slice;
-- congregation nickname-voter creation/reuse and preference-only access implementation;
 - production initial-password generation/delivery procedure, forgotten-password/reset, and forced-first-change policy;
-- nickname normalization and convenience persistence;
+- stronger nickname normalization, nickname recovery, and long-lived convenience persistence;
 - production hosting/secrets/backup design;
 - identity/security audit and telemetry policy;
 - any future OAuth, passkey, 2FA, or multi-congregation expansion.
 
 ## 17. What this enables next
 
-Phase 31.28 closes the first protected staff authentication slice. Remaining identity/access work can now be split without reopening that login boundary:
+Phase 31.29 closes the first protected staff authentication slice plus the separate nickname-only congregation own-preference boundary. Remaining identity/access work can now proceed without reopening either identity model:
 
-- nickname-only congregation voter creation/reuse and own-preference boundary;
 - admin UI for creating/deactivating future protected staff Accounts and maintaining privileged RoleAssignments, including last-active-admin protection;
 - explicit password reset/recovery and credential-delivery policy;
 - production deployment/secrets/operations hardening;
