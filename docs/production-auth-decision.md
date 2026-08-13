@@ -16,7 +16,7 @@ Admin provisions a protected Account, chooses its username, sets an initial pass
 
 The first production handoff must already have the initial admin and current priest/organist protected Accounts provisioned. When a new priest or organist later needs access, an admin provisions that Account; the newcomer does not register themselves.
 
-Better Auth remains the selected authentication/session candidate with the existing PostgreSQL direction through the Better Auth Drizzle adapter and database-backed sessions. The intended Better Auth capability set is username support over password credentials with public signup disabled. The exact package/configuration is reverified and pinned only in the implementation phase.
+Phase 31.28 implements the first protected staff slice with Better Auth `1.6.25`, `@better-auth/drizzle-adapter` `1.6.25`, and Drizzle ORM `0.45.2`. Protected staff sign in by username + password, sessions are database-backed, public privileged signup remains disabled in normal runtime, and authenticated identity resolves to the existing Actor/RoleAssignment model.
 
 ### Congregation-member voting access
 
@@ -175,13 +175,29 @@ These may be revisited only by a later accepted decision.
 
 Current Better Auth documentation confirms username + password sign-in, disabling email/password signup, and changing the signed-in user's own password.
 
-Better Auth also currently requires an email field on its auth user record even when username authentication is used. The product **does not** therefore gain an email-login or email-verification requirement. The implementation phase must prove a clean non-user-facing treatment of that library field. If Better Auth would force email into the admin/user workflow in a way that conflicts with this accepted username/password product model, the authentication library choice must be revisited rather than changing the product behavior to fit the library.
+Better Auth also requires an email field on its auth user record even when username authentication is used. Phase 31.28 proves a clean non-user-facing treatment: protected bootstrap generates an internal random `@organy.invalid` email value that is never requested from staff, displayed as account data, used as the login identifier, or used for email verification. The product therefore remains username + password. If a future Better Auth change made this separation impossible, the library choice must still be revisited rather than changing the product behavior.
 
 ## Audit and security boundary
 
 Phase 31.26 defines business audit history for its accepted business domains. This auth decision does not silently redefine that scope.
 
 Whether protected account creation, role administration, password changes/failures, sign-in failures, or nickname-voter changes belong in business audit history, a security log, or both remains a later explicit identity/security decision.
+
+## Phase 31.28 implementation status
+
+Implemented for protected admin/priest/organist DB-runtime access:
+
+- pinned Better Auth/Drizzle authentication stack and reviewed auth migration;
+- one-to-one auth-user → `app_users` linkage;
+- protected Next.js auth handler and database-backed sessions;
+- username/password sign-in with no email field in the staff-facing flow;
+- explicit environment-driven bootstrap for initial/local staff Accounts, with no embedded production password;
+- server-authoritative session → active Actor → current `app_user_roles` resolution in protected Catalog, Interaction, and Planning Lifecycle DB routes;
+- rejection of client-supplied user identity and unassigned-role escalation;
+- sign-out and signed-in own-password change;
+- DB runtime no longer exposes `Change user`; memory runtime retains it for deterministic development/testing.
+
+Still not implemented by this slice: congregation nickname voting, admin account/role-management UI for future staff, forgotten-password/reset, forced-first-change, production secret delivery/hosting, OAuth/passkeys/2FA, and identity/security telemetry.
 
 ## External technical basis checked 2026-08-12
 

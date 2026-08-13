@@ -7,6 +7,7 @@ import { PgReferenceAntiphonRecommendationRepository } from "../src/application/
 import { loadAndValidateReferenceAntiphons, synchronizeReferenceAntiphons } from "../src/application/reference-antiphon-sync";
 import { loadAndValidateReferenceCatalog, synchronizeReferenceCatalog } from "../src/application/reference-catalog-sync";
 import type { PlanningRole } from "../src/planning-lifecycle";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl } from "./engineering-e1-core";
 
 const PASS_LINE = "Phase 31.10A authoritative antiphon recommendation backend: PASS";
@@ -222,6 +223,7 @@ async function runAcceptance(databaseUrl: string): Promise<void> {
   let poolError: Error | undefined;
   (pool as Pool & { on(event: "error", listener: (error: Error) => void): void }).on("error", (error) => { poolError ??= error; });
   const restoreRoutePoolLease = useInteractionPoolForAcceptance(pool);
+  useLocalActorSimulatorForAcceptance();
   try {
     await verifySchema(pool);
     await synchronizeReferenceCatalog(pool);

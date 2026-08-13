@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { CatalogService, DrizzleCatalogRepository, type CatalogPerson } from "../../../src/application/catalog";
 import type { PlanningRole, ServiceLanguage } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
-import { LocalActorError, parseLocalActorContext, PostgresLocalActorResolver } from "../../../src/application/local-actor";
+import { ProtectedActorError, resolveProtectedActor } from "../../../src/application/protected-actor";
 
 type CatalogAction = "getPerson" | "getSong" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
 const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
@@ -21,15 +21,13 @@ export async function POST(request: Request) {
   const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
+    const actor = await resolveProtectedActor(request.headers, pool, body.actor);
     const service = new CatalogService(new DrizzleCatalogRepository(drizzle(pool, { schema })));
     let input = body.input as Record<string, unknown>;
-    if (body.action === "savePerson" || body.action === "setSongActive") {
-      const actor = await new PostgresLocalActorResolver(pool).resolve(parseLocalActorContext(body.actor));
-      input = { ...input, role: actor.role };
-    }
+    if (body.action === "savePerson" || body.action === "setSongActive") input = { ...input, role: actor.role };
     return NextResponse.json(await service[body.action](input as never));
   } catch (error) {
-    if (error instanceof LocalActorError) return NextResponse.json({ error: { code: error.code, message: error.message } }, { status: error.code === "invalidInput" ? 400 : 403 });
+    if (error instanceof ProtectedActorError) return protectedActorFailure(error);
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Catalog API failed." } }, { status: 500 });
   } finally { await pool.end(); }
 }
@@ -66,3 +64,7 @@ function validateActionInput(action: CatalogAction, input: unknown): string | un
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
+function protectedActorFailure(error: ProtectedActorError) {
+  const status = error.code === "unauthenticated" ? 401 : error.code === "invalidInput" ? 400 : 403;
+  return NextResponse.json({ error: { code: error.code, message: error.message } }, { status });
+}

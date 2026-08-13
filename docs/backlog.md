@@ -410,13 +410,13 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Acceptance direction:** Future multi-congregation needs may be explored and decided later, but current backlog and implementation preparation do not decompose multi-congregation implementation work.
 - **Status:** Open
 
-### IP-009 — Compare future authentication providers
+### IP-009 — Implement protected staff authentication provider
 
 - **Type:** Product backlog item
-- **Goal:** Compare authentication provider options without selecting a concrete provider or login method.
-- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/deployment-assumptions.md`; Architecture Roles and Permissions module; ADR authorization boundary.
-- **Acceptance direction:** Future comparison evaluates how options support direct access for priest, organist, admin, and congregation member roles while keeping provider selection out of current implementation tasks.
-- **Status:** Proposed
+- **Goal:** Provide the first real protected authentication/session layer for admin, priest, and organist without changing the accepted domain-role model.
+- **Source / traceability:** `docs/auth-account-role-model.md`; `docs/production-auth-decision.md`; Phase 31.27 Contract Gate #166; Phase 31.28 Contract Gate #170; Architecture Roles and Permissions module.
+- **Acceptance direction:** DB runtime uses username/password Better Auth sessions linked one-to-one to active `app_users` Actors, current `app_user_roles` remain authoritative, client user IDs cannot authorize protected operations, staff can change their own password/sign out, and memory-only `Change user` remains a development/test tool. Congregation nickname access and admin account-management UI remain separate later backlog work.
+- **Status:** Accepted
 
 ### IP-010 — Design future account/person/actor schema
 

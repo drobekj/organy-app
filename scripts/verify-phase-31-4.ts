@@ -7,6 +7,7 @@ import { POST as planningPost } from "../app/api/planning-lifecycle/route";
 import { InMemoryInteractionRepository } from "../src/application/interaction-contracts";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
 import { apiFailure } from "../src/application/api-error";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { createDatabaseSql, createNpmInvocation, deriveControlUrl, deriveDatabaseUrl, dropDatabaseSql, generateE1DatabaseName, parseGuardDatabaseUrl, withCleanup } from "./engineering-e1-core";
 
 type Handler = (request: Request) => Promise<Response>;
@@ -42,10 +43,11 @@ async function main() {
         await pool.query("insert into app_user_roles (user_id, role) values ('second-organist-user', 'organist')");
       } finally { await pool.end(); }
       process.env.DATABASE_URL = isolatedUrl; process.env.ORGANY_RUNTIME = "db";
+      const restoreActor = useLocalActorSimulatorForAcceptance({ userId: "demo-admin-user", role: "admin" });
 
       const actors = await invoke(interactionPost, "listLocalActors", {});
-      assert.equal(actors.status, 200); assert.deepEqual(actors.body.value.map((u: any) => u.id).sort(), ["demo-admin-user", "demo-member-user", "demo-organist-user", "demo-priest-user", "second-organist-user"]);
-      assert.deepEqual(actors.body.value.find((u: any) => u.id === "demo-admin-user").roles, ["priest", "admin"]);
+      assert.equal(actors.status, 200); assert.deepEqual(actors.body.value.map((u: any) => u.id), ["demo-admin-user"]);
+      assert.deepEqual(actors.body.value[0].roles, ["admin"]);
       assert.equal((await invoke(catalogPost, "listSongs", {})).body.success, true);
       assert.equal((await invoke(interactionPost, "listKnowledge", {})).body.success, true);
       assert.equal((await invoke(planningPost, "listPlanningSets", {})).body.success, true);
@@ -58,7 +60,7 @@ async function main() {
       assert.equal(explicitAdmin.body.value.role, "admin");
       const fallback = await invoke(interactionPost, "resolveActor", {}, { userId: "demo-admin-user" });
       assert.equal(fallback.body.value.role, "priest");
-      for (const actor of [undefined, null, {}, { userId: "" }, { userId: "demo-admin-user", role: "bogus" }]) { const result = await invoke(interactionPost, "setMelodyWindow", { months: 1 }, actor); assert.equal(result.status, 400); assert.equal(result.body.error.code, "invalidInput"); }
+      for (const actor of [null, {}, { userId: "" }, { userId: "demo-admin-user", role: "bogus" }]) { const result = await invoke(interactionPost, "setMelodyWindow", { months: 1 }, actor); assert.equal(result.status, 400); assert.equal(result.body.error.code, "invalidInput"); }
       for (const actor of [{ userId: "unknown-user" }, { userId: "inactive-user" }, { userId: "roleless-user" }, { userId: "demo-admin-user", role: "organist" }]) { const result = await invoke(interactionPost, "setMelodyWindow", { months: 1 }, actor); assert.equal(result.status, 403); assert.equal(result.body.error.code, "permissionDenied"); }
 
       for (const actor of [{ userId: "demo-priest-user", role: "priest" }, { userId: "demo-organist-user", role: "organist" }, { userId: "demo-member-user", role: "congregationMember" }]) {
@@ -99,6 +101,7 @@ async function main() {
       const memory = new InMemoryInteractionRepository();
       assert.equal(memory.resolveActor("demo-organist-user", "organist")?.personId, "demo-organist");
       assert.equal(memory.setRepertoire(memory.resolveActor("demo-organist-user", "organist")!, "demo-organist", "demo-pl-101", true), true);
+      restoreActor();
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); });
     process.env.DATABASE_URL = guardUrl;
     assert.equal(await fingerprint(guardUrl), before);

@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the logical authentication, account, actor, voter-identity, and role model for the app and records the production access direction corrected in Phase 31.27.
+This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, and records the first protected staff implementation completed in Phase 31.28.
 
 The first production model deliberately distinguishes protected staff access from low-friction congregation voting:
 
@@ -15,8 +15,8 @@ Authentication identity remains separate from the application's Person, Actor, a
 
 This document does not:
 
-- install or pin an auth package version;
-- define physical auth tables, migrations, SQL, API routes, or final UI components;
+- extend Phase 31.28 protected staff authentication into the still-deferred congregation nickname flow or admin account-management UI;
+- define the final production hosting/secrets/account-recovery operations beyond the implemented protected slice;
 - define exact password-generation, credential-delivery, forgotten-password, or forced-first-change policy;
 - define exact nickname normalization or browser convenience persistence;
 - select a hosting provider or production database provider;
@@ -250,13 +250,13 @@ Protected production Actor identity comes from authenticated username/password s
 
 ## 15. Better Auth technical boundary
 
-Better Auth remains the selected implementation candidate because current official documentation supports username-based password sign-in, public signup disabling, password change, and database-backed operation.
+Phase 31.28 selects and implements Better Auth `1.6.25` with `@better-auth/drizzle-adapter` `1.6.25` and compatible Drizzle ORM `0.45.2` for the first protected staff slice. Username/password sign-in, database-backed sessions, sign-out, and own-password change are exercised by exact-head PostgreSQL acceptance.
 
-Current Better Auth documentation also requires an email field on the auth user record. This is an implementation compatibility concern only. It does **not** change the accepted product behavior into email login, email verification, or magic links. The implementation phase must prove a clean non-user-facing handling of that field; otherwise the auth-library choice is revisited.
+Better Auth's required auth-user email field remains internal implementation data. Phase 31.28 generates a random synthetic `@organy.invalid` value during protected bootstrap; staff do not enter or see that value and do not authenticate with it. This preserves the accepted username/password-only staff experience.
 
 ## 16. Resolved and remaining questions
 
-Resolved by corrected Phase 31.27:
+Resolved by corrected Phase 31.27 and implemented for protected staff in Phase 31.28:
 
 - protected user experience — username + password;
 - protected signup model — none; admin provisions accounts;
@@ -271,10 +271,9 @@ Resolved by corrected Phase 31.27:
 
 Still deferred:
 
-- exact Better Auth package version and proof/handling of its mandatory internal email field;
-- physical auth schema/migration;
-- exact login/account-admin UI;
-- initial password generation/delivery, forgotten-password/reset, and forced-first-change policy;
+- admin account/role-management UI for provisioning future staff after the bootstrap slice;
+- congregation nickname-voter creation/reuse and preference-only access implementation;
+- production initial-password generation/delivery procedure, forgotten-password/reset, and forced-first-change policy;
 - nickname normalization and convenience persistence;
 - production hosting/secrets/backup design;
 - identity/security audit and telemetry policy;
@@ -282,16 +281,12 @@ Still deferred:
 
 ## 17. What this enables next
 
-The next auth implementation phase can design and implement a bounded slice around:
+Phase 31.28 closes the first protected staff authentication slice. Remaining identity/access work can now be split without reopening that login boundary:
 
-- username/password authentication package/configuration and PostgreSQL/Drizzle auth persistence;
-- protected Account ↔ `app_users` linkage;
-- first-admin and initial priest/organist provisioning;
-- admin protected-account creation for later priest/organist access;
-- protected username/password login and own-password-change UI;
-- server-side Actor resolution/authorization;
-- nickname-only congregation voter creation/reuse and own preference boundary;
-- removing `Change user` as production protected authentication while preserving memory test mode;
-- tests for no public privileged signup, inactive Actors, current roles, last-admin protection, password change, and nickname-only permission isolation.
+- nickname-only congregation voter creation/reuse and own-preference boundary;
+- admin UI for creating/deactivating future protected staff Accounts and maintaining privileged RoleAssignments, including last-active-admin protection;
+- explicit password reset/recovery and credential-delivery policy;
+- production deployment/secrets/operations hardening;
+- any separately accepted security/audit telemetry.
 
-That implementation still requires its own Contract Gate and exact-head acceptance before merge.
+Each remaining slice still requires its own Contract Gate and exact-head acceptance before merge.

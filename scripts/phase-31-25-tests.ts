@@ -17,6 +17,7 @@ import {
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../src/application/planning-lifecycle";
 import type { PlanningSet, ServiceContext } from "../src/planning-lifecycle";
+import { useProtectedActorForAcceptance } from "../src/application/protected-actor";
 
 const fixedNow = new Date("2026-08-10T10:00:00.000Z");
 const finalRows: PlanningSet & { status: "final" } = {
@@ -113,6 +114,7 @@ async function dbAcceptance() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error("DATABASE_URL is required for Phase 31.25 DB acceptance.");
   const pool = new Pool({ connectionString: databaseUrl });
+  const restoreActor = useProtectedActorForAcceptance(async () => ({ userId: "phase31.25-acceptance", displayName: "Phase 31.25 acceptance", role: "admin" }));
   const db = drizzle(pool, { schema }) as NodePgDatabase<typeof schema>;
   const marker = `Phase 31.25 ${process.pid}-${Date.now()}`;
   const deps: PlanningLifecycleDrizzleAdapterDependencies & { now: () => Date } = { db, now: () => new Date(fixedNow) };
@@ -200,6 +202,7 @@ async function dbAcceptance() {
     const idempotentRetry = await new DrizzleFinalSetCompletionRepository(deps).completeFinalSet(failureFinal.id, fixedNow);
     assert.equal(idempotentRetry.status, "notFound", "completed Final cannot be duplicated");
   } finally {
+    restoreActor();
     if (rollbackTriggerName) await pool.query(`drop trigger if exists ${rollbackTriggerName} on service_sets`).catch(() => undefined);
     if (rollbackFunctionName) await pool.query(`drop function if exists ${rollbackFunctionName}()`).catch(() => undefined);
     await pool.query("delete from service_contexts where priest_display_name like $1", [`${marker}%`]).catch(() => undefined);

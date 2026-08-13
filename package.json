@@ -79,21 +79,25 @@
     "test:phase-31-18": "tsx scripts/phase-31-18-tests.tsx",
     "verify:phase-31-18": "tsx scripts/verify-phase-31-18.ts && npm run test:phase-31-18",
     "test:phase-31-20": "tsx scripts/phase-31-20-tests.tsx",
-    "verify:phase-31-20": "npm run test:phase-31-20 && tsx scripts/verify-phase-31-20.ts"
+    "verify:phase-31-20": "npm run test:phase-31-20 && tsx scripts/verify-phase-31-20.ts",
+    "db:bootstrap:auth": "tsx scripts/db-bootstrap-protected-auth.ts",
+    "test:phase-31-28": "tsx scripts/phase-31-28-tests.ts"
   },
   "dependencies": {
+    "@better-auth/drizzle-adapter": "1.6.25",
+    "better-auth": "1.6.25",
+    "drizzle-orm": "0.45.2",
     "next": "16.2.10",
     "react": "19.2.7",
-    "react-dom": "19.2.7",
-    "drizzle-orm": "^0.44.2"
+    "react-dom": "19.2.7"
   },
   "devDependencies": {
     "@types/node": "26.1.1",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "typescript": "6.0.3",
     "drizzle-kit": "^0.31.1",
     "pg": "^8.16.3",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript": "6.0.3"
   }
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { Pool } from "pg";
 import { POST } from "../app/api/planning-lifecycle/route";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import {
   createDatabaseSql,
   createNpmInvocation,
@@ -187,6 +188,7 @@ async function main() {
         await verifySchema(pool);
         process.env.DATABASE_URL = databaseUrl;
         process.env.ORGANY_RUNTIME = "db";
+        useLocalActorSimulatorForAcceptance();
         await verifyLifecycle(pool);
       } finally { await pool.end(); }
     }, async () => {

@@ -10,6 +10,7 @@ import { PostgresNonRepetitionPeriodService } from "../src/application/postgres-
 import { ReferenceCandidateService } from "../src/application/reference-candidate-service";
 import { POST, useInteractionPoolForAcceptance } from "../app/api/interaction/route";
 import type { ActorIdentity } from "../src/application/interaction-contracts";
+import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for Phase 31.24 acceptance.");
@@ -191,6 +192,7 @@ async function databaseContractChecks() {
 
 async function apiContractChecks() {
   const restorePool = useInteractionPoolForAcceptance(pool);
+  const restoreActor = useLocalActorSimulatorForAcceptance();
   const previousRuntime = process.env.ORGANY_RUNTIME;
   const previousUrl = process.env.DATABASE_URL;
   process.env.ORGANY_RUNTIME = "db";
@@ -211,6 +213,7 @@ async function apiContractChecks() {
     assert.equal(nonAdmin.status, 403);
     assert.equal(nonAdmin.body.error.code, "permissionDenied");
   } finally {
+    restoreActor();
     restorePool();
     if (previousRuntime === undefined) delete process.env.ORGANY_RUNTIME; else process.env.ORGANY_RUNTIME = previousRuntime;
     if (previousUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousUrl;

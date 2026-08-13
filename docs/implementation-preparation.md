@@ -184,7 +184,7 @@ Build the initial slice around creating, editing, saving, finalizing, deleting, 
 - Full preference system.
 - Legacy migration.
 - Multi-congregation support.
-- Production authentication implementation mechanics beyond the Phase 31.27 accepted direction.
+- Production identity/access mechanics beyond the Phase 31.28 protected staff slice, especially congregation nickname access and admin future-account management.
 - Final database schema beyond what is needed for technical design.
 
 **Pros**
@@ -197,7 +197,7 @@ Build the initial slice around creating, editing, saving, finalizing, deleting, 
 
 - Candidate support may be weak until knowledge and filtering inputs exist.
 - Lifecycle implementation could accidentally force unresolved UI, permission, or persistence decisions too early.
-- Production readiness still depends on later operational concerns such as authentication implementation, deployment, backup/restore, and broader production test strategy.
+- Production readiness still depends on remaining identity/account administration, deployment, backup/restore, and broader production test strategy.
 
 ### Context Option C — Candidate Selection Prototype First
 
@@ -244,7 +244,8 @@ A schema draft, first-slice schema subset, storage decision preparation document
 - [ ] Technical architecture beyond scaffold and minimal persistence baseline accepted; the application is not production-ready.
 - [ ] Physical schema files, migrations, package installation, database provider, connection management beyond local `DATABASE_URL`, local database setup workflow, and backup/export/restore design completed.
 - [x] Production access direction selected in Phase 31.27: admin-provisioned username/password protected Accounts for admin/priest/organist + PostgreSQL/Drizzle DB sessions + no public privileged signup + server-side Actor/current-role authorization; congregation voting is nickname-only with no protected Account.
-- [ ] Production auth implementation completed: package/config pin and Better Auth compatibility proof, auth schema+migration, bootstrap and initial staff provisioning, login/account-admin/own-password-change UI, session-derived Actor integration, nickname-only voter flow, and cutover tests.
+- [x] Protected staff auth slice implemented in Phase 31.28: pinned Better Auth/Drizzle stack, hidden synthetic internal email compatibility proof, auth schema+migration, explicit bootstrap, username/password login, sign-out, own-password change, session-derived active Actor/current-role authorization, and removal of DB-runtime `Change user`.
+- [ ] Remaining identity/access implementation completed: congregation nickname-only voter flow, admin future-account/role-management UI with last-admin safeguard, and accepted production password-recovery/credential-delivery/secrets operations.
 - [ ] Legacy-data decision made for initial version.
 - [ ] Test strategy defined at a high level.
 
