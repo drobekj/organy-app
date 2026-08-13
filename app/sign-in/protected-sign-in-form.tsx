@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { authClient } from "../../src/auth/client";
+import { PasswordVisibilityField } from "../password-visibility-field";
 
 export function ProtectedSignInForm() {
   const [username, setUsername] = useState("");
@@ -35,10 +36,14 @@ export function ProtectedSignInForm() {
           Username
           <input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required />
         </label>
-        <label>
-          Password
-          <input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-        </label>
+        <PasswordVisibilityField
+          id="sign-in-password"
+          label="Password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
         {error && <p role="alert" className="auth-error">{error}</p>}
         <button type="submit" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
       </form>
