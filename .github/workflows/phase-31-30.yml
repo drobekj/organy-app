@@ -46,7 +46,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Phase 31.30 protected Account admin acceptance
-        run: npm run test:phase-31-30
+        run: npx tsx scripts/phase-31-30-tests.ts
       - name: Complete tests
         run: npm test
       - name: Production build
