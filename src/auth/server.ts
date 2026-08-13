@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { username } from "better-auth/plugins";
+import { APIError } from "better-auth/api";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../db/schema";
@@ -33,6 +34,29 @@ export function createOrganyAuth(options: { allowSignUp?: boolean } = {}) {
         verification: schema.authVerifications,
       },
     }),
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session) => {
+            // Server-side provisioning intentionally creates an unlinked Better Auth user first,
+            // then removes the signup-created session and links the user atomically in the app domain.
+            if (options.allowSignUp === true) return { data: session };
+            const eligible = await authPool.query(`
+              select 1
+              from protected_account_actor_links l
+              join app_users u on u.id = l.app_user_id and u.active = true
+              join app_user_roles r on r.user_id = u.id and r.role in ('admin','priest','organist')
+              where l.auth_user_id = $1
+              limit 1
+            `, [session.userId]);
+            if (!eligible.rows[0]) {
+              throw new APIError("FORBIDDEN", { message: "Protected Account is inactive or has no protected role." });
+            }
+            return { data: session };
+          },
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
       disableSignUp: options.allowSignUp !== true,
