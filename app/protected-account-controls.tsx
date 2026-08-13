@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { authClient } from "../src/auth/client";
+import { PasswordVisibilityField } from "./password-visibility-field";
 
 export function ProtectedAccountControls({ displayName }: { displayName: string }) {
   const [editingPassword, setEditingPassword] = useState(false);
@@ -52,8 +53,23 @@ export function ProtectedAccountControls({ displayName }: { displayName: string 
       <button type="button" onClick={signOut} disabled={pending}>Sign out</button>
       {editingPassword && (
         <form onSubmit={changePassword}>
-          <label>Current password<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>
-          <label>New password<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} required /></label>
+          <PasswordVisibilityField
+            id="current-account-password"
+            label="Current password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(event) => setCurrentPassword(event.target.value)}
+            required
+          />
+          <PasswordVisibilityField
+            id="new-account-password"
+            label="New password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            minLength={8}
+            required
+          />
           <button type="submit" disabled={pending}>{pending ? "Saving…" : "Save password"}</button>
         </form>
       )}
