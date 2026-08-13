@@ -12,7 +12,7 @@ function requiredEnv(name: string): string { const value = process.env[name]; if
 const databaseUrl = requiredEnv("DATABASE_URL");
 const adminPassword = requiredEnv("ORGANY_BOOTSTRAP_ADMIN_PASSWORD");
 const priestPassword = requiredEnv("ORGANY_BOOTSTRAP_PRIEST_PASSWORD");
-requiredEnv("ORGANY_BOOTSTRAP_ORGANIST_PASSWORD");
+const organistPassword = requiredEnv("ORGANY_BOOTSTRAP_ORGANIST_PASSWORD");
 const staffPassword = "Phase31Staff!2026";
 const selfAdminPassword = "Phase31SelfAdmin!2026";
 const testActorIds = ["phase31-staff-user", "phase31-self-admin-user"];
@@ -52,13 +52,22 @@ async function main() {
 
     const adminResponse = await signIn("admin", adminPassword); assert.equal(adminResponse.status, 200); const adminCookie = cookieHeader(adminResponse);
     const priestResponse = await signIn("priest", priestPassword); assert.equal(priestResponse.status, 200); const priestCookie = cookieHeader(priestResponse);
+    const organistResponse = await signIn("organist", organistPassword); assert.equal(organistResponse.status, 200); const organistCookie = cookieHeader(organistResponse);
 
     assert.equal((await adminGet(jsonRequest("GET"))).status, 401, "unauthenticated account administration is rejected");
-    assert.equal((await adminGet(jsonRequest("GET", undefined, priestCookie))).status, 403, "priest cannot administer protected Accounts");
+    assert.equal((await adminGet(jsonRequest("GET", undefined, priestCookie))).status, 403, "priest cannot list protected Accounts");
+    assert.equal((await adminGet(jsonRequest("GET", undefined, organistCookie))).status, 403, "organist cannot list protected Accounts");
+    const adminRolesBeforeUnauthorized = (await db.query("select role from app_user_roles where user_id='demo-admin-user' order by role")).rows.map((row) => row.role);
+    assert.equal((await adminPost(jsonRequest("POST", { action: "updateRoles", appUserId: "demo-admin-user", roles: ["priest"], actor: { role: "admin" } }, priestCookie))).status, 403, "priest cannot forge admin authority for a mutation");
+    assert.equal((await adminPost(jsonRequest("POST", { action: "setActive", appUserId: "demo-admin-user", active: false, actor: { role: "admin" } }, organistCookie))).status, 403, "organist cannot forge admin authority for a mutation");
+    assert.deepEqual((await db.query("select role from app_user_roles where user_id='demo-admin-user' order by role")).rows.map((row) => row.role), adminRolesBeforeUnauthorized, "unauthorized mutations leave admin roles unchanged");
+    assert.equal((await db.query("select active from app_users where id='demo-admin-user'")).rows[0].active, true, "unauthorized mutation cannot deactivate admin");
 
     const voter = await new PostgresCongregationPreferenceService(db).enterNickname("Phase31 Account Admin Forbidden");
     nicknameActorId = voter.context.userId;
-    assert.equal((await adminGet(jsonRequest("GET", undefined, `organy_congregation_voter=${encodeURIComponent(voter.token)}`))).status, 401, "nickname voter cookie is not protected admin authority");
+    const nicknameCookie = `organy_congregation_voter=${encodeURIComponent(voter.token)}`;
+    assert.equal((await adminGet(jsonRequest("GET", undefined, nicknameCookie))).status, 401, "nickname voter cookie is not protected admin authority");
+    assert.equal((await adminPost(jsonRequest("POST", { action: "updateRoles", appUserId: "demo-admin-user", roles: ["priest"], actor: { role: "admin" } }, nicknameCookie))).status, 401, "nickname voter cannot mutate protected Accounts");
 
     const initialListResponse = await adminGet(jsonRequest("GET", undefined, adminCookie)); assert.equal(initialListResponse.status, 200);
     const initialList = await initialListResponse.json() as { accounts: Record<string, unknown>[]; eligibleActors: { appUserId: string }[] };
