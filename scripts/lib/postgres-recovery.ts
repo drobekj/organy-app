@@ -155,8 +155,8 @@ export async function revokeRestoredProtectedSessions(targetUrlText: string): Pr
   const targetUrl = parsePostgresUrl(targetUrlText, "ORGANY_RESTORE_DATABASE_URL");
   const pool = new Pool({ connectionString: targetUrl.toString() });
   try {
-    const result = await pool.query("delete from auth_sessions");
-    return result.rowCount ?? 0;
+    const result = await pool.query("delete from auth_sessions returning id");
+    return result.rows.length;
   } catch {
     throw new Error("Could not revoke restored protected sessions; recovery is not complete.");
   } finally {
