@@ -5,10 +5,13 @@ import { APIError } from "better-auth/api";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "../db/schema";
+import { assertProductionRuntimeConfig } from "../config/production-runtime";
 
 type AuthGlobal = typeof globalThis & { __organyAuthPool?: Pool };
 const authGlobal = globalThis as AuthGlobal;
 
+// Build/test module construction may use this inert local fallback. Protected runtime access
+// always passes through assertProtectedAuthConfigured() before Better Auth session work.
 const databaseUrl = process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/organy_app";
 export const authPool = authGlobal.__organyAuthPool ?? new Pool({ connectionString: databaseUrl });
 if (process.env.NODE_ENV !== "production") authGlobal.__organyAuthPool = authPool;
@@ -16,8 +19,12 @@ if (process.env.NODE_ENV !== "production") authGlobal.__organyAuthPool = authPoo
 const authDb = drizzle(authPool, { schema });
 
 export function assertProtectedAuthConfigured(): void {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for protected DB authentication.");
-  if (!process.env.BETTER_AUTH_SECRET) throw new Error("BETTER_AUTH_SECRET is required for protected DB authentication.");
+  if (process.env.NODE_ENV === "production") {
+    assertProductionRuntimeConfig(process.env);
+    return;
+  }
+  if (!process.env.DATABASE_URL?.trim()) throw new Error("DATABASE_URL is required for protected DB authentication.");
+  if (!process.env.BETTER_AUTH_SECRET?.trim()) throw new Error("BETTER_AUTH_SECRET is required for protected DB authentication.");
 }
 
 export function createOrganyAuth(options: { allowSignUp?: boolean } = {}) {
