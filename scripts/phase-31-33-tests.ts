@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { appendFile, copyFile, mkdir, readFile, rm } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { appendFile, copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Pool } from "pg";
 
@@ -25,6 +25,14 @@ async function main() {
     await insertRepresentativeSourceData();
     const sourceBefore = await sourceSnapshot();
 
+    const unsafeLocalPath = run("scripts/postgres-backup.ts", {
+      ORGANY_BACKUP_FILE: "phase-31-33-unsafe.dump",
+      ORGANY_PG_TOOL_MODE: "path",
+    });
+    assert.notEqual(unsafeLocalPath.status, 0);
+    assert.match(unsafeLocalPath.stderr, /must be inside \.organy-backups/i);
+    assertRedacted(unsafeLocalPath.stdout + unsafeLocalPath.stderr);
+
     const backup = run("scripts/postgres-backup.ts", {
       ORGANY_BACKUP_FILE: backupFile,
       ORGANY_PG_TOOL_MODE: "path",
@@ -42,7 +50,6 @@ async function main() {
     assertRedacted(verify.stdout + verify.stderr);
 
     await copyFile(backupFile, corruptFile);
-    await copyFile(`${backupFile}.sha256`, `${corruptFile}.sha256`);
     const originalManifest = await readFile(`${backupFile}.sha256`, "utf8");
     await appendFile(corruptFile, Buffer.from("phase-31-33-tamper"));
     await writeCorruptManifestWithCorrectName(originalManifest);
@@ -64,6 +71,7 @@ async function main() {
     });
     assert.notEqual(missingRestore.status, 0);
     assert.match(missingRestore.stderr, /artifact was not found/i);
+    assertRedacted(missingRestore.stdout + missingRestore.stderr);
     assert.equal(await targetUserObjectCount(), 0);
 
     const sameTarget = run("scripts/postgres-restore.ts", {
@@ -166,7 +174,7 @@ async function sourceSnapshot() {
         (select count(*)::int from protected_account_actor_links where auth_user_id = 'phase3133-auth' and app_user_id = 'phase3133-admin') link_count,
         (select count(*)::int from app_user_roles where user_id = 'phase3133-admin' and role = 'admin') role_count,
         (select count(*)::int from auth_sessions where id = 'phase3133-session') session_count,
-        (select password from auth_accounts where id = 'phase3133-account') password_hash
+        (select password = 'phase3133-preserved-password-hash' from auth_accounts where id = 'phase3133-account') credential_preserved
     `);
     return result.rows[0];
   } finally {
@@ -185,7 +193,7 @@ async function verifyRestoredRepresentativeData() {
         (select count(*)::int from protected_account_actor_links where auth_user_id = 'phase3133-auth' and app_user_id = 'phase3133-admin') link_count,
         (select count(*)::int from app_user_roles where user_id = 'phase3133-admin' and role = 'admin') role_count,
         (select count(*)::int from auth_sessions) session_count,
-        (select password from auth_accounts where id = 'phase3133-account') password_hash,
+        (select password = 'phase3133-preserved-password-hash' from auth_accounts where id = 'phase3133-account') credential_preserved,
         (select active from app_users where id = 'phase3133-admin') actor_active,
         (select person_id from app_users where id = 'phase3133-admin') person_id
     `);
@@ -196,7 +204,7 @@ async function verifyRestoredRepresentativeData() {
     assert.equal(Number(row.link_count), 1);
     assert.equal(Number(row.role_count), 1);
     assert.equal(Number(row.session_count), 0, "Restored protected sessions must be revoked.");
-    assert.equal(row.password_hash, "phase3133-preserved-password-hash");
+    assert.equal(row.credential_preserved, true, "Protected credential hash must remain present and unchanged.");
     assert.equal(row.actor_active, true);
     assert.equal(row.person_id, "phase3133-person");
   } finally {
@@ -235,11 +243,11 @@ async function targetUserObjectCount(): Promise<number> {
 
 async function writeCorruptManifestWithCorrectName(originalManifest: string) {
   const hash = originalManifest.trim().split(/\s+/)[0];
-  await import("node:fs/promises").then(({ writeFile }) => writeFile(`${corruptFile}.sha256`, `${hash}  ${corruptFile.split(/[\\/]/).pop()}\n`, "utf8"));
+  await writeFile(`${corruptFile}.sha256`, `${hash}  ${basename(corruptFile)}\n`, "utf8");
 }
 
 async function cleanupFiles() {
-  for (const path of [backupFile, `${backupFile}.sha256`, corruptFile, `${corruptFile}.sha256`, missingFile, `${missingFile}.sha256`]) {
+  for (const path of [backupFile, `${backupFile}.sha256`, corruptFile, `${corruptFile}.sha256`, missingFile, `${missingFile}.sha256`, resolve("phase-31-33-unsafe.dump")]) {
     await rm(path, { force: true }).catch(() => undefined);
   }
 }
