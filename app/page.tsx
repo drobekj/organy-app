@@ -13,7 +13,7 @@ export default async function Home() {
     const authenticatedUser = await resolveProtectedUser(await headers(), authPool);
     return (
       <>
-        <ProtectedAccountControls displayName={authenticatedUser.displayName} />
+        <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} />
         <PlanningLifecycleClient runtimeMode="db" authenticatedUser={authenticatedUser} />
       </>
     );
