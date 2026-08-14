@@ -187,10 +187,10 @@ export class PostgresProtectedAccountAdminService {
 export async function replaceCredentialPasswordAndRevokeSessions(client: PoolClient, authUserId: string, password: string) {
   const hashedPassword = await hashPassword(password);
   const updated = await client.query(
-    "update auth_accounts set password = $2, updated_at = now() where user_id = $1 and provider_id = 'credential' and password is not null",
+    "update auth_accounts set password = $2, updated_at = now() where user_id = $1 and provider_id = 'credential' and password is not null returning id",
     [authUserId, hashedPassword],
   );
-  if (updated.rowCount !== 1) throw new ProtectedAccountAdminError("conflict", "Protected credential Account was not found.");
+  if (updated.rows.length !== 1) throw new ProtectedAccountAdminError("conflict", "Protected credential Account was not found.");
   await client.query("delete from auth_sessions where user_id = $1", [authUserId]);
 }
 
