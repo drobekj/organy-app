@@ -1,7 +1,10 @@
+import { PasswordVisibilityField } from "../../password-visibility-field";
+
 type Account = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: string[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
 
-export function ProtectedAccountEditor({ account }: { account: Account }) {
+export function ProtectedAccountEditor({ account, currentAppUserId }: { account: Account; currentAppUserId: string }) {
   const eligibility = account.personId ? [account.personPriest ? "priest" : "", account.personOrganist ? "organist" : ""].filter(Boolean).join(", ") || "none" : undefined;
+  const canResetPassword = account.appUserId !== currentAppUserId;
   return <article className="detail-panel">
     <div className="app-header">
       <div>
@@ -25,5 +28,12 @@ export function ProtectedAccountEditor({ account }: { account: Account }) {
       </div></fieldset>
       <button type="submit">Save roles</button>
     </form>
+    {canResetPassword ? <form action="/api/protected-accounts" method="post" className="planning-form">
+      <input type="hidden" name="action" value="resetPassword" />
+      <input type="hidden" name="appUserId" value={account.appUserId} />
+      <PasswordVisibilityField id={`reset-password-${account.authUserId}`} label="Replacement password" name="password" minLength={8} maxLength={128} autoComplete="new-password" required />
+      <p className="field-help">The replacement password is not displayed again. Hand it to the account owner outside the application.</p>
+      <button type="submit">Reset password and revoke sessions</button>
+    </form> : <p className="field-help">Use Change password on the main screen for your own account.</p>}
   </article>;
 }

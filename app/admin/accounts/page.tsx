@@ -25,7 +25,7 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
     {message && <p className="saved-summary" role="status">{message}</p>}
     {error && <p className="auth-error" role="alert">{error}</p>}
     <section className="detail-panel" aria-label="Provision protected Account"><h2>Provision future staff Account</h2><ProvisionProtectedAccountForm targets={snapshot.eligibleActors} /></section>
-    <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} />)}</div></section>
+    <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} currentAppUserId={currentUser.id} />)}</div></section>
   </section></main>;
 }
 

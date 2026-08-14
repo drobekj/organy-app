@@ -56,6 +56,10 @@ async function perform(service: PostgresProtectedAccountAdminService, headers: H
     const payload = await service.setActive(headers, { appUserId: input.appUserId, active: input.active });
     return { payload, message: payload.account.active ? "Protected Account reactivated." : "Protected Account deactivated.", currentAdminLostAccess: payload.currentAdminLostAccess };
   }
+  if (action === "resetPassword") {
+    const payload = await service.resetPassword(headers, { appUserId: input.appUserId, password: input.password });
+    return { payload, message: "Protected Account password reset. Existing sessions were revoked.", currentAdminLostAccess: false };
+  }
   throw new ProtectedAccountAdminError("invalidInput", "Unsupported protected Account administration action.");
 }
 

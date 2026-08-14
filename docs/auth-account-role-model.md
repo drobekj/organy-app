@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, records the first protected staff implementation completed in Phase 31.28, and records the nickname-only congregation preference implementation completed in Phase 31.29.
+This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, records the protected staff implementation completed in Phase 31.28, the nickname-only congregation preference implementation completed in Phase 31.29, the admin protected Account/RoleAssignment management completed in Phase 31.30, and the protected credential reset/recovery boundary implemented in Phase 31.31.
 
 The first production model deliberately distinguishes protected staff access from low-friction congregation voting:
 
@@ -15,9 +15,9 @@ Authentication identity remains separate from the application's Person, Actor, a
 
 This document does not:
 
-- extend the implemented Phase 31.28/31.29 identity slices into the still-deferred admin account-management UI;
-- define the final production hosting/secrets/account-recovery operations beyond the implemented protected slice;
-- define exact password-generation, credential-delivery, forgotten-password, or forced-first-change policy;
+- define the final production hosting/secrets/operations model beyond the implemented protected account and credential-recovery slices;
+- choose the real-world trusted channel used to hand an initial or replacement password to a protected user;
+- introduce public forgotten-password/reset links, email/SMS credential delivery, or forced-first-password-change policy;
 - define stronger nickname normalization, nickname recovery, or long-lived browser convenience persistence;
 - select a hosting provider or production database provider;
 - introduce email magic links, public privileged signup, social OAuth, passkeys, or 2FA;
@@ -26,7 +26,7 @@ This document does not:
 - add anti-abuse identity proof for congregation nickname voting;
 - define security telemetry or account/role audit persistence.
 
-Those implementation and operations details require later accepted work.
+Those remaining implementation and operations details require later accepted work.
 
 ## 3. Accepted access context
 
@@ -170,11 +170,17 @@ When a new priest or organist later arrives, admin repeats this provisioning pro
 
 An existing protected user enters username + password. Successful authentication creates the protected database-backed session. The server resolves that session to the active Actor and reads current roles from `app_user_roles`.
 
-### Password change
+### Password change and reset
 
 A signed-in protected user may change their own password by providing the current password and a new password through the authentication layer.
 
-Username changes are not a user self-service requirement in this phase. Forgotten-password/reset and forced-first-change behavior are later explicit decisions.
+Phase 31.31 adds a separate admin-owned reset boundary for another protected Account. The authenticated admin supplies an explicit replacement password; the target Account's existing sessions are revoked; username, Actor linkage, Person linkage, active state, and `app_user_roles` remain unchanged. The normal admin boundary does not reset the currently signed-in admin's own password because that user already has the current-password self-service path.
+
+An inactive protected Account may receive a replacement password but remains inactive until separately reactivated through protected Account administration. There is no public forgotten-password/reset-link flow and no email/SMS credential delivery. Initial and replacement passwords are handed to the person outside the application through a trusted congregation/operator channel.
+
+If no authenticated admin can perform a reset, Phase 31.31 provides only an explicit server/operator break-glass procedure for an existing protected admin Account. It requires direct operational access, changes only the credential, revokes that Account's sessions, and does not create roles, reactivate an Actor, or establish a permanent bypass.
+
+Username changes remain outside user self-service. Forced-first-change behavior remains a later explicit decision.
 
 ## 9. Congregation nickname voting
 
@@ -200,15 +206,15 @@ Phase 31.29 implements only trim-only nickname normalization: surrounding whites
 
 ## 10. Admin account and role administration
 
-Admin owns protected Account provisioning and privileged role administration.
+Admin owns protected Account provisioning and privileged role administration. Phase 31.30 implements the normal DB-runtime administration boundary and UI for listing protected Accounts, provisioning future protected staff Accounts for eligible existing Actors, maintaining `admin`/`priest`/`organist` RoleAssignments, and deactivating/reactivating protected Account-linked Actors.
 
-Normal administration must not be able to remove or deactivate the **last active admin**.
+Normal administration cannot remove the `admin` role from or deactivate the **last active protected admin**. Role changes are authoritative immediately because protected authorization reloads current `app_user_roles`. Deactivation revokes the target's existing sessions and prevents new usable protected sessions; reactivation restores sign-in with the same credential when at least one protected role remains.
 
 There is no public privileged signup, shared default production password, or permanent bootstrap backdoor. The first admin is established through an explicit one-off production setup procedure; that setup also provisions the current priest/organist protected Accounts before handoff.
 
-Protected Account deactivation causes the linked Actor to fail server authorization even if the browser still holds an otherwise valid session.
+Nickname-only congregation Actors are excluded from protected Account provisioning and remain outside protected account administration.
 
-Nickname-only congregation Actors are not admin-provisioned Accounts and remain outside protected account administration.
+Phase 31.31 adds admin reset of another protected Account's password without making password data part of account-list output or introducing a public recovery path.
 
 ## 11. Legacy people mapping
 
@@ -230,7 +236,7 @@ For a protected state-changing action the server must:
 
 Client-supplied Actor IDs, role names, or permission claims are not authorization authority for protected operations.
 
-Nickname-only congregation preference operations use a separate narrow boundary: the nickname profile can affect only its own accepted congregation preference votes. Nickname identity cannot authorize planning, repertoire, shared knowledge, privileged role changes, or protected Account administration.
+Nickname-only congregation preference operations use a separate narrow boundary: the nickname profile can affect only its own accepted congregation preference votes. Nickname identity cannot authorize planning, repertoire, shared knowledge, privileged role changes, protected Account administration, or password reset.
 
 UI hiding remains convenience only for protected permissions. Server-side mutation boundaries perform their own authorization checks.
 
@@ -238,7 +244,7 @@ UI hiding remains convenience only for protected permissions. Server-side mutati
 
 Phase 31.26 resolved business audit/change-history policy for its accepted business domains. This model preserves stable protected Actor identity for privileged attribution and a deliberately weak nickname Actor identity for congregation votes.
 
-Phase 31.29 does not silently widen business-audit scope. Account provisioning, password administration, RoleAssignment changes, failed sign-ins, and nickname-voter changes remain later audit/security-policy questions unless already covered by accepted business audit behavior.
+Phases 31.30 and 31.31 do not silently widen business-audit scope. Account provisioning, account activation/deactivation, password administration, RoleAssignment changes, failed sign-ins, and nickname-voter changes remain later audit/security-policy questions unless already covered by accepted business audit behavior.
 
 ## 14. Development and production runtime boundary
 
@@ -256,9 +262,13 @@ Better Auth's required auth-user email field remains internal implementation dat
 
 Phase 31.29 does not extend Better Auth to congregation voters. Their lightweight Actor/profile and voter-context cookie remain outside Better Auth persistence and cannot authorize protected staff operations.
 
+Phase 31.30 reuses the same Better Auth credential/session persistence for normal admin-owned future protected Account provisioning. Church-domain roles remain solely in `app_user_roles` rather than Better Auth admin-role fields.
+
+Phase 31.31 reuses Better Auth's credential password hashing format for explicit replacement passwords, updates only the existing credential Account, and revokes existing target sessions. No reset token, recovery email, or public recovery endpoint is enabled.
+
 ## 16. Resolved and remaining questions
 
-Resolved by corrected Phase 31.27 and implemented through Phase 31.29:
+Resolved by corrected Phase 31.27 and implemented through Phase 31.31:
 
 - protected user experience — username + password;
 - protected signup model — none; admin provisions accounts;
@@ -269,25 +279,29 @@ Resolved by corrected Phase 31.27 and implemented through Phase 31.29:
 - nickname abuse prevention — intentionally not attempted;
 - domain-role authority — `app_user_roles`, not the auth library;
 - production protected authorization source — server session → active Actor → current RoleAssignments;
-- first-admin safety — explicit bootstrap plus last-active-admin protection;
+- future protected staff Account provisioning, protected role maintenance, deactivation/reactivation, and last-active-admin safety — implemented in Phase 31.30;
+- admin reset of another protected Account password with session revocation — implemented in Phase 31.31;
+- public forgotten-password recovery — intentionally not introduced;
+- only-admin credential loss — operator-only break-glass reset of an existing protected admin, with no permanent bypass;
+- credential handoff — outside the application through a trusted local/operator channel;
 - historical people without Accounts remain valid.
 
 Still deferred:
 
-- admin account/role-management UI for provisioning future staff after the bootstrap slice;
-- production initial-password generation/delivery procedure, forgotten-password/reset, and forced-first-change policy;
+- forced-first-password-change policy or any future public/token-based recovery mechanism;
 - stronger nickname normalization, nickname recovery, and long-lived convenience persistence;
-- production hosting/secrets/backup design;
+- production hosting/secrets/backup design and concrete credential-delivery operations;
 - identity/security audit and telemetry policy;
 - any future OAuth, passkey, 2FA, or multi-congregation expansion.
 
 ## 17. What this enables next
 
-Phase 31.29 closes the first protected staff authentication slice plus the separate nickname-only congregation own-preference boundary. Remaining identity/access work can now proceed without reopening either identity model:
+Phase 31.31 closes the planned protected staff authentication, nickname-voter, normal protected Account administration, and minimal credential reset/recovery chain without reopening either identity model.
 
-- admin UI for creating/deactivating future protected staff Accounts and maintaining privileged RoleAssignments, including last-active-admin protection;
-- explicit password reset/recovery and credential-delivery policy;
-- production deployment/secrets/operations hardening;
-- any separately accepted security/audit telemetry.
+Remaining identity/access-adjacent production work can now focus on:
+
+- production deployment, secrets, backup/restore, and operational hardening;
+- separately accepted identity/security audit or telemetry;
+- only separately accepted future UX/security additions such as forced-first-change, stronger recovery, OAuth, passkeys, or 2FA.
 
 Each remaining slice still requires its own Contract Gate and exact-head acceptance before merge.
