@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream } from "node:fs";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { Pool } from "pg";
 
 export type PgToolMode = "path" | "docker-compose";
@@ -37,7 +37,7 @@ export function parsePostgresUrl(value: string, name: string): URL {
   } catch {
     throw new Error(`${name} must be a valid PostgreSQL connection URL.`);
   }
-  if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.hostname || !databaseName(parsed)) {
+  if (!["postgres:", "postgresql:"].includes(parsed.protocol) || !parsed.hostname || !databaseName(parsed)) {
     throw new Error(`${name} must be a valid PostgreSQL connection URL.`);
   }
   return parsed;
@@ -45,7 +45,11 @@ export function parsePostgresUrl(value: string, name: string): URL {
 
 export function backupFileFromEnvironment(): string {
   const explicit = process.env.ORGANY_BACKUP_FILE?.trim();
-  if (explicit) return resolve(explicit);
+  if (explicit) {
+    const explicitPath = resolve(explicit);
+    assertSafeRepositoryLocalBackupPath(explicit, explicitPath);
+    return explicitPath;
+  }
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   return resolve(DEFAULT_BACKUP_DIR, `organy-${stamp}.dump`);
 }
@@ -79,6 +83,7 @@ export async function createLogicalBackup(sourceUrlText: string, backupFile: str
     "--format=custom",
     "--no-owner",
     "--no-privileges",
+    "--no-password",
     "--file",
     backupFile,
     "--dbname",
@@ -138,6 +143,7 @@ export async function restoreLogicalBackup(targetUrlText: string, backupFile: st
     "--single-transaction",
     "--no-owner",
     "--no-privileges",
+    "--no-password",
     "--dbname",
     libpqUrlWithoutPassword(targetUrl),
     backupFile,
@@ -276,10 +282,18 @@ function assertLocalDockerUrl(url: URL, name: string): void {
   }
 }
 
+function assertSafeRepositoryLocalBackupPath(rawPath: string, resolvedPath: string): void {
+  if (isAbsolute(rawPath)) return;
+  const ignoredRoot = resolve(DEFAULT_BACKUP_DIR);
+  const rel = relative(ignoredRoot, resolvedPath);
+  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return;
+  throw new Error(`Repository-local ORGANY_BACKUP_FILE must be inside ${DEFAULT_BACKUP_DIR}/.`);
+}
+
 async function runDockerDump(url: URL, backupFile: string): Promise<void> {
   const args = [
     "compose", "exec", "-T", "postgres", "pg_dump",
-    "--format=custom", "--no-owner", "--no-privileges",
+    "--format=custom", "--no-owner", "--no-privileges", "--no-password",
     "-U", decodeURIComponent(url.username),
     "-d", databaseName(url),
   ];
@@ -289,10 +303,9 @@ async function runDockerDump(url: URL, backupFile: string): Promise<void> {
 async function runDockerRestore(url: URL, backupFile: string): Promise<void> {
   const args = [
     "compose", "exec", "-T", "postgres", "pg_restore",
-    "--exit-on-error", "--single-transaction", "--no-owner", "--no-privileges",
+    "--exit-on-error", "--single-transaction", "--no-owner", "--no-privileges", "--no-password",
     "-U", decodeURIComponent(url.username),
     "-d", databaseName(url),
-    "-",
   ];
   await runCommandFromFile("docker", args, process.env, "docker compose pg_restore", backupFile);
 }
@@ -316,6 +329,14 @@ async function runCommandToFile(command: string, args: string[], env: NodeJS.Pro
     child.stderr?.resume();
     child.stdout?.pipe(output);
     let settled = false;
+    let childSucceeded = false;
+    let outputFinished = false;
+    const maybeResolve = () => {
+      if (!settled && childSucceeded && outputFinished) {
+        settled = true;
+        resolvePromise();
+      }
+    };
     const fail = (message: string) => {
       if (settled) return;
       settled = true;
@@ -325,11 +346,12 @@ async function runCommandToFile(command: string, args: string[], env: NodeJS.Pro
     child.on("error", (error: NodeJS.ErrnoException) => fail(error.code === "ENOENT" ? `${label} tool was not found.` : `${label} could not be started.`));
     child.on("close", (code) => {
       if (code !== 0) return fail(`${label} failed with exit code ${code ?? "unknown"}.`);
-      output.end(() => {
-        if (settled) return;
-        settled = true;
-        resolvePromise();
-      });
+      childSucceeded = true;
+      maybeResolve();
+    });
+    output.on("finish", () => {
+      outputFinished = true;
+      maybeResolve();
     });
     output.on("error", () => fail("Backup artifact could not be written."));
   });
@@ -372,10 +394,11 @@ async function sha256File(path: string): Promise<string> {
 async function refuseExistingPath(path: string, label: string): Promise<void> {
   try {
     await access(path);
-    throw new Error(`${label} already exists; refusing to overwrite it.`);
   } catch (error) {
-    if (error instanceof Error && /already exists/.test(error.message)) throw error;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw new Error(`${label} path could not be checked safely.`);
   }
+  throw new Error(`${label} already exists; refusing to overwrite it.`);
 }
 
 async function requireReadableFile(path: string, label: string): Promise<void> {
