@@ -9,8 +9,7 @@ export type PgToolMode = "path" | "docker-compose";
 
 type DatabaseIdentity = {
   database: string;
-  serverAddress: string;
-  serverPort: number;
+  systemIdentifier: string;
 };
 
 export type RecoverySummary = {
@@ -94,7 +93,7 @@ export async function createLogicalBackup(sourceUrlText: string, backupFile: str
 
 export async function writeIntegrityManifest(backupFile: string): Promise<string> {
   const hash = await sha256File(backupFile);
-  await writeFile(backupManifestPath(backupFile), `${hash}  ${basename(backupFile)}\n`, { encoding: "utf8", flag: "wx" });
+  await writeFile(backupManifestPath(backupFile), `${hash}  ${basename(backupFile)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });
   return hash;
 }
 
@@ -204,15 +203,19 @@ export function pgToolMode(): PgToolMode {
 async function inspectDatabaseIdentity(url: URL, label: string): Promise<DatabaseIdentity> {
   const pool = new Pool({ connectionString: url.toString() });
   try {
-    const result = await pool.query(`select current_database() database, coalesce(inet_server_addr()::text, '') server_address, inet_server_port() server_port`);
+    const result = await pool.query(`
+      select current_database() database,
+             (select system_identifier::text from pg_control_system()) system_identifier
+    `);
     const row = result.rows[0];
+    const systemIdentifier = String(row.system_identifier ?? "");
+    if (!systemIdentifier) throw new Error("missing PostgreSQL system identifier");
     return {
       database: String(row.database),
-      serverAddress: String(row.server_address || url.hostname).toLowerCase(),
-      serverPort: Number(row.server_port || url.port || 5432),
+      systemIdentifier,
     };
   } catch {
-    throw new Error(`Could not inspect the ${label} PostgreSQL database.`);
+    throw new Error(`Could not inspect the ${label} PostgreSQL database identity.`);
   } finally {
     await pool.end().catch(() => undefined);
   }
@@ -260,7 +263,7 @@ async function targetContainsUserObjects(url: URL): Promise<boolean> {
 }
 
 function sameDatabase(a: DatabaseIdentity, b: DatabaseIdentity): boolean {
-  return a.database === b.database && a.serverAddress === b.serverAddress && a.serverPort === b.serverPort;
+  return a.database === b.database && a.systemIdentifier === b.systemIdentifier;
 }
 
 function databaseName(url: URL): string {
@@ -343,7 +346,7 @@ async function runCommand(command: string, args: string[], env: NodeJS.ProcessEn
 
 async function runCommandToFile(command: string, args: string[], env: NodeJS.ProcessEnv, label: string, outputFile: string): Promise<void> {
   await new Promise<void>((resolvePromise, rejectPromise) => {
-    const output = createWriteStream(outputFile, { flags: "wx" });
+    const output = createWriteStream(outputFile, { flags: "wx", mode: 0o600 });
     const child = spawn(command, args, { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     child.stderr?.resume();
     child.stdout?.pipe(output);
