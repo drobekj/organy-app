@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { hashPassword } from "better-auth/crypto";
 import type { Pool, PoolClient } from "pg";
 import { createOrganyAuth } from "../auth/server";
 import { ProtectedActorError, resolveProtectedUser } from "./protected-actor";
@@ -60,7 +61,7 @@ export class PostgresProtectedAccountAdminService {
     await this.requireAdmin(headers);
     const appUserId = requireText(input.appUserId, "Application user is required.");
     const username = validateUsername(input.username);
-    const password = validatePassword(input.password);
+    const password = validatePassword(input.password, "Initial password");
     const roles = validateProtectedRoles(input.roles, true);
     const client = await this.pool.connect();
     let createdAuthUserId: string | undefined;
@@ -138,6 +139,25 @@ export class PostgresProtectedAccountAdminService {
     } finally { client.release(); }
   }
 
+  async resetPassword(headers: Headers, input: { appUserId?: unknown; password?: unknown }) {
+    const currentAdmin = await this.requireAdmin(headers);
+    const appUserId = requireText(input.appUserId, "Application user is required.");
+    if (currentAdmin.id === appUserId) throw new ProtectedAccountAdminError("permissionDenied", "Use Change password to change your own password.");
+    const password = validatePassword(input.password, "Replacement password");
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await serializeAdminMutation(client);
+      const target = await requireLinkedTarget(client, appUserId);
+      await replaceCredentialPasswordAndRevokeSessions(client, target.authUserId, password);
+      await client.query("commit");
+      return { account: await this.getAccount(appUserId), sessionsRevoked: true as const };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw normalizeAdminError(error);
+    } finally { client.release(); }
+  }
+
   private async requireAdmin(headers: Headers) {
     try {
       const user = await resolveProtectedUser(headers, this.pool);
@@ -162,6 +182,16 @@ export class PostgresProtectedAccountAdminService {
     if (!result.rows[0]) throw new ProtectedAccountAdminError("notFound", "Protected Account was not found.");
     return mapAccount(result.rows[0]);
   }
+}
+
+export async function replaceCredentialPasswordAndRevokeSessions(client: PoolClient, authUserId: string, password: string) {
+  const hashedPassword = await hashPassword(password);
+  const updated = await client.query(
+    "update auth_accounts set password = $2, updated_at = now() where user_id = $1 and provider_id = 'credential' and password is not null",
+    [authUserId, hashedPassword],
+  );
+  if (updated.rowCount !== 1) throw new ProtectedAccountAdminError("conflict", "Protected credential Account was not found.");
+  await client.query("delete from auth_sessions where user_id = $1", [authUserId]);
 }
 
 async function serializeAdminMutation(client: PoolClient) { await client.query("select pg_advisory_xact_lock(hashtext('organy-protected-account-admin'))"); }
@@ -192,7 +222,7 @@ async function replaceProtectedRoles(client: PoolClient, appUserId: string, role
 }
 function mapAccount(row: Record<string, unknown>): ProtectedAccountAdminRow { return { authUserId: String(row.auth_user_id), appUserId: String(row.app_user_id), username: String(row.username), displayName: String(row.display_name), active: Boolean(row.active), roles: normalizeProtectedRoles(row.protected_roles), ...(row.person_id ? { personId: String(row.person_id) } : {}), ...(row.person_display_name ? { personDisplayName: String(row.person_display_name) } : {}), ...(row.person_id ? { personPriest: Boolean(row.person_priest), personOrganist: Boolean(row.person_organist) } : {}) }; }
 function validateUsername(value: unknown): string { const username = requireText(value, "Username is required.").toLowerCase(); if (username.length < 3 || username.length > 64 || !/^[a-z0-9._-]+$/.test(username)) throw new ProtectedAccountAdminError("invalidInput", "Username must be 3-64 characters using letters, numbers, dot, underscore, or hyphen."); return username; }
-function validatePassword(value: unknown): string { if (typeof value !== "string" || value.length < 8) throw new ProtectedAccountAdminError("invalidInput", "Initial password must contain at least 8 characters."); return value; }
+function validatePassword(value: unknown, label: string): string { if (typeof value !== "string" || value.length < 8 || value.length > 128) throw new ProtectedAccountAdminError("invalidInput", `${label} must contain 8-128 characters.`); return value; }
 function validateProtectedRoles(value: unknown, requireAtLeastOne: boolean): ProtectedRole[] { if (!Array.isArray(value)) throw new ProtectedAccountAdminError("invalidInput", "Protected roles are required."); const roles = [...new Set(value.map(String))]; if (roles.some((role) => !PROTECTED_ROLES.includes(role as ProtectedRole))) throw new ProtectedAccountAdminError("invalidInput", "Protected roles may contain only admin, priest, or organist."); if (requireAtLeastOne && roles.length === 0) throw new ProtectedAccountAdminError("invalidInput", "At least one protected role is required."); return roles as ProtectedRole[]; }
 function normalizeProtectedRoles(value: unknown): ProtectedRole[] { return normalizeTextArray(value).filter((role): role is ProtectedRole => PROTECTED_ROLES.includes(role as ProtectedRole)); }
 function normalizeTextArray(value: unknown): string[] { if (Array.isArray(value)) return value.map(String); if (typeof value === "string") return value.replace(/[{}]/g, "").split(",").filter(Boolean); return []; }
