@@ -47,7 +47,7 @@ export function backupFileFromEnvironment(): string {
   const explicit = process.env.ORGANY_BACKUP_FILE?.trim();
   if (explicit) {
     const explicitPath = resolve(explicit);
-    assertSafeRepositoryLocalBackupPath(explicit, explicitPath);
+    assertSafeBackupPath(explicitPath);
     return explicitPath;
   }
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
@@ -224,8 +224,18 @@ async function targetContainsUserObjects(url: URL): Promise<boolean> {
     const result = await pool.query(`
       select (
         exists (
-          select 1 from information_schema.tables
-          where table_schema not in ('pg_catalog', 'information_schema')
+          select 1
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname not in ('pg_catalog', 'information_schema')
+            and n.nspname !~ '^pg_toast'
+            and c.relkind in ('r', 'p', 'v', 'm', 'S', 'f', 'c')
+        ) or exists (
+          select 1
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname not in ('pg_catalog', 'information_schema')
+            and n.nspname !~ '^pg_toast'
         ) or exists (
           select 1
           from pg_type t
@@ -233,6 +243,11 @@ async function targetContainsUserObjects(url: URL): Promise<boolean> {
           where n.nspname not in ('pg_catalog', 'information_schema')
             and n.nspname !~ '^pg_toast'
             and t.typtype in ('e', 'd')
+        ) or exists (
+          select 1
+          from pg_namespace n
+          where n.nspname not in ('pg_catalog', 'information_schema', 'public')
+            and n.nspname !~ '^pg_toast'
         )
       ) non_empty
     `);
@@ -282,11 +297,15 @@ function assertLocalDockerUrl(url: URL, name: string): void {
   }
 }
 
-function assertSafeRepositoryLocalBackupPath(rawPath: string, resolvedPath: string): void {
-  if (isAbsolute(rawPath)) return;
+function assertSafeBackupPath(resolvedPath: string): void {
+  const repositoryRoot = resolve(".");
+  const repositoryRelative = relative(repositoryRoot, resolvedPath);
+  const isRepositoryLocal = repositoryRelative === "" || (!repositoryRelative.startsWith("..") && !isAbsolute(repositoryRelative));
+  if (!isRepositoryLocal) return;
+
   const ignoredRoot = resolve(DEFAULT_BACKUP_DIR);
-  const rel = relative(ignoredRoot, resolvedPath);
-  if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) return;
+  const ignoredRelative = relative(ignoredRoot, resolvedPath);
+  if (ignoredRelative !== "" && !ignoredRelative.startsWith("..") && !isAbsolute(ignoredRelative)) return;
   throw new Error(`Repository-local ORGANY_BACKUP_FILE must be inside ${DEFAULT_BACKUP_DIR}/.`);
 }
 
@@ -378,6 +397,7 @@ async function runCommandFromFile(command: string, args: string[], env: NodeJS.P
       code === 0 ? resolvePromise() : rejectPromise(new Error(`${label} failed with exit code ${code ?? "unknown"}.`));
     });
     input.on("error", () => fail("Backup artifact could not be read."));
+    child.stdin?.on("error", () => fail(`${label} could not read the backup artifact stream.`));
   });
 }
 
