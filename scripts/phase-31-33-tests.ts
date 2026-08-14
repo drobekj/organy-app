@@ -14,6 +14,8 @@ const adminUrl = withDatabase(sourceUrl, "postgres");
 const backupFile = resolve(".organy-backups", `phase-31-33-${process.pid}.dump`);
 const corruptFile = resolve(".organy-backups", `phase-31-33-${process.pid}-corrupt.dump`);
 const missingFile = resolve(".organy-backups", `phase-31-33-${process.pid}-missing.dump`);
+const unsafeRelativeFile = resolve("phase-31-33-unsafe.dump");
+const unsafeAbsoluteFile = resolve("phase-31-33-unsafe-absolute.dump");
 const secretPassword = decodeURIComponent(sourceUrl.password || "");
 
 async function main() {
@@ -32,6 +34,14 @@ async function main() {
     assert.notEqual(unsafeLocalPath.status, 0);
     assert.match(unsafeLocalPath.stderr, /must be inside \.organy-backups/i);
     assertRedacted(unsafeLocalPath.stdout + unsafeLocalPath.stderr);
+
+    const unsafeAbsolutePath = run("scripts/postgres-backup.ts", {
+      ORGANY_BACKUP_FILE: unsafeAbsoluteFile,
+      ORGANY_PG_TOOL_MODE: "path",
+    });
+    assert.notEqual(unsafeAbsolutePath.status, 0);
+    assert.match(unsafeAbsolutePath.stderr, /must be inside \.organy-backups/i);
+    assertRedacted(unsafeAbsolutePath.stdout + unsafeAbsolutePath.stderr);
 
     const backup = run("scripts/postgres-backup.ts", {
       ORGANY_BACKUP_FILE: backupFile,
@@ -83,6 +93,18 @@ async function main() {
     assert.match(sameTarget.stderr, /separate database/i);
     assertRedacted(sameTarget.stdout + sameTarget.stderr);
     assert.deepEqual(await sourceSnapshot(), sourceBefore, "source=target rejection must not mutate source.");
+
+    await createTargetSequence();
+    const sequenceOnlyTarget = run("scripts/postgres-restore.ts", {
+      ORGANY_BACKUP_FILE: backupFile,
+      ORGANY_RESTORE_DATABASE_URL: targetUrl.toString(),
+      ORGANY_PG_TOOL_MODE: "path",
+    });
+    assert.notEqual(sequenceOnlyTarget.status, 0);
+    assert.match(sequenceOnlyTarget.stderr, /must be empty/i);
+    assertRedacted(sequenceOnlyTarget.stdout + sequenceOnlyTarget.stderr);
+    await dropTargetSequence();
+    assert.equal(await targetUserObjectCount(), 0);
 
     const restore = run("scripts/postgres-restore.ts", {
       ORGANY_BACKUP_FILE: backupFile,
@@ -231,6 +253,24 @@ async function dropTargetDatabase() {
   }
 }
 
+async function createTargetSequence() {
+  const pool = new Pool({ connectionString: targetUrl.toString() });
+  try {
+    await pool.query("create sequence phase3133_nonempty_sequence");
+  } finally {
+    await pool.end();
+  }
+}
+
+async function dropTargetSequence() {
+  const pool = new Pool({ connectionString: targetUrl.toString() });
+  try {
+    await pool.query("drop sequence phase3133_nonempty_sequence");
+  } finally {
+    await pool.end();
+  }
+}
+
 async function targetUserObjectCount(): Promise<number> {
   const pool = new Pool({ connectionString: targetUrl.toString() });
   try {
@@ -247,7 +287,7 @@ async function writeCorruptManifestWithCorrectName(originalManifest: string) {
 }
 
 async function cleanupFiles() {
-  for (const path of [backupFile, `${backupFile}.sha256`, corruptFile, `${corruptFile}.sha256`, missingFile, `${missingFile}.sha256`, resolve("phase-31-33-unsafe.dump")]) {
+  for (const path of [backupFile, `${backupFile}.sha256`, corruptFile, `${corruptFile}.sha256`, missingFile, `${missingFile}.sha256`, unsafeRelativeFile, unsafeAbsoluteFile]) {
     await rm(path, { force: true }).catch(() => undefined);
   }
 }
