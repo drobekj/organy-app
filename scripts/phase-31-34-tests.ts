@@ -79,7 +79,7 @@ requireText(
     "Neon Auth must not be provisioned",
     "pg_control_system()",
     "temporary outage after free-quota exhaustion",
-    "no paid custom domain requirement",
+    "no custom domain, paid add-on, Vercel Pro trial",
     "no new Vercel project, Neon project/database, payment plan, production secret, DNS change, data cutover, or remote deployment",
   ],
   "production runtime runbook",
