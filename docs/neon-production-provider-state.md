@@ -4,57 +4,66 @@
 
 Phase 31.36 is the Neon-first provider provisioning and recovery-compatibility slice defined by Contract Gate #186.
 
-Current state: **PENDING HUMAN PROVIDER CREATION STEP**.
+Current state: **PROVISIONED / READ-ONLY PROBE PASS**.
 
-No Neon project has been created by this repository change. The connected Neon organization was verified to contain zero projects immediately before the Phase 31.36 provider checkpoint.
+The provider resource was created through the explicit HUMAN Neon Console step and then verified through the connected Neon provider tooling. Repository content records only non-secret facts; provider identifiers, hosts, connection strings, passwords, tokens, and the PostgreSQL system identifier are deliberately omitted.
 
-## Required provider target
+## Verified provider target
 
-The single intended project must be created in the existing connected Neon organization with all of the following explicit selections:
+Verified on **2026-08-15**:
 
-- project name: `organy-app-production` (or provider-normalized equivalent);
-- plan: **Free**;
+- exactly one project exists in the connected Neon organization for this application;
+- project name: `organy-app-production`;
+- organization plan: **Free**;
 - PostgreSQL major: **16**;
 - cloud/region: **AWS Europe (Frankfurt)** (`aws-eu-central-1`);
-- default root branch/database/role/compute only.
+- one default root branch named `production`;
+- one default read-write compute, with Free-plan autoscaling/scale-to-zero behavior;
+- only provider-default databases/schemas were present before application migration; no application schema/data was imported;
+- no extra application branch, read replica, scheduled snapshot, Data API, Object Storage, Functions, or Neon Auth was provisioned by Phase 31.36.
 
-Do not enable Neon Auth, Data API, Object Storage, Functions, extra branches, read replicas, scheduled snapshots, paid features, a trial, or a payment method.
+The project remains an empty provider target for later migration/cutover work. Phase 31.36 does not run `npm run db:migrate`, restore a backup, seed data, or bootstrap protected accounts against Neon.
 
-## Zero-cost facts re-checked before creation
+## Zero-cost verification
 
-Immediately before this checkpoint, current Neon primary documentation was re-checked and still states that:
+Immediately before creation, current Neon primary documentation was re-checked and still stated that Free is `$0/month`, permanent rather than a trial, and requires no credit card. After creation, connected organization metadata reported the actual organization plan as `free`.
 
-- Free is `$0/month`, permanent rather than a trial, with no credit card required;
-- Free includes 100 CU-hours per project, 0.5 GB storage, and 5 GB public network transfer;
-- Free compute scales to zero after inactivity;
-- hitting a Free monthly limit suspends compute until the next billing month or an explicit upgrade;
-- PostgreSQL 16 remains supported;
-- AWS Europe (Frankfurt) remains an available Neon region.
+The accepted Free limits remain operational constraints, not billing fallbacks:
 
-These provider facts are volatile and must be verified again if project creation is delayed materially.
+- 100 CU-hours per project per month;
+- 0.5 GB storage per project;
+- 5 GB public network transfer;
+- scale-to-zero after inactivity;
+- quota exhaustion may suspend compute until reset or an explicit upgrade.
 
-## Connection and recovery checks after creation
+No paid plan, trial, payment method, or automatic upgrade was introduced by this phase.
 
-After the HUMAN provider creation step, AI-owned connected-provider verification must confirm only non-secret metadata and then verify:
+## Connection boundary verification
 
-1. PostgreSQL major 16 and Frankfurt region;
-2. expected default Neon resources only;
-3. pooled/serverless connection availability for future `DATABASE_URL` use;
-4. direct/unpooled connection availability for migration and Phase 31.33 recovery tooling;
-5. no Neon Auth provisioning;
-6. the read-only Phase 31.33 identity probe:
+Connected provider metadata exposes both connection shapes required by the accepted architecture:
+
+- a pooled/serverless endpoint is available for future application `DATABASE_URL` use;
+- a direct/unpooled endpoint is available for migration and Phase 31.33 operator backup/recovery tooling.
+
+No concrete endpoint hostname or credential is stored in Git. The later Vercel phase should use a **manual environment-variable connection** rather than installing a managed Neon↔Vercel integration unless a separate review explicitly changes that decision. This keeps the existing repository Better Auth model authoritative and avoids unwanted preview-branching/Auth provisioning behavior.
+
+## Phase 31.33 identity-guard compatibility
+
+The mandatory read-only query was executed on the default Neon production branch using the ordinary project database role:
 
 ```sql
 select current_database(),
        (select system_identifier::text from pg_control_system());
 ```
 
-The actual system identifier, database credentials, connection strings, hosts, passwords, tokens, and project credentials must not be copied into Git, CI logs, issues, PR bodies, documentation, or chat-visible output.
+Result: **PASS**.
 
-If `pg_control_system()` is unavailable, Phase 31.36 remains blocked for cutover. The Phase 31.33 source=target protection must not be bypassed or weakened.
+The function returned successfully, so the existing Phase 31.33 `current_database()` + `pg_control_system()` source=target fail-closed identity guard remains compatible with this Neon PostgreSQL 16 project. No managed-PostgreSQL identity adaptation is required before cutover.
+
+The returned system identifier is intentionally not copied into documentation, issues, PR text, CI output, or other repository artifacts.
 
 ## Explicitly deferred
 
-This phase does not create a Vercel project, install a Neon↔Vercel integration, migrate schema/data into Neon, bootstrap protected accounts, create production Better Auth secrets, or deploy the application remotely.
+Phase 31.36 does not create or modify a Vercel project, install a Neon↔Vercel integration, configure production Vercel environment values, migrate schema/data into Neon, bootstrap protected accounts, create production Better Auth secrets, deploy the application remotely, or perform a production cutover.
 
-The later Vercel phase should prefer a manual environment-variable connection unless a separately reviewed managed integration proves that it introduces no unwanted preview-branching or authentication behavior.
+Phase 31.37 may create the separate Vercel Hobby project and establish the reviewed manual production environment-variable boundary. Actual schema/data migration, protected-account bootstrap, and first production deployment remain later separately gated work.
