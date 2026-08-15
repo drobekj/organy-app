@@ -2,283 +2,312 @@
 
 ## Status
 
-**Phase 31.34 decision.** This document records the concrete first-production hosting and PostgreSQL target selected for the accepted one-congregation hosted deployment direction. It becomes repository authority when Phase 31.34 is merged.
+**Phase 31.34 decision.** This document records the concrete first-production hosting and PostgreSQL target for the accepted one-congregation hosted deployment direction. It becomes repository authority when Phase 31.34 is merged.
 
 Decision date: **2026-08-15**.
 
-Provider plan/pricing/runtime facts in this document are intentionally dated and must be re-checked against the linked primary sources immediately before any account, billing, resource creation, or production deployment action.
+The original paid Render proposal was rejected at the HUMAN checkpoint. The governing requirement is now **USD 0 recurring provider cost for the first production baseline**. Availability, cold starts, free-tier quotas, limited observability, lack of SLA, and manual release steps are accepted tradeoffs when they are necessary to keep the recurring provider bill at zero.
+
+Provider terms, plan limits, runtime support, and free-tier conditions are volatile. Re-check the linked primary sources immediately before creating any remote resource or deployment.
 
 ## Decision
 
-Use **Render for both the application web service and PostgreSQL** for the first real production deployment.
+Use **Vercel Hobby for the Next.js application and Neon Free for PostgreSQL**.
 
 The initial production shape is:
 
-- one Render **Hobby workspace** owned by the single technical operator;
-- one Render project with one **Production** environment only;
-- one paid **Starter Node web service** in **Frankfurt**;
-- one paid **Basic-256mb Render Postgres** database in **Frankfurt**, initially **PostgreSQL 16** with the minimum practical storage allocation;
-- the web service connects to PostgreSQL through Render's same-region internal/private connection URL;
-- the first public application address is the Render-managed `https://<service>.onrender.com` URL;
-- a custom congregation domain is optional later work and is not required for first cutover.
+- reuse the operator's existing Vercel account/workspace that already hosts the portfolio site;
+- add one separate Vercel project for `organy-app` on the **Hobby** plan;
+- create one separate Neon project on the **Free** plan;
+- place Vercel Functions in **Frankfurt (`fra1`)** and the Neon project in **AWS Europe (Frankfurt)** so application compute stays close to the database;
+- use the provider-managed `https://<project>.vercel.app` address as the first public URL;
+- do not buy or require a custom domain;
+- run the application with Vercel's native Next.js/Functions model rather than a persistent `next start` server;
+- use a **pooled Neon connection** for application runtime and an **unpooled/direct Neon connection** only for migrations and Phase 31.33 operator backup/restore tooling.
 
-This decision deliberately chooses a conventional persistent Node web service instead of a serverless-specific architecture. The current application already builds with `next build`, runs with `next start`, depends on PostgreSQL, and contains server-side protected-session/application logic. Render documents full Next.js applications with server-side logic as Node web services.
+This deliberately introduces only one new infrastructure service, Neon, because Vercel already supplies the web/application hosting used by the operator's portfolio. Vercel does not itself provide the PostgreSQL database required by the application, so the database remains a separate managed service even though Neon and Vercel can be tightly integrated.
 
-## Why Render
+## Zero-cost contract
 
-The first production deployment is small, single-congregation, and expected to have one technical operator. The main optimization target is therefore **low operational complexity with a real always-on shared web app and managed PostgreSQL**, not the absolute lowest possible compute price or infrastructure flexibility.
+The first production baseline must remain at **USD 0/month** for both providers.
 
-Render fits that shape particularly well:
+### Vercel Hobby
 
-- the application and database can live at one provider and in the same Frankfurt region;
-- Render directly supports a full Next.js app as a Node web service with explicit build/start commands;
-- Render provides managed PostgreSQL with same-region private connectivity;
-- public web services receive a Render URL and managed TLS; custom-domain TLS is also managed automatically if added later;
-- paid web services support a pre-deploy command suitable for database migrations;
-- environment variables are a first-class provider mechanism, so repository-owned production credentials are unnecessary;
-- paid Render Postgres provides point-in-time recovery and downloadable logical exports in addition to the repository's own Phase 31.33 logical recovery baseline;
-- the provider documents ordinary `pg_dump`/`pg_restore` workflows, preserving the project's vendor-neutral logical recovery direction.
+As checked on 2026-08-15:
 
-Render's July 2026 small-business cost example states that an always-on Starter web service plus Basic-256mb Postgres in a Hobby workspace typically cost about **USD 13/month before bandwidth and storage growth**. This is only a planning estimate, not a purchasing commitment. As of the Phase 31.34 decision date, the Hobby workspace itself has no monthly plan fee, is limited to one workspace member, includes 5 GB outbound bandwidth and 500 build-pipeline minutes, and allows up to 25 services. The chosen deployment has one technical operator, so that workspace constraint is acceptable initially. If technical operations later require multiple Render workspace members or production-team governance, the workspace should move to Pro rather than sharing one provider login.
+- Vercel's Terms of Service allow Hobby for **personal or non-commercial use**;
+- this congregation application is accepted for Hobby only while it remains genuinely non-commercial;
+- Hobby has no billing cycle and does not charge additional usage when a Hobby quota is exceeded; service/features may instead be paused until limits reset or the operator takes action;
+- relevant included limits currently include 1,000,000 Function invocations, 4 CPU-hours, 360 GB-hours provisioned memory, and 100 GB Fast Data Transfer within the fair-use guidance;
+- Hobby allows many more projects/deployments than this application is expected to need.
 
-No free Render Postgres instance is acceptable for production: Render documents that Free Postgres expires after 30 days and does not provide the paid recovery capabilities used in this decision.
+If the application becomes commercial, monetized, sold as a service, or otherwise stops fitting Vercel's non-commercial Hobby terms, production use must stop or move to a separately accepted paid/alternative host before that commercial use begins.
+
+Do **not** start a Vercel Pro trial, add a paid plan, or introduce a paid add-on merely to make the first deployment work. Free-quota exhaustion is allowed to cause a temporary outage rather than silently creating a bill.
+
+### Neon Free
+
+As checked on 2026-08-15, Neon Free is **USD 0 with no time limit and no credit card required**. The current per-project baseline includes:
+
+- 100 CU-hours of compute per month;
+- 0.5 GB storage;
+- compute scale-to-zero after inactivity;
+- 5 GB monthly public network transfer;
+- a limited six-hour time-travel/restore window.
+
+If the Free public-transfer quota is exceeded, Neon documents suspension of compute until the next billing cycle or upgrade. That behavior is acceptable for the zero-cost baseline. Do not upgrade to Launch/Scale automatically and do not configure a paid fallback.
+
+Provider-native time travel is useful but does **not** replace the repository's Phase 31.33 logical backup/integrity/restore baseline.
+
+## Why Vercel + Neon
+
+This pair is selected because it minimizes both cash cost and operational novelty for this project:
+
+- the operator already uses Vercel for the portfolio, so application hosting stays in the existing provider/workspace;
+- Vercel is the native hosting platform for Next.js and automatically turns server-side Next.js routes/actions into managed Functions;
+- Vercel Functions can connect to external databases and scale down when idle;
+- Vercel and Neon both have Frankfurt infrastructure, reducing application-to-database latency;
+- Neon explicitly supports Vercel/serverless workloads and provides pooled connection strings for them;
+- the Neon Vercel integration uses a pooled `DATABASE_URL` by default and provides an unpooled `DATABASE_URL_UNPOOLED` for tools that need a direct connection;
+- both selected plans can remain at zero recurring provider cost under the expected small-congregation load;
+- Vercel Hobby does not bill overages, while Neon Free suspends compute rather than silently charging when the relevant free transfer quota is exhausted.
+
+The result is still two technical services because an application server and a durable PostgreSQL database are different resources, but only one **additional** provider must be introduced beyond the already-used Vercel account.
 
 ## Concrete deployment contract
 
-### Runtime
+### Application runtime
 
-Use Render's native **Node** web-service runtime, not Docker, for the first deployment.
+Use Vercel's native **Next.js** framework deployment and Node.js Functions. Do not run a persistent `npm start` / `next start` server in production.
 
-Pin the Render service to:
+The later provider-specific deployment slice must pin **Node.js 22.x**, matching the repository's current Node 22 CI baseline. Vercel currently supports Node 24.x, 22.x, and 20.x, with 24.x the default for new projects; therefore the pin must be explicit rather than relying on the provider default.
 
-```text
-NODE_VERSION=22.22.0
-```
-
-The repository's CI currently uses Node 22, and Render documents `22.22.0` as an available historical default while its current new-service default is Node 24.14.1. Pinning Node 22 prevents a provider default-major-version change from silently changing production. Next.js 16 supports Node 22; no container adaptation is required for the selected baseline.
-
-The Render service commands are:
+Normal framework build remains:
 
 ```text
-Build Command:
-npm ci --no-audit --no-fund && npm run build
-
-Pre-Deploy Command:
-npx tsx scripts/production-preflight.ts && npm run db:migrate
-
-Start Command:
-npm start
+npm run build
 ```
 
-The pre-deploy command is part of the production safety contract. A deployment must not start a new application revision if Phase 31.32 production configuration preflight fails or if migrations fail.
+The later deployment slice may express the Node pin through Vercel project settings or a reviewed `package.json` `engines.node` entry. It must not silently adopt Node 24 merely because that is the provider default.
 
-### Required application environment
+### Function/database locality
 
-Render service environment variables must provide:
+Configure the Vercel application Functions to **Frankfurt (`fra1`)** and create the Neon project in **AWS Europe (Frankfurt)**.
+
+Vercel explicitly recommends running Functions close to their data source. The current application is small and single-database, so one primary application region is simpler than multi-region compute.
+
+### Required production environment
+
+The production Vercel project must receive these values outside Git:
 
 ```text
 ORGANY_RUNTIME=db
-DATABASE_URL=<Render Postgres internal connection URL>
+DATABASE_URL=<Neon pooled production connection URL>
+DATABASE_URL_UNPOOLED=<Neon direct production connection URL>
 BETTER_AUTH_SECRET=<stable operator-supplied production secret>
-BETTER_AUTH_URL=https://<actual-public-service-name>.onrender.com
-NODE_VERSION=22.22.0
+BETTER_AUTH_URL=https://<actual-organy-project>.vercel.app
 ```
 
-`BETTER_AUTH_SECRET`, database credentials, bootstrap passwords, replacement passwords, provider access tokens, and other credentials are never committed to the repository.
+`DATABASE_URL` is the application-runtime credential. The Neon Vercel integration is expected to supply a pooled connection for serverless use.
 
-`DATABASE_URL` for the running application should use Render's internal/private database connection URL because the app and database are deliberately placed in the same Frankfurt region.
+`DATABASE_URL_UNPOOLED` is an operator/migration/recovery credential and must **not** replace the pooled runtime URL in ordinary application requests.
 
-`BETTER_AUTH_URL` must equal the externally meaningful HTTPS URL users actually use. For the first production cutover this is the exact Render-managed `https://...onrender.com` service URL. If a custom domain is accepted later, changing the canonical application URL also requires an explicit coordinated `BETTER_AUTH_URL` change and verification.
+Preserve all TLS/SSL parameters supplied by Neon. Do not rewrite a provider-generated URL to resemble the local Docker URL.
 
-Render terminates public HTTPS for web services. If a custom domain is added later, Render also documents automatic certificate issuance/renewal and HTTP-to-HTTPS redirect.
+`BETTER_AUTH_URL` must equal the stable public HTTPS production alias actually used by users. The first deployment uses the free Vercel-managed `vercel.app` hostname. A custom domain is unnecessary and remains later optional work.
 
-### PostgreSQL
+### Production packaging prerequisite
 
-Create Render Postgres in **Frankfurt** and explicitly select **PostgreSQL 16** for first production, matching the repository's current local/CI PostgreSQL 16 baseline. Render currently supports PostgreSQL major versions 13 through 18 for new databases, so version 16 does not require adopting a new database major version during deployment.
+The current repository is not yet ready for Vercel production solely because the provider decision is accepted.
 
-Application traffic uses the internal Render connection URL. Operator actions performed from outside Render — for example a Phase 31.33 local logical backup/recovery rehearsal — use the provider's external connection URL and should restrict external database access to the operator's current trusted IP/CIDR whenever practical.
+`src/auth/server.ts` imports `pg` in production server code while `package.json` currently lists `pg` under `devDependencies`. Next.js documents `pg` as a server-external package. The later deployment slice must therefore move runtime `pg` to `dependencies` (or establish an equivalently explicit production-runtime packaging contract) and rerun build/runtime acceptance.
 
-Any TLS/SSL parameters required by the connection URL supplied by Render must be preserved. Do not rewrite a provider-generated connection URL merely to make it resemble the local Docker URL.
+`tsx` may remain an operator/build tooling dependency if migrations and operator scripts run outside the Vercel request runtime. Do not add migration/recovery commands to normal Function request handling.
 
-### Migration and startup ordering
+### Release ordering without a paid pre-deploy product
 
-For every normal production deploy:
+The zero-cost baseline intentionally uses a conservative, operator-controlled release flow.
 
-1. Render builds the exact Git revision.
-2. Render runs `npx tsx scripts/production-preflight.ts`.
-3. Only after preflight PASS, Render runs `npm run db:migrate`.
-4. Only after the pre-deploy command succeeds, Render starts the new revision with `npm start`.
-5. After the service is live, verify the protected sign-in path and the separate congregation nickname-preference path through the public HTTPS URL.
+Vercel Git auto-deployment must be **disabled for this project before real production use** (for example with reviewed `git.deploymentEnabled=false` configuration or an equivalent project setting). This prevents a merge to `main` from reaching production before database preflight/migration is complete.
 
-Normal production deploys must **not** run catalog seed/sync, demo seed, protected-account bootstrap, password reset, or recovery commands implicitly.
+Until a later release-automation phase replaces this manual flow, a production release is:
+
+1. identify the exact reviewed Git HEAD intended for production;
+2. require the repository's exact-head CI/review gates to pass;
+3. make a fresh Phase 31.33 logical backup and verify its integrity when an existing production database already contains user data;
+4. in an authorized operator environment, map the Neon **unpooled/direct** production connection to the migration process;
+5. run `npx tsx scripts/production-preflight.ts` and require PASS;
+6. run `npm run db:migrate` and require success;
+7. require migrations to be backward-compatible with the currently live revision until release/rollback automation exists;
+8. deploy that exact reviewed revision to Vercel Production explicitly through the Vercel CLI/API/operator integration;
+9. verify protected sign-in and the separate congregation nickname-preference flow at the production `vercel.app` URL.
+
+No catalog seed/sync, demo seed, auth bootstrap, password reset, recovery command, or test fixture runs automatically as part of ordinary deployment.
 
 ### First protected-account bootstrap
 
-A protected staff bootstrap is allowed only for a genuinely new deployment where migrations have succeeded and no protected staff Account exists yet.
-
-Use the existing explicit operator command:
+For a genuinely new database with no protected staff Account, run the existing explicit operator command only after schema migration succeeds:
 
 ```text
 npm run db:bootstrap:auth
 ```
 
-Run it manually from a paid Render service shell/ephemeral shell or another explicitly authorized operator environment that has the production database connection. Bootstrap credentials are supplied temporarily for that one command and are not stored as normal persistent application environment variables.
+The command runs from an explicitly authorized operator environment using the direct/unpooled production database connection. Bootstrap credentials are temporary operator inputs, never persistent Vercel environment variables and never repository content.
 
-After bootstrap, verify protected sign-in and remove any temporary bootstrap-only environment values from the operator session. Never add bootstrap to the Render Start or Pre-Deploy command.
+Bootstrap is a one-time initialization action, not part of every deployment.
 
 ### Environment separation
 
-The first production deployment has **one persistent Production environment only**. A standing staging environment is not required initially.
+The first hosted baseline has **one persistent Production environment only**.
 
-Local development plus exact-head GitHub CI remain the pre-production validation path. This keeps the small-congregation baseline inexpensive and operationally simple. A persistent staging environment or Render preview environments may be accepted later if production-change risk justifies their recurring operational cost and data-isolation work.
+Local development and GitHub CI remain the default pre-production validation path. Optional Vercel Preview deployments may be added later or created manually, but they must not receive the production database credential by default. A standing staging database/environment is not required for the zero-cost first deployment.
 
-### Release and rollback boundary
+### Vercel/Neon integration boundary
 
-Render deployment history may be used to redeploy/roll back an application build, but **an application rollback does not reverse database migrations**. Phase 31.34 therefore does not claim end-to-end rollback automation.
+The later deployment slice may use the Neon Vercel integration because it can synchronize the pooled production `DATABASE_URL` and direct `DATABASE_URL_UNPOOLED` into the Vercel project. The integration must not provision Neon Auth or replace the repository's existing Better Auth model.
 
-Any later migration that is not backward-compatible with the previous application revision requires its own release/cutover reasoning. Release/rollback automation remains a separately accepted production-hardening slice.
+This project retains its own accepted Better Auth tables, Account → Actor link, roles, protected sessions, and nickname-only congregation identity behavior. Neon is selected only as PostgreSQL infrastructure.
 
-## Phase 31.33 logical recovery compatibility
+## Phase 31.33 recovery compatibility
 
-Render's official PostgreSQL documentation supports standard logical export/restore workflows using external database URLs, `pg_dump`, and `pg_restore`. This is compatible in principle with the Phase 31.33 custom-format logical archive approach.
+Phase 31.33 remains the authoritative logical recovery baseline.
 
-Provider-native PITR and Render logical exports are useful additional recovery capabilities, but they **do not replace** the repository's accepted Phase 31.33 logical backup/integrity/separate-target recovery boundary. Backup frequency, off-site retention, encryption/key management, PITR policy, RPO/RTO, and production recovery ownership remain later Contract Gates.
+For production backup/restore tooling:
 
-### Mandatory managed-PostgreSQL compatibility probe before real cutover
+- use the direct/unpooled Neon connection rather than the serverless pooler;
+- preserve Neon-required TLS parameters;
+- keep backup artifacts outside Git as sensitive data;
+- restore only to a separate explicit empty target;
+- revoke restored Better Auth sessions before declaring recovery success;
+- never restore destructively over the configured source database.
 
-One compatibility question is deliberately left as a **blocking prerequisite for the later real deployment slice**, not guessed here.
+### Mandatory read-only compatibility probe
 
-Phase 31.33 currently verifies that source and restore target are not the same database by querying `pg_control_system()` and comparing PostgreSQL `system_identifier` plus database name. PostgreSQL documents `pg_control_system()` as the function exposing `system_identifier`. Render documents that Render Postgres does **not provide superuser access**.
+Phase 31.33 currently distinguishes source from restore target using `current_database()` plus `pg_control_system().system_identifier`.
 
-Before any real production cutover, the default Render Postgres credential must therefore be tested read-only with the exact Phase 31.33 identity query (or an equivalent focused probe):
+Neon is managed PostgreSQL and does not expose the native PostgreSQL superuser. Its default API/Console-created roles are members of Neon's `neon_superuser` role, and Neon documents that `neon_superuser` receives PostgreSQL `pg_monitor` privileges. That makes compatibility plausible but does **not** prove this exact Phase 31.33 function call is available in the selected project.
+
+Therefore, before any real data cutover, run this read-only probe with the ordinary Neon production role:
 
 ```sql
 select current_database(),
        (select system_identifier::text from pg_control_system());
 ```
 
-If the query succeeds for the ordinary Render-managed database user, the existing 31.33 identity guard remains usable.
+If it succeeds, keep the current Phase 31.33 identity guard.
 
-If the query is denied or otherwise unavailable, **do not weaken or bypass the source=target protection**. The next provider-specific deployment slice must first replace that identity check with a managed-PostgreSQL-compatible, fail-closed method and rerun the complete Phase 31.33 acceptance before production deployment proceeds.
+If it is denied or otherwise unavailable, **do not weaken or bypass source=target protection**. First replace only the identity mechanism with a separately reviewed managed-PostgreSQL-compatible fail-closed check and rerun the complete Phase 31.33 acceptance.
 
-This probe is intentionally not performed in Phase 31.34 because this phase creates no provider account or remote database.
+No Neon project exists yet, so this probe intentionally remains a blocking prerequisite for the next provider-specific deployment slice.
 
-## Provider-native recovery notes
+## Free-tier failure modes we explicitly accept
 
-Paid Render Postgres currently provides point-in-time recovery. On a Hobby workspace the documented recovery window is three days. A PITR operation creates a **new database instance** rather than overwriting the original, which is consistent with this project's preference for isolated recovery validation.
+Zero recurring cost is the governing product constraint. Therefore the first production baseline accepts:
 
-Render also allows creating downloadable logical exports and documents direct `pg_dump` exports. These are useful provider facilities, but policy for scheduling, retention, off-site copies, and encryption is explicitly deferred.
+- no paid SLA;
+- possible cold-start latency after Vercel/Neon scale-to-zero behavior;
+- temporary application outage if a free quota is exhausted;
+- limited provider-native logs/metrics/history compared with paid tiers;
+- manual release/migration discipline instead of paid release controls;
+- only Neon Free's short provider-native time-travel window;
+- no permanent staging environment.
 
-## Cost and capacity assumption — time-sensitive
-
-Planning baseline as checked on **2026-08-15**:
-
-- Hobby workspace: USD 0/month workspace fee, one workspace member;
-- paid Starter web service + paid Basic-256mb Postgres: Render's July 2026 published example estimates approximately **USD 13/month** before bandwidth/storage growth;
-- Hobby currently includes 5 GB outbound bandwidth and 500 standard build-pipeline minutes monthly; overages can add cost;
-- PostgreSQL storage is billed separately and can grow; current flexible-plan documentation states USD 0.30/GB-month;
-- custom-domain registration, if ever desired, is external to this estimate; Render-managed TLS itself does not require a separate certificate purchase.
-
-**Re-check all prices, plan names, included usage, region availability, runtime defaults, and database limits immediately before creating resources.** This document is not authorization to incur cost.
+It does **not** accept silent billing, automatic plan upgrades, weakened authentication, data-loss-by-design, destructive restore, or removal of the Phase 31.33 backup requirement.
 
 ## Alternatives considered
 
-### Vercel Pro + Neon Launch — strong secondary option
+### Netlify Free + Neon Free
 
-This is technically attractive because Vercel is Next.js-native and Neon is managed serverless PostgreSQL. It was not selected for the first production baseline because it splits operations and credentials across two providers without solving a current application requirement that Render cannot satisfy.
+Technically viable and also zero-cost, but it would introduce a new application-hosting provider even though the operator already uses Vercel and the application is Next.js. It remains the first fallback if Vercel Hobby terms or platform behavior later cease to fit the non-commercial application.
 
-At the decision date, Vercel Pro is USD 20/month with included usage credit, while Neon's Launch plan is usage-based and its own pricing page gives USD 15/month as a representative intermittent 1 GB workload. The resulting planning example is materially above the Render small-app baseline before considering workload differences. Vercel Hobby is described by Vercel as a personal-project/developer plan, so this decision does not use the free Hobby tier as the production comparison baseline.
+### Render Free Web + Neon Free
 
-Keep Vercel + Neon as the first fallback if Render's Next.js runtime behavior, PostgreSQL compatibility probe, or operational experience proves unsuitable.
+Closer to a conventional persistent Node server, but Render Free web services spin down after inactivity and are explicitly positioned by Render as unsuitable for production workloads. It adds a new web-hosting provider without removing the need for Neon.
 
-### Railway — lower-cost/usage-based secondary option
+### Cloudflare Workers Free + Neon Free
 
-Railway remains a viable one-provider Node/PostgreSQL alternative. Its Hobby plan is currently a USD 5 minimum usage commitment with included usage credit and global regions; Pro is USD 20 minimum usage.
+Potentially generous free request capacity, but it requires more runtime adaptation away from the application's current Node/Next.js assumptions. The extra engineering complexity is not justified while Vercel Hobby can run this non-commercial Next.js application directly.
 
-It was not selected because Phase 31.34 prioritizes the clearest small-production managed-Postgres/recovery operating model and predictable one-provider deployment path over the lowest possible usage bill. Render's first-class managed Postgres resource, same-region private connection guidance, explicit PITR/logical export documentation, and published small-app cost example give the operator a narrower initial runbook.
+### Paid Render / paid Vercel / paid Neon
 
-If Render later proves unsuitable, Railway should be re-evaluated from current primary documentation rather than from this dated comparison.
+Rejected for the first baseline because the user requires zero recurring provider cost. They remain possible future upgrade paths only after a separate explicit decision.
 
 ## Operator ownership
 
-For the first deployment, the single technical operator owns:
+The single technical operator owns:
 
-- Render workspace and billing decisions;
-- production service/database creation;
-- production environment-variable and secret entry;
-- migration execution through the accepted pre-deploy command;
-- explicit first-account bootstrap when required;
-- deploy/rollback decision;
+- the existing Vercel workspace and new `organy-app` Vercel project;
+- the Neon project;
+- free-plan/terms verification before deployment;
+- production environment variables/secrets;
+- manual migration and explicit production deployment ordering;
+- one-time protected-account bootstrap when needed;
 - Phase 31.33 logical backup/recovery actions;
-- provider-native recovery actions if separately accepted;
-- credential rotation and incident response until a later operations slice changes ownership.
+- credential rotation and incident response until a later operations phase changes ownership.
 
-Application end users (admin, priest, organist, congregation nickname voters) are **not Render workspace users** merely because they use the application.
+Application users (admin, priest, organist, congregation nickname voters) are **not Vercel or Neon workspace users** merely because they use the application.
 
-## Preconditions before a later real deployment/cutover
+## Preconditions before the later real deployment/cutover
 
-A later deployment slice may create Render resources only after all of the following are re-checked:
+A later provider-specific deployment slice may create resources only after all of the following are re-checked:
 
-1. Phase 31.34 is merged and this provider decision remains acceptable.
-2. Render's current plan/pricing/runtime/PostgreSQL/region documentation is re-verified.
-3. Exact production service/database names and the resulting public `onrender.com` URL are chosen.
-4. A stable production `BETTER_AUTH_SECRET` is generated and stored outside Git.
-5. The database connection strategy is confirmed: internal URL for app runtime, controlled external URL only for operator tooling that needs it.
-6. PostgreSQL 16 availability in Frankfurt is confirmed.
-7. The ordinary Render database user passes the read-only Phase 31.33 `pg_control_system()` compatibility probe, **or** the separately reviewed managed-Postgres-safe identity-guard adaptation is merged first.
-8. The exact-head production build, Phase 31.32 preflight acceptance, Phase 31.33 recovery acceptance, and regression CI are green.
-9. A fresh logical backup of any source data intended for cutover exists and its integrity has been verified if production data is being migrated.
-10. The operator explicitly approves any account creation, billing commitment, DNS action, data migration, or other remote side effect required by the later slice.
+1. Phase 31.34 is merged and this zero-cost decision remains accepted.
+2. The existing Vercel workspace is still on a zero-cost Hobby basis suitable for non-commercial use; no Pro trial/payment plan is required.
+3. Neon Free remains USD 0 without a required credit card/time-limited database.
+4. Vercel and Neon Frankfurt regions remain available.
+5. The later slice fixes production packaging for runtime `pg` and explicitly pins Node 22.x.
+6. Vercel automatic Git production deployment is disabled so migration can precede explicit deployment.
+7. The Neon project is connected so runtime receives a pooled URL and operator tooling can obtain a direct/unpooled URL without committing credentials.
+8. A stable production `BETTER_AUTH_SECRET` is generated and stored outside Git.
+9. The ordinary Neon role passes the read-only Phase 31.33 `pg_control_system()` compatibility probe, or the separately reviewed fail-closed identity adaptation is merged first.
+10. Exact-head Phase 31.32 preflight, Phase 31.33 recovery acceptance, complete tests, typecheck, and production build are green.
+11. If existing application data is migrated, a fresh source logical backup is created and verified before cutover.
+12. The operator explicitly approves resource creation/data cutover at the later HUMAN checkpoint.
 
-## Explicitly not decided or performed here
+## Explicitly not performed in Phase 31.34
 
 Phase 31.34 does not:
 
-- create a Render account/workspace/service/database;
-- enter billing details or authorize charges;
+- create the new Vercel `organy-app` project;
+- create a Neon project/database/branch;
+- install or authorize the Neon Vercel integration;
+- add a payment method, start a Pro trial, or authorize any charge;
 - deploy the application remotely;
-- migrate production data;
-- buy or change a domain or DNS record;
-- create production credentials or application secrets;
-- configure scheduled/off-site backup retention;
-- establish PITR retention policy, RPO/RTO, HA, replication, or failover;
+- migrate or copy production data;
+- buy/change a domain or DNS record;
+- create production credentials or secrets;
+- change `package.json`, application runtime code, schema, auth behavior, or nickname behavior;
+- configure scheduled/off-site backup retention, RPO/RTO, HA, replication, or failover;
 - automate release rollback;
 - add monitoring/alerting/telemetry;
-- change the Account → Actor → `app_user_roles` authorization model;
-- change congregation nickname identity behavior;
+- provision Neon Auth;
 - introduce OAuth/passkeys/2FA/public recovery or multi-congregation behavior.
 
 ## Primary sources checked 2026-08-15
 
-Render:
+Vercel:
 
-- Next.js deployment: https://render.com/docs/deploy-nextjs-app
-- Next.js SSR/API deployment patterns: https://render.com/articles/how-to-deploy-next-js-applications-with-ssr-and-api-routes
-- Web services: https://render.com/docs/web-services
-- Deploy/pre-deploy/start commands: https://render.com/docs/deploys
-- Node version selection: https://render.com/docs/node-version
-- Environment variables and secrets: https://render.com/docs/configure-environment-variables
-- Regions/private networking: https://render.com/docs/regions
-- Projects/environments: https://render.com/docs/projects
-- Custom domains/TLS: https://render.com/docs/custom-domains
-- Render Postgres overview: https://render.com/docs/postgresql
-- Create/connect Render Postgres: https://render.com/docs/postgresql-creating-connecting
-- Flexible Postgres plans: https://render.com/docs/postgresql-refresh
-- Render Postgres recovery/backups: https://render.com/docs/postgresql-backups
-- Render Postgres no-superuser note: https://render.com/docs/postgresql-pg-repack
-- SSH/shell access: https://render.com/docs/ssh
-- Workspace plan changes: https://render.com/docs/new-workspace-plans
-- July 2026 small-business cost example: https://render.com/articles/how-much-does-cloud-application-hosting-cost-for-small-businesses
+- Terms of Service, Hobby plan: https://vercel.com/legal/terms
+- Hobby plan and included usage: https://vercel.com/docs/plans/hobby
+- Limits: https://vercel.com/docs/limits
+- Fair-use guidance: https://vercel.com/docs/limits/fair-use-guidelines
+- Functions/runtime model: https://vercel.com/docs/functions
+- Regions (`fra1`): https://vercel.com/docs/regions
+- Supported Node.js versions: https://vercel.com/docs/functions/runtimes/node-js/node-js-versions
+- Git deployment control: https://vercel.com/docs/project-configuration/git-configuration
+- Deployment methods / CLI: https://vercel.com/docs/deployments/overview
+
+Neon:
+
+- Free pricing/limits: https://neon.com/pricing
+- Connection pooling: https://neon.com/docs/connect/connection-pooling
+- Vercel manual integration: https://neon.com/docs/guides/vercel-manual
+- Vercel pooled/unpooled integration variables: https://neon.com/docs/changelog/2024-02-23
+- PostgreSQL compatibility / `neon_superuser`: https://neon.com/docs/reference/compatibility
+- Frankfurt infrastructure reference: https://neon.com/docs/changelog/2026-02-20
+- Free public transfer suspension behavior: https://neon.com/docs/introduction/network-transfer
 
 PostgreSQL:
 
-- PostgreSQL 16 system information functions (`pg_control_system`): https://www.postgresql.org/docs/16/functions-info.html
-
-Alternatives:
-
-- Vercel pricing: https://vercel.com/pricing
-- Vercel Hobby plan: https://vercel.com/docs/plans/hobby
-- Vercel Pro plan: https://vercel.com/docs/plans/pro-plan
-- Neon pricing: https://neon.com/pricing
-- Railway pricing: https://railway.com/pricing
-- Railway billing model: https://docs.railway.com/pricing/understanding-your-bill
+- PostgreSQL 16 predefined monitoring roles: https://www.postgresql.org/docs/16/predefined-roles.html
+- PostgreSQL 16 system information functions: https://www.postgresql.org/docs/16/functions-info.html
