@@ -52,11 +52,13 @@ Start Command:
 npm start
 ```
 
+Render supplies a runtime `PORT` for web services and requires the public server to bind on `0.0.0.0`. Next.js documents that `next start` honors the `PORT` environment variable and defaults its hostname to `0.0.0.0`, so the current `npm start` contract needs no custom port wrapper or custom HTTP server. Primary source: https://nextjs.org/docs/app/api-reference/cli/next
+
 The application uses the same-region Render Postgres internal connection URL for `DATABASE_URL`; the exact provider-generated value remains a production secret outside Git. The initial `BETTER_AUTH_URL` is the exact HTTPS `onrender.com` URL assigned to the service unless a custom domain is separately accepted before cutover.
 
 ### Packaging prerequisite before real deployment
 
-The current repository is not yet authorized for a real Render cutover solely because the provider decision is accepted. In particular, `src/auth/server.ts` imports `pg` in the production server runtime while `package.json` currently lists `pg` under `devDependencies`. Next.js 16 documents `pg` as a server-external package, so the later provider-specific deployment slice must move the runtime `pg` package to `dependencies` (or establish an equivalently explicit production-runtime packaging contract) and re-run the production build/start acceptance before any remote cutover.
+The current repository is not yet authorized for a real Render cutover solely because the provider decision is accepted. In particular, `src/auth/server.ts` imports `pg` in the production server runtime while `package.json` currently lists `pg` under `devDependencies`. Next.js 16 documents `pg` as a server-external package, so the later provider-specific deployment slice must move the runtime `pg` package to `dependencies` (or establish an equivalently explicit production-runtime packaging contract) and re-run the production build/start acceptance before any remote cutover. Primary source: https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages
 
 The Render pre-deploy and operator commands also use `tsx`, currently a development dependency. The later deployment slice must explicitly verify that `tsx` remains available in Render's build/pre-deploy/operator environment or package/compile those operational commands in a production-safe way. Do not rely silently on incidental dev-dependency retention.
 
