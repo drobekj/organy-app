@@ -54,6 +54,14 @@ npm start
 
 The application uses the same-region Render Postgres internal connection URL for `DATABASE_URL`; the exact provider-generated value remains a production secret outside Git. The initial `BETTER_AUTH_URL` is the exact HTTPS `onrender.com` URL assigned to the service unless a custom domain is separately accepted before cutover.
 
+### Packaging prerequisite before real deployment
+
+The current repository is not yet authorized for a real Render cutover solely because the provider decision is accepted. In particular, `src/auth/server.ts` imports `pg` in the production server runtime while `package.json` currently lists `pg` under `devDependencies`. Next.js 16 documents `pg` as a server-external package, so the later provider-specific deployment slice must move the runtime `pg` package to `dependencies` (or establish an equivalently explicit production-runtime packaging contract) and re-run the production build/start acceptance before any remote cutover.
+
+The Render pre-deploy and operator commands also use `tsx`, currently a development dependency. The later deployment slice must explicitly verify that `tsx` remains available in Render's build/pre-deploy/operator environment or package/compile those operational commands in a production-safe way. Do not rely silently on incidental dev-dependency retention.
+
+These are packaging/pre-deploy adaptations only; Phase 31.34 does not change dependencies or application runtime code.
+
 This section does not authorize resource creation. A later Contract Gate must execute and verify the actual deployment.
 
 ## Production startup order
@@ -103,6 +111,7 @@ For local Phase 31.33 recovery rehearsal, `ORGANY_PG_TOOL_MODE=docker-compose` c
 Phases 31.32-31.34 do not make the application fully production-ready. Separate accepted work is still required for:
 
 - actual Render account/resource creation, billing approval, remote deployment, production data cutover, and any DNS/custom-domain action;
+- the explicit production packaging/pre-deploy adaptation for `pg` / `tsx` described above;
 - completion of the managed-PostgreSQL compatibility probe/adaptation required by `docs/production-hosting-decision.md`;
 - scheduled/off-site backups, retention, encryption/key management, PITR/WAL policy, RPO/RTO, and production recovery/cutover procedures;
 - release/rollback automation beyond Render's basic application-deploy history;
