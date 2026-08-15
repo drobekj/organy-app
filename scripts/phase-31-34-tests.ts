@@ -73,6 +73,7 @@ requireText(
     "Frankfurt (`fra1`)",
     "Production does **not** run a persistent `npm start` / `next start` process",
     "Node.js 22.x",
+    "automatic Git deployments disabled",
     "explicitly deploy the exact reviewed revision to Vercel Production",
     "Neon Auth must not be provisioned",
     "pg_control_system()",
