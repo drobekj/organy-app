@@ -54,7 +54,7 @@ The accepted Phase 31.34 target remains:
 
 Phase 31.36 verified that the actual Neon provider target exists as `organy-app-production`, belongs to a Free organization, runs PostgreSQL 16 in AWS Frankfurt, and contains only its provider-default empty resources before application migration.
 
-Vercel hosts this Next.js application through its native framework/Functions model. **Production does not run a persistent `npm start` / `next start` process**.
+Vercel hosts this Next.js application through its native framework/Functions model. Production does **not** run a persistent `npm start` / `next start` process.
 
 The repository's normal framework build remains:
 
