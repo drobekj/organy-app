@@ -35,7 +35,7 @@ requireText(
     "one default read-write compute",
     "pooled/serverless endpoint is available",
     "direct/unpooled endpoint is available",
-    "no Neon Auth",
+    "no extra application branch, read replica, scheduled snapshot, Data API, Object Storage, Functions, or Neon Auth was provisioned",
     "select current_database(),",
     "pg_control_system()",
     "Result: **PASS**",
