@@ -24,32 +24,41 @@ const pkg = JSON.parse(read("package.json")) as {
 requireText(
   decision,
   [
-    "Use **Render for both the application web service and PostgreSQL**",
+    "Use **Vercel Hobby for the Next.js application and Neon Free for PostgreSQL**",
     "Decision date: **2026-08-15**",
-    "**Frankfurt**",
-    "**Basic-256mb Render Postgres**",
-    "**PostgreSQL 16**",
-    "NODE_VERSION=22.22.0",
-    "npm ci --no-audit --no-fund && npm run build",
-    "npx tsx scripts/production-preflight.ts && npm run db:migrate",
-    "npm start",
-    "ORGANY_RUNTIME=db",
-    "DATABASE_URL=<Render Postgres internal connection URL>",
-    "BETTER_AUTH_SECRET=<stable operator-supplied production secret>",
-    "BETTER_AUTH_URL=https://<actual-public-service-name>.onrender.com",
+    "USD 0 recurring provider cost",
+    "personal or non-commercial use",
+    "do **not** start a Vercel Pro trial",
+    "USD 0 with no time limit and no credit card required",
+    "100 CU-hours",
+    "0.5 GB storage",
+    "5 GB monthly public network transfer",
+    "Frankfurt (`fra1`)",
+    "AWS Europe (Frankfurt)",
+    "Node.js 22.x",
+    "DATABASE_URL=<Neon pooled production connection URL>",
+    "DATABASE_URL_UNPOOLED=<Neon direct production connection URL>",
+    "BETTER_AUTH_URL=https://<actual-organy-project>.vercel.app",
+    "git.deploymentEnabled=false",
+    "npx tsx scripts/production-preflight.ts",
+    "npm run db:migrate",
     "npm run db:bootstrap:auth",
     "one persistent Production environment only",
+    "Neon Auth must not be provisioned",
     "pg_control_system()",
-    "managed-PostgreSQL-compatible, fail-closed method",
-    "USD 13/month",
-    "Vercel Pro + Neon Launch",
-    "Railway",
-    "https://render.com/docs/deploy-nextjs-app",
-    "https://render.com/docs/postgresql",
-    "https://www.postgresql.org/docs/16/functions-info.html",
+    "do not weaken or bypass source=target protection",
+    "temporary application outage if a free quota is exhausted",
+    "Netlify Free + Neon Free",
+    "Render Free Web + Neon Free",
+    "Cloudflare Workers Free + Neon Free",
+    "https://vercel.com/legal/terms",
+    "https://vercel.com/docs/plans/hobby",
+    "https://neon.com/pricing",
+    "https://neon.com/docs/connect/connection-pooling",
     "Phase 31.34 does not:",
-    "create a Render account/workspace/service/database",
-    "enter billing details or authorize charges",
+    "create the new Vercel `organy-app` project",
+    "create a Neon project/database/branch",
+    "add a payment method, start a Pro trial, or authorize any charge",
     "deploy the application remotely",
   ],
   "hosting decision",
@@ -58,22 +67,26 @@ requireText(
 requireText(
   runbook,
   [
-    "Render for the application web service and Render Postgres for PostgreSQL",
-    "npm ci --no-audit --no-fund && npm run build",
-    "npx tsx scripts/production-preflight.ts && npm run db:migrate",
-    "npm start",
-    "Packaging prerequisite before real deployment",
-    "src/auth/server.ts",
-    "server-external package",
-    "Do not rely silently on incidental dev-dependency retention",
+    "Vercel Hobby for the Next.js application and Neon Free for PostgreSQL",
+    "USD 0 recurring provider cost",
+    "DATABASE_URL_UNPOOLED",
+    "Frankfurt (`fra1`)",
+    "Production does **not** run a persistent `npm start` / `next start` process",
+    "Node.js 22.x",
+    "move runtime `pg` to `dependencies`",
+    "automatic Git deployment for `organy-app` must be disabled",
+    "explicitly deploy the exact reviewed revision to Vercel Production",
+    "Neon Auth must not be provisioned",
     "pg_control_system()",
-    "no Render account/resource, billing commitment, production secret, DNS change, data cutover, or remote deployment",
+    "temporary outage after free-quota exhaustion",
+    "no paid custom domain requirement",
+    "no new Vercel project, Neon project/database, payment plan, production secret, DNS change, data cutover, or remote deployment",
   ],
   "production runtime runbook",
 );
 
-assert.equal(pkg.scripts?.build, "next build", "documented build must match package.json");
-assert.equal(pkg.scripts?.start, "next start", "documented start must match package.json");
+assert.equal(pkg.scripts?.build, "next build", "documented framework build must match package.json");
+assert.equal(pkg.scripts?.start, "next start", "local/conventional start script remains unchanged in Phase 31.34");
 assert.equal(pkg.scripts?.["db:migrate"], "tsx scripts/db-migrate.ts", "documented migration must match package.json");
 assert.equal(
   pkg.scripts?.["db:bootstrap:auth"],
@@ -84,33 +97,37 @@ assert.equal(
 assert.ok(authServer.includes('from "pg"'), "production auth runtime must still be recognized as a pg consumer");
 assert.ok(
   pkg.dependencies?.pg || pkg.devDependencies?.pg,
-  "pg must remain declared while the deployment packaging location is resolved",
+  "pg must remain declared while the later deployment slice resolves production packaging",
 );
 assert.ok(
-  pkg.dependencies?.tsx || pkg.devDependencies?.tsx,
-  "tsx must remain declared while pre-deploy/operator packaging is resolved",
-);
-assert.ok(
-  pkg.dependencies?.pg || runbook.includes("move the runtime `pg` package to `dependencies`"),
+  pkg.dependencies?.pg || runbook.includes("move runtime `pg` to `dependencies`"),
   "if pg is not yet a production dependency, the runbook must block cutover on that packaging fix",
 );
 
 assert.ok(
   recovery.includes("pg_control_system()"),
-  "Render compatibility probe must track the actual Phase 31.33 source/target identity query",
+  "Neon compatibility probe must track the actual Phase 31.33 source/target identity query",
 );
 assert.ok(
-  decision.includes("If the query is denied or otherwise unavailable") &&
-    decision.includes("do not weaken or bypass the source=target protection"),
+  decision.includes("If it is denied or otherwise unavailable") &&
+    decision.includes("do not weaken or bypass source=target protection"),
   "managed PostgreSQL compatibility uncertainty must fail closed",
+);
+
+assert.ok(
+  !decision.includes("Use **Render for both the application web service and PostgreSQL**"),
+  "rejected paid Render decision must not remain authoritative",
+);
+assert.ok(
+  !runbook.includes("paid web service's pre-deploy command"),
+  "rejected Render pre-deploy contract must be removed",
 );
 
 for (const text of [decision, runbook]) {
   assert.ok(!/postgres(?:ql)?:\/\/[^\s<]+/i.test(text), "deployment documentation must not contain a concrete PostgreSQL credential URL");
 }
 
-assert.equal(existsSync("render.yaml"), false, "Phase 31.34 must not introduce a Render resource blueprint");
 assert.equal(existsSync(".env.production"), false, "Phase 31.34 must not introduce production environment values");
 
-console.log("Phase 31.34 hosting/provider decision acceptance: PASS");
-console.log("Decision is preparation-only; no remote provider resource or credential is created by this acceptance.");
+console.log("Phase 31.34 zero-cost hosting/provider decision acceptance: PASS");
+console.log("Vercel Hobby + Neon Free is preparation-only; no remote resource, credential, payment plan, or deployment is created by this acceptance.");
