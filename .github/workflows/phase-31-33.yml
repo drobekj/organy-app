@@ -1,0 +1,56 @@
+name: Phase 31.33 PostgreSQL backup restore acceptance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - codex/phase-31-33-backup-restore-baseline
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ORGANY_RUNTIME: db
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
+      BETTER_AUTH_SECRET: phase-31-33-ci-secret-randomized-baseline-0123456789
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Database migration
+        run: npm run db:migrate
+      - name: Phase 31.33 backup restore acceptance
+        run: npx tsx scripts/phase-31-33-tests.ts
+      - name: Production runtime preflight regression
+        run: npx tsx scripts/production-preflight.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build

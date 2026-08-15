@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, records the protected staff implementation completed in Phase 31.28, the nickname-only congregation preference implementation completed in Phase 31.29, the admin protected Account/RoleAssignment management completed in Phase 31.30, the protected credential reset/recovery boundary implemented in Phase 31.31, and the minimal production runtime configuration/preflight boundary implemented in Phase 31.32.
+This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, records the protected staff implementation completed in Phase 31.28, the nickname-only congregation preference implementation completed in Phase 31.29, the admin protected Account/RoleAssignment management completed in Phase 31.30, the protected credential reset/recovery boundary implemented in Phase 31.31, the minimal production runtime configuration/preflight boundary implemented in Phase 31.32, and the PostgreSQL logical backup/restore recovery baseline implemented in Phase 31.33.
 
 The first production model deliberately distinguishes protected staff access from low-friction congregation voting:
 
@@ -15,7 +15,7 @@ Authentication identity remains separate from the application's Person, Actor, a
 
 This document does not:
 
-- define the final production hosting/provider, backup/restore, release, observability, or secrets-management operations beyond the implemented Phase 31.32 runtime preflight baseline;
+- define the final production hosting/provider, scheduled/off-site backup retention, PITR, release, observability, or secrets-management operations beyond the implemented Phase 31.32 runtime preflight and Phase 31.33 logical recovery baseline;
 - choose the real-world trusted channel used to hand an initial or replacement password to a protected user;
 - introduce public forgotten-password/reset links, email/SMS credential delivery, or forced-first-password-change policy;
 - define stronger nickname normalization, nickname recovery, or long-lived browser convenience persistence;
@@ -270,9 +270,11 @@ Phase 31.31 reuses Better Auth's credential password hashing format for explicit
 
 Phase 31.32 does not change Better Auth identity semantics. It makes the runtime inputs around the existing Better Auth/PostgreSQL boundary explicit and fail-closed in production. Build/test compatibility placeholders may still exist for module construction, but they do not satisfy the production preflight or production protected-request guard.
 
+Phase 31.33 does not change Account, Actor, RoleAssignment, password, or nickname semantics. A whole-database logical restore preserves protected Accounts, credential hashes, Account-to-Actor links, active state, Person links, and `app_user_roles`, but all restored `auth_sessions` are revoked before the recovered database may be treated as usable. Environment secrets remain outside the database backup.
+
 ## 16. Resolved and remaining questions
 
-Resolved by corrected Phase 31.27 and implemented through Phase 31.32:
+Resolved by corrected Phase 31.27 and implemented through Phase 31.33:
 
 - protected user experience — username + password;
 - protected signup model — none; admin provisions accounts;
@@ -289,24 +291,27 @@ Resolved by corrected Phase 31.27 and implemented through Phase 31.32:
 - only-admin credential loss — operator-only break-glass reset of an existing protected admin, with no permanent bypass;
 - credential handoff — outside the application through a trusted local/operator channel;
 - minimal production runtime configuration contract and redacted operator preflight — implemented in Phase 31.32;
+- whole-database logical backup, integrity verification, separate-empty-target restore, restored protected-session revocation, and recovery rehearsal baseline — implemented in Phase 31.33;
 - historical people without Accounts remain valid.
 
 Still deferred:
 
 - forced-first-password-change policy or any future public/token-based recovery mechanism;
 - stronger nickname normalization, nickname recovery, and long-lived convenience persistence;
-- hosting/provider selection, managed production database choice, backup/restore, release/rollback, secret-manager integration/rotation, and concrete credential-delivery operations;
+- hosting/provider selection and managed production database choice;
+- scheduled/off-site backups, retention, encryption/key management, PITR/WAL, RPO/RTO, provider-native recovery, and production cutover;
+- release/rollback, secret-manager integration/rotation, and concrete credential-delivery operations;
 - identity/security audit, monitoring, and telemetry policy;
 - any future OAuth, passkey, 2FA, or multi-congregation expansion.
 
 ## 17. What this enables next
 
-Phase 31.32 closes the minimal production runtime configuration/preflight baseline around the already implemented protected staff and nickname identity models. It does not claim that deployment operations are complete.
+Phase 31.33 closes the minimal vendor-neutral PostgreSQL logical backup/restore and recovery-rehearsal baseline around the already implemented runtime and identity models. It does not claim that deployment or disaster-recovery operations are complete.
 
 Remaining identity/access-adjacent production work can now focus on:
 
 - production hosting/provider selection and cutover mechanics;
-- backup/export/restore design and recovery testing;
+- scheduled/off-site backup operations, retention/encryption, PITR/WAL, and explicit recovery objectives;
 - release/rollback and operational hardening;
 - separately accepted identity/security audit, monitoring, or telemetry;
 - only separately accepted future UX/security additions such as forced-first-change, stronger recovery, OAuth, passkeys, or 2FA.
