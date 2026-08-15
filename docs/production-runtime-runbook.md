@@ -8,7 +8,9 @@ Phase 31.33 adds the repository's minimal logical PostgreSQL backup/restore and 
 
 Phase 31.34 selects **Vercel Hobby for the Next.js application and Neon Free for PostgreSQL**, with a hard first-operation requirement of **USD 0 recurring provider cost**. The detailed dated decision, terms/limit assumptions, alternatives, and pre-cutover blockers are authoritative in `docs/production-hosting-decision.md`.
 
-Phase 31.34 remains preparation only: no new Vercel project, Neon project/database, payment plan, production secret, DNS change, data cutover, or remote deployment is created by that phase.
+Phase 31.35 completes the repository-side runtime readiness required before provider resources may be created. `package.json` now pins **Node.js 22.x**, `pg` is now a production dependency, and `vercel.json` fixes Frankfurt (`fra1`) while keeping automatic Git deployments disabled for the migration-first manual release contract.
+
+Phases 31.34-31.35 remain pre-provisioning work: no new Vercel project, Neon project/database, payment plan, production secret, DNS change, data cutover, or remote deployment is created by them.
 
 ## Required production runtime variables
 
@@ -56,7 +58,13 @@ The repository's normal framework build remains:
 npm run build
 ```
 
-The later provider-specific deployment slice must explicitly pin **Node.js 22.x** rather than accepting Vercel's current Node 24.x default.
+Phase 31.35 pins the production Node major in `package.json`:
+
+```text
+engines.node = 22.x
+```
+
+This overrides a different Vercel project default and keeps production aligned with the repository's Node 22 CI baseline.
 
 ### Runtime versus operator database connection
 
@@ -71,19 +79,35 @@ The pooled URL is for serverless application requests. Neon documents pooled con
 
 The unpooled/direct URL is for migration and Phase 31.33 operator tooling. Preserve all Neon-supplied TLS parameters in both values.
 
-### Production packaging prerequisite before real deployment
+### Production packaging readiness
 
-`src/auth/server.ts` imports `pg` in production server code while `package.json` currently lists `pg` under `devDependencies`. Next.js documents `pg` as a server-external package.
+`src/auth/server.ts` imports `pg` in production server code, and Next.js documents `pg` as a server-external package. Phase 31.35 therefore promotes `pg` from `devDependencies` to `dependencies` and synchronizes `package-lock.json` accordingly.
 
-The later provider-specific deployment slice must move runtime `pg` to `dependencies` (or establish an equivalently explicit production-runtime packaging contract), pin Node 22.x, and re-run production build/runtime acceptance before remote cutover.
+Focused acceptance also performs a clean `npm ci --omit=dev` smoke and requires `require('pg')` to succeed. This demonstrates that request-time PostgreSQL support no longer depends on development-only packages.
 
-`tsx` may remain operator/build tooling when migrations and recovery commands run outside request-time Vercel Functions. Do not make migrations, backups, restores, catalog sync, or auth bootstrap part of normal request handling.
+`tsx` remains operator/build tooling for migrations and recovery scripts; it is not required by ordinary Vercel request handling. Do not make migrations, backups, restores, catalog sync, or auth bootstrap part of normal Function request handling.
+
+### Repository Vercel configuration
+
+Phase 31.35 adds a minimal `vercel.json`:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["fra1"],
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
+
+The region setting keeps application Functions close to the selected Neon Frankfurt database. The Git setting deliberately prevents an ordinary Git push or merge from automatically deploying production before database migration is complete.
 
 ## Zero-cost release ordering
 
-Vercel does not provide the Render-style paid pre-deploy command assumed by the rejected first Phase 31.34 proposal. The zero-cost contract instead uses explicit operator-controlled deployment.
+The zero-cost contract uses explicit operator-controlled deployment rather than a paid pre-deploy product.
 
-Before real production use, automatic Git deployment for `organy-app` must be disabled (for example with reviewed `git.deploymentEnabled=false` configuration or equivalent project settings). A merge to `main` must therefore **not** automatically outrun database migration.
+Phase 31.35 commits `git.deploymentEnabled=false`, so automatic Git deployments remain disabled unless a later separately accepted release design changes this contract. A merge to `main` must therefore **not** automatically outrun database migration.
 
 Until separately accepted release automation exists, release order is:
 
@@ -184,12 +208,13 @@ For local Phase 31.33 recovery rehearsal, `ORGANY_PG_TOOL_MODE=docker-compose` c
 
 ## Still deferred
 
-Phases 31.32-31.34 do not make the application fully production-ready. Separate accepted work is still required for:
+Phases 31.32-31.35 do not make the application fully production-ready. The immediate next provider-specific slice is **Phase 31.36**, which may create the free Vercel `organy-app` project and Neon Free project, connect the required pooled/direct database variables without committing credentials, and run the mandatory read-only Neon `pg_control_system()` compatibility probe before any data cutover.
 
-- actual creation/configuration of the free Vercel `organy-app` project and Neon Free project;
-- production packaging for runtime `pg`, Node 22.x pin, Frankfurt function-region configuration, and automatic-Git-deployment disablement;
-- the Neon `pg_control_system()` compatibility probe/adaptation;
-- actual production secrets, initial schema/data cutover, bootstrap, and remote deployment;
+Separate accepted work is still required for:
+
+- actual creation/configuration of the free Vercel `organy-app` project and Neon Free project (Phase 31.36);
+- the Neon `pg_control_system()` compatibility probe/adaptation (Phase 31.36 or a blocker fix immediately following it);
+- actual production secrets, initial schema/data cutover, bootstrap, and remote production deployment;
 - scheduled/off-site backup retention, RPO/RTO, and production recovery/cutover procedures;
 - release/rollback automation beyond the manual zero-cost flow above;
 - secret rotation automation;
