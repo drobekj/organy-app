@@ -28,7 +28,7 @@ requireText(
     "Decision date: **2026-08-15**",
     "USD 0 recurring provider cost",
     "personal or non-commercial use",
-    "do **not** start a Vercel Pro trial",
+    "Do **not** start a Vercel Pro trial",
     "USD 0 with no time limit and no credit card required",
     "100 CU-hours",
     "0.5 GB storage",
