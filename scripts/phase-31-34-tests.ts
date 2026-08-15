@@ -44,7 +44,7 @@ requireText(
     "npm run db:migrate",
     "npm run db:bootstrap:auth",
     "one persistent Production environment only",
-    "Neon Auth must not be provisioned",
+    "must not provision Neon Auth",
     "pg_control_system()",
     "do not weaken or bypass source=target protection",
     "temporary application outage if a free quota is exhausted",
