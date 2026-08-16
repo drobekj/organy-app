@@ -7,6 +7,7 @@ import { validateProductionRuntimeConfig } from "../src/config/production-runtim
 const SCRIPT = "scripts/production-first-migrate.ts";
 const LOCAL_DIRECT_URL = process.env.DATABASE_URL_UNPOOLED;
 const SENSITIVE_URL = "postgres://private-user:private-password@private-pooler.example.test/private-db";
+const CONFIG_TABLE = "melody_non_repetition_config";
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 function run(args: string[], directUrl: string | undefined) {
@@ -42,11 +43,15 @@ function quoteIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`;
 }
 
-async function assertAllPublicTablesEmpty(pool: Pool): Promise<void> {
+async function assertOnlyReviewedMigrationData(pool: Pool): Promise<void> {
+  const nonEmpty: string[] = [];
   for (const table of await publicTables(pool)) {
     const result = await pool.query(`select count(*)::int as n from public.${quoteIdentifier(table)}`);
-    assert.equal(Number(result.rows[0]?.n ?? 0), 0, `${table} must remain row-empty after schema-only migration`);
+    if (Number(result.rows[0]?.n ?? 0) !== 0) nonEmpty.push(table);
   }
+  assert.deepEqual(nonEmpty, [CONFIG_TABLE], "only the reviewed migration-owned config table may contain a row");
+  const configRows = (await pool.query(`select id, months from public.${quoteIdentifier(CONFIG_TABLE)} order by id`)).rows;
+  assert.deepEqual(configRows.map((row) => ({ id: String(row.id), months: Number(row.months) })), [{ id: "global", months: 2 }], "migration-owned config singleton must match the reviewed default");
 }
 
 async function main(): Promise<void> {
@@ -56,6 +61,7 @@ async function main(): Promise<void> {
   assert.ok(scriptSource.includes("DATABASE_URL_UNPOOLED"));
   assert.ok(scriptSource.includes("--apply"));
   assert.ok(scriptSource.includes("direct/unpooled"));
+  assert.ok(scriptSource.includes("melody_non_repetition_config"));
   assert.ok(!scriptSource.includes("BETTER_AUTH_URL"), "first-migration operator must not depend on BETTER_AUTH_URL");
   assert.ok(!scriptSource.includes("db:bootstrap:auth"));
   assert.ok(!scriptSource.includes("db:seed"));
@@ -99,7 +105,9 @@ async function main(): Promise<void> {
     assert.ok(migratedTables.length > 0, "reviewed Drizzle migrations must create the application schema");
     assert.ok(migratedTables.includes("auth_users"), "Better Auth application table must exist after migration");
     assert.ok(migratedTables.includes("app_users"), "application Actor table must exist after migration");
-    await assertAllPublicTablesEmpty(pool);
+    await assertOnlyReviewedMigrationData(pool);
+    assert.equal(Number((await pool.query("select count(*)::int n from auth_users")).rows[0].n), 0, "auth_users must remain empty");
+    assert.equal(Number((await pool.query("select count(*)::int n from app_users")).rows[0].n), 0, "app_users must remain empty");
 
     const providerState = (await pool.query(`
       select
@@ -120,7 +128,7 @@ async function main(): Promise<void> {
   }
 
   console.log("Phase 31.38 first production Neon schema migration boundary acceptance: PASS");
-  console.log("The operator path is direct/unpooled, schema-only, row-empty, and independent of deferred BETTER_AUTH_URL.");
+  console.log("The operator path is direct/unpooled, schema-only, permits only the reviewed config singleton, and is independent of deferred BETTER_AUTH_URL.");
 }
 
 void main().catch((error: unknown) => {
