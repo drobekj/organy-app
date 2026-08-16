@@ -7,9 +7,6 @@ import { validateProductionRuntimeConfig } from "../src/config/production-runtim
 const SCRIPT = "scripts/production-first-migrate.ts";
 const LOCAL_DIRECT_URL = process.env.DATABASE_URL_UNPOOLED;
 const SENSITIVE_URL = "postgres://private-user:private-password@private-pooler.example.test/private-db";
-
-if (!LOCAL_DIRECT_URL) throw new Error("Phase 31.38 acceptance requires DATABASE_URL_UNPOOLED for disposable PostgreSQL.");
-
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 function run(args: string[], directUrl: string | undefined) {
@@ -39,71 +36,83 @@ async function assertAllPublicTablesEmpty(pool: Pool): Promise<void> {
   }
 }
 
-const scriptSource = readFileSync(SCRIPT, "utf8");
-assert.ok(scriptSource.includes("DATABASE_URL_UNPOOLED"));
-assert.ok(scriptSource.includes("--apply"));
-assert.ok(scriptSource.includes("direct/unpooled"));
-assert.ok(!scriptSource.includes("BETTER_AUTH_URL"), "first-migration operator must not depend on BETTER_AUTH_URL");
-assert.ok(!scriptSource.includes("db:bootstrap:auth"));
-assert.ok(!scriptSource.includes("db:seed"));
-assert.ok(!scriptSource.includes("db:sync"));
+async function main(): Promise<void> {
+  assert.ok(LOCAL_DIRECT_URL, "Phase 31.38 acceptance requires DATABASE_URL_UNPOOLED for disposable PostgreSQL.");
 
-const missing = run([], undefined);
-assert.notEqual(missing.status, 0);
-assert.match(output(missing), /DATABASE_URL_UNPOOLED/);
+  const scriptSource = readFileSync(SCRIPT, "utf8");
+  assert.ok(scriptSource.includes("DATABASE_URL_UNPOOLED"));
+  assert.ok(scriptSource.includes("--apply"));
+  assert.ok(scriptSource.includes("direct/unpooled"));
+  assert.ok(!scriptSource.includes("BETTER_AUTH_URL"), "first-migration operator must not depend on BETTER_AUTH_URL");
+  assert.ok(!scriptSource.includes("db:bootstrap:auth"));
+  assert.ok(!scriptSource.includes("db:seed"));
+  assert.ok(!scriptSource.includes("db:sync"));
 
-const pooled = run([], SENSITIVE_URL);
-assert.notEqual(pooled.status, 0);
-assert.match(output(pooled), /direct\/unpooled/);
-assert.ok(!output(pooled).includes(SENSITIVE_URL));
-assert.ok(!output(pooled).includes("private-password"));
-assert.ok(!output(pooled).includes("private-pooler.example.test"));
+  const missing = run([], undefined);
+  assert.notEqual(missing.status, 0);
+  assert.match(output(missing), /DATABASE_URL_UNPOOLED/);
 
-const fullRuntimeWithoutAuthUrl = validateProductionRuntimeConfig({
-  ORGANY_RUNTIME: "db",
-  DATABASE_URL: "postgres://runtime.example.test/organy",
-  BETTER_AUTH_SECRET: "phase-31-38-full-runtime-secret-0123456789abcdef",
-});
-assert.ok(fullRuntimeWithoutAuthUrl.some((issue) => issue.key === "BETTER_AUTH_URL"), "full runtime preflight must still require BETTER_AUTH_URL");
+  const pooled = run([], SENSITIVE_URL);
+  assert.notEqual(pooled.status, 0);
+  assert.match(output(pooled), /direct\/unpooled/);
+  assert.ok(!output(pooled).includes(SENSITIVE_URL));
+  assert.ok(!output(pooled).includes("private-password"));
+  assert.ok(!output(pooled).includes("private-pooler.example.test"));
 
-const pool = new Pool({ connectionString: LOCAL_DIRECT_URL });
-try {
-  assert.deepEqual(await publicTables(pool), [], "disposable Phase 31.38 target must start empty");
+  const fullRuntimeWithoutAuthUrl = validateProductionRuntimeConfig({
+    ORGANY_RUNTIME: "db",
+    DATABASE_URL: "postgres://runtime.example.test/organy",
+    BETTER_AUTH_SECRET: "phase-31-38-full-runtime-secret-0123456789abcdef",
+  });
+  assert.ok(fullRuntimeWithoutAuthUrl.some((issue) => issue.key === "BETTER_AUTH_URL"), "full runtime preflight must still require BETTER_AUTH_URL");
 
-  const check = run([], LOCAL_DIRECT_URL);
-  assert.equal(check.status, 0, output(check));
-  assert.match(check.stdout, /preflight: PASS/);
-  assert.match(check.stdout, /no migration was applied/);
-  assert.deepEqual(await publicTables(pool), [], "read-only first-migration preflight must not create schema");
+  const pool = new Pool({ connectionString: LOCAL_DIRECT_URL });
+  try {
+    assert.deepEqual(await publicTables(pool), [], "disposable Phase 31.38 target must start empty");
 
-  const apply = run(["--apply"], LOCAL_DIRECT_URL);
-  assert.equal(apply.status, 0, output(apply));
-  assert.match(apply.stdout, /First production schema migration: PASS/);
-  assert.ok(!output(apply).includes(LOCAL_DIRECT_URL));
+    const check = run([], LOCAL_DIRECT_URL);
+    assert.equal(check.status, 0, "read-only migration preflight must pass against empty disposable PostgreSQL");
+    assert.match(check.stdout, /preflight: PASS/);
+    assert.match(check.stdout, /no migration was applied/);
+    assert.ok(!output(check).includes(LOCAL_DIRECT_URL), "read-only preflight must not echo the connection URL");
+    assert.deepEqual(await publicTables(pool), [], "read-only first-migration preflight must not create schema");
 
-  const migratedTables = await publicTables(pool);
-  assert.ok(migratedTables.length > 0, "reviewed Drizzle migrations must create the application schema");
-  assert.ok(migratedTables.includes("auth_users"), "Better Auth application table must exist after migration");
-  assert.ok(migratedTables.includes("app_users"), "application Actor table must exist after migration");
-  await assertAllPublicTablesEmpty(pool);
+    const apply = run(["--apply"], LOCAL_DIRECT_URL);
+    assert.equal(apply.status, 0, "schema-only first migration must pass against empty disposable PostgreSQL");
+    assert.match(apply.stdout, /First production schema migration: PASS/);
+    assert.ok(!output(apply).includes(LOCAL_DIRECT_URL), "migration output must not echo the connection URL");
 
-  const providerState = (await pool.query(`
-    select
-      exists(select 1 from pg_namespace where nspname='neon_auth') as neon_auth_schema,
-      exists(select 1 from pg_roles where rolname='authenticated') as authenticated_role,
-      exists(select 1 from pg_roles where rolname='anonymous') as anonymous_role
-  `)).rows[0] as Record<string, boolean>;
-  assert.equal(Boolean(providerState.neon_auth_schema), false);
-  assert.equal(Boolean(providerState.authenticated_role), false);
-  assert.equal(Boolean(providerState.anonymous_role), false);
+    const migratedTables = await publicTables(pool);
+    assert.ok(migratedTables.length > 0, "reviewed Drizzle migrations must create the application schema");
+    assert.ok(migratedTables.includes("auth_users"), "Better Auth application table must exist after migration");
+    assert.ok(migratedTables.includes("app_users"), "application Actor table must exist after migration");
+    await assertAllPublicTablesEmpty(pool);
 
-  const repeated = run(["--apply"], LOCAL_DIRECT_URL);
-  assert.notEqual(repeated.status, 0, "first-production migration must fail closed after schema already exists");
-  assert.match(output(repeated), /already contains public application tables/);
-  assert.ok(!output(repeated).includes(LOCAL_DIRECT_URL));
-} finally {
-  await pool.end();
+    const providerState = (await pool.query(`
+      select
+        exists(select 1 from pg_namespace where nspname='neon_auth') as neon_auth_schema,
+        exists(select 1 from pg_roles where rolname='authenticated') as authenticated_role,
+        exists(select 1 from pg_roles where rolname='anonymous') as anonymous_role
+    `)).rows[0] as Record<string, boolean>;
+    assert.equal(Boolean(providerState.neon_auth_schema), false);
+    assert.equal(Boolean(providerState.authenticated_role), false);
+    assert.equal(Boolean(providerState.anonymous_role), false);
+
+    const repeated = run(["--apply"], LOCAL_DIRECT_URL);
+    assert.notEqual(repeated.status, 0, "first-production migration must fail closed after schema already exists");
+    assert.match(output(repeated), /already contains public application tables/);
+    assert.ok(!output(repeated).includes(LOCAL_DIRECT_URL), "rejected rerun must not echo the connection URL");
+  } finally {
+    await pool.end();
+  }
+
+  console.log("Phase 31.38 first production Neon schema migration boundary acceptance: PASS");
+  console.log("The operator path is direct/unpooled, schema-only, row-empty, and independent of deferred BETTER_AUTH_URL.");
 }
 
-console.log("Phase 31.38 first production Neon schema migration boundary acceptance: PASS");
-console.log("The operator path is direct/unpooled, schema-only, row-empty, and independent of deferred BETTER_AUTH_URL.");
+void main().catch((error: unknown) => {
+  console.error("Phase 31.38 first production Neon schema migration boundary acceptance: FAIL");
+  if (error instanceof assert.AssertionError) console.error(error.message);
+  else console.error("Unexpected acceptance failure.");
+  process.exitCode = 1;
+});
