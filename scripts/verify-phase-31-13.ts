@@ -169,7 +169,10 @@ async function main() {
       await runNpm("db:sync:reference-antiphons", databaseUrl);
       const pool = new Pool({ connectionString: databaseUrl });
       let poolShuttingDown = false;
-      pool.on("error", (error: Error) => {
+      const poolErrors = pool as unknown as {
+        on(event: "error", listener: (error: Error) => void): void;
+      };
+      poolErrors.on("error", (error: Error) => {
         if (poolShuttingDown && (error as Error & { code?: string }).code === "57P01") return;
         throw error;
       });
