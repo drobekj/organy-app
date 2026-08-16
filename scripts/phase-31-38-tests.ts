@@ -21,6 +21,19 @@ function output(result: ReturnType<typeof run>): string {
   return `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
 }
 
+function redactedOutput(result: ReturnType<typeof run>, urlText: string): string {
+  let redacted = output(result).replaceAll(urlText, "<redacted-url>");
+  try {
+    const url = new URL(urlText);
+    for (const value of [url.username, url.password, url.hostname]) {
+      if (value) redacted = redacted.replaceAll(value, "<redacted>");
+    }
+  } catch {
+    return "<redacted diagnostic unavailable>";
+  }
+  return redacted.trim();
+}
+
 async function publicTables(pool: Pool): Promise<string[]> {
   return (await pool.query("select tablename from pg_tables where schemaname='public' order by tablename")).rows.map((row) => String(row.tablename));
 }
@@ -71,14 +84,14 @@ async function main(): Promise<void> {
     assert.deepEqual(await publicTables(pool), [], "disposable Phase 31.38 target must start empty");
 
     const check = run([], LOCAL_DIRECT_URL);
-    assert.equal(check.status, 0, "read-only migration preflight must pass against empty disposable PostgreSQL");
+    assert.equal(check.status, 0, `read-only migration preflight must pass against empty disposable PostgreSQL: ${redactedOutput(check, LOCAL_DIRECT_URL)}`);
     assert.match(check.stdout, /preflight: PASS/);
     assert.match(check.stdout, /no migration was applied/);
     assert.ok(!output(check).includes(LOCAL_DIRECT_URL), "read-only preflight must not echo the connection URL");
     assert.deepEqual(await publicTables(pool), [], "read-only first-migration preflight must not create schema");
 
     const apply = run(["--apply"], LOCAL_DIRECT_URL);
-    assert.equal(apply.status, 0, "schema-only first migration must pass against empty disposable PostgreSQL");
+    assert.equal(apply.status, 0, `schema-only first migration must pass against empty disposable PostgreSQL: ${redactedOutput(apply, LOCAL_DIRECT_URL)}`);
     assert.match(apply.stdout, /First production schema migration: PASS/);
     assert.ok(!output(apply).includes(LOCAL_DIRECT_URL), "migration output must not echo the connection URL");
 
