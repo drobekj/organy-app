@@ -10,15 +10,16 @@ The provider resource was created through the explicit HUMAN Neon Console step a
 
 ## Verified provider target
 
-Verified on **2026-08-15**:
+Verified on **2026-08-16**:
 
 - exactly one project exists in the connected Neon organization for this application;
 - project name: `organy-app-production`;
-- organization plan: **Free**;
+- HUMAN creation step used the **Free** plan as required by Contract Gate #186;
 - PostgreSQL major: **16**;
 - cloud/region: **AWS Europe (Frankfurt)** (`aws-eu-central-1`);
 - one default root branch named `production`;
 - one default read-write compute, with Free-plan autoscaling/scale-to-zero behavior;
+- provider branch metadata reported **0 bytes written** before application migration;
 - only provider-default databases/schemas were present before application migration; no application schema/data was imported;
 - no extra application branch, read replica, scheduled snapshot, Data API, Object Storage, Functions, or Neon Auth was provisioned by Phase 31.36.
 
@@ -26,7 +27,9 @@ The project remains an empty provider target for later migration/cutover work. P
 
 ## Zero-cost verification
 
-Immediately before creation, current Neon primary documentation was re-checked and still stated that Free is `$0/month`, permanent rather than a trial, and requires no credit card. After creation, connected organization metadata reported the actual organization plan as `free`.
+Immediately before creation, current Neon primary documentation was re-checked and still stated that Free is `$0/month`, permanent rather than a trial, and requires no credit card. The HUMAN creation step was completed under that Free contract without accepting a paid plan/trial/payment requirement.
+
+The connected Neon project API does not expose an explicit billing-plan field, so repository documentation does **not** claim a machine-read `plan=free` value. Provider metadata independently confirms the requested PG16/Frankfurt resource shape; the Free-plan selection itself is the HUMAN browser checkpoint required by Contract Gate #186.
 
 The accepted Free limits remain operational constraints, not billing fallbacks:
 
@@ -61,6 +64,8 @@ Result: **PASS**.
 The function returned successfully, so the existing Phase 31.33 `current_database()` + `pg_control_system()` source=target fail-closed identity guard remains compatible with this Neon PostgreSQL 16 project. No managed-PostgreSQL identity adaptation is required before cutover.
 
 The returned system identifier is intentionally not copied into documentation, issues, PR text, CI output, or other repository artifacts.
+
+Read-only provider checks also confirmed that the default role is `neondb_owner`, the application database is `neondb`, no `neon_auth` schema exists, and no Data API roles named `authenticated` or `anonymous` exist.
 
 ## Explicitly deferred
 
