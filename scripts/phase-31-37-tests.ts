@@ -27,15 +27,22 @@ const pkg = JSON.parse(read("package.json")) as {
 requireText(
   providerState,
   [
-    "Current state: **PRE-HUMAN / PROJECT NOT YET CREATED**",
+    "Current state: **HUMAN UI FAIL-CLOSED / PROJECT NOT YET CREATED**",
     "Contract Gate: #188",
     "intended Vercel project `organy-app`: **absent**",
     "zero because the project does not yet exist",
+    "HUMAN Dashboard checkpoint — fail-closed result",
+    "There was no separate create-only action",
+    "operator did **not** click Deploy",
+    "Dashboard import path is rejected for Phase 31.37",
+    "`vercel project add <project-name>` creates a Vercel Project",
+    "next authorized HUMAN provider action is the create-only CLI command `vercel project add organy-app`",
+    "must not run `vercel`, `vercel deploy`, or `vercel --prod`",
     "framework: Next.js",
     "Node.js: `22.x`",
     "Functions region: Frankfurt `fra1`",
     "Git automatic deployment: disabled by `git.deploymentEnabled=false`",
-    "If the Vercel Console cannot finish project creation/configuration without starting a deployment",
+    "GitHub repository does not need to be linked during the create-only CLI checkpoint",
     "No Vercel Pro trial, paid plan, payment method",
     "Manual Production environment-variable boundary",
     "`ORGANY_RUNTIME` — Production target, value `db`",
@@ -97,4 +104,4 @@ assert.equal(existsSync(".env.production"), false, "production credentials must 
 assert.equal(existsSync(".vercel/project.json"), false, "Vercel local-link metadata must not be committed");
 
 console.log("Phase 31.37 Vercel Hobby project/manual environment boundary acceptance: PASS");
-console.log("PRE-HUMAN contract is encoded; provider project creation remains deliberately external to CI.");
+console.log("Dashboard import failed closed; create-only provider creation remains deliberately external to CI.");
