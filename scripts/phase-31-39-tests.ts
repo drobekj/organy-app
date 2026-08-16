@@ -20,11 +20,15 @@ const EXPECTED_NON_EMPTY = [
 ].sort();
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
-function run(script: string, args: string[], directUrl: string | undefined) {
+function run(script: string, args: string[], directUrl: string | undefined, locale?: string) {
   const env = { ...process.env };
   delete env.BETTER_AUTH_URL;
   if (directUrl === undefined) delete env.DATABASE_URL_UNPOOLED;
   else env.DATABASE_URL_UNPOOLED = directUrl;
+  if (locale) {
+    env.LANG = locale;
+    env.LC_ALL = locale;
+  }
   return spawnSync(npx, ["tsx", script, ...args], { encoding: "utf8", env });
 }
 
@@ -105,6 +109,8 @@ async function main(): Promise<void> {
   assert.ok(source.includes("loadAndValidateReferenceAntiphons"));
   assert.ok(source.includes("loadAndValidatePolishReferenceAntiphons"));
   assert.ok(source.includes("loadAndValidateReferenceThematicSections"));
+  assert.ok(source.includes("stableStringCompare"));
+  assert.ok(!source.includes(".localeCompare("), "production snapshot comparison must not depend on host locale");
   assert.ok(!source.includes("BETTER_AUTH_URL"), "reference-data operator must not depend on deferred BETTER_AUTH_URL");
   assert.ok(!source.includes("db:bootstrap:auth"));
   assert.ok(!source.includes("db:seed"));
@@ -166,8 +172,8 @@ async function main(): Promise<void> {
     assert.equal(Number((await pool.query("select count(*)::int n from app_user_roles")).rows[0].n), 0);
     assert.equal(Number((await pool.query("select count(*)::int n from service_contexts")).rows[0].n), 0);
 
-    const finalPreflight = run(SCRIPT, [], LOCAL_DIRECT_URL);
-    assert.equal(finalPreflight.status, 0, `final-state preflight must pass: ${redactedOutput(finalPreflight, LOCAL_DIRECT_URL)}`);
+    const finalPreflight = run(SCRIPT, [], LOCAL_DIRECT_URL, "cs_CZ.UTF-8");
+    assert.equal(finalPreflight.status, 0, `Czech-locale final-state preflight must pass: ${redactedOutput(finalPreflight, LOCAL_DIRECT_URL)}`);
     assert.match(finalPreflight.stdout, /already present/);
     assert.deepEqual(await exactSnapshot(pool), expectedSnapshot);
 
