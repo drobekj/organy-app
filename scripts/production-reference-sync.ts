@@ -44,6 +44,12 @@ const SAFE_FAILURES = new Set([
 
 type DatabaseError = Error & { code?: string };
 type TargetState = "baseline" | "final";
+type AuthoritativeSources = {
+  catalogRecords: Awaited<ReturnType<typeof loadAndValidateReferenceCatalog>>;
+  czechAntiphons: Awaited<ReturnType<typeof loadAndValidateReferenceAntiphons>>;
+  polishAntiphons: Awaited<ReturnType<typeof loadAndValidatePolishReferenceAntiphons>>;
+  thematicData: Awaited<ReturnType<typeof loadAndValidateReferenceThematicSections>>;
+};
 
 type ProviderBoundary = {
   publicTables: string[];
@@ -123,6 +129,12 @@ function sameStrings(actual: string[], expected: string[]): boolean {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
+function assertSameJson(actual: unknown, expected: unknown): void {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error("Production reference synchronization did not produce the exact reviewed reference snapshot.");
+  }
+}
+
 async function assertExactFinalSnapshot(pool: Pool): Promise<void> {
   const catalog = (await pool.query(`
     select
@@ -194,6 +206,103 @@ async function assertExactFinalSnapshot(pool: Pool): Promise<void> {
   }
 }
 
+async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: AuthoritativeSources): Promise<void> {
+  const actualCatalog = (await pool.query(`
+    select id, language, canonical_number, source_id, title, source_url
+    from reference_catalog_songs order by id
+  `)).rows.map((row) => ({
+    id: String(row.id),
+    language: String(row.language),
+    canonicalNumber: Number(row.canonical_number),
+    sourceId: String(row.source_id),
+    title: String(row.title),
+    sourceUrl: row.source_url === null ? null : String(row.source_url),
+  }));
+  const expectedCatalog = sources.catalogRecords.map((record) => ({ ...record }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  assertSameJson(actualCatalog, expectedCatalog);
+
+  const actualAntiphons = (await pool.query(`
+    select id, language, canonical_number, title, source_url
+    from reference_antiphons order by id
+  `)).rows.map((row) => ({
+    id: String(row.id),
+    language: String(row.language),
+    canonicalNumber: Number(row.canonical_number),
+    title: String(row.title),
+    sourceUrl: row.source_url === null ? null : String(row.source_url),
+  }));
+  const expectedAntiphons = [...sources.czechAntiphons, ...sources.polishAntiphons]
+    .map((record) => ({ ...record }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  assertSameJson(actualAntiphons, expectedAntiphons);
+
+  const actualParents = (await pool.query(`
+    select id, language, title, parent_id, section_order, source_scan_page
+    from reference_thematic_parents order by id
+  `)).rows.map((row) => ({
+    id: String(row.id),
+    language: String(row.language),
+    title: String(row.title),
+    parentId: row.parent_id === null ? null : String(row.parent_id),
+    order: Number(row.section_order),
+    sourceScanPage: Number(row.source_scan_page),
+  }));
+  const expectedParents = sources.thematicData.parents.map((parent) => ({
+    id: parent.id,
+    language: parent.language,
+    title: parent.title,
+    parentId: parent.parentId,
+    order: parent.order,
+    sourceScanPage: parent.sourcePage.scanPage,
+  })).sort((a, b) => a.id.localeCompare(b.id));
+  assertSameJson(actualParents, expectedParents);
+
+  const actualSections = (await pool.query(`
+    select id, theme_key, language, title, parent_id, section_order, source_scan_page, source_printed_page
+    from reference_thematic_sections order by id
+  `)).rows.map((row) => ({
+    id: String(row.id),
+    themeKey: String(row.theme_key),
+    language: String(row.language),
+    title: String(row.title),
+    parentId: String(row.parent_id),
+    order: Number(row.section_order),
+    sourceScanPage: Number(row.source_scan_page),
+    sourcePrintedPage: Number(row.source_printed_page),
+  }));
+  const expectedSections = sources.thematicData.sections.map((section) => ({
+    id: section.id,
+    themeKey: section.themeKey,
+    language: section.language,
+    title: section.title,
+    parentId: section.parentId,
+    order: section.order,
+    sourceScanPage: section.sourcePage.scanPage,
+    sourcePrintedPage: section.sourcePage.printedPage,
+  })).sort((a, b) => a.id.localeCompare(b.id));
+  assertSameJson(actualSections, expectedSections);
+
+  const actualRanges = (await pool.query(`
+    select section_id, range_order, from_number, to_number
+    from reference_thematic_ranges order by section_id, range_order
+  `)).rows.map((row) => ({
+    sectionId: String(row.section_id),
+    rangeOrder: Number(row.range_order),
+    from: Number(row.from_number),
+    to: Number(row.to_number),
+  }));
+  const expectedRanges = sources.thematicData.sections.flatMap((section) =>
+    section.ranges.map((range, index) => ({
+      sectionId: section.id,
+      rangeOrder: index + 1,
+      from: range.from,
+      to: range.to,
+    })),
+  ).sort((a, b) => a.sectionId.localeCompare(b.sectionId) || a.rangeOrder - b.rangeOrder);
+  assertSameJson(actualRanges, expectedRanges);
+}
+
 async function classifyTarget(pool: Pool): Promise<TargetState> {
   const boundary = await inspectProviderBoundary(pool);
   if (boundary.publicTables.length !== EXPECTED_PUBLIC_TABLES) {
@@ -212,7 +321,7 @@ async function classifyTarget(pool: Pool): Promise<TargetState> {
   throw new Error("Production reference synchronization refuses unexpected or partially synchronized application data.");
 }
 
-async function validateAuthoritativeSources() {
+async function validateAuthoritativeSources(): Promise<AuthoritativeSources> {
   try {
     const [catalogRecords, czechAntiphons, polishAntiphons, thematicData] = await Promise.all([
       loadAndValidateReferenceCatalog(),
@@ -245,12 +354,13 @@ async function main(): Promise<void> {
 
     const before = await classifyTarget(pool);
     const sources = await validateAuthoritativeSources();
+    if (before === "final") await assertDatabaseMatchesAuthoritativeSources(pool, sources);
 
     if (!apply) {
       console.log("Production authoritative reference synchronization preflight: PASS");
       console.log(before === "baseline"
         ? `Phase 31.38 baseline and authoritative sources verified; no data was synchronized. Re-run with ${APPLY_FLAG} only at the authorized HUMAN checkpoint.`
-        : `Exact Phase 31.39 reference snapshot already present; authoritative sources verified and no data was changed.`);
+        : "Exact Phase 31.39 reference snapshot already present; authoritative sources verified and no data was changed.");
       return;
     }
 
@@ -265,6 +375,7 @@ async function main(): Promise<void> {
     if (after !== "final") {
       throw new Error("Production reference synchronization did not produce the exact reviewed reference snapshot.");
     }
+    await assertDatabaseMatchesAuthoritativeSources(pool, sources);
 
     console.log("Production authoritative reference synchronization: PASS");
     console.log("Reviewed reference catalog, melody singleton baseline, antiphons, and thematic sections synchronized through the direct/unpooled connection; operational/auth data remains excluded.");
