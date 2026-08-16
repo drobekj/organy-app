@@ -10,7 +10,9 @@ Phase 31.34 selects **Vercel Hobby for the Next.js application and Neon Free for
 
 Phase 31.35 completes the repository-side runtime readiness required before provider resources may be created. `package.json` now pins **Node.js 22.x**, `pg` is now a production dependency, and `vercel.json` fixes Frankfurt (`fra1`) while keeping automatic Git deployments disabled for the migration-first manual release contract.
 
-Phases 31.34-31.35 remain pre-provisioning work: no new Vercel project, Neon project/database, payment plan, production secret, DNS change, data cutover, or remote deployment is created by them.
+Phase 31.36 creates only the Neon Free PostgreSQL provider target and proves the Phase 31.33 managed-PostgreSQL identity guard against it. The verified non-secret provider state is recorded in `docs/neon-production-provider-state.md`.
+
+Phases 31.34-31.35 contained **no new Vercel project, Neon project/database, payment plan, production secret, DNS change, data cutover, or remote deployment**. Phase 31.36 changes only the Neon-resource part of that historical state: one empty Neon Free target now exists, while Vercel provisioning, production secrets, migration/cutover, and remote deployment remain deferred.
 
 ## Required production runtime variables
 
@@ -21,11 +23,11 @@ The operator must provide all of the following outside the repository:
 - `BETTER_AUTH_SECRET` — a non-placeholder secret with at least 32 characters
 - `BETTER_AUTH_URL` — the externally meaningful absolute application/auth URL
 
-For the selected Neon target, the later deployment slice also keeps a separate `DATABASE_URL_UNPOOLED` for migrations and operator backup/recovery work. That direct credential is not the ordinary application-runtime URL.
+For the selected Neon target, keep a separate `DATABASE_URL_UNPOOLED` for migrations and operator backup/recovery work. That direct credential is not the ordinary application-runtime URL.
 
 A public/non-loopback `BETTER_AUTH_URL` must use HTTPS. Loopback HTTP is accepted only for local development or local acceptance.
 
-Never commit production values, bootstrap passwords, replacement/recovery passwords, database credentials, Vercel tokens, Neon credentials, or deployment-hook URLs. `.env.example` contains only local/safe examples and placeholders.
+Never commit production values, bootstrap passwords, replacement/recovery passwords, database credentials, Vercel tokens, Neon credentials, provider hostnames, or deployment-hook URLs. `.env.example` contains only local/safe examples and placeholders.
 
 ## Preflight
 
@@ -41,14 +43,16 @@ The preflight checks configuration syntax/presence only. It does not need databa
 
 ## Selected first deployment target
 
-The accepted Phase 31.34 target is:
+The accepted Phase 31.34 target remains:
 
-- the operator's existing Vercel workspace, using a separate **Hobby** project for `organy-app`;
+- the operator's existing Vercel workspace, using a separate **Hobby** project for `organy-app` once Phase 31.37 authorizes it;
 - **Neon Free** for PostgreSQL;
 - Vercel application Functions in **Frankfurt (`fra1`)**;
 - Neon project in **AWS Europe (Frankfurt)**;
 - free Vercel-managed `https://<project>.vercel.app` as the initial public URL;
-- no custom domain, paid add-on, Vercel Pro trial, Neon paid plan, or standing staging environment required for first production.
+- **no custom domain, paid add-on, Vercel Pro trial**, Neon paid plan, or standing staging environment required for first production.
+
+Phase 31.36 verified that the actual Neon provider target exists as `organy-app-production`, was created through the required HUMAN Free-plan browser checkpoint, runs PostgreSQL 16 in AWS Frankfurt, and contains only its provider-default empty resources before application migration. The connected project API does not expose a billing-plan field, so the runbook does not invent a machine-read `plan=free` result.
 
 Vercel hosts this Next.js application through its native framework/Functions model. Production does **not** run a persistent `npm start` / `next start` process.
 
@@ -75,9 +79,11 @@ DATABASE_URL=<Neon pooled connection>
 DATABASE_URL_UNPOOLED=<Neon direct connection>
 ```
 
-The pooled URL is for serverless application requests. Neon documents pooled connections for serverless workloads and its Vercel integration uses a pooled `DATABASE_URL` by default.
+The pooled URL is for serverless application requests. Phase 31.36 verified through provider metadata that the actual Neon compute exposes a pooled/serverless endpoint.
 
-The unpooled/direct URL is for migration and Phase 31.33 operator tooling. Preserve all Neon-supplied TLS parameters in both values.
+The unpooled/direct URL is for migration and Phase 31.33 operator tooling. Phase 31.36 also verified that the actual provider target exposes the corresponding direct connection path. Preserve all Neon-supplied TLS parameters in both values.
+
+No concrete connection string, hostname, password, project identifier, token, or PostgreSQL system identifier is stored in the repository.
 
 ### Production packaging readiness
 
@@ -103,6 +109,25 @@ Phase 31.35 adds a minimal `vercel.json`:
 
 The region setting keeps application Functions close to the selected Neon Frankfurt database. The Git setting deliberately prevents an ordinary Git push or merge from automatically deploying production before database migration is complete.
 
+## Phase 31.36 Neon provider verification
+
+The provider verification performed after the HUMAN Neon Console creation step established all of the following without storing credentials:
+
+- the HUMAN creation checkpoint used Neon **Free** under the current `$0/month`, non-trial contract;
+- exactly one intended application project exists;
+- PostgreSQL major is 16;
+- region is AWS Frankfurt (`aws-eu-central-1`);
+- there is one default root branch and one read-write compute;
+- provider metadata reports 0 bytes written before application migration;
+- the project is still empty of application schema/data;
+- pooled and direct connection paths both exist;
+- no `neon_auth` schema or Data API roles were present;
+- the mandatory read-only `pg_control_system()` compatibility probe passed.
+
+The connected project API does not expose an explicit billing-plan field; Free selection is therefore the required HUMAN provider checkpoint rather than a fabricated machine-read assertion.
+
+No schema migration, application-data import, seed, catalog sync, protected-account bootstrap, Vercel provisioning, or remote deployment was performed against this provider target in Phase 31.36.
+
 ## Zero-cost release ordering
 
 The zero-cost contract uses explicit operator-controlled deployment rather than a paid pre-deploy product.
@@ -118,7 +143,7 @@ Until separately accepted release automation exists, release order is:
 5. run the Phase 31.32 production preflight and require PASS;
 6. run `npm run db:migrate` and require success;
 7. allow only migrations compatible with the currently live application revision until a stronger rollback/release mechanism exists;
-8. explicitly deploy the exact reviewed revision to Vercel Production through the Vercel CLI/API/operator integration;
+8. **explicitly deploy the exact reviewed revision to Vercel Production** through the Vercel CLI/API/operator integration;
 9. verify protected sign-in and the separate congregation nickname flow through the stable HTTPS `vercel.app` production alias.
 
 Catalog seed/sync commands, demo seed commands, acceptance fixtures, password reset, backup/restore, and auth bootstrap are not part of normal production deployment.
@@ -137,11 +162,13 @@ Bootstrap is not repeated during normal deploys.
 
 ## Vercel/Neon integration boundary
 
-The later deployment slice may use the Neon Vercel integration to synchronize connection variables, but **Neon Auth must not be provisioned**. The repository keeps its existing Better Auth implementation and Account → Actor → current `app_user_roles` authorization boundary.
+The preferred first-production baseline is now a **manual Vercel environment-variable connection** to the already-created Neon project. Phase 31.37 should create the Vercel project without installing either the Vercel-managed or Neon-managed database integration unless a separate review deliberately changes this boundary.
+
+This choice avoids automatic preview-database branching and avoids coupling provider setup to a second authentication product. **Neon Auth must not be provisioned**. The repository keeps its existing Better Auth implementation and Account → Actor → current `app_user_roles` authorization boundary.
+
+The future Vercel Production environment will receive the pooled Neon URL as `DATABASE_URL` and the operator/release boundary will retain the direct URL as `DATABASE_URL_UNPOOLED`, with both values supplied outside Git. Preview deployments, if used later, must not receive the production database credential by default.
 
 `BETTER_AUTH_URL` must be the exact stable public Vercel production alias. `BETTER_AUTH_SECRET` remains a stable operator-supplied production secret outside Git.
-
-Preview deployments, if used later, must not receive the production database credential by default.
 
 ## Backup / recovery boundary
 
@@ -160,11 +187,13 @@ Neon Free's short time-travel/restore window is only an additional provider faci
 
 ### Managed-PostgreSQL identity probe
 
-Phase 31.33 currently uses `pg_control_system()` plus `current_database()` to fail closed when source and restore target are the same database.
+Phase 31.33 uses `pg_control_system()` plus `current_database()` to fail closed when source and restore target are the same database.
 
-Neon does not expose native PostgreSQL superuser access. Neon documents that Console/API-created roles are members of `neon_superuser`, and `neon_superuser` has `pg_monitor` privileges. Before cutover, the actual default Neon role must still pass the exact read-only Phase 31.33 identity probe.
+Phase 31.36 executed the exact read-only identity query against the actual Neon PostgreSQL 16 project using the ordinary project database role. The query returned successfully: **compatibility PASS**.
 
-If the query is denied or unavailable, deployment remains blocked until the identity mechanism is replaced with a separately reviewed managed-PostgreSQL-compatible fail-closed method and Phase 31.33 is rerun. Never disable source=target protection.
+Therefore the current Phase 31.33 source=target identity guard remains authoritative for this provider. No managed-PostgreSQL compatibility adaptation is required before cutover. The returned system identifier is intentionally not recorded in Git, documentation, issues, PR text, or CI logs.
+
+If a future provider/version change makes the query unavailable, deployment must again remain blocked until a separately reviewed fail-closed identity mechanism is accepted. Never disable source=target protection.
 
 ## Zero-cost failure boundary
 
@@ -172,7 +201,7 @@ The first hosted baseline intentionally accepts:
 
 - no paid SLA;
 - cold-start latency;
-- temporary outage after free-quota exhaustion;
+- **temporary outage after free-quota exhaustion**;
 - limited provider-native logs/history;
 - no permanent staging environment;
 - manual release/migration discipline.
@@ -208,13 +237,17 @@ For local Phase 31.33 recovery rehearsal, `ORGANY_PG_TOOL_MODE=docker-compose` c
 
 ## Still deferred
 
-Phases 31.32-31.35 do not make the application fully production-ready. The immediate next provider-specific slice is **Phase 31.36**, which may create the free Vercel `organy-app` project and Neon Free project, connect the required pooled/direct database variables without committing credentials, and run the mandatory read-only Neon `pg_control_system()` compatibility probe before any data cutover.
+Phases 31.32-31.36 do not make the application fully production-deployed. Phase 31.36 is now completed as the **Neon Free provisioning + read-only recovery-compatibility probe** slice.
+
+The immediate next provider-specific slice is **Phase 31.37**, which may create/configure the free Vercel `organy-app` Hobby project and establish the manual production environment-variable boundary without yet migrating application data or performing an uncontrolled deployment.
 
 Separate accepted work is still required for:
 
-- actual creation/configuration of the free Vercel `organy-app` project and Neon Free project (Phase 31.36);
-- the Neon `pg_control_system()` compatibility probe/adaptation (Phase 31.36 or a blocker fix immediately following it);
-- actual production secrets, initial schema/data cutover, bootstrap, and remote production deployment;
+- actual creation/configuration of the free Vercel `organy-app` project (Phase 31.37);
+- production environment values/secrets outside Git;
+- actual production schema/data migration or restore into the already-created Neon target;
+- one-time protected-account production bootstrap when required;
+- the first explicit production deployment and smoke verification;
 - scheduled/off-site backup retention, RPO/RTO, and production recovery/cutover procedures;
 - release/rollback automation beyond the manual zero-cost flow above;
 - secret rotation automation;
