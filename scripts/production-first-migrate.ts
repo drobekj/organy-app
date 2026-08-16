@@ -5,6 +5,7 @@ import * as schema from "../src/db/schema";
 
 const APPLY_FLAG = "--apply";
 const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
+const MIGRATION_OWNED_CONFIG_TABLE = "melody_non_repetition_config";
 
 const SAFE_FAILURES = new Set([
   `${DIRECT_URL_KEY} is required for the first production migration.`,
@@ -16,7 +17,8 @@ const SAFE_FAILURES = new Set([
   "First-production migration refuses a target with Neon Auth/Data API state.",
   "Migration completed without creating the expected application schema.",
   "Migration unexpectedly introduced Neon Auth/Data API state.",
-  "Schema migration unexpectedly created application rows; bootstrap/seed side effects are forbidden.",
+  "Schema migration unexpectedly created application rows outside the reviewed migration-owned configuration singleton.",
+  "Reviewed migration-owned configuration singleton is missing or has unexpected contents.",
 ]);
 
 type DatabaseError = Error & { code?: string };
@@ -100,6 +102,15 @@ async function nonEmptyPublicTables(pool: Pool): Promise<string[]> {
   return nonEmpty;
 }
 
+async function assertReviewedMigrationOwnedConfig(pool: Pool): Promise<void> {
+  const rows = (await pool.query(
+    `select id, months from public.${quoteIdentifier(MIGRATION_OWNED_CONFIG_TABLE)} order by id`,
+  )).rows as Array<{ id: string; months: number }>;
+  if (rows.length !== 1 || rows[0]?.id !== "global" || Number(rows[0]?.months) !== 2) {
+    throw new Error("Reviewed migration-owned configuration singleton is missing or has unexpected contents.");
+  }
+}
+
 function safeFailure(error: unknown): string {
   if (error instanceof Error) {
     if (SAFE_FAILURES.has(error.message)) return error.message;
@@ -137,12 +148,13 @@ async function main(): Promise<void> {
     }
 
     const nonEmpty = await nonEmptyPublicTables(pool);
-    if (nonEmpty.length !== 0) {
-      throw new Error("Schema migration unexpectedly created application rows; bootstrap/seed side effects are forbidden.");
+    if (nonEmpty.length !== 1 || nonEmpty[0] !== MIGRATION_OWNED_CONFIG_TABLE) {
+      throw new Error("Schema migration unexpectedly created application rows outside the reviewed migration-owned configuration singleton.");
     }
+    await assertReviewedMigrationOwnedConfig(pool);
 
     console.log("First production schema migration: PASS");
-    console.log("Reviewed Drizzle schema applied through the direct/unpooled connection; public application tables remain row-empty.");
+    console.log("Reviewed Drizzle schema applied through the direct/unpooled connection; only the reviewed migration-owned configuration singleton contains a row.");
   } catch (error) {
     console.error(apply ? "First production schema migration: FAIL" : "First production schema migration preflight: FAIL");
     console.error(safeFailure(error));
