@@ -52,7 +52,7 @@ The accepted Phase 31.34 target remains:
 - free Vercel-managed `https://<project>.vercel.app` as the initial public URL;
 - **no custom domain, paid add-on, Vercel Pro trial**, Neon paid plan, or standing staging environment required for first production.
 
-Phase 31.36 verified that the actual Neon provider target exists as `organy-app-production`, belongs to a Free organization, runs PostgreSQL 16 in AWS Frankfurt, and contains only its provider-default empty resources before application migration.
+Phase 31.36 verified that the actual Neon provider target exists as `organy-app-production`, was created through the required HUMAN Free-plan browser checkpoint, runs PostgreSQL 16 in AWS Frankfurt, and contains only its provider-default empty resources before application migration. The connected project API does not expose a billing-plan field, so the runbook does not invent a machine-read `plan=free` result.
 
 Vercel hosts this Next.js application through its native framework/Functions model. Production does **not** run a persistent `npm start` / `next start` process.
 
@@ -113,15 +113,18 @@ The region setting keeps application Functions close to the selected Neon Frankf
 
 The provider verification performed after the HUMAN Neon Console creation step established all of the following without storing credentials:
 
-- the connected organization plan reports `free`;
+- the HUMAN creation checkpoint used Neon **Free** under the current `$0/month`, non-trial contract;
 - exactly one intended application project exists;
 - PostgreSQL major is 16;
 - region is AWS Frankfurt (`aws-eu-central-1`);
 - there is one default root branch and one read-write compute;
+- provider metadata reports 0 bytes written before application migration;
 - the project is still empty of application schema/data;
 - pooled and direct connection paths both exist;
-- no Neon Auth schema or application Auth replacement was introduced;
+- no `neon_auth` schema or Data API roles were present;
 - the mandatory read-only `pg_control_system()` compatibility probe passed.
+
+The connected project API does not expose an explicit billing-plan field; Free selection is therefore the required HUMAN provider checkpoint rather than a fabricated machine-read assertion.
 
 No schema migration, application-data import, seed, catalog sync, protected-account bootstrap, Vercel provisioning, or remote deployment was performed against this provider target in Phase 31.36.
 
