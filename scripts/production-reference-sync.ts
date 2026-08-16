@@ -129,6 +129,10 @@ function sameStrings(actual: string[], expected: string[]): boolean {
   return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
+function stableStringCompare(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function assertSameJson(actual: unknown, expected: unknown): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error("Production reference synchronization did not produce the exact reviewed reference snapshot.");
@@ -209,7 +213,7 @@ async function assertExactFinalSnapshot(pool: Pool): Promise<void> {
 async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: AuthoritativeSources): Promise<void> {
   const actualCatalog = (await pool.query(`
     select id, language, canonical_number, source_id, title, source_url
-    from reference_catalog_songs order by id
+    from reference_catalog_songs
   `)).rows.map((row) => ({
     id: String(row.id),
     language: String(row.language),
@@ -217,29 +221,29 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
     sourceId: String(row.source_id),
     title: String(row.title),
     sourceUrl: row.source_url === null ? null : String(row.source_url),
-  }));
+  })).sort((a, b) => stableStringCompare(a.id, b.id));
   const expectedCatalog = sources.catalogRecords.map((record) => ({ ...record }))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => stableStringCompare(a.id, b.id));
   assertSameJson(actualCatalog, expectedCatalog);
 
   const actualAntiphons = (await pool.query(`
     select id, language, canonical_number, title, source_url
-    from reference_antiphons order by id
+    from reference_antiphons
   `)).rows.map((row) => ({
     id: String(row.id),
     language: String(row.language),
     canonicalNumber: Number(row.canonical_number),
     title: String(row.title),
     sourceUrl: row.source_url === null ? null : String(row.source_url),
-  }));
+  })).sort((a, b) => stableStringCompare(a.id, b.id));
   const expectedAntiphons = [...sources.czechAntiphons, ...sources.polishAntiphons]
     .map((record) => ({ ...record }))
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => stableStringCompare(a.id, b.id));
   assertSameJson(actualAntiphons, expectedAntiphons);
 
   const actualParents = (await pool.query(`
     select id, language, title, parent_id, section_order, source_scan_page
-    from reference_thematic_parents order by id
+    from reference_thematic_parents
   `)).rows.map((row) => ({
     id: String(row.id),
     language: String(row.language),
@@ -247,7 +251,7 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
     parentId: row.parent_id === null ? null : String(row.parent_id),
     order: Number(row.section_order),
     sourceScanPage: Number(row.source_scan_page),
-  }));
+  })).sort((a, b) => stableStringCompare(a.id, b.id));
   const expectedParents = sources.thematicData.parents.map((parent) => ({
     id: parent.id,
     language: parent.language,
@@ -255,12 +259,12 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
     parentId: parent.parentId,
     order: parent.order,
     sourceScanPage: parent.sourcePage.scanPage,
-  })).sort((a, b) => a.id.localeCompare(b.id));
+  })).sort((a, b) => stableStringCompare(a.id, b.id));
   assertSameJson(actualParents, expectedParents);
 
   const actualSections = (await pool.query(`
     select id, theme_key, language, title, parent_id, section_order, source_scan_page, source_printed_page
-    from reference_thematic_sections order by id
+    from reference_thematic_sections
   `)).rows.map((row) => ({
     id: String(row.id),
     themeKey: String(row.theme_key),
@@ -270,7 +274,7 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
     order: Number(row.section_order),
     sourceScanPage: Number(row.source_scan_page),
     sourcePrintedPage: Number(row.source_printed_page),
-  }));
+  })).sort((a, b) => stableStringCompare(a.id, b.id));
   const expectedSections = sources.thematicData.sections.map((section) => ({
     id: section.id,
     themeKey: section.themeKey,
@@ -280,18 +284,18 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
     order: section.order,
     sourceScanPage: section.sourcePage.scanPage,
     sourcePrintedPage: section.sourcePage.printedPage,
-  })).sort((a, b) => a.id.localeCompare(b.id));
+  })).sort((a, b) => stableStringCompare(a.id, b.id));
   assertSameJson(actualSections, expectedSections);
 
   const actualRanges = (await pool.query(`
     select section_id, range_order, from_number, to_number
-    from reference_thematic_ranges order by section_id, range_order
+    from reference_thematic_ranges
   `)).rows.map((row) => ({
     sectionId: String(row.section_id),
     rangeOrder: Number(row.range_order),
     from: Number(row.from_number),
     to: Number(row.to_number),
-  }));
+  })).sort((a, b) => stableStringCompare(a.sectionId, b.sectionId) || a.rangeOrder - b.rangeOrder);
   const expectedRanges = sources.thematicData.sections.flatMap((section) =>
     section.ranges.map((range, index) => ({
       sectionId: section.id,
@@ -299,7 +303,7 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
       from: range.from,
       to: range.to,
     })),
-  ).sort((a, b) => a.sectionId.localeCompare(b.sectionId) || a.rangeOrder - b.rangeOrder);
+  ).sort((a, b) => stableStringCompare(a.sectionId, b.sectionId) || a.rangeOrder - b.rangeOrder);
   assertSameJson(actualRanges, expectedRanges);
 }
 
