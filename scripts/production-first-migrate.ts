@@ -6,6 +6,19 @@ import * as schema from "../src/db/schema";
 const APPLY_FLAG = "--apply";
 const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
 
+const SAFE_FAILURES = new Set([
+  `${DIRECT_URL_KEY} is required for the first production migration.`,
+  `${DIRECT_URL_KEY} must be a valid PostgreSQL URL.`,
+  `${DIRECT_URL_KEY} must use the postgres or postgresql protocol.`,
+  `${DIRECT_URL_KEY} must be the direct/unpooled PostgreSQL endpoint.`,
+  `Only the optional ${APPLY_FLAG} argument is accepted.`,
+  "First-production migration refuses a target that already contains public application tables.",
+  "First-production migration refuses a target with Neon Auth/Data API state.",
+  "Migration completed without creating the expected application schema.",
+  "Migration unexpectedly introduced Neon Auth/Data API state.",
+  "Schema migration unexpectedly created application rows; bootstrap/seed side effects are forbidden.",
+]);
+
 type DatabaseError = Error & { code?: string };
 
 type ProviderBoundary = {
@@ -87,8 +100,9 @@ async function nonEmptyPublicTables(pool: Pool): Promise<string[]> {
   return nonEmpty;
 }
 
-function safeDatabaseFailure(error: unknown): string {
+function safeFailure(error: unknown): string {
   if (error instanceof Error) {
+    if (SAFE_FAILURES.has(error.message)) return error.message;
     const code = (error as DatabaseError).code;
     if (code && /^[0-9A-Z]{5}$/.test(code)) return `Database operation failed (${code}).`;
   }
@@ -96,11 +110,14 @@ function safeDatabaseFailure(error: unknown): string {
 }
 
 async function main(): Promise<void> {
-  const apply = requestedApply();
-  const directUrl = readDirectUrl();
-  const pool = new Pool({ connectionString: directUrl, max: 1 });
+  let apply = false;
+  let pool: Pool | undefined;
 
   try {
+    apply = requestedApply();
+    const directUrl = readDirectUrl();
+    pool = new Pool({ connectionString: directUrl, max: 1 });
+
     const before = await inspectProviderBoundary(pool);
     assertEmptyFirstMigrationTarget(before);
 
@@ -128,20 +145,11 @@ async function main(): Promise<void> {
     console.log("Reviewed Drizzle schema applied through the direct/unpooled connection; public application tables remain row-empty.");
   } catch (error) {
     console.error(apply ? "First production schema migration: FAIL" : "First production schema migration preflight: FAIL");
-    if (error instanceof Error && !isDatabaseLikeError(error)) console.error(error.message);
-    else console.error(safeDatabaseFailure(error));
+    console.error(safeFailure(error));
     process.exitCode = 1;
   } finally {
-    await pool.end().catch(() => undefined);
+    if (pool) await pool.end().catch(() => undefined);
   }
 }
 
-function isDatabaseLikeError(error: Error): boolean {
-  return Boolean((error as DatabaseError).code) || /connection|socket|database|postgres|ssl|timeout/i.test(error.message);
-}
-
-void main().catch((error: unknown) => {
-  console.error("First production schema migration: FAIL");
-  console.error(safeDatabaseFailure(error));
-  process.exitCode = 1;
-});
+void main();
