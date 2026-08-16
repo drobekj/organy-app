@@ -2,7 +2,7 @@
 
 ## Phase 31.37 scope
 
-Current state: **PRE-HUMAN / PROJECT NOT YET CREATED**.
+Current state: **HUMAN UI FAIL-CLOSED / PROJECT NOT YET CREATED**.
 
 Baseline: merged and post-merge verified Phase 31.36 on `main` `2c2389f7336259b9102051486cf6f2ed04090643`.
 
@@ -25,6 +25,26 @@ Therefore, before the HUMAN provider step:
 
 The already-created Neon project remains the separate PostgreSQL provider target from Phase 31.36. Phase 31.37 must not mutate its schema, data, Auth, Data API, branches, or recovery boundary.
 
+## HUMAN Dashboard checkpoint — fail-closed result
+
+The operator reached Vercel **New Project** for GitHub repository `drobekj/organy-app` in the existing Hobby workspace with:
+
+- project name `organy-app`;
+- detected Application Preset `Next.js`;
+- root directory `./`;
+- no paid/trial/add-on selection shown.
+
+The screen exposed only a final **Deploy** action. There was no separate create-only action that could persist the Project object while keeping deployments at zero.
+
+Per Contract Gate #188, the operator did **not** click Deploy. Immediate connected read-only Vercel verification after the checkpoint still showed only `drobek-portfolio`; `organy-app` remained absent. Therefore the Dashboard import path is rejected for Phase 31.37 because it cannot satisfy the no-deployment invariant.
+
+Current Vercel primary documentation provides a create-only fallback:
+
+- `vercel project add <project-name>` creates a Vercel Project from the CLI;
+- the Vercel REST Projects API also creates a Project independently of deployment.
+
+The connected tool surface in this workflow exposes deployment but not an authenticated create-project mutation, and the runtime has no reusable authenticated Vercel CLI session. Therefore the next authorized HUMAN provider action is the create-only CLI command `vercel project add organy-app` (or equivalent `npx vercel project add organy-app`) under the existing Hobby workspace. It must stop after project creation and must not run `vercel`, `vercel deploy`, or `vercel --prod`.
+
 ## Accepted Vercel project boundary
 
 The HUMAN provider action must create/configure exactly one project named `organy-app` in the operator's existing Vercel workspace while remaining inside the accepted Hobby / zero-recurring-cost boundary.
@@ -36,7 +56,7 @@ Repository configuration remains authoritative:
 - Functions region: Frankfurt `fra1` from `vercel.json`;
 - Git automatic deployment: disabled by `git.deploymentEnabled=false`.
 
-The GitHub repository may be linked only if that operation does not trigger a remote deployment. If the Vercel Console cannot finish project creation/configuration without starting a deployment, the HUMAN step must stop and Phase 31.37 remains blocked.
+The GitHub repository does not need to be linked during the create-only CLI checkpoint. Any later Git linking is permitted only if that operation is separately shown not to trigger a remote deployment. If linking would trigger a deployment, it remains deferred to the explicit release/deploy slice.
 
 No Vercel Pro trial, paid plan, payment method, credit purchase, paid add-on, Marketplace database integration, Neon-managed Vercel integration, preview-database branching, or standing staging infrastructure is authorized.
 
@@ -77,11 +97,11 @@ No `.env.production` or `.vercel/project.json` file belongs in Git.
 
 ## Post-HUMAN verification required
 
-After the HUMAN provider step, this document must be updated only from connected read-only provider evidence. Acceptance must establish, without recording secrets:
+After the HUMAN create-only provider step, this document must be updated only from connected read-only provider evidence. Acceptance must establish, without recording secrets:
 
 1. exactly one intended `organy-app` Vercel project exists in the expected workspace;
 2. the project has **zero deployments** at the end of Phase 31.37;
-3. Git linking did not trigger Preview or Production deployment;
+3. no Git linking triggered Preview or Production deployment;
 4. no managed Neon integration or paid add-on was introduced;
 5. non-secret project settings exposed by the provider are consistent with the repository contract;
 6. Production environment-variable target scoping is correct to the extent safely verifiable without surfacing values;
