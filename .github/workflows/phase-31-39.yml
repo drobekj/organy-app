@@ -1,0 +1,67 @@
+name: Phase 31.39 production authoritative reference-data sync acceptance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - codex/phase-31-39-production-reference-sync
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_reference_sync
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_reference_sync"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ORGANY_RUNTIME: db
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_reference_sync
+      DATABASE_URL_UNPOOLED: postgres://organy_app:organy_app@127.0.0.1:5432/organy_reference_sync
+      BETTER_AUTH_SECRET: phase-31-39-ci-secret-randomized-baseline-0123456789
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Materialize authoritative Reference catalogs
+        run: node data/catalog/materialize-catalogs.mjs
+      - name: Reference catalog line-ending regression
+        run: npm run test:catalog-line-endings
+      - name: Reference catalog contract regression
+        run: npm run test:reference-catalog
+      - name: Phase 31.8 melody reference regression
+        run: npx tsx scripts/verify-phase-31-8.ts
+      - name: Phase 31.9 Czech antiphon regression
+        run: npx tsx scripts/verify-phase-31-9.ts
+      - name: Phase 31.13 thematic-section regression
+        run: npx tsx scripts/verify-phase-31-13.ts
+      - name: Phase 31.19 Polish antiphon regression
+        run: npx tsx scripts/verify-phase-31-19.ts
+      - name: Phase 31.39 production reference synchronization boundary acceptance
+        run: npx tsx scripts/phase-31-39-tests.ts
+      - name: Full production runtime preflight remains strict
+        run: npx tsx scripts/production-preflight.ts
+      - name: Database migration idempotence regression
+        run: npm run db:migrate
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
