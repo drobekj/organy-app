@@ -63,9 +63,12 @@ The `--apply` form:
 2. applies the existing reviewed Drizzle migration chain through the direct/unpooled connection;
 3. requires the expected public application schema to exist afterward;
 4. rejects any Neon Auth/Data API state;
-5. requires every public application table to remain row-empty.
+5. permits exactly one migration-owned data row: the reviewed `melody_non_repetition_config` singleton with `id='global'` and `months=2`;
+6. requires every other public table, including `auth_users`, `app_users`, catalogs, service data, preferences and recommendations, to remain row-empty.
 
-That final row-empty invariant proves the migration did not silently run catalog seed/sync, demo fixtures, protected-account bootstrap, or imported application data.
+The configuration singleton is not imported/user/bootstrap data. It is deliberately inserted by reviewed migration 0005 and normalized by migration 0006, and represents the schema's default non-repetition setting. The stricter invariant is therefore: **no application/user/catalog/auth data beyond this exact reviewed migration-owned default**.
+
+This proves the first migration did not silently run catalog seed/sync, demo fixtures, protected-account bootstrap, or imported application data.
 
 The command is intentionally not reusable after the first migration: once public application tables exist, rerunning it fails closed.
 
@@ -75,8 +78,9 @@ After the HUMAN write, connected read-only verification must establish:
 
 - the intended Neon production project now contains the application schema;
 - migration metadata exists and the schema is reachable;
-- application tables contain no imported/bootstrap rows;
+- the only non-empty public table is the exact reviewed `melody_non_repetition_config` singleton;
 - `auth_users` and `app_users` remain empty;
+- all catalog/service/preference/recommendation tables remain empty;
 - `neon_auth` and Data API roles remain absent;
 - Vercel `organy-app` still has zero deployments;
 - `BETTER_AUTH_URL` remains deferred.
