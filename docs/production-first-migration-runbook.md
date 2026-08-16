@@ -2,13 +2,13 @@
 
 ## Phase 31.38 state
 
-Current state: **PRE-HUMAN / PRODUCTION NEON STILL UNMIGRATED**.
+Current state: **HUMAN MIGRATION COMPLETE / POST-MIGRATION PROVIDER ACCEPTANCE VERIFIED**.
 
 Baseline: merged and post-merge verified Phase 31.37 on `main` `53025f1f2a4dda898c9caf1755eab14f31a60968`.
 
 Contract Gate: #190.
 
-Phase 31.38 owns only the first application **schema migration** into the already-created, currently empty Neon production target. It does not deploy the application, import/restore application data, bootstrap a protected Account, set `BETTER_AUTH_URL`, or perform production cutover.
+Phase 31.38 owns only the first application **schema migration** into the already-created Neon production target. It does not deploy the application, import/restore application data, bootstrap a protected Account, set `BETTER_AUTH_URL`, or perform production cutover.
 
 ## Why the first migration has its own preflight
 
@@ -32,26 +32,24 @@ The command rejects a connection URL whose hostname identifies the pooled endpoi
 
 ## Read-only preflight
 
-Before the HUMAN migration checkpoint, the same command can be run without an apply flag:
+Before the HUMAN migration checkpoint, the command was run without an apply flag:
 
 ```text
 npx tsx scripts/production-first-migrate.ts
 ```
 
-This is read-only. It requires:
+The read-only preflight passed against the intended direct/unpooled production target and established:
 
-- a valid PostgreSQL `DATABASE_URL_UNPOOLED`;
+- a valid direct/unpooled PostgreSQL target;
 - zero existing public application tables;
 - no `neon_auth` schema;
 - no Data API `authenticated` or `anonymous` roles.
 
-It prints only PASS/FAIL-safe summaries and never prints the connection value.
-
-If the target is not still empty, STOP. Phase 31.38 is explicitly a **first migration** path, not an update/repair path for an already initialized production database.
+No migration was applied during that preflight and no connection value was printed.
 
 ## Authorized migration action
 
-Only after exact-head CI/Review Gate and fresh connected provider verification pass may the HUMAN checkpoint use:
+After exact-head CI/Review Gate and fresh connected provider verification passed, the HUMAN checkpoint ran:
 
 ```text
 npx tsx scripts/production-first-migrate.ts --apply
@@ -59,37 +57,37 @@ npx tsx scripts/production-first-migrate.ts --apply
 
 The `--apply` form:
 
-1. repeats the empty-target/provider-boundary checks;
-2. applies the existing reviewed Drizzle migration chain through the direct/unpooled connection;
-3. requires the expected public application schema to exist afterward;
-4. rejects any Neon Auth/Data API state;
-5. permits exactly one migration-owned data row: the reviewed `melody_non_repetition_config` singleton with `id='global'` and `months=2`;
-6. requires every other public table, including `auth_users`, `app_users`, catalogs, service data, preferences and recommendations, to remain row-empty.
+1. repeated the empty-target/provider-boundary checks;
+2. applied the existing reviewed Drizzle migration chain through the direct/unpooled connection;
+3. required the expected public application schema to exist afterward;
+4. rejected any Neon Auth/Data API state;
+5. permitted exactly one migration-owned data row: the reviewed `melody_non_repetition_config` singleton with `id='global'` and `months=2`;
+6. required every other public table, including `auth_users`, `app_users`, catalogs, service data, preferences and recommendations, to remain row-empty.
 
-The configuration singleton is not imported/user/bootstrap data. It is deliberately inserted by reviewed migration 0005 and normalized by migration 0006, and represents the schema's default non-repetition setting. The stricter invariant is therefore: **no application/user/catalog/auth data beyond this exact reviewed migration-owned default**.
-
-This proves the first migration did not silently run catalog seed/sync, demo fixtures, protected-account bootstrap, or imported application data.
+The command returned PASS. The configuration singleton is not imported/user/bootstrap data. It is deliberately inserted by reviewed migration 0005 and normalized by migration 0006, and represents the schema's default non-repetition setting.
 
 The command is intentionally not reusable after the first migration: once public application tables exist, rerunning it fails closed.
 
 ## Post-migration provider acceptance
 
-After the HUMAN write, connected read-only verification must establish:
+Fresh connected read-only verification after the HUMAN write established:
 
-- the intended Neon production project now contains the application schema;
-- migration metadata exists and the schema is reachable;
-- the only non-empty public table is the exact reviewed `melody_non_repetition_config` singleton;
-- `auth_users` and `app_users` remain empty;
-- all catalog/service/preference/recommendation tables remain empty;
-- `neon_auth` and Data API roles remain absent;
+- 32 expected public application tables exist;
+- Drizzle migration metadata exists with 19 recorded migration rows;
+- the only non-empty public application table is `melody_non_repetition_config`;
+- that table contains exactly the reviewed singleton `global` with `months=2`;
+- `auth_users`, `auth_accounts`, `auth_sessions`, `auth_verifications`, `app_users`, `app_user_roles` and `protected_account_actor_links` all contain zero rows;
+- every catalog, reference, service, preference, recommendation, repertoire and melody-equivalence table contains zero rows;
+- `neon_auth` remains absent;
+- Data API `authenticated` and `anonymous` roles remain absent;
 - Vercel `organy-app` still has zero deployments;
 - `BETTER_AUTH_URL` remains deferred.
 
-No secret/provider connection value is recorded as evidence.
+No secret, connection value, provider hostname or provider identifier is recorded as evidence.
 
 ## Backup boundary
 
-The current Neon production target is pre-user-data empty, so there is no application state to preserve before this one-time first schema migration. Phase 31.33 remains authoritative once production contains user/application data: later production migrations must create and verify a fresh logical backup when required by that contract.
+The production target contained no user/application data before this one-time first schema migration, so there was no application state to preserve beforehand. Phase 31.33 remains authoritative once production contains user/application data: later production migrations must create and verify a fresh logical backup when required by that contract.
 
 Phase 31.38 does not weaken the source=target restore guard or any recovery invariant.
 
