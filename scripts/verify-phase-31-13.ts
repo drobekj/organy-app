@@ -168,6 +168,11 @@ async function main() {
       await runNpm("db:sync:reference-catalog", databaseUrl);
       await runNpm("db:sync:reference-antiphons", databaseUrl);
       const pool = new Pool({ connectionString: databaseUrl });
+      let poolShuttingDown = false;
+      pool.on("error", (error: Error) => {
+        if (poolShuttingDown && (error as Error & { code?: string }).code === "57P01") return;
+        throw error;
+      });
       try {
         const tables = (await pool.query("select table_name from information_schema.tables where table_schema='public' and table_name like 'reference_thematic_%' order by table_name")).rows.map((row) => row.table_name);
         assert.deepEqual(tables, ["reference_thematic_parents", "reference_thematic_ranges", "reference_thematic_sections"]);
@@ -209,6 +214,9 @@ async function main() {
         await verifyProviders(pool, data);
         assert.equal(await unrelatedSnapshot(pool), unrelatedBefore);
       } finally {
+        // The cleanup below intentionally terminates any lingering temp-db sessions. pg can surface that
+        // 57P01 to an idle client after Pool.end() starts but before its socket is fully closed.
+        poolShuttingDown = true;
         await pool.end();
       }
     }, async () => {
