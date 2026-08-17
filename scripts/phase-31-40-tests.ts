@@ -15,6 +15,7 @@ function requireText(haystack: string, needles: string[], label: string): void {
 const deployment = read("docs/production-vercel-first-deployment-runbook.md");
 const providerState = read("docs/vercel-production-provider-state.md");
 const runtimeRunbook = read("docs/production-runtime-runbook.md");
+const authRoute = read("app/api/auth/[...all]/route.ts");
 const vercel = JSON.parse(read("vercel.json")) as {
   regions?: string[];
   git?: { deploymentEnabled?: boolean };
@@ -37,6 +38,9 @@ requireText(
     "vercel --prod --yes --project organy-app",
     "identify the actual stable Production alias from provider state",
     "vercel env add BETTER_AUTH_URL production --project organy-app",
+    "Sensitive environment-variable values are intentionally not recoverable through a local round trip",
+    "must **not** be treated as authoritative evidence",
+    "assertProtectedAuthConfigured()",
     "same exact clean payload checkout",
     "No `--skip-domain` path is used",
     "do not bootstrap an Account",
@@ -64,6 +68,17 @@ requireText(
     "automatic Git deployments remain disabled",
   ],
   "production runtime release regression",
+);
+
+requireText(
+  authRoute,
+  [
+    "assertProtectedAuthConfigured",
+    "assertProtectedAuthConfigured();",
+    "return handler.GET(request);",
+    "return handler.POST(request);",
+  ],
+  "Production Better Auth route fail-closed regression",
 );
 
 assert.equal(pkg.engines?.node, "22.x", "repository production Node pin must remain 22.x");
@@ -99,4 +114,4 @@ for (const text of [deployment, providerState, runtimeRunbook]) {
 }
 
 console.log("Phase 31.40 first explicit Vercel Production deployment boundary acceptance: PASS");
-console.log("Two-step alias bootstrap remains explicit, exact-payload, fail-closed, and secret-safe.");
+console.log("Two-step alias bootstrap remains explicit, exact-payload, fail-closed, production-verified, and secret-safe.");
