@@ -150,13 +150,19 @@ Catalog seed/sync commands, demo seed commands, acceptance fixtures, password re
 
 ## First protected-account bootstrap
 
-If and only if a genuinely new production database has no protected staff Account after migration, perform the existing explicit bootstrap:
+Phase 31.41 supersedes the historical local/demo bootstrap instruction for Production. If and only if a genuinely new Production database has no protected staff Account, follow `docs/production-protected-identity-bootstrap-runbook.md` and first run the reviewed Production-safe command in read-only dry-run mode:
 
 ```text
-npm run db:bootstrap:auth
+npx tsx scripts/production-protected-identity-bootstrap.ts
 ```
 
-Run it in an explicitly authorized operator environment against the direct/unpooled production database connection. Bootstrap credentials are temporary operator inputs and must never be persistent Vercel environment variables or repository content.
+Only at the separate authorized HUMAN Production identity checkpoint may the same explicit identity inputs and temporary password be applied with:
+
+```text
+npx tsx scripts/production-protected-identity-bootstrap.ts --apply
+```
+
+Run it in an explicitly authorized operator environment against the Neon direct/unpooled Production database connection. Bootstrap credentials are temporary operator inputs and must never be persistent Vercel environment variables or repository content. The local/demo `npm run db:bootstrap:auth` command is **not a Production bootstrap command and must never be run against Production**.
 
 Bootstrap is not repeated during normal deploys.
 
