@@ -12,7 +12,7 @@ The first required identity is the initial protected admin. The same reviewed me
 
 ## Secret boundary
 
-Real passwords, database credentials and `BETTER_AUTH_SECRET` must never be committed, copied into an issue/PR, or pasted into chat. Keep them only in the authorized operator shell/environment for the duration of the operation.
+Real passwords, database credentials and `BETTER_AUTH_SECRET` must never be committed or copied into an issue/PR. Real secrets **must never be pasted into chat**. Keep them only in the authorized operator shell/environment for the duration of the operation.
 
 Use the Neon **direct/unpooled** Production connection as `DATABASE_URL_UNPOOLED`. Do not substitute the ordinary pooled request-runtime URL. The bootstrap internally points its Better Auth provisioning connection at the same reviewed direct target for this one operator process only.
 
