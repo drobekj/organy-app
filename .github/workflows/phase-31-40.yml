@@ -1,0 +1,31 @@
+name: Phase 31.40 first explicit Vercel Production deployment acceptance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - codex/phase-31-40-first-vercel-production-deployment
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Phase 31.37 Vercel provider-boundary regression
+        run: npx tsx scripts/phase-31-37-tests.ts
+      - name: Phase 31.40 first Production deployment boundary acceptance
+        run: npx tsx scripts/phase-31-40-tests.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
