@@ -30,11 +30,23 @@ No provider hostname, credential, token, project/system identifier, connection s
 
 ## Why two explicit Production deployments are required
 
-Vercel currently reports no project domain before the first deployment. Therefore `BETTER_AUTH_URL` cannot be derived or guessed safely in advance.
+Vercel initially reports no project domain before the first deployment. Therefore `BETTER_AUTH_URL` cannot be derived or guessed safely in advance.
 
 The existing full production runtime contract intentionally rejects a missing `BETTER_AUTH_URL`. The first deployment is consequently a narrowly authorized **bootstrap deployment** whose only purpose is to let Vercel materialize the authoritative stable Production HTTPS alias. It must not be treated as runtime-ready or used for account bootstrap, protected sign-in acceptance, business smoke testing, or public cutover.
 
 After Vercel exposes the real stable Production alias, set `BETTER_AUTH_URL` for the **Production environment only** to that exact HTTPS alias, then explicitly deploy the **same payload revision** again. Only the second deployment may satisfy the complete Phase 31.32 runtime configuration boundary.
+
+## Sensitive environment verification boundary
+
+Vercel Sensitive environment-variable values are intentionally not recoverable through a local round trip. A local `vercel env run` / pull-style check therefore must **not** be treated as authoritative evidence for `BETTER_AUTH_SECRET` or a Sensitive `BETTER_AUTH_URL` value.
+
+For Phase 31.40:
+
+- the provider-confirmed stable Production alias is supplied directly by the HUMAN operator when creating `BETTER_AUTH_URL` in Production;
+- a read-only Production environment listing verifies the required variable names/scopes without printing values;
+- the second Production deployment is the authoritative place where Vercel injects the Sensitive values;
+- the Production auth route calls `assertProtectedAuthConfigured()` before delegating GET/POST requests, so a successful no-session auth request proves that the complete runtime shape passed inside the actual Production runtime;
+- no Sensitive value is copied into a local file, repository evidence, CI log, issue/PR text, or chat evidence.
 
 ## Exact operator sequence
 
@@ -46,9 +58,9 @@ The HUMAN/provider checkpoint proceeds one action at a time and stops on any une
 4. Run the first explicit Production deployment from that exact clean checkout with `vercel --prod --yes --project organy-app`. Do not enable Git deployment and do not install integrations/add-ons.
 5. Connected Vercel verification must prove that the deployment is READY and identify the actual stable Production alias from provider state. Do not infer it from the project name.
 6. Add `BETTER_AUTH_URL` to **Production only** with the explicit project target using `vercel env add BETTER_AUTH_URL production --project organy-app`; supply exactly the provider-confirmed HTTPS alias as the value. Do not target Preview or Development.
-7. Verify the full production-runtime configuration contract with the authoritative URL known. Secret values remain outside repository evidence.
+7. Read-only list Production environment-variable names/scopes again and require `ORGANY_RUNTIME`, `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `BETTER_AUTH_URL` in Production. Do not use local `vercel env run`/pull output as proof of Sensitive values.
 8. From the same exact clean payload checkout, run `vercel --prod --yes --project organy-app` again.
-9. Connected Vercel verification must prove that the stable Production alias points to the second, configuration-complete deployment and that both deployments use the same selected payload revision/content.
+9. Connected Vercel verification must prove that the stable Production alias points to the second, configuration-complete deployment and that both deployments use the same selected payload revision/content. A provider-side request to the stable alias auth no-session endpoint must succeed after `assertProtectedAuthConfigured()` executes in Production.
 10. Connected Neon verification must prove that deployment caused no database mutation.
 
 No `--skip-domain` path is used: Phase 31.40 specifically needs the provider-created stable Production alias. No Git-based automatic deployment is enabled.
@@ -67,11 +79,12 @@ Therefore before the second deployment:
 
 ## Final Phase 31.40 provider state
 
-Phase 31.40 is complete only when all of the following are provider-confirmed:
+Phase 31.40 is complete only when all of the following are established:
 
 - the stable Production HTTPS alias is known from Vercel state;
-- `BETTER_AUTH_URL` equals that exact alias in Production only;
+- the HUMAN operator supplied that exact provider-confirmed alias as the Production-only `BETTER_AUTH_URL` value; Sensitive storage prevents reverse readback and does not weaken the runtime assertion;
 - the final deployment is READY and owns the stable alias;
+- a Production auth no-session request passes `assertProtectedAuthConfigured()` and reaches Better Auth handling;
 - the deployment content is the selected merged Phase 31.39 payload revision;
 - repository Node 22.x and Frankfurt `fra1` boundaries remain effective;
 - Git automatic deployment remains disabled;
@@ -80,6 +93,6 @@ Phase 31.40 is complete only when all of the following are provider-confirmed:
 
 ## Explicit exclusions
 
-Phase 31.40 does not bootstrap protected accounts, create real actors/roles, perform production sign-in or congregation-nickname smoke, create services, import legacy/local data, seed preferences/repertoire/manual knowledge, enable public cutover, add custom DNS/domain, or introduce deployment automation/monitoring/paid provider features.
+Phase 31.40 does not bootstrap protected accounts, create real actors/roles, perform production credential sign-in or congregation-nickname smoke, create services, import legacy/local data, seed preferences/repertoire/manual knowledge, enable public cutover, add custom DNS/domain, or introduce deployment automation/monitoring/paid provider features.
 
 Those remain later Contract Gates.
