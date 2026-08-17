@@ -1,11 +1,11 @@
-import { Pool, type PoolClient, type QueryResult } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 const APPLY_FLAG = "--apply";
 const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
 const EXPECTED_PUBLIC_TABLES = 32;
 const PROTECTED_ROLES = ["admin", "priest", "organist"] as const;
 type ProtectedRole = typeof PROTECTED_ROLES[number];
-type Queryable = { query: (text: string, values?: unknown[]) => Promise<QueryResult> };
+type Queryable = { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }> };
 
 type IdentityInput = {
   actorId: string;
