@@ -5,7 +5,7 @@ const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
 const EXPECTED_PUBLIC_TABLES = 32;
 const PROTECTED_ROLES = ["admin", "priest", "organist"] as const;
 type ProtectedRole = typeof PROTECTED_ROLES[number];
-type Queryable = { query: (text: string, values?: unknown[]) => Promise<QueryResult<any>> };
+type Queryable = { query: (text: string, values?: unknown[]) => Promise<QueryResult> };
 
 type IdentityInput = {
   actorId: string;
@@ -170,7 +170,7 @@ function quoteIdentifier(value: string): string {
 
 async function assertProviderAndReferenceBoundary(db: Queryable): Promise<void> {
   const tables = (await db.query("select tablename from pg_tables where schemaname='public' order by tablename"))
-    .rows.map((row) => String(row.tablename));
+    .rows.map((row: Record<string, unknown>) => String(row.tablename));
   if (tables.length !== EXPECTED_PUBLIC_TABLES) {
     throw new Error(`Protected Production identity bootstrap requires the reviewed ${EXPECTED_PUBLIC_TABLES}-table Production schema.`);
   }
