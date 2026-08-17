@@ -43,6 +43,11 @@ function bootstrap(args: string[], env: NodeJS.ProcessEnv): void {
   execFileSync(npx, ["tsx", bootstrapScript, ...args], { env, stdio: "pipe" });
 }
 
+function normalizeTextArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).sort();
+  return String(value ?? "").replace(/[{}]/g, "").split(",").map((item) => item.trim()).filter(Boolean).sort();
+}
+
 async function counts(db: Pool) {
   return (await db.query(`
     select
@@ -86,7 +91,7 @@ async function main() {
       group by u.id,au.id,aa.id,p.id
     `, [adminEnv.ORGANY_BOOTSTRAP_ACTOR_ID])).rows[0];
     assert.equal(adminBefore.username, adminEnv.ORGANY_BOOTSTRAP_USERNAME);
-    assert.deepEqual(adminBefore.roles, ["admin", "organist"]);
+    assert.deepEqual(normalizeTextArray(adminBefore.roles), ["admin", "organist"]);
     assert.equal(adminBefore.person_id, adminEnv.ORGANY_BOOTSTRAP_PERSON_ID);
     assert.equal(adminBefore.priest, false);
     assert.equal(adminBefore.organist, true);
@@ -137,7 +142,7 @@ async function main() {
     assert.equal(priest.priest, true);
     assert.equal(priest.organist, false);
     assert.equal(priest.username, priestEnv.ORGANY_BOOTSTRAP_USERNAME);
-    assert.deepEqual(priest.roles, ["priest"]);
+    assert.deepEqual(normalizeTextArray(priest.roles), ["priest"]);
     const priestPasswordHash = String(priest.password);
     assert.ok(priestPasswordHash.length > 20);
 
@@ -151,7 +156,7 @@ async function main() {
       group by aa.id
     `, [adminEnv.ORGANY_BOOTSTRAP_ACTOR_ID])).rows[0];
     assert.equal(String(adminAfter.password), adminPasswordHash, "priest bootstrap must not overwrite the existing admin credential");
-    assert.deepEqual(adminAfter.roles, ["admin", "organist"], "priest bootstrap must not alter existing admin roles");
+    assert.deepEqual(normalizeTextArray(adminAfter.roles), ["admin", "organist"], "priest bootstrap must not alter existing admin roles");
 
     bootstrap(["--apply"], { ...priestEnv, ORGANY_BOOTSTRAP_PASSWORD: "Phase31-42-Must-Not-Overwrite!" });
     const priestHashAfterRerun = String((await db.query(`
