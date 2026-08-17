@@ -41,13 +41,13 @@ After Vercel exposes the real stable Production alias, set `BETTER_AUTH_URL` for
 The HUMAN/provider checkpoint proceeds one action at a time and stops on any unexpected state.
 
 1. Check out exactly `c10f3e4af380297d7d37c7c73c999b19eb0807c2` in a clean local working tree.
-2. Link that local checkout to the already-created Vercel `organy-app` project. Local `.vercel/project.json` metadata must remain uncommitted.
-3. Read-only list the Production environment-variable names/scopes and confirm the Phase 31.37 boundary before deployment. Do not print values.
-4. Run the first explicit Production deployment with `vercel --prod --yes` from that exact clean checkout. Do not enable Git deployment and do not install integrations/add-ons.
+2. Target the already-created Vercel `organy-app` project explicitly with the CLI `--project organy-app` option. No local `.vercel/project.json` link metadata is required.
+3. Read-only list the Production environment-variable names/scopes with the explicit project target and confirm the Phase 31.37 boundary before deployment. Do not print values.
+4. Run the first explicit Production deployment from that exact clean checkout with `vercel --prod --yes --project organy-app`. Do not enable Git deployment and do not install integrations/add-ons.
 5. Connected Vercel verification must prove that the deployment is READY and identify the actual stable Production alias from provider state. Do not infer it from the project name.
-6. Add `BETTER_AUTH_URL` to **Production only** using `vercel env add BETTER_AUTH_URL production`; supply exactly the provider-confirmed HTTPS alias as the value. Do not target Preview or Development.
+6. Add `BETTER_AUTH_URL` to **Production only** with the explicit project target using `vercel env add BETTER_AUTH_URL production --project organy-app`; supply exactly the provider-confirmed HTTPS alias as the value. Do not target Preview or Development.
 7. Verify the full production-runtime configuration contract with the authoritative URL known. Secret values remain outside repository evidence.
-8. From the same exact clean payload checkout, run `vercel --prod --yes` again.
+8. From the same exact clean payload checkout, run `vercel --prod --yes --project organy-app` again.
 9. Connected Vercel verification must prove that the stable Production alias points to the second, configuration-complete deployment and that both deployments use the same selected payload revision/content.
 10. Connected Neon verification must prove that deployment caused no database mutation.
 
