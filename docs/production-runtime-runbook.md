@@ -166,6 +166,10 @@ Run it in an explicitly authorized operator environment against the Neon direct/
 
 Bootstrap is not repeated during normal deploys.
 
+Phase 31.41 established and accepted the initial real Production protected identity. Phase 31.42 uses the same already reviewed Production-safe mechanism one more time to establish the explicitly supplied current priest identity before normal staff handoff. Its focused acceptance and HUMAN procedure are recorded in `docs/production-protected-identity-handoff.md`. No real priest identity may be inferred from role names or historical data, and no credential may be committed or pasted into chat.
+
+After the accepted initial staff identities exist, ordinary future staff provisioning and RoleAssignment maintenance use the Phase 31.30 admin workflow rather than this operator bootstrap.
+
 ## Vercel/Neon integration boundary
 
 The preferred first-production baseline is now a **manual Vercel environment-variable connection** to the already-created Neon project. Phase 31.37 should create the Vercel project without installing either the Vercel-managed or Neon-managed database integration unless a separate review deliberately changes this boundary.
@@ -243,17 +247,11 @@ For local Phase 31.33 recovery rehearsal, `ORGANY_PG_TOOL_MODE=docker-compose` c
 
 ## Still deferred
 
-Phases 31.32-31.36 do not make the application fully production-deployed. Phase 31.36 is now completed as the **Neon Free provisioning + read-only recovery-compatibility probe** slice.
-
-The immediate next provider-specific slice is **Phase 31.37**, which may create/configure the free Vercel `organy-app` Hobby project and establish the manual production environment-variable boundary without yet migrating application data or performing an uncontrolled deployment.
+The application is now explicitly deployed to the accepted Vercel Production target and the first real protected Production identity is established. Phase 31.42 continues only the initial protected staff handoff by establishing the explicitly supplied current priest identity with the reviewed bootstrap mechanism.
 
 Separate accepted work is still required for:
 
-- actual creation/configuration of the free Vercel `organy-app` project (Phase 31.37);
-- production environment values/secrets outside Git;
-- actual production schema/data migration or restore into the already-created Neon target;
-- one-time protected-account production bootstrap when required;
-- the first explicit production deployment and smoke verification;
+- any further initial staff identity required before handoff if not already represented by the accepted admin/organist Actor;
 - scheduled/off-site backup retention, RPO/RTO, and production recovery/cutover procedures;
 - release/rollback automation beyond the manual zero-cost flow above;
 - secret rotation automation;
