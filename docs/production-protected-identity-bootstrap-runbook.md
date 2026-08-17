@@ -12,11 +12,11 @@ The first required identity is the initial protected admin. The same reviewed me
 
 ## Secret boundary
 
-Real passwords, database credentials and `BETTER_AUTH_SECRET` must never be committed or copied into an issue/PR. Real secrets **must never be pasted into chat**. Keep them only in the authorized operator shell/environment for the duration of the operation.
+Real passwords, database credentials and bootstrap-process `BETTER_AUTH_SECRET` values must never be committed or copied into an issue/PR. Real secrets **must never be pasted into chat**. Keep them only in the authorized operator shell/environment for the duration of the operation.
 
 Use the Neon **direct/unpooled** Production connection as `DATABASE_URL_UNPOOLED`. Do not substitute the ordinary pooled request-runtime URL. The bootstrap internally points its Better Auth provisioning connection at the same reviewed direct target for this one operator process only.
 
-The operator also supplies the already accepted stable Production `BETTER_AUTH_URL` and the existing Production `BETTER_AUTH_SECRET`. Neither value is printed by the command.
+The operator supplies the already accepted stable Production `BETTER_AUTH_URL`. Do **not** retrieve, reveal, replace, or rotate the Vercel Production `BETTER_AUTH_SECRET` for this bootstrap. For the isolated local bootstrap process, set `BETTER_AUTH_SECRET` to a fresh high-entropy temporary value of at least 32 characters that exists only in that operator shell. The bootstrap-created signup session is removed before completion; the Vercel Production deployment's stored runtime secret is not changed.
 
 ## Explicit non-secret identity inputs
 
