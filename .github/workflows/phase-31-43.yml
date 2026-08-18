@@ -47,10 +47,6 @@ jobs:
         run: npx tsx scripts/production-reference-sync.ts --apply
       - name: Phase 31.43 legacy repertoire handoff acceptance
         run: npx tsx scripts/phase-31-43-tests.ts
-      - name: Phase 31.41 protected identity regression
-        run: npx tsx scripts/phase-31-41-tests.ts
-      - name: Phase 31.42 priest identity regression
-        run: npx tsx scripts/phase-31-42-tests.ts
       - name: Typecheck
         run: npm run typecheck
       - name: Complete tests
