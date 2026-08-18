@@ -54,8 +54,8 @@ async function invariantFingerprint() {
   ];
   const counts: Record<string, number> = {};
   for (const tableName of tableNames) {
-    const result = await pool.query<{ count: number }>(`select count(*)::int as count from ${tableName}`);
-    counts[tableName] = result.rows[0].count;
+    const result = await pool.query(`select count(*)::int as count from ${tableName}`);
+    counts[tableName] = Number(result.rows[0].count);
   }
   const config = await pool.query("select id, months from melody_non_repetition_config order by id");
   const persons = await pool.query("select id, display_name, active, priest, organist from catalog_persons order by id");
@@ -72,17 +72,19 @@ async function repertoireFingerprint() {
 async function main(): Promise<void> {
   tempRoot = await mkdtemp(join(tmpdir(), "organy-phase-31-43-"));
   try {
-    const czechSongs = await pool.query<{ id: string; canonical_number: number }>(
+    const czechQuery = await pool.query(
       "select id, canonical_number from reference_catalog_songs where language='czech' order by canonical_number limit 2",
     );
-    const polishSongs = await pool.query<{ id: string; canonical_number: number }>(
+    const polishQuery = await pool.query(
       "select id, canonical_number from reference_catalog_songs where language='polish' order by canonical_number limit 1",
     );
-    assert.equal(czechSongs.rowCount, 2, "Reference baseline must contain at least two Czech songs.");
-    assert.equal(polishSongs.rowCount, 1, "Reference baseline must contain at least one Polish song.");
+    assert.equal(czechQuery.rows.length, 2, "Reference baseline must contain at least two Czech songs.");
+    assert.equal(polishQuery.rows.length, 1, "Reference baseline must contain at least one Polish song.");
 
-    const [czechPlayable, czechRecommended] = czechSongs.rows;
-    const polishPlayable = polishSongs.rows[0];
+    const czechSongs = czechQuery.rows.map((row) => ({ id: String(row.id), canonical_number: Number(row.canonical_number) }));
+    const polishSongs = polishQuery.rows.map((row) => ({ id: String(row.id), canonical_number: Number(row.canonical_number) }));
+    const [czechPlayable, czechRecommended] = czechSongs;
+    const polishPlayable = polishSongs[0];
 
     await pool.query(
       `insert into catalog_persons (id, display_name, active, priest, organist) values
@@ -177,22 +179,22 @@ async function main(): Promise<void> {
     assert.match(apply.stdout, /Legacy repertoire handoff apply: PASS; inserted: 2; already present: 0; excluded recommended: 1/);
     assert.equal(await invariantFingerprint(), beforeApplyInvariant, "Valid apply changed non-repertoire invariant state.");
 
-    const targetMemberships = await pool.query<{ reference_song_id: string }>(
+    const targetMemberships = await pool.query(
       "select reference_song_id from reference_organist_repertoire where organist_person_id=$1 order by reference_song_id",
       [TARGET],
     );
     assert.deepEqual(
-      targetMemberships.rows.map((row) => row.reference_song_id).sort(),
+      targetMemberships.rows.map((row) => String(row.reference_song_id)).sort(),
       [czechPlayable.id, polishPlayable.id].sort(),
       "Apply did not create exactly the playable Czech and Polish memberships.",
     );
     assert.equal(
-      (await pool.query("select count(*)::int as count from reference_organist_repertoire where organist_person_id=$1 and reference_song_id=$2", [TARGET, czechRecommended.id])).rows[0].count,
+      Number((await pool.query("select count(*)::int as count from reference_organist_repertoire where organist_person_id=$1 and reference_song_id=$2", [TARGET, czechRecommended.id])).rows[0].count),
       0,
       "Recommended legacy state leaked into repertoire.",
     );
     assert.equal(
-      (await pool.query("select count(*)::int as count from reference_organist_repertoire where organist_person_id=$1 and reference_song_id=$2", [OTHER, czechRecommended.id])).rows[0].count,
+      Number((await pool.query("select count(*)::int as count from reference_organist_repertoire where organist_person_id=$1 and reference_song_id=$2", [OTHER, czechRecommended.id])).rows[0].count),
       1,
       "Existing unrelated organist repertoire was changed.",
     );
@@ -203,8 +205,8 @@ async function main(): Promise<void> {
     assert.match(rerun.stdout, /inserted: 0; already present: 2; excluded recommended: 1/);
     assert.equal(await repertoireFingerprint(), afterApplyRepertoire, "Idempotent rerun changed repertoire fingerprint.");
 
-    assert.equal((await pool.query("select count(*)::int as count from auth_sessions")).rows[0].count, 0, "Acceptance unexpectedly created auth sessions.");
-    assert.equal((await pool.query("select count(*)::int as count from auth_verifications")).rows[0].count, 0, "Acceptance unexpectedly created auth verifications.");
+    assert.equal(Number((await pool.query("select count(*)::int as count from auth_sessions")).rows[0].count), 0, "Acceptance unexpectedly created auth sessions.");
+    assert.equal(Number((await pool.query("select count(*)::int as count from auth_verifications")).rows[0].count), 0, "Acceptance unexpectedly created auth verifications.");
 
     console.log("Phase 31.43 legacy repertoire handoff acceptance: PASS");
   } finally {
