@@ -25,7 +25,6 @@ type Handoff = {
   rows: HandoffRow[];
 };
 type PlannedMembership = HandoffRow & { canonicalNumber: number; referenceSongId: string; exists: boolean };
-
 type CliOptions = { filePath: string; apply: boolean };
 
 function fail(message: string): never {
@@ -143,28 +142,29 @@ function validateDatabaseUrl(raw: string | undefined): string {
 }
 
 async function buildPlan(client: PoolClient, handoff: Handoff): Promise<{ playable: PlannedMembership[]; excludedRecommended: number }> {
-  const person = await client.query<{ id: string; active: boolean; organist: boolean }>(
+  const person = await client.query(
     "select id, active, organist from catalog_persons where id = $1",
     [handoff.targetPersonId],
   );
-  if (person.rowCount !== 1) fail(`Target Person '${handoff.targetPersonId}' was not found.`);
-  if (!person.rows[0].active || !person.rows[0].organist) fail(`Target Person '${handoff.targetPersonId}' is not an active organist.`);
+  if (person.rows.length !== 1) fail(`Target Person '${handoff.targetPersonId}' was not found.`);
+  const personRow = person.rows[0];
+  if (!Boolean(personRow.active) || !Boolean(personRow.organist)) fail(`Target Person '${handoff.targetPersonId}' is not an active organist.`);
 
   const playableRows = handoff.rows.filter((row) => PLAYABLE_STATES.has(row.state as "připravená" | "hraná"));
   const playable: PlannedMembership[] = [];
   for (const row of playableRows) {
     const canonicalNumber = Number(row.number);
-    const song = await client.query<{ id: string }>(
+    const song = await client.query(
       "select id from reference_catalog_songs where language = $1 and canonical_number = $2",
       [row.language, canonicalNumber],
     );
-    if (song.rowCount !== 1) fail(`Reference song not found for canonical identity ${row.language}:${row.number}.`);
-    const referenceSongId = song.rows[0].id;
+    if (song.rows.length !== 1) fail(`Reference song not found for canonical identity ${row.language}:${row.number}.`);
+    const referenceSongId = String(song.rows[0].id);
     const membership = await client.query(
       "select 1 from reference_organist_repertoire where organist_person_id = $1 and reference_song_id = $2",
       [handoff.targetPersonId, referenceSongId],
     );
-    playable.push({ ...row, canonicalNumber, referenceSongId, exists: membership.rowCount === 1 });
+    playable.push({ ...row, canonicalNumber, referenceSongId, exists: membership.rows.length === 1 });
   }
 
   return { playable, excludedRecommended: handoff.rows.filter((row) => row.state === "doporučená").length };
@@ -209,10 +209,10 @@ async function main(): Promise<void> {
     let inserted = 0;
     for (const row of pending) {
       const result = await client.query(
-        "insert into reference_organist_repertoire (organist_person_id, reference_song_id, updated_at) values ($1, $2, now()) on conflict (organist_person_id, reference_song_id) do nothing",
+        "insert into reference_organist_repertoire (organist_person_id, reference_song_id, updated_at) values ($1, $2, now()) on conflict (organist_person_id, reference_song_id) do nothing returning 1 as inserted",
         [handoff.targetPersonId, row.referenceSongId],
       );
-      inserted += result.rowCount ?? 0;
+      inserted += result.rows.length;
     }
     await client.query("commit");
     transactionOpen = false;
