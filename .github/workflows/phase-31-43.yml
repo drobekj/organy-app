@@ -24,7 +24,7 @@ jobs:
           archive="_phase3143_contract_repo/data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip"
           actual_sha="$(sha256sum "$archive" | awk '{print $1}')"
           echo "ZIP_SHA256=$actual_sha"
-          test "$actual_sha" = "51306667404cd0bf86df40e3bfecffb1117510060d14f486c245f05f5ae95f9a"
+          test "$actual_sha" = "89edcf22f5603f51a4d1b27d94f8dfee4938a4fe4cfd3c950595d9bf4f0d1d54"
           rm -rf _phase3143_contract
           mkdir _phase3143_contract
           unzip -q "$archive" -d _phase3143_contract
