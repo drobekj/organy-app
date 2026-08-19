@@ -1,0 +1,84 @@
+name: Rebuild Phase 31.43 data contract archive
+
+on:
+  push:
+    branches:
+      - agent/phase-31-43-data-contract
+    paths:
+      - ".handoff-build/**"
+      - ".github/workflows/rebuild-phase-31-43-data-contract.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild and verify definitive ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target="data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip"
+          handoff="data/handoff/phase-31-43-data-contract/HANDOFF.md"
+          expected="acd33d29aa07a6439b42fc3ebb973045c22781b2e1ec187139b71abeb3ee3be1"
+
+          cat .handoff-build/chunk-*.txt | tr -d '\n\r' | base64 --decode > "$target"
+
+          actual="$(sha256sum "$target" | awk '{print $1}')"
+          test "$actual" = "$expected"
+
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+
+          path = Path("data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip")
+          expected = [
+              "A-melody-equivalence.json",
+              "B-jaroslav-repertoire-pivots.json",
+              "C-validation-report.json",
+              "HANDOFF.md",
+          ]
+          with zipfile.ZipFile(path, "r") as z:
+              assert z.namelist() == expected, z.namelist()
+              assert z.testzip() is None
+              for name in expected:
+                  z.read(name)
+          print("ZIP structural validation PASS")
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("data/handoff/phase-31-43-data-contract/HANDOFF.md")
+          text = path.read_text(encoding="utf-8")
+          actual = "acd33d29aa07a6439b42fc3ebb973045c22781b2e1ec187139b71abeb3ee3be1"
+          text, n = re.subn(
+              r"Definitive archive SHA-256: `[0-9a-f]{64}`",
+              f"Definitive archive SHA-256: `{actual}`",
+              text,
+              count=1,
+          )
+          assert n == 1
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          rm -rf .handoff-build
+          rm -f .github/workflows/rebuild-phase-31-43-data-contract.yml
+
+      - name: Commit verified archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Finalize verified Phase 31.43 data contract archive"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
