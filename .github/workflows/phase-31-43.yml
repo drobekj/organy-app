@@ -24,7 +24,7 @@ jobs:
           archive="_phase3143_contract_repo/data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip"
           actual_sha="$(sha256sum "$archive" | awk '{print $1}')"
           echo "ZIP_SHA256=$actual_sha"
-          test "$actual_sha" = "89edcf22f5603f51a4d1b27d94f8dfee4938a4fe4cfd3c950595d9bf4f0d1d54"
+          test "$actual_sha" = "acd33d29aa07a6439b42fc3ebb973045c22781b2e1ec187139b71abeb3ee3be1"
           rm -rf _phase3143_contract
           mkdir _phase3143_contract
           unzip -q "$archive" -d _phase3143_contract
@@ -32,7 +32,10 @@ jobs:
           import json
           from pathlib import Path
           root=Path('_phase3143_contract')
-          print('MEMBERS=' + ','.join(sorted(p.name for p in root.iterdir())))
+          expected={'A-melody-equivalence.json','B-jaroslav-repertoire-pivots.json','C-validation-report.json','HANDOFF.md'}
+          actual={p.name for p in root.iterdir()}
+          print('MEMBERS=' + ','.join(sorted(actual)))
+          assert actual == expected, (actual, expected)
           for name in ['A-melody-equivalence.json','B-jaroslav-repertoire-pivots.json','C-validation-report.json']:
               value=json.loads((root/name).read_text(encoding='utf-8'))
               print(f'{name}:TYPE={type(value).__name__}')
