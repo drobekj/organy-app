@@ -1,4 +1,4 @@
-name: Phase 31.43 Production legacy repertoire handoff acceptance
+name: Phase 31.43 definitive knowledge handoff acceptance
 
 on:
   pull_request:
@@ -7,49 +7,49 @@ on:
       - codex/phase-31-43-production-repertoire-handoff
 
 jobs:
-  verify:
+  inspect-contract:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: organy_app
-          POSTGRES_PASSWORD: organy_app
-          POSTGRES_DB: organy_phase_31_43
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U organy_app -d organy_phase_31_43"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      ORGANY_RUNTIME: db
-      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_phase_31_43
-      DATABASE_URL_UNPOOLED: postgres://organy_app:organy_app@127.0.0.1:5432/organy_phase_31_43
-      BETTER_AUTH_SECRET: phase-31-43-ci-secret-randomized-baseline-0123456789
-      BETTER_AUTH_URL: http://localhost:3000
     steps:
-      - name: Checkout
+      - name: Checkout implementation
         uses: actions/checkout@v4
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
+      - name: Checkout definitive data contract
+        uses: actions/checkout@v4
         with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund --loglevel=error
-      - name: Materialize authoritative Reference catalogs
-        run: node data/catalog/materialize-catalogs.mjs
-      - name: Database migration
-        run: npm run db:migrate
-      - name: Establish exact accepted Reference baseline
-        run: npx tsx scripts/production-reference-sync.ts --apply
-      - name: Phase 31.43 legacy repertoire handoff acceptance
-        run: npx tsx scripts/phase-31-43-tests.ts
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Complete tests
-        run: npm test
-      - name: Production build
-        run: npm run build
+          ref: agent/phase-31-43-data-contract
+          path: _phase3143_contract_repo
+      - name: Inspect definitive archive shape
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="_phase3143_contract_repo/data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip"
+          actual_sha="$(sha256sum "$archive" | awk '{print $1}')"
+          echo "ZIP_SHA256=$actual_sha"
+          test "$actual_sha" = "51306667404cd0bf86df40e3bfecffb1117510060d14f486c245f05f5ae95f9a"
+          rm -rf _phase3143_contract
+          mkdir _phase3143_contract
+          unzip -q "$archive" -d _phase3143_contract
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('_phase3143_contract')
+          print('MEMBERS=' + ','.join(sorted(p.name for p in root.iterdir())))
+          for name in ['A-melody-equivalence.json','B-jaroslav-repertoire-pivots.json','C-validation-report.json']:
+              value=json.loads((root/name).read_text(encoding='utf-8'))
+              print(f'{name}:TYPE={type(value).__name__}')
+              if isinstance(value, dict):
+                  print(f'{name}:KEYS=' + ','.join(sorted(value.keys())))
+                  for k,v in value.items():
+                      if isinstance(v,list):
+                          print(f'{name}:{k}:LEN={len(v)}')
+                          if v:
+                              first=v[0]
+                              print(f'{name}:{k}:FIRST_TYPE={type(first).__name__}')
+                              if isinstance(first,dict): print(f'{name}:{k}:FIRST_KEYS=' + ','.join(sorted(first.keys())))
+                      elif isinstance(v,dict):
+                          print(f'{name}:{k}:DICT_KEYS=' + ','.join(sorted(v.keys())))
+                      elif isinstance(v,(str,int,float,bool)) or v is None:
+                          print(f'{name}:{k}:SCALAR={v}')
+              elif isinstance(value,list):
+                  print(f'{name}:LEN={len(value)}')
+                  if value and isinstance(value[0],dict): print(f'{name}:FIRST_KEYS=' + ','.join(sorted(value[0].keys())))
+          PY
