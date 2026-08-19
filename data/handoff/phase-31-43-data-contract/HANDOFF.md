@@ -3,7 +3,12 @@
 Status: **PASS**
 
 Source SQL: `24e7a91d-761d-42dc-9bdf-0d6a99d0cd67.sql`  
-SHA-256: `9ed2840dcf1c22c8836ebee1bf1c2597c08fd076f51a6e5f17bec4976e90d25e`
+Source SQL SHA-256: `9ed2840dcf1c22c8836ebee1bf1c2597c08fd076f51a6e5f17bec4976e90d25e`
+
+Definitive archive: `church-organy-data-contract-definitive.zip`  
+Definitive archive SHA-256: `89edcf22f5603f51a4d1b27d94f8dfee4938a4fe4cfd3c950595d9bf4f0d1d54`
+
+> This archive SHA-256 is the authoritative hash of the ZIP bytes stored on GitHub in branch `agent/phase-31-43-data-contract`. It supersedes the incorrect hash `51306667404cd0bf86df40e3bfecffb1117510060d14f486c245f05f5ae95f9a` that appeared in an earlier chat handoff prompt.
 
 ## Final source counts
 
