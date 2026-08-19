@@ -25,9 +25,11 @@ function extractArchive(archivePath: string, destination: string): void {
 
 function normalizeSchemaVersion(value: unknown): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-  const root = { ...(value as Record<string, unknown>), schema_version: Number((value as Record<string, unknown>).schema_version) };
-  if (Array.isArray(root.classes)) {
-    root.classes = root.classes.map((item) => {
+  const source = value as Record<string, unknown>;
+  const root: Record<string, unknown> = { ...source, schema_version: Number(source.schema_version) };
+  const rawClasses = root.classes;
+  if (Array.isArray(rawClasses)) {
+    root.classes = (rawClasses as unknown[]).map((item: unknown) => {
       if (typeof item !== "object" || item === null || Array.isArray(item)) return item;
       const row = item as Record<string, unknown>;
       const rawLanguages = typeof row.languages === "object" && row.languages !== null && !Array.isArray(row.languages)
