@@ -36,23 +36,18 @@ jobs:
           actual={p.name for p in root.iterdir()}
           print('MEMBERS=' + ','.join(sorted(actual)))
           assert actual == expected, (actual, expected)
-          for name in ['A-melody-equivalence.json','B-jaroslav-repertoire-pivots.json','C-validation-report.json']:
-              value=json.loads((root/name).read_text(encoding='utf-8'))
-              print(f'{name}:TYPE={type(value).__name__}')
-              if isinstance(value, dict):
-                  print(f'{name}:KEYS=' + ','.join(sorted(value.keys())))
-                  for k,v in value.items():
-                      if isinstance(v,list):
-                          print(f'{name}:{k}:LEN={len(v)}')
-                          if v:
-                              first=v[0]
-                              print(f'{name}:{k}:FIRST_TYPE={type(first).__name__}')
-                              if isinstance(first,dict): print(f'{name}:{k}:FIRST_KEYS=' + ','.join(sorted(first.keys())))
-                      elif isinstance(v,dict):
-                          print(f'{name}:{k}:DICT_KEYS=' + ','.join(sorted(v.keys())))
-                      elif isinstance(v,(str,int,float,bool)) or v is None:
-                          print(f'{name}:{k}:SCALAR={v}')
-              elif isinstance(value,list):
-                  print(f'{name}:LEN={len(value)}')
-                  if value and isinstance(value[0],dict): print(f'{name}:FIRST_KEYS=' + ','.join(sorted(value[0].keys())))
+          A=json.loads((root/'A-melody-equivalence.json').read_text(encoding='utf-8'))
+          B=json.loads((root/'B-jaroslav-repertoire-pivots.json').read_text(encoding='utf-8'))
+          C=json.loads((root/'C-validation-report.json').read_text(encoding='utf-8'))
+          print('A.statistics=' + json.dumps(A['statistics'], ensure_ascii=False, sort_keys=True))
+          print('A.reference_catalog=' + json.dumps(A['reference_catalog'], ensure_ascii=False, sort_keys=True))
+          print('A.class.sample=' + json.dumps(A['classes'][0], ensure_ascii=False, sort_keys=True))
+          print('A.member.keys=' + ','.join(sorted(A['classes'][0]['members'][0].keys())))
+          print('A.provenance.keys=' + ','.join(sorted(A['classes'][0]['provenance_edges'][0].keys())))
+          print('B.statistics=' + json.dumps(B['statistics'], ensure_ascii=False, sort_keys=True))
+          print('B.pivot.sample=' + json.dumps(B['pivots'][0], ensure_ascii=False, sort_keys=True))
+          print('C.checks=' + json.dumps(C['checks'], ensure_ascii=False, sort_keys=True))
+          print('C.melody_class_statistics=' + json.dumps(C['melody_class_statistics'], ensure_ascii=False, sort_keys=True))
+          print('C.repertoire_statistics=' + json.dumps(C['repertoire_statistics'], ensure_ascii=False, sort_keys=True))
+          print('C.manual_polish_edge_orientation_cleanup=' + json.dumps(C['manual_polish_edge_orientation_cleanup'], ensure_ascii=False, sort_keys=True))
           PY
