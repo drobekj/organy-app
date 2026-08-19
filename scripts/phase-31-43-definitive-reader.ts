@@ -25,7 +25,24 @@ function extractArchive(archivePath: string, destination: string): void {
 
 function normalizeSchemaVersion(value: unknown): unknown {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
-  return { ...(value as Record<string, unknown>), schema_version: Number((value as Record<string, unknown>).schema_version) };
+  const root = { ...(value as Record<string, unknown>), schema_version: Number((value as Record<string, unknown>).schema_version) };
+  if (Array.isArray(root.classes)) {
+    root.classes = root.classes.map((item) => {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) return item;
+      const row = item as Record<string, unknown>;
+      const rawLanguages = typeof row.languages === "object" && row.languages !== null && !Array.isArray(row.languages)
+        ? row.languages as Record<string, unknown>
+        : {};
+      return {
+        ...row,
+        languages: {
+          czech: rawLanguages.czech ?? 0,
+          polish: rawLanguages.polish ?? 0,
+        },
+      };
+    });
+  }
+  return root;
 }
 
 function validateEmbeddedHandoff(handoffText: string): void {
