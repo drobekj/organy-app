@@ -8,6 +8,7 @@ import {
   type ReferenceSongIdentity,
   type ResolvedContract,
 } from "./phase-31-43-contract";
+import { validateDefinitiveMelodyForest } from "./phase-31-43-graph-check";
 
 type CliOptions = { archivePath: string; apply: boolean };
 type KnowledgeState = "pristine" | "applied";
@@ -148,6 +149,7 @@ async function main(): Promise<void> {
   const targetPersonId = validateTarget(process.env.ORGANY_REPERTOIRE_PERSON_ID);
   const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL_UNPOOLED);
   const { contract } = await readDefinitiveArchive(options.archivePath);
+  validateDefinitiveMelodyForest(contract);
 
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const client = await pool.connect();
