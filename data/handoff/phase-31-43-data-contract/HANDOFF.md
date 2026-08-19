@@ -6,9 +6,26 @@ Source SQL: `24e7a91d-761d-42dc-9bdf-0d6a99d0cd67.sql`
 Source SQL SHA-256: `9ed2840dcf1c22c8836ebee1bf1c2597c08fd076f51a6e5f17bec4976e90d25e`
 
 Definitive archive: `church-organy-data-contract-definitive.zip`  
-Definitive archive SHA-256: `89edcf22f5603f51a4d1b27d94f8dfee4938a4fe4cfd3c950595d9bf4f0d1d54`
+Definitive archive SHA-256: `acd33d29aa07a6439b42fc3ebb973045c22781b2e1ec187139b71abeb3ee3be1`
 
-> This archive SHA-256 is the authoritative hash of the ZIP bytes stored on GitHub in branch `agent/phase-31-43-data-contract`. It supersedes the incorrect hash `51306667404cd0bf86df40e3bfecffb1117510060d14f486c245f05f5ae95f9a` that appeared in an earlier chat handoff prompt.
+The SHA above is the authoritative hash of the ZIP bytes stored on branch
+`agent/phase-31-43-data-contract`.
+
+## Archive integrity
+
+The definitive ZIP was rebuilt from these four source files and validated before upload:
+
+- `A-melody-equivalence.json`
+- `B-jaroslav-repertoire-pivots.json`
+- `C-validation-report.json`
+- `HANDOFF.md`
+
+Validation before upload:
+
+- ZIP opens successfully
+- exactly 4 expected members
+- `zipfile.testzip()` = no error
+- all four members can be fully read
 
 ## Final source counts
 
@@ -34,19 +51,12 @@ This changes only edge orientation/provenance, not melody-class membership.
 
 - Reference songs: **1,798**
 - Non-singleton melody classes: **103**
-- Singleton melody classes: **1450**
-- Total melody classes: **1553**
+- Singleton melody classes: **1,450**
+- Total melody classes: **1,553**
 - Jaroslav explicit repertoire pivots: **233**
 - Effective playable songs: **442**
 - Unresolved identities: **0**
 - Duplicate/self/null edge defects: **0**
 - Graph is a forest: **yes** (`245 = 348 - 103`)
 
-## Files inside the definitive contract archive
-
-- `A-melody-equivalence.json`
-- `B-jaroslav-repertoire-pivots.json`
-- `C-validation-report.json`
-- `HANDOFF.md`
-
-The archive stored beside this file is the definitive data contract and supersedes all previous data-contract bundles.
+This archive supersedes all previous data-contract archives and hashes.
