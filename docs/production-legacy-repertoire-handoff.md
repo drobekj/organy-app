@@ -1,162 +1,132 @@
-# Production legacy repertoire handoff
+# Phase 31.43 — definitive Production melody/repertoire handoff
 
-Phase 31.43 defines the one-time boundary for moving the current organist's playable legacy repertoire into the authoritative Production Reference repertoire model.
+Phase 31.43 establishes the first real Production knowledge set required for Jaroslav's repertoire to have its intended melody-class-wide meaning.
 
-This runbook does **not** connect to the old SQL Server database and does **not** contain or guess a SQL extraction query. The repository currently has only the accepted domain semantics of `VarhanniDoprovody.VarhaniciPisne`, not the physical source schema/export needed to write a trustworthy query.
+The legacy SQL Server interpretation is finished. **Do not reconstruct data from old SQL exports or earlier handoff formats.** The only accepted source is the definitive Data Contract Gate archive on branch `agent/phase-31-43-data-contract`:
 
-## Accepted legacy semantics
-
-Only these legacy states are relevant:
-
-- `připravená` — playable repertoire; include;
-- `hraná` — playable repertoire; include;
-- `doporučená` — not repertoire; exclude.
-
-The target model stores repertoire membership only. Phase 31.43 intentionally does not preserve a `připravená` versus `hraná` state distinction.
-
-## Local handoff JSON
-
-The real handoff file stays local and outside Git by default. It must be UTF-8 JSON in this exact shape:
-
-```json
-{
-  "format": "organy-app-legacy-repertoire-v1",
-  "sourceDatabase": "VarhanniDoprovody",
-  "targetPersonId": "person-jaroslav-drobek",
-  "sourceOrganist": {
-    "legacyId": "source evidence only",
-    "displayName": "source evidence only"
-  },
-  "rows": [
-    {
-      "language": "czech",
-      "number": "123",
-      "state": "připravená",
-      "sourceEvidence": "optional source-row evidence"
-    },
-    {
-      "language": "polish",
-      "number": "456",
-      "state": "hraná"
-    },
-    {
-      "language": "czech",
-      "number": "789",
-      "state": "doporučená"
-    }
-  ]
-}
+```text
+data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip
 ```
 
-The example values are illustrative only and are not real repertoire data.
+Authoritative SHA-256:
 
-Rules:
+```text
+acd33d29aa07a6439b42fc3ebb973045c22781b2e1ec187139b71abeb3ee3be1
+```
 
-- `format` is exactly `organy-app-legacy-repertoire-v1`;
-- `sourceDatabase` is exactly `VarhanniDoprovody`;
-- `targetPersonId` must also be supplied independently through `ORGANY_REPERTOIRE_PERSON_ID` and the two values must match;
-- `language` is only `czech` or `polish`;
-- `number` is the accepted positive encoded Reference number as digits without leading zeroes;
-- `state` is only `připravená`, `hraná`, or `doporučená`;
-- `sourceOrganist` and `sourceEvidence` are optional review evidence only and are never used to identify Production records;
-- duplicate rows with the same canonical song and different legacy states are rejected;
-- an exact duplicate with the same state is harmlessly collapsed;
-- song title, legacy numeric id, fuzzy matching, and melody inference are never used to resolve a target song.
+The ZIP must contain exactly:
+
+```text
+A-melody-equivalence.json
+B-jaroslav-repertoire-pivots.json
+C-validation-report.json
+HANDOFF.md
+```
+
+## Frozen contract
+
+The operator validates the archive itself and the derived knowledge state before it can write anything. The accepted result is:
+
+- Reference songs: **1,798** (808 Czech + 990 Polish)
+- legacy source rows: `CeskePisne` **180**, `PolskePisne` **6**, `CeskePolskePisne` **59**, `VarhaniciPisne` **343**
+- cross-language mapping is a bijection: **59 / 59 / 59**
+- final manually corrected Polish orientation: **(144,142)**
+- melody-equivalence edges: **245**
+- members of non-singleton classes: **348**
+- non-singleton melody classes: **103**
+- singleton melody classes: **1,450**
+- total melody classes: **1,553**
+- forest invariant: **245 = 348 - 103**
+- explicit Jaroslav repertoire pivots: **233**
+- effective playable songs through melody equivalence: **442** (378 Czech + 64 Polish)
+- unresolved identities: **0**
+- duplicate/self/null edge defects: **0**
+
+A repertoire pivot is one explicit concrete Reference song membership. The application already applies repertoire eligibility class-wide: if one member of a melody class is an explicit pivot, the class is playable. Therefore the 233 pivots are deliberately **not** expanded into 442 stored repertoire rows.
 
 ## Repository acceptance
 
-CI uses only synthetic handoff data and disposable PostgreSQL. It proves the dry-run/apply contract without touching a real legacy source or Production.
-
-The focused command is:
+CI checks out the definitive data-contract branch separately, verifies the ZIP bytes/member set, establishes a disposable PostgreSQL Reference baseline, and runs:
 
 ```bash
 npx tsx scripts/phase-31-43-tests.ts
 ```
 
-The Phase 31.43 workflow first materializes the accepted Reference catalogs, applies migrations, establishes the accepted Reference baseline, and then runs the focused acceptance plus normal typecheck/tests/build and relevant Production identity regressions.
+Focused acceptance proves, among other things:
 
-## Later HUMAN legacy extraction
+- exact archive/hash/member validation;
+- all frozen graph and repertoire counts;
+- exact Reference identity resolution;
+- independent melody-forest connectivity validation;
+- pristine starting state: 1,798 singleton classes, 1,798 memberships, repertoire 0;
+- dry-run is read-only;
+- melody changes and repertoire pivots are one atomic transaction;
+- an injected failure after melody mutation rolls the whole transaction back;
+- apply yields exactly 103 non-singleton + 1,450 singleton = 1,553 classes, 1,798 memberships and 233 pivots;
+- current candidate semantics yield exactly 442 playable songs;
+- exact rerun is a no-op;
+- unexpected pre-existing manual melody/repertoire drift is a STOP condition;
+- unrelated Reference/auth/configuration/antiphon/thematic/preference/service/history state is unchanged.
 
-This is a future checkpoint, not part of the implementation PR.
+## Operator
 
-When the real SQL Server source is made available, inspect its schema/read-only export first. Produce the local JSON above by explicitly mapping the real source rows to canonical `language`, encoded Reference `number`, and accepted legacy `state`.
+The one-time boundary is:
 
-Do not invent a query from table names alone. If the physical source columns/relationships do not support a row unambiguously, leave it unresolved and stop rather than guessing.
+```powershell
+npx tsx scripts/production-legacy-repertoire-handoff.ts --archive <DEFINITIVE_ZIP_PATH>
+```
 
-No SQL Server password, connection string, database dump, or other credential should be pasted into chat or committed to Git.
-
-## Production dry-run
-
-After the real local handoff file has been reviewed, obtain the Neon **direct/unpooled** Production connection string into the local process environment without printing or copying it through chat.
-
-Set the explicit target Person separately:
+Default invocation is a **read-only dry-run**. It requires:
 
 ```powershell
 $env:ORGANY_REPERTOIRE_PERSON_ID = "person-jaroslav-drobek"
 ```
 
-Then run the importer **without** `--apply`:
+and a direct/unpooled Production PostgreSQL connection in `DATABASE_URL_UNPOOLED`. The URL must be acquired without printing or pasting it into chat; pooled hosts containing `-pooler.` are rejected.
 
-```powershell
-npx tsx scripts/production-legacy-repertoire-handoff.ts --file <LOCAL_JSON_PATH>
-```
+Before any mutation the operator:
 
-Dry-run behavior:
+1. verifies the exact ZIP SHA-256 and exact four-member archive;
+2. validates A/B/C/HANDOFF and all frozen counts/invariants;
+3. independently proves every declared melody class is connected and acyclic;
+4. resolves every accepted identity against the exact current Reference catalog;
+5. verifies `person-jaroslav-drobek` exists, is active and organist-eligible;
+6. accepts only one of two database states:
+   - pristine: 1,798 singleton melody classes + zero repertoire rows;
+   - exact already-applied definitive state.
 
-- requires `DATABASE_URL_UNPOOLED`;
-- rejects a host containing `-pooler.`;
-- validates the entire JSON before database writes are possible;
-- verifies the explicit target Person exists, is active, and is organist-eligible;
-- resolves every `připravená`/`hraná` row by exact `(language, canonical_number)` in `reference_catalog_songs`;
-- reports `doporučená` rows as excluded;
-- calculates existing versus planned repertoire memberships;
-- runs in a read-only transaction and rolls it back;
-- prints no database URL or credentials.
+Any partial/manual/mixed state is STOP + review.
 
-Expected safe success form:
-
-```text
-Legacy repertoire handoff preflight: PASS
-Target Person: person-jaroslav-drobek
-Rows: ...; playable: ...; excluded recommended: ...; existing memberships: ...; planned inserts: ....
-Dry-run only; no data was changed.
-```
-
-After dry-run, connected read-only verification must confirm Production is unchanged before any write authorization is requested.
+Dry-run uses a read-only repeatable-read transaction and rolls it back. It never changes Production.
 
 ## Separate HUMAN Production apply authorization
 
-A Production write is a separate checkpoint. Do not add `--apply` merely because dry-run passed.
+Green CI and a passing dry-run do **not** authorize a Production write.
 
-Only after explicit authorization run:
+Only after a separate explicit HUMAN authorization may the same command be run with:
 
 ```powershell
-npx tsx scripts/production-legacy-repertoire-handoff.ts --file <LOCAL_JSON_PATH> --apply
+npx tsx scripts/production-legacy-repertoire-handoff.ts --archive <DEFINITIVE_ZIP_PATH> --apply
 ```
 
-Apply behavior:
+Apply uses one PostgreSQL transaction and one transaction-scoped advisory lock. It establishes the definitive melody partition first, inserts exactly the 233 explicit pivots, validates the complete post-state inside the same transaction, and only then commits. Any failure rolls back melody and repertoire together. Exact rerun is a no-op.
 
-- repeats validation inside one PostgreSQL transaction;
-- inserts only missing `reference_organist_repertoire` rows for the explicit target Person;
-- uses conflict/no-op semantics for already-present memberships;
-- never deletes existing repertoire;
-- leaves other organists untouched;
-- rolls back the entire transaction on any error;
-- exact rerun is a no-op.
+No schema migration, runtime UI/API redesign, account/auth change, provider configuration change, deployment, general legacy migration, service/history/preferences import, or `doporučená` repertoire import belongs to this phase.
 
-## Post-write acceptance
+## Post-apply acceptance
 
-After a future authorized apply, connected read-only verification must confirm:
+After an authorized apply, connected read-only verification must prove:
 
-- the target organist has exactly the expected imported playable memberships;
-- no `doporučená` row became repertoire;
-- Reference songs, melody classes/memberships, antiphons, thematic data, and configuration are unchanged;
-- identities, roles, credentials, links, sessions, and verifications are unchanged;
-- preferences, service/planning/history, and manual recommendation data are unchanged except for data created later through their own authorized workflows;
-- no unrelated organist repertoire was changed.
+- Reference songs 1,798 unchanged;
+- melody memberships 1,798;
+- melody classes exactly 1,553 = 103 non-singleton + 1,450 singleton;
+- no orphan/empty melody class;
+- Jaroslav explicit repertoire exactly 233;
+- no unrelated organist repertoire;
+- effective class-wide playable songs exactly 442;
+- identities/auth/roles/links unchanged and no unexpected sessions/verifications;
+- antiphons, thematic knowledge and `global/months=2` unchanged;
+- preferences/service/planning/history/manual recommendations unchanged;
+- Vercel/provider state unchanged and no deployment caused by the data write.
 
-Then perform a small UI acceptance while signed in as the organist: inspect several imported Reference songs and confirm repertoire visibility and candidate behavior. This UI check is verification only; it is not a substitute for database reconciliation.
-
-## Out of scope
-
-Phase 31.43 does not migrate general legacy data, service history, preferences, people, melody edges, themes, account data, or `doporučená`. It adds no schema migration, no runtime UI/API behavior, no provider configuration, and no automatic deployment or Production write.
+A focused signed-in UI check follows database reconciliation; it does not replace it.
