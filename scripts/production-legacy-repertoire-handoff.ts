@@ -1,47 +1,30 @@
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Pool, type PoolClient } from "pg";
+import {
+  PHASE_31_43_TARGET_PERSON_ID,
+  readDefinitiveArchive,
+  resolveContractIdentities,
+  type DefinitiveContract,
+  type ReferenceSongIdentity,
+  type ResolvedContract,
+} from "./phase-31-43-contract";
 
-const FORMAT = "organy-app-legacy-repertoire-v1";
-const SOURCE_DATABASE = "VarhanniDoprovody";
-const PLAYABLE_STATES = new Set(["připravená", "hraná"] as const);
-const ALL_STATES = new Set(["připravená", "hraná", "doporučená"] as const);
-const LANGUAGES = new Set(["czech", "polish"] as const);
-const MAX_POSTGRES_INTEGER = 2_147_483_647;
+type CliOptions = { archivePath: string; apply: boolean };
+type KnowledgeState = "pristine" | "applied";
 
-type Language = "czech" | "polish";
-type LegacyState = "připravená" | "hraná" | "doporučená";
-type HandoffRow = {
-  language: Language;
-  number: string;
-  state: LegacyState;
-  sourceEvidence?: string;
+type DbSnapshot = {
+  state: KnowledgeState;
+  resolved: ResolvedContract;
+  referenceSongs: ReferenceSongIdentity[];
+  classCount: number;
+  membershipCount: number;
+  repertoireCount: number;
 };
-type Handoff = {
-  format: typeof FORMAT;
-  sourceDatabase: typeof SOURCE_DATABASE;
-  targetPersonId: string;
-  sourceOrganist?: { legacyId?: string; displayName?: string };
-  rows: HandoffRow[];
-};
-type PlannedMembership = HandoffRow & { canonicalNumber: number; referenceSongId: string; exists: boolean };
-type CliOptions = { filePath: string; apply: boolean };
 
-function fail(message: string): never {
-  throw new Error(message);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function assertOnlyKeys(record: Record<string, unknown>, allowed: string[], context: string): void {
-  const extras = Object.keys(record).filter((key) => !allowed.includes(key));
-  if (extras.length > 0) fail(`${context} contains unsupported field(s): ${extras.join(", ")}.`);
-}
+function fail(message: string): never { throw new Error(message); }
 
 function parseCli(argv: string[]): CliOptions {
-  let filePath: string | undefined;
+  let archivePath: string | undefined;
   let apply = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -50,173 +33,158 @@ function parseCli(argv: string[]): CliOptions {
       apply = true;
       continue;
     }
-    if (arg === "--file") {
-      if (filePath) fail("--file may be supplied only once.");
+    if (arg === "--archive") {
+      if (archivePath) fail("--archive may be supplied only once.");
       const candidate = argv[index + 1];
-      if (!candidate || candidate.startsWith("--")) fail("--file requires a local JSON path.");
-      filePath = candidate;
+      if (!candidate || candidate.startsWith("--")) fail("--archive requires the definitive ZIP path.");
+      archivePath = candidate;
       index += 1;
       continue;
     }
     fail(`Unsupported argument '${arg}'.`);
   }
-  if (!filePath) fail("A local handoff file is required via --file <path>.");
-  return { filePath: resolve(filePath), apply };
-}
-
-function parseHandoff(value: unknown, expectedTargetPersonId: string): Handoff {
-  if (!isRecord(value)) fail("Handoff root must be a JSON object.");
-  assertOnlyKeys(value, ["format", "sourceDatabase", "targetPersonId", "sourceOrganist", "rows"], "Handoff root");
-  if (value.format !== FORMAT) fail(`Unsupported handoff format. Expected '${FORMAT}'.`);
-  if (value.sourceDatabase !== SOURCE_DATABASE) fail(`Unexpected sourceDatabase. Expected '${SOURCE_DATABASE}'.`);
-  if (typeof value.targetPersonId !== "string" || value.targetPersonId.trim() === "") fail("targetPersonId must be a non-empty string.");
-  if (value.targetPersonId !== expectedTargetPersonId) fail("Handoff targetPersonId does not match explicit ORGANY_REPERTOIRE_PERSON_ID.");
-
-  let sourceOrganist: Handoff["sourceOrganist"];
-  if (value.sourceOrganist !== undefined) {
-    if (!isRecord(value.sourceOrganist)) fail("sourceOrganist must be an object when supplied.");
-    assertOnlyKeys(value.sourceOrganist, ["legacyId", "displayName"], "sourceOrganist");
-    for (const key of ["legacyId", "displayName"] as const) {
-      const field = value.sourceOrganist[key];
-      if (field !== undefined && (typeof field !== "string" || field.trim() === "")) fail(`sourceOrganist.${key} must be a non-empty string when supplied.`);
-    }
-    sourceOrganist = {
-      ...(typeof value.sourceOrganist.legacyId === "string" ? { legacyId: value.sourceOrganist.legacyId } : {}),
-      ...(typeof value.sourceOrganist.displayName === "string" ? { displayName: value.sourceOrganist.displayName } : {}),
-    };
-  }
-
-  if (!Array.isArray(value.rows) || value.rows.length === 0) fail("rows must be a non-empty array.");
-  const rows: HandoffRow[] = [];
-  const stateByCanonicalKey = new Map<string, LegacyState>();
-  const seenExact = new Set<string>();
-
-  value.rows.forEach((rawRow, index) => {
-    if (!isRecord(rawRow)) fail(`rows[${index}] must be an object.`);
-    assertOnlyKeys(rawRow, ["language", "number", "state", "sourceEvidence"], `rows[${index}]`);
-    if (typeof rawRow.language !== "string" || !LANGUAGES.has(rawRow.language as Language)) fail(`rows[${index}].language must be 'czech' or 'polish'.`);
-    if (typeof rawRow.number !== "string" || !/^[1-9]\d*$/.test(rawRow.number)) fail(`rows[${index}].number must be a positive canonical digit string without leading zeroes.`);
-    const canonicalNumber = Number(rawRow.number);
-    if (!Number.isSafeInteger(canonicalNumber) || canonicalNumber > MAX_POSTGRES_INTEGER) fail(`rows[${index}].number exceeds PostgreSQL integer range.`);
-    if (typeof rawRow.state !== "string" || !ALL_STATES.has(rawRow.state as LegacyState)) fail(`rows[${index}].state is unsupported.`);
-    if (rawRow.sourceEvidence !== undefined && (typeof rawRow.sourceEvidence !== "string" || rawRow.sourceEvidence.trim() === "")) fail(`rows[${index}].sourceEvidence must be a non-empty string when supplied.`);
-
-    const language = rawRow.language as Language;
-    const state = rawRow.state as LegacyState;
-    const canonicalKey = `${language}:${rawRow.number}`;
-    const previousState = stateByCanonicalKey.get(canonicalKey);
-    if (previousState !== undefined && previousState !== state) fail(`Conflicting legacy states for canonical song ${canonicalKey}.`);
-    stateByCanonicalKey.set(canonicalKey, state);
-
-    const exactKey = `${canonicalKey}:${state}`;
-    if (seenExact.has(exactKey)) return;
-    seenExact.add(exactKey);
-    rows.push({
-      language,
-      number: rawRow.number,
-      state,
-      ...(typeof rawRow.sourceEvidence === "string" ? { sourceEvidence: rawRow.sourceEvidence } : {}),
-    });
-  });
-
-  return {
-    format: FORMAT,
-    sourceDatabase: SOURCE_DATABASE,
-    targetPersonId: value.targetPersonId,
-    ...(sourceOrganist ? { sourceOrganist } : {}),
-    rows,
-  };
+  if (!archivePath) fail("The definitive Phase 31.43 ZIP is required via --archive <path>.");
+  return { archivePath: resolve(archivePath), apply };
 }
 
 function validateDatabaseUrl(raw: string | undefined): string {
   if (!raw) fail("DATABASE_URL_UNPOOLED is required.");
   let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    fail("DATABASE_URL_UNPOOLED is not a valid PostgreSQL URL.");
-  }
+  try { parsed = new URL(raw); } catch { fail("DATABASE_URL_UNPOOLED is not a valid PostgreSQL URL."); }
   if (parsed.protocol !== "postgres:" && parsed.protocol !== "postgresql:") fail("DATABASE_URL_UNPOOLED must use postgres:// or postgresql://.");
   if (parsed.hostname.toLowerCase().includes("-pooler.")) fail("DATABASE_URL_UNPOOLED must be a direct/unpooled PostgreSQL endpoint.");
   return raw;
 }
 
-async function buildPlan(client: PoolClient, handoff: Handoff): Promise<{ playable: PlannedMembership[]; excludedRecommended: number }> {
-  const person = await client.query(
-    "select id, active, organist from catalog_persons where id = $1",
-    [handoff.targetPersonId],
-  );
-  if (person.rows.length !== 1) fail(`Target Person '${handoff.targetPersonId}' was not found.`);
-  const personRow = person.rows[0];
-  if (!Boolean(personRow.active) || !Boolean(personRow.organist)) fail(`Target Person '${handoff.targetPersonId}' is not an active organist.`);
+function validateTarget(raw: string | undefined): string {
+  if (!raw || raw.trim() === "") fail("ORGANY_REPERTOIRE_PERSON_ID is required.");
+  if (raw !== PHASE_31_43_TARGET_PERSON_ID) fail(`ORGANY_REPERTOIRE_PERSON_ID must be exactly '${PHASE_31_43_TARGET_PERSON_ID}'.`);
+  return raw;
+}
 
-  const playableRows = handoff.rows.filter((row) => PLAYABLE_STATES.has(row.state as "připravená" | "hraná"));
-  const playable: PlannedMembership[] = [];
-  for (const row of playableRows) {
-    const canonicalNumber = Number(row.number);
-    const song = await client.query(
-      "select id from reference_catalog_songs where language = $1 and canonical_number = $2",
-      [row.language, canonicalNumber],
-    );
-    if (song.rows.length !== 1) fail(`Reference song not found for canonical identity ${row.language}:${row.number}.`);
-    const referenceSongId = String(song.rows[0].id);
-    const membership = await client.query(
-      "select 1 from reference_organist_repertoire where organist_person_id = $1 and reference_song_id = $2",
-      [handoff.targetPersonId, referenceSongId],
-    );
-    playable.push({ ...row, canonicalNumber, referenceSongId, exists: membership.rows.length === 1 });
+async function inspectDatabase(client: PoolClient, contract: DefinitiveContract, targetPersonId: string): Promise<DbSnapshot> {
+  const person = await client.query("select id, active, organist from catalog_persons where id=$1", [targetPersonId]);
+  if (person.rows.length !== 1) fail(`Target Person '${targetPersonId}' was not found.`);
+  if (!Boolean(person.rows[0].active) || !Boolean(person.rows[0].organist)) fail(`Target Person '${targetPersonId}' is not an active organist.`);
+
+  const songResult = await client.query("select id, language, canonical_number from reference_catalog_songs order by language, canonical_number, id");
+  const referenceSongs: ReferenceSongIdentity[] = songResult.rows.map((row) => ({
+    id: String(row.id),
+    language: row.language as "czech" | "polish",
+    canonicalNumber: Number(row.canonical_number),
+  }));
+  const resolved = resolveContractIdentities(contract, referenceSongs);
+
+  const membershipResult = await client.query("select reference_song_id, class_id from reference_song_melody_memberships order by reference_song_id");
+  if (membershipResult.rows.length !== 1798) fail(`Unexpected melody membership count ${membershipResult.rows.length}; expected 1798.`);
+  const currentClassBySong = new Map<string, string>();
+  for (const row of membershipResult.rows) {
+    const songId = String(row.reference_song_id);
+    if (currentClassBySong.has(songId)) fail(`Duplicate melody membership for ${songId}.`);
+    currentClassBySong.set(songId, String(row.class_id));
+  }
+  if (currentClassBySong.size !== 1798) fail("Not every Reference song has exactly one melody membership.");
+
+  const classResult = await client.query("select id from reference_melody_classes order by id");
+  const currentClasses = new Set(classResult.rows.map((row) => String(row.id)));
+  if (currentClasses.size !== classResult.rows.length) fail("Duplicate melody class id detected.");
+  const referencedClasses = new Set(currentClassBySong.values());
+  if (referencedClasses.size !== currentClasses.size || [...currentClasses].some((id) => !referencedClasses.has(id))) fail("Empty/orphan or missing melody class detected.");
+
+  const repertoireResult = await client.query("select organist_person_id, reference_song_id from reference_organist_repertoire order by organist_person_id, reference_song_id");
+  const repertoireKeys = repertoireResult.rows.map((row) => `${String(row.organist_person_id)}|${String(row.reference_song_id)}`);
+
+  const pristineClasses = classResult.rows.length === 1798 && referenceSongs.every((song) => currentClassBySong.get(song.id) === `reference-melody:${song.id}`);
+  const pristineRepertoire = repertoireResult.rows.length === 0;
+  if (pristineClasses && pristineRepertoire) {
+    return { state: "pristine", resolved, referenceSongs, classCount: classResult.rows.length, membershipCount: membershipResult.rows.length, repertoireCount: 0 };
   }
 
-  return { playable, excludedRecommended: handoff.rows.filter((row) => row.state === "doporučená").length };
+  const expectedClassIds = new Set(resolved.expectedClassBySongId.values());
+  const appliedClasses = classResult.rows.length === 1553
+    && expectedClassIds.size === 1553
+    && [...expectedClassIds].every((id) => currentClasses.has(id))
+    && referenceSongs.every((song) => currentClassBySong.get(song.id) === resolved.expectedClassBySongId.get(song.id));
+  const expectedRepertoireKeys = new Set([...resolved.pivotSongIds].map((songId) => `${targetPersonId}|${songId}`));
+  const appliedRepertoire = repertoireKeys.length === 233
+    && expectedRepertoireKeys.size === 233
+    && repertoireKeys.every((key) => expectedRepertoireKeys.has(key));
+  if (appliedClasses && appliedRepertoire) {
+    return { state: "applied", resolved, referenceSongs, classCount: classResult.rows.length, membershipCount: membershipResult.rows.length, repertoireCount: repertoireResult.rows.length };
+  }
+
+  fail("Production knowledge state is neither the accepted pristine baseline nor the exact already-applied definitive Phase 31.43 state. STOP for review.");
+}
+
+async function applyDefinitiveKnowledge(client: PoolClient, contract: DefinitiveContract, snapshot: DbSnapshot, targetPersonId: string): Promise<void> {
+  for (const melodyClass of contract.melodyClasses) {
+    const memberSongIds = melodyClass.members.map((member) => snapshot.resolved.songIdByIdentity.get(`${member.language}:${member.number}`)!);
+    const anchorClassId = snapshot.resolved.expectedClassBySongId.get(memberSongIds[0])!;
+    const movingSongIds = memberSongIds.filter((songId) => `reference-melody:${songId}` !== anchorClassId);
+    if (movingSongIds.length > 0) {
+      const moved = await client.query(
+        "update reference_song_melody_memberships set class_id=$1, updated_at=now() where reference_song_id=any($2::text[]) returning reference_song_id",
+        [anchorClassId, movingSongIds],
+      );
+      if (moved.rows.length !== movingSongIds.length) fail(`Failed to move every member of definitive melody class ${melodyClass.classId}.`);
+      const oldClassIds = movingSongIds.map((songId) => `reference-melody:${songId}`);
+      const deleted = await client.query("delete from reference_melody_classes where id=any($1::text[]) returning id", [oldClassIds]);
+      if (deleted.rows.length !== oldClassIds.length) fail(`Failed to remove every obsolete singleton class for ${melodyClass.classId}.`);
+    }
+  }
+
+  if (process.env.ORGANY_PHASE_31_43_TEST_FAIL_AFTER_MELODY === "1") throw new Error("Injected Phase 31.43 failure after melody mutation.");
+
+  const pivotSongIds = [...snapshot.resolved.pivotSongIds].sort();
+  const inserted = await client.query(
+    "insert into reference_organist_repertoire (organist_person_id, reference_song_id, updated_at) select $1, song_id, now() from unnest($2::text[]) as song_id on conflict (organist_person_id, reference_song_id) do nothing returning reference_song_id",
+    [targetPersonId, pivotSongIds],
+  );
+  if (inserted.rows.length !== 233) fail(`Expected 233 repertoire pivot inserts, got ${inserted.rows.length}.`);
 }
 
 async function main(): Promise<void> {
   const options = parseCli(process.argv.slice(2));
+  const targetPersonId = validateTarget(process.env.ORGANY_REPERTOIRE_PERSON_ID);
   const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL_UNPOOLED);
-  const expectedTarget = process.env.ORGANY_REPERTOIRE_PERSON_ID;
-  if (!expectedTarget || expectedTarget.trim() === "") fail("ORGANY_REPERTOIRE_PERSON_ID is required and must be explicit.");
-
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(await readFile(options.filePath, "utf8"));
-  } catch (error) {
-    if (error instanceof SyntaxError) fail("Handoff file is not valid JSON.");
-    throw error;
-  }
-  const handoff = parseHandoff(parsedJson, expectedTarget);
+  const { contract } = await readDefinitiveArchive(options.archivePath);
 
   const pool = new Pool({ connectionString: databaseUrl, max: 1 });
   const client = await pool.connect();
   let transactionOpen = false;
   try {
-    await client.query(options.apply ? "begin" : "begin transaction read only");
+    await client.query(options.apply ? "begin" : "begin transaction isolation level repeatable read read only");
     transactionOpen = true;
-    const plan = await buildPlan(client, handoff);
-    const existing = plan.playable.filter((row) => row.exists).length;
-    const pending = plan.playable.filter((row) => !row.exists);
+    if (options.apply) await client.query("select pg_advisory_xact_lock(hashtext('phase-31-43-definitive-knowledge-handoff'))");
+    const snapshot = await inspectDatabase(client, contract, targetPersonId);
 
-    console.log("Legacy repertoire handoff preflight: PASS");
-    console.log(`Target Person: ${handoff.targetPersonId}`);
-    console.log(`Rows: ${handoff.rows.length}; playable: ${plan.playable.length}; excluded recommended: ${plan.excludedRecommended}; existing memberships: ${existing}; planned inserts: ${pending.length}.`);
+    console.log("Phase 31.43 definitive knowledge handoff preflight: PASS");
+    console.log(`Target Person: ${targetPersonId}`);
+    console.log(`Current state: ${snapshot.state}; Reference songs: 1798; melody memberships: ${snapshot.membershipCount}; melody classes: ${snapshot.classCount}; repertoire pivots: ${snapshot.repertoireCount}.`);
+    console.log("Definitive target: 103 non-singleton classes; 1450 singleton classes; 1553 melody classes; 233 explicit pivots; 442 effective playable songs.");
 
     if (!options.apply) {
       await client.query("rollback");
       transactionOpen = false;
-      console.log("Dry-run only; no data was changed.");
+      console.log(snapshot.state === "pristine"
+        ? "Dry-run only; planned atomic change is 245 melody-class reductions plus 233 repertoire pivots; no data was changed."
+        : "Dry-run only; definitive state is already applied exactly; no data was changed.");
       return;
     }
 
-    let inserted = 0;
-    for (const row of pending) {
-      const result = await client.query(
-        "insert into reference_organist_repertoire (organist_person_id, reference_song_id, updated_at) values ($1, $2, now()) on conflict (organist_person_id, reference_song_id) do nothing returning 1 as inserted",
-        [handoff.targetPersonId, row.referenceSongId],
-      );
-      inserted += result.rows.length;
+    if (snapshot.state === "applied") {
+      await client.query("rollback");
+      transactionOpen = false;
+      console.log("Phase 31.43 apply: PASS; definitive state was already present exactly; no-op.");
+      return;
     }
+
+    await applyDefinitiveKnowledge(client, contract, snapshot, targetPersonId);
+    const after = await inspectDatabase(client, contract, targetPersonId);
+    if (after.state !== "applied") fail("Post-apply state did not match the definitive contract.");
     await client.query("commit");
     transactionOpen = false;
-    console.log(`Legacy repertoire handoff apply: PASS; inserted: ${inserted}; already present: ${existing}; excluded recommended: ${plan.excludedRecommended}.`);
+    console.log("Phase 31.43 apply: PASS; melody classes=1553; explicit pivots=233; effective playable songs=442.");
   } catch (error) {
     if (transactionOpen) await client.query("rollback").catch(() => undefined);
     throw error;
@@ -227,6 +195,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : "Legacy repertoire handoff failed.");
+  console.error(error instanceof Error ? error.message : "Phase 31.43 definitive knowledge handoff failed.");
   process.exitCode = 1;
 });
