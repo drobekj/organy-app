@@ -1,0 +1,67 @@
+name: Phase 31.43 definitive knowledge handoff acceptance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - codex/phase-31-43-production-repertoire-handoff
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_phase_31_43
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_phase_31_43"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ORGANY_RUNTIME: db
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_phase_31_43
+      DATABASE_URL_UNPOOLED: postgres://organy_app:organy_app@127.0.0.1:5432/organy_phase_31_43
+      BETTER_AUTH_SECRET: phase-31-43-ci-secret-randomized-baseline-0123456789
+      BETTER_AUTH_URL: http://localhost:3000
+      PHASE_31_43_ARCHIVE: _phase3143_contract_repo/data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip
+    steps:
+      - name: Checkout implementation
+        uses: actions/checkout@v4
+      - name: Checkout definitive data contract
+        uses: actions/checkout@v4
+        with:
+          ref: agent/phase-31-43-data-contract
+          path: _phase3143_contract_repo
+      - name: Verify definitive archive bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(sha256sum "$PHASE_31_43_ARCHIVE" | awk '{print $1}')" = "acd33d29aa07a6439b42fc3ebb973045c22781b2e1ec187139b71abeb3ee3be1"
+          test "$(unzip -Z1 "$PHASE_31_43_ARCHIVE" | sort | tr '\n' '|')" = "A-melody-equivalence.json|B-jaroslav-repertoire-pivots.json|C-validation-report.json|HANDOFF.md|"
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Materialize authoritative Reference catalogs
+        run: node data/catalog/materialize-catalogs.mjs
+      - name: Database migration
+        run: npm run db:migrate
+      - name: Establish exact accepted Reference baseline
+        run: npx tsx scripts/production-reference-sync.ts --apply
+      - name: Phase 31.43 definitive melody/repertoire acceptance
+        run: npx tsx scripts/phase-31-43-tests.ts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
