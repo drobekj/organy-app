@@ -16,27 +16,32 @@ function verifyBrowserActorEnvelope() {
   assert.deepEqual(capturedActor, { userId: "demo-admin-user", role: "admin" }, "browser actor envelope contains non-authoritative fields");
 }
 
-async function verifyProtectedRecommendationTransport() {
-  const calls: Array<{ action: string; input: unknown; actor: unknown }> = [];
-  const client = new DbReferenceAntiphonRecommendationClient(
-    { userId: "client-user-id-must-not-cross-boundary", role: "admin" },
-    async (action, input, actor) => {
-      calls.push({ action, input, actor });
-      return { success: true, value: { antiphonId: "czech:800", recommendedSong: null } };
-    },
-  );
+async function verifyProtectedRecommendationWirePayload() {
+  const requests: Array<{ action?: string; input?: unknown; actor?: unknown }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    requests.push(JSON.parse(String(init?.body)) as { action?: string; input?: unknown; actor?: unknown });
+    return new Response(JSON.stringify({ success: true, value: { antiphonId: "czech:800", recommendedSong: null } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const client = new DbReferenceAntiphonRecommendationClient({ userId: "client-user-id-must-not-cross-boundary", role: "admin" });
+    await client.get("czech:800");
+    await client.set("czech:800", "czech:1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 
-  await client.get("czech:800");
-  await client.set("czech:800", "czech:1");
-
-  assert.deepEqual(calls.map((call) => call.action), ["getReferenceAntiphonRecommendation", "setReferenceAntiphonRecommendation"]);
-  assert.deepEqual(calls.map((call) => call.actor), [{ role: "admin" }, { role: "admin" }], "protected transport leaked client-supplied user identity");
-  for (const call of calls) assert.equal(Object.prototype.hasOwnProperty.call(call.actor, "userId"), false, "protected transport included userId");
+  assert.deepEqual(requests.map((request) => request.action), ["getReferenceAntiphonRecommendation", "setReferenceAntiphonRecommendation"]);
+  assert.deepEqual(requests.map((request) => request.actor), [{ role: "admin" }, { role: "admin" }], "protected wire payload leaked client-supplied user identity");
+  for (const request of requests) assert.equal(Object.prototype.hasOwnProperty.call(request.actor, "userId"), false, "protected wire payload included userId");
 }
 
 async function main() {
   verifyBrowserActorEnvelope();
-  await verifyProtectedRecommendationTransport();
+  await verifyProtectedRecommendationWirePayload();
   const invocation = createNpmInvocation(process.execPath, process.env.npm_execpath, ["run", "test:phase-31-10b"]);
   const child = spawn(invocation.command, invocation.args, { env: process.env, stdio: "inherit" });
   child.on("error", (error) => { console.error(error); process.exitCode = 1; });
