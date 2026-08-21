@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { callPeriodApi } from "../app/non-repetition-period-panel";
 import { InMemoryCatalogRepository } from "../src/application/catalog";
 import { InteractionService, type InteractionRepository } from "../src/application/interaction-service";
 import { cancelLookup, canAddOrPersistRows, canLeaveWorkspace, canManageKnowledge, canManageRepertoire, getCandidateSignal, getPreferenceShade, InMemoryInteractionRepository, restoreLookupOnCancel, restoreRowsForRowSwitch, validateOwnPreferenceScore } from "../src/application/interaction-contracts";
@@ -24,6 +25,7 @@ assert.equal(canManageKnowledge("organist"), false);
 assert.equal(interaction.setMelodyWindow(organist, { months: 1 }), false);
 assert.equal(interaction.setMelodyWindow(admin, { months: 2 }), true);
 assert.deepEqual(interaction.getMelodyWindow(), { months: 2 });
+await verifyProtectedMelodyWindowWirePayload(admin);
 assert.equal(getCandidateSignal({ antiphonMatch: true, seasonMatch: true }), "antiphon");
 assert.equal(getCandidateSignal({ antiphonMatch: false, seasonMatch: true }), "season");
 assert.equal(getPreferenceShade(0), "none");
@@ -64,6 +66,28 @@ console.log("Phase 30.1 contract tests passed.");
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });
+
+async function verifyProtectedMelodyWindowWirePayload(actor: Parameters<typeof callPeriodApi>[2]) {
+  const requests: Array<{ action?: string; input?: unknown; actor?: unknown }> = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    requests.push(JSON.parse(String(init?.body)) as { action?: string; input?: unknown; actor?: unknown });
+    return new Response(JSON.stringify({ success: true, value: { months: 2 } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    await callPeriodApi("getMelodyWindow", {}, actor);
+    await callPeriodApi("setMelodyWindow", { months: 1 }, actor);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.deepEqual(requests.map((request) => request.action), ["getMelodyWindow", "setMelodyWindow"]);
+  assert.deepEqual(requests.map((request) => request.actor), [{ role: "admin" }, { role: "admin" }], "protected non-repetition wire payload leaked client-supplied user identity");
+  for (const request of requests) assert.equal(Object.prototype.hasOwnProperty.call(request.actor, "userId"), false, "protected non-repetition wire payload included userId");
+}
 
 function asInteractionRepository(repo: InMemoryInteractionRepository): InteractionRepository {
   return {
