@@ -18,7 +18,19 @@ jobs:
           fetch-depth: 0
 
       - name: Apply guarded presentation-only patch
-        run: python scripts/issue-204-apply-patch.py
+        shell: bash
+        run: |
+          python scripts/issue-204-apply-patch.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/phase-31-17-tests.tsx")
+          text = p.read_text()
+          old = r'''assert.match(candidateListSource, /className=\{`candidate-option-row\$\{current \? " candidate-option-current" : ""\}\$\{index === activeIndex && !current \? " candidate-option-active" : ""\}`\}/, "candidate cursor state belongs to the whole candidate row including Detail");'''
+          new = r'''assert.match(candidateListSource, /className=\{`candidate-option-row \$\{viewModel\.backgroundClass\}\$\{current \? " candidate-option-current" : ""\}\$\{index === activeIndex && !current \? " candidate-option-active" : ""\}`\}/, "candidate cursor state belongs to the whole candidate row including Detail");'''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one cursor static assertion, found {text.count(old)}")
+          p.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund --loglevel=error
