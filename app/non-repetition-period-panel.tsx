@@ -129,11 +129,11 @@ export function NonRepetitionPeriodPanel({
   );
 }
 
-async function callPeriodApi(action: "getMelodyWindow" | "setMelodyWindow", input: unknown, actor: ActorIdentity): Promise<MelodyWindowResult> {
+export async function callPeriodApi(action: "getMelodyWindow" | "setMelodyWindow", input: unknown, actor: ActorIdentity): Promise<MelodyWindowResult> {
   const response = await fetch("/api/interaction", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action, input, actor: { userId: actor.userId, role: actor.role } }),
+    body: JSON.stringify({ action, input, actor: { role: actor.role } }),
   });
   const payload = await response.json().catch(() => undefined) as MelodyWindowResult | { error?: { code?: string; message?: string } } | undefined;
   if (payload && "success" in payload) return payload;
