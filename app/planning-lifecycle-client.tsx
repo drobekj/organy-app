@@ -1012,6 +1012,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         serviceLanguage,
         organistPersonId: organistId,
         referenceAntiphonId: referenceAntiphon?.id,
+        referenceTopicId: referenceTopic?.id,
         antiphonKey: candidateAntiphonKey,
         liturgicalSeasonKey: candidateSeasonKey,
         queryText: "",
@@ -1535,7 +1536,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
           {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
           {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
           {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
-          {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
+          {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted in memory")}
           {saveState === "errors" && "Service error"}
         </div>
 
