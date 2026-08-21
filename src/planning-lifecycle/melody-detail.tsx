@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { CandidateMelodyMember, CandidateQueryResult } from "../application/interaction-contracts";
+import { getCandidateLineViewModel } from "./candidate-line";
 import type { ServiceLanguage } from "./model";
 
 export type MelodyClassDetailMode = "candidate" | "selected";
@@ -252,6 +253,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
       <ul className="melody-member-list">
         {members.map((member, index) => {
           const eligibility = eligibilityBySongId.get(member.songId);
+          const viewModel = eligibility ? getCandidateLineViewModel(eligibility) : undefined;
           const languageAllowed = isMemberLanguageAllowed(member.language, props.serviceLanguage);
           const occupancyReason = candidateAvailabilityReason(eligibility);
           const isOpened = member.songId === openedSongId;
@@ -269,7 +271,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
             <li
               key={member.songId}
               ref={(node) => { if (node) rowRefs.current.set(member.songId, node); else rowRefs.current.delete(member.songId); }}
-              className={`melody-member${isOpened ? " melody-member-opened" : ""}${isCurrent ? " melody-member-current" : ""}${rowActivatable ? " melody-member-activatable" : " melody-member-unavailable"}${activeIndex === index && rowActivatable ? " melody-member-active" : ""}`}
+              className={`melody-member${viewModel ? ` ${viewModel.backgroundClass}` : ""}${isOpened ? " melody-member-opened" : ""}${isCurrent ? " melody-member-current" : ""}${rowActivatable ? " melody-member-activatable" : " melody-member-unavailable"}${activeIndex === index && rowActivatable ? " melody-member-active" : ""}`}
               role={rowActivatable ? "button" : undefined}
               tabIndex={rowActivatable ? (activeIndex === index ? 0 : -1) : undefined}
               aria-disabled={!rowActivatable || undefined}
@@ -286,13 +288,13 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                   className={`melody-member-content${rowActivatable ? "" : " melody-member-content-muted"}`}
                   style={{ display: "grid", gap: "0.35rem" }}
                 >
-                  <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem", opacity: infoOpacity }}><strong>{member.number}</strong><span>{member.title}</span></span>
+                  <span className={`candidate-option-main${viewModel ? ` ${viewModel.contentTextClass}` : ""}`} style={{ alignItems: "center", minHeight: "2rem", opacity: infoOpacity }}><strong>{member.number}</strong><span>{member.title}</span></span>
                   {isOpened && (
                     <div className="melody-member-meta">
                       <span style={{ opacity: infoOpacity }}>{member.language}</span>
                       <span style={{ opacity: infoOpacity }}>{member.repertoire ? "In repertoire" : classHasRepertoire ? "Melody known through an equivalent" : "Not in repertoire"}</span>
                       <span style={{ opacity: infoOpacity }}>Aggregate preference {member.aggregatePreferenceScore}</span>
-                      {eligibility && <span style={{ opacity: infoOpacity }}>Signal {eligibility.signal}</span>}
+                      {eligibility && <span className={viewModel?.contentTextClass} style={{ opacity: infoOpacity }}>Signal {eligibility.signal}</span>}
                       {unavailableReason && <span className="candidate-unavailable-reason" style={{ opacity: infoOpacity }}>{unavailableReason}</span>}
                       {member.sheetMusicUrl ? (
                         <a

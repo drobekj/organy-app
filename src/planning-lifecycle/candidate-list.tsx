@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { CandidateQueryResult } from "../application/interaction-contracts";
+import { getCandidateLineViewModel } from "./candidate-line";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
 import { consumeSelectedDetailDismissPointer, MelodyClassDetail, type MelodyClassDetailMode } from "./melody-detail";
 
@@ -383,10 +384,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
           {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.map((candidate, index) => {
             const current = Boolean(currentSongId && candidate.songId === currentSongId);
             const selectable = isCandidateSelectable(candidate);
+            const viewModel = getCandidateLineViewModel(candidate);
             return (
               <div
                 key={candidate.songId}
-                className={`candidate-option-row${current ? " candidate-option-current" : ""}${index === activeIndex && !current ? " candidate-option-active" : ""}`}
+                className={`candidate-option-row ${viewModel.backgroundClass}${current ? " candidate-option-current" : ""}${index === activeIndex && !current ? " candidate-option-active" : ""}`}
                 style={{
                   alignItems: "center",
                   minHeight: "2.2rem",
@@ -414,7 +416,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
                     className="candidate-option-content"
                     style={{ alignItems: "center", minHeight: "2rem", padding: "0 0.35rem", ...(current ? { background: "transparent" } : {}) }}
                   >
-                    <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem" }}>
+                    <span className={`candidate-option-main ${viewModel.contentTextClass}`} style={{ alignItems: "center", minHeight: "2rem" }}>
                       <strong>{candidate.number}</strong><span>{candidate.title}</span>
                     </span>
                   </div>

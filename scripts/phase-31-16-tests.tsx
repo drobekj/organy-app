@@ -171,6 +171,8 @@ function renderCoverage() {
     onCancel() {},
     onRetry() {},
   };
+  const season = candidate("czech:1", "1", "Season candidate", { seasonMatch: true, signal: "season" });
+  const antiphon = candidate("czech:2", "2", "Antiphon candidate", { antiphonMatch: true, signal: "antiphon" });
   const html = renderToStaticMarkup(<CandidateCombobox {...common} />);
   assert.match(html, /role="combobox"/);
   assert.match(html, /aria-expanded="true"/);
@@ -181,6 +183,12 @@ function renderCoverage() {
   assert.ok(html.indexOf("Current exact song") < html.indexOf("Same melody equivalent"));
   assert.ok(html.indexOf("Same melody equivalent") < html.indexOf("Occupied Polish equivalent"), "UI must preserve backend ordering");
   assert.match(html, /candidate-option-current/, "the exact selected song keeps its visual current-row highlight");
+  const seasonHtml = renderToStaticMarkup(<CandidateCombobox {...common} value="" selectedSong={undefined} candidates={[season]} />);
+  assert.match(seasonHtml, /candidate-option-row candidate-tone-positive candidate-preference-none/, "compact season candidate must keep the established positive tone class");
+  assert.match(seasonHtml, /candidate-option-main candidate-content-text candidate-text-positive/, "compact season candidate text must render green");
+  const antiphonHtml = renderToStaticMarkup(<CandidateCombobox {...common} value="" selectedSong={undefined} candidates={[antiphon]} />);
+  assert.match(antiphonHtml, /candidate-option-row candidate-tone-negative candidate-preference-none/, "compact antiphon candidate must keep the established negative tone class");
+  assert.match(antiphonHtml, /candidate-option-main candidate-content-text candidate-text-negative/, "compact antiphon candidate text must render red");
   assert.doesNotMatch(html, /Currently selected/);
   assert.doesNotMatch(html, /In repertoire/);
   assert.doesNotMatch(html, /Melody known through an equivalent/);
