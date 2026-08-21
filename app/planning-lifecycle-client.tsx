@@ -1012,6 +1012,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         serviceLanguage,
         organistPersonId: organistId,
         referenceAntiphonId: referenceAntiphon?.id,
+        referenceTopicId: referenceTopic?.id,
         antiphonKey: candidateAntiphonKey,
         liturgicalSeasonKey: candidateSeasonKey,
         queryText: "",
