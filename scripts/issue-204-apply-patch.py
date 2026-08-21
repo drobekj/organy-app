@@ -27,11 +27,6 @@ replace_once(
 )
 replace_once(
     "src/planning-lifecycle/candidate-list.tsx",
-    '                  aria-selected={current}\n                  aria-disabled={!selectable}',
-    '                  aria-selected={current}\n                  aria-disabled={!selectable}\n                  aria-label={viewModel.accessibleMeaning}',
-)
-replace_once(
-    "src/planning-lifecycle/candidate-list.tsx",
     '                    <span className="candidate-option-main" style={{ alignItems: "center", minHeight: "2rem" }}>',
     '                    <span className={`candidate-option-main ${viewModel.contentTextClass}`} style={{ alignItems: "center", minHeight: "2rem" }}>',
 )
