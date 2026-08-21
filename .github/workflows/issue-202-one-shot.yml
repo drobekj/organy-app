@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/issue-202-reference-topic-signal
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
