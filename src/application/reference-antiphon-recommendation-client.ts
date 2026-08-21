@@ -6,7 +6,11 @@ type Result = { success: true; value: ReferenceAntiphonRecommendation } | { succ
 type Transport = (action: "getReferenceAntiphonRecommendation" | "setReferenceAntiphonRecommendation", input: unknown, actor: ReferenceAntiphonRecommendationActor) => Promise<Result>;
 
 async function transport(action: "getReferenceAntiphonRecommendation" | "setReferenceAntiphonRecommendation", input: unknown, actor: ReferenceAntiphonRecommendationActor): Promise<Result> {
-  const response = await fetch("/api/interaction", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, input, actor }) });
+  const response = await fetch("/api/interaction", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action, input, actor: { role: actor.role } }),
+  });
   return response.json() as Promise<Result>;
 }
 
