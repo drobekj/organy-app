@@ -204,7 +204,7 @@ export class DbInteractionClient implements InteractionClient {
   async saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }) { return this.transport("saveReferenceOwnPreference", { referenceSongId: input.referenceSongId, score: input.score }, input.actor); }
   async getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }) { return this.transport("getReferencePreferenceAggregate", { referenceSongId: input.referenceSongId }, input.actor); }
   async getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }) { return this.transport("getReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}) }, input.actor); }
-  async setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }) { return this.transport("setReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}), active: input.active }, input.actor); }
+  async setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }) { return this.transport("setReferenceRepertoireMembership", { referenceSongId: input.referenceSongId, ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}) , active: input.active }, input.actor); }
   async getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }) { return this.transport("getReferenceMelodyClass", { referenceSongId: input.referenceSongId }, input.actor); }
   async mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }) { return this.transport("mergeReferenceMelodyClasses", { referenceSongId: input.referenceSongId, mergeWithReferenceSongId: input.mergeWithReferenceSongId }, input.actor); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
@@ -1536,7 +1536,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
           {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
           {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
           {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
-          {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted in memory")}
+          {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
           {saveState === "errors" && "Service error"}
         </div>
 
