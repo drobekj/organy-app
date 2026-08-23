@@ -11,25 +11,24 @@ import {
   type LegacyRow,
   type LegacyService,
 } from "./legacy-history-parser";
-import {
-  buildLegacySongCorrections,
-  correctedCanonicalNumber,
-  songKey,
-  type LegacySongCorrection,
-} from "./legacy-history-song-resolution";
 
 type ReferenceSong = { id: string; language: Language; canonicalNumber: number; title: string };
 type PersonResolution = { id?: string; displayName: string };
 
 const sourceArg = process.argv.find((arg) => arg.startsWith("--source="));
+const songsSourceArg = process.argv.find((arg) => arg.startsWith("--songs-source="));
 const apply = process.argv.includes("--apply");
-if (!sourceArg) throw new Error("Usage: tsx scripts/legacy-history-import.ts --source=/path/legacy.sql [--apply]");
+if (!sourceArg) {
+  throw new Error("Usage: tsx scripts/legacy-history-import.ts --source=/path/legacy.sql [--songs-source=/path/corrected-BohosluzbyPisne.sql] [--apply]");
+}
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required for the read-only audit and optional import.");
 
 const sourcePath = sourceArg.slice("--source=".length);
+const songsSourcePath = songsSourceArg?.slice("--songs-source=".length);
 const sqlText = decodeLegacySql(await readFile(sourcePath));
+const songsSqlText = songsSourcePath ? decodeLegacySql(await readFile(songsSourcePath)) : sqlText;
 const services = parseLegacyServices(sqlText);
-const rows = parseLegacyRows(sqlText);
+const rows = parseLegacyRows(songsSqlText);
 const priests = parseLegacyPeople(sqlText, "Kazatele");
 const organists = parseLegacyPeople(sqlText, "Varhanici");
 assertExpectedLegacyShape(services, rows, priests, organists);
@@ -42,27 +41,18 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 try {
   const referenceSongs = await loadReferenceSongs(pool);
   const referenceByKey = new Map(referenceSongs.map((song) => [songKey(song.language, song.canonicalNumber), song]));
-  const { corrections, variantEvidence } = buildLegacySongCorrections(services, rows, new Set(referenceByKey.keys()));
 
   const directOccurrences = rows.filter((row) => {
-    if (!row.songNumber) return false;
+    if (row.songNumber === null || row.songNumber === 0) return false;
     const service = serviceById.get(row.serviceId);
     return Boolean(service && referenceByKey.has(songKey(service.language, row.songNumber)));
   });
-  const correctedOccurrences = rows.filter((row) => {
-    if (!row.songNumber) return false;
-    const service = serviceById.get(row.serviceId);
-    if (!service) return false;
-    const corrected = correctedCanonicalNumber(service.language, row.songNumber, corrections);
-    return corrected !== row.songNumber && referenceByKey.has(songKey(service.language, corrected));
-  });
-  const missingOccurrences = rows.filter((row) => !row.songNumber);
+  const zeroOccurrences = rows.filter((row) => row.songNumber === 0);
+  const nullOccurrences = rows.filter((row) => row.songNumber === null);
   const unmappedOccurrences = rows.filter((row) => {
-    if (!row.songNumber) return false;
+    if (row.songNumber === null || row.songNumber === 0) return false;
     const service = serviceById.get(row.serviceId);
-    if (!service) return true;
-    const corrected = correctedCanonicalNumber(service.language, row.songNumber, corrections);
-    return !referenceByKey.has(songKey(service.language, corrected));
+    return !service || !referenceByKey.has(songKey(service.language, row.songNumber));
   });
   const unresolvedDistinct = [...new Set(unmappedOccurrences.map((row) => {
     const service = serviceById.get(row.serviceId)!;
@@ -77,6 +67,7 @@ try {
 
   const audit = {
     source: sourcePath,
+    songsSource: songsSourcePath ?? sourcePath,
     mode: apply ? "apply-requested" : "read-only-audit",
     services: services.length,
     rows: rows.length,
@@ -95,12 +86,10 @@ try {
     },
     songs: {
       directMappedOccurrences: directOccurrences.length,
-      correctedMappedOccurrences: correctedOccurrences.length,
-      noNumberOccurrences: missingOccurrences.length,
-      unmappedOccurrences: unmappedOccurrences.length,
-      unmappedDistinct: unresolvedDistinct,
-      corrections: [...corrections.values()].sort(compareCorrections),
-      variantEvidence,
+      zeroOccurrences: zeroOccurrences.length,
+      nullOccurrences: nullOccurrences.length,
+      unmappedPositiveOccurrences: unmappedOccurrences.length,
+      unmappedPositiveDistinct: unresolvedDistinct,
     },
     duplicateDates,
     provisionalTimes: duplicateDates.map((date) => services
@@ -113,7 +102,10 @@ try {
   if (!apply) {
     console.log("AUDIT ONLY: no database rows were changed. Add --apply only after explicit Production approval.");
   } else {
-    await applyImport(pool, services, rowsByService, priests, organists, serviceTimes, referenceByKey, corrections);
+    if (unmappedOccurrences.length > 0) {
+      throw new Error(`Legacy import blocked: ${unmappedOccurrences.length} positive song occurrences do not exist in the Reference catalog.`);
+    }
+    await applyImport(pool, services, rowsByService, priests, organists, serviceTimes, referenceByKey);
   }
 } finally {
   await pool.end();
@@ -127,7 +119,6 @@ async function applyImport(
   organists: LegacyPerson[],
   serviceTimes: Map<number, string>,
   referenceByKey: Map<string, ReferenceSong>,
-  corrections: ReadonlyMap<string, LegacySongCorrection>,
 ) {
   const client = await pool.connect();
   try {
@@ -154,7 +145,7 @@ async function applyImport(
       )).rows;
       const serviceRows = (rowsByService.get(service.id) ?? []).sort(compareLegacyRows);
       for (const [index, row] of serviceRows.entries()) {
-        const snapshot = songSnapshot(service.language, row, referenceByKey, corrections);
+        const snapshot = songSnapshot(service.language, row, referenceByKey);
         await client.query(
           `insert into completed_service_rows
              (completed_service_id, position, song_id, song_language, song_number, song_title, note, created_at, updated_at)
@@ -180,6 +171,9 @@ function assertExpectedLegacyShape(services: LegacyService[], rows: LegacyRow[],
   for (const key of Object.keys(expected) as (keyof typeof expected)[]) {
     if (actual[key] !== expected[key]) throw new Error(`Legacy source shape mismatch: expected ${key}=${expected[key]}, got ${actual[key]}.`);
   }
+  const knownServiceIds = new Set(services.map((service) => service.id));
+  const orphanRows = rows.filter((row) => !knownServiceIds.has(row.serviceId));
+  if (orphanRows.length > 0) throw new Error(`Legacy song source contains ${orphanRows.length} rows for unknown services.`);
 }
 
 function groupRows(rows: LegacyRow[]) {
@@ -196,10 +190,6 @@ function compareLegacyRows(a: LegacyRow, b: LegacyRow) {
 }
 function positionFromMeaning(value?: string) { const match = value?.match(/^(\d+)\s*\./); return match ? Number(match[1]) : undefined; }
 
-function compareCorrections(a: LegacySongCorrection, b: LegacySongCorrection) {
-  return a.language.localeCompare(b.language) || a.legacyNumber - b.legacyNumber;
-}
-
 function assignProvisionalTimes(services: LegacyService[]) {
   const byDate = new Map<string, LegacyService[]>();
   for (const service of services) byDate.set(service.date, [...(byDate.get(service.date) ?? []), service]);
@@ -215,17 +205,16 @@ async function loadReferenceSongs(pool: Pool): Promise<ReferenceSong[]> {
   return result.rows.map((row) => ({ id: String(row.id), language: String(row.language) as Language, canonicalNumber: Number(row.canonical_number), title: String(row.title) }));
 }
 
-function songSnapshot(
-  language: Language,
-  row: LegacyRow,
-  referenceByKey: Map<string, ReferenceSong>,
-  corrections: ReadonlyMap<string, LegacySongCorrection>,
-) {
-  if (!row.songNumber) return { note: "Legacy source has no song number." };
-  const canonicalNumber = correctedCanonicalNumber(language, row.songNumber, corrections);
-  const reference = referenceByKey.get(songKey(language, canonicalNumber));
-  if (reference) return { songId: reference.id, language, number: displayReferenceNumber(reference.canonicalNumber), title: reference.title };
-  return { songId: `legacy:${language}:${row.songNumber}`, language, number: String(row.songNumber), title: `Legacy song ${row.songNumber} (unmapped)` };
+function songSnapshot(language: Language, row: LegacyRow, referenceByKey: Map<string, ReferenceSong>) {
+  if (row.songNumber === null) return {};
+  if (row.songNumber === 0) return { language, number: "0" };
+  const reference = referenceByKey.get(songKey(language, row.songNumber));
+  if (!reference) throw new Error(`Positive legacy song is not mapped: ${songKey(language, row.songNumber)}.`);
+  return { songId: reference.id, language, number: displayReferenceNumber(reference.canonicalNumber), title: reference.title };
+}
+
+function songKey(language: Language, number: number) {
+  return `${language}:${number}`;
 }
 
 function isMp3Person(person: LegacyPerson) { return person.displayName.toLocaleLowerCase().includes("mp3"); }
