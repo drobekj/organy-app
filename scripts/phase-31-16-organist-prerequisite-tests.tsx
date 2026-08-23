@@ -77,7 +77,7 @@ async function staticCoverage() {
     "candidate UI must not require a concrete organist before lookup",
   );
   assert.equal(
-    client.includes("organist repertoire filter is not applied"),
+    client.includes("Anonymous: repertoire filter is not applied while choosing candidates."),
     true,
     "Working UI must explain the Anonymous-organist repertoire exception",
   );
