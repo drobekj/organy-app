@@ -122,7 +122,7 @@ const finalizeReplacement = `  async function finalizeWorkingSet() {
       workingSetId: saveResult.value.id,
     });
     if (!result.success) {
-      const peopleIssue = result.error.issues?.some((issue) => issue.path === "priest" || issue.path === "organist");
+      const peopleIssue = result.error.issues?.some((issue: { path: string }) => issue.path === "priest" || issue.path === "organist");
       setServiceError(peopleIssue ? { code: result.error.code, message: "Choose a concrete active priest and organist before finalization." } : result.error);
       setSaveState("errors");
       return;
