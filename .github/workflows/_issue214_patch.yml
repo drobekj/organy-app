@@ -6,12 +6,16 @@ on:
       - fix/issue-214-completed-truth-retro-identity
     paths:
       - .github/workflows/_issue214_patch.yml
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: github.head_ref == 'fix/issue-214-completed-truth-retro-identity' || github.ref_name == 'fix/issue-214-completed-truth-retro-identity'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
