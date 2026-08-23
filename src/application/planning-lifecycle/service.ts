@@ -63,6 +63,11 @@ export type FinalizeWorkingSetInput = {
   replaceFinalSetId?: PlanningSetId;
 };
 
+export type ReopenFinalSetInput = {
+  role: PlanningRole;
+  finalSetId: PlanningSetId;
+};
+
 export type DeletePlanningSetInput = {
   role: PlanningRole;
   setId: PlanningSetId;
@@ -203,6 +208,11 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidStatus", message: "Only working planning sets can be finalized." });
     }
 
+    const finalPeopleIssues = await this.validateFinalPeople(workingSet.serviceContext);
+    if (finalPeopleIssues.length > 0) {
+      return failure({ code: "invalidInput", message: "Final service requires a concrete active priest and organist.", issues: finalPeopleIssues });
+    }
+
     if (input.replaceFinalSetId) {
       const finalSet = await this.planningSets.findById(input.replaceFinalSetId);
       if (!finalSet) {
@@ -247,6 +257,20 @@ export class PlanningLifecycleService {
     }
 
     return success(persistedFinalSet);
+  }
+
+  async reopenFinalSet(input: ReopenFinalSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+    if (input.role !== "admin") {
+      return failure({ code: "permissionDenied", message: "Only admin can reopen a final planning set." });
+    }
+    const finalSet = await this.planningSets.findById(input.finalSetId);
+    if (!finalSet) return failure({ code: "notFound", message: "Final planning set was not found." });
+    if (finalSet.status !== "final") return failure({ code: "invalidStatus", message: "Only final planning sets can be reopened." });
+    return success(await this.planningSets.saveWorkingSet(
+      { status: "working", language: finalSet.language, rows: finalSet.rows },
+      finalSet.serviceContext,
+      finalSet.id,
+    ));
   }
 
   async deletePlanningSet(input: DeletePlanningSetInput): Promise<PlanningServiceResult<{ deletedSetId: PlanningSetId }>> {
@@ -538,7 +562,11 @@ export class PlanningLifecycleService {
 
     for (const [role, ref] of [["priest", normalizedContext.priest], ["organist", normalizedContext.organist]] as const) {
       const previous = existing?.serviceContext[role];
-      if (!ref.id) { issues.push({ path: role, message: `${role} must be selected from the person catalog.` }); continue; }
+      if (!ref.id) {
+        if (ref.displayName === "Anonymous") continue;
+        issues.push({ path: role, message: `${role} must be selected from the person catalog or explicitly set to Anonymous.` });
+        continue;
+      }
       if (previous?.id === ref.id && previous.displayName === ref.displayName) continue;
       const person = await this.catalog.findPersonById(ref.id);
       if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });
@@ -568,6 +596,17 @@ export class PlanningLifecycleService {
     }
 
     return { serviceContext: normalizedContext, set: { ...set, rows: normalizedRows } as TSet, issues };
+  }
+
+  private async validateFinalPeople(serviceContext: ServiceContext): Promise<{ path: string; message: string }[]> {
+    const issues: { path: string; message: string }[] = [];
+    for (const [role, ref] of [["priest", serviceContext.priest], ["organist", serviceContext.organist]] as const) {
+      if (!ref.id) { issues.push({ path: role, message: `${role} must be a concrete active person before finalization.` }); continue; }
+      if (!this.enforceCatalogSelections) continue;
+      const person = await this.catalog.findPersonById(ref.id);
+      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });
+    }
+    return issues;
   }
 
   private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId, currentCompletedRecordId?: string): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {

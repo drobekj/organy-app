@@ -36,6 +36,7 @@ export {
   type DeletePlanningSetInput,
   type FinalizeWorkingSetInput,
   type PlanningLifecycleServiceDependencies,
+  type ReopenFinalSetInput,
   type ReorderRowsInput,
   type SaveWorkingSetInput,
   type UpdateCompletedRecordInput,

@@ -56,7 +56,8 @@ Each requirement uses:
   - For a service, the system recognizes these states: `no set exists`, `working set`, `final set`, and `completed-service record`.
   - A working set is a saved non-final set that can still be edited by authorized roles.
   - A final set is a saved final plan and is not directly editable.
-  - If a final set must change, it must be deleted and recreated.
+  - Admin may explicitly reopen a final set for editing; reopening changes it back to Working before any fields or rows become editable.
+  - Reopening is a lifecycle transition, not direct mutation of Final state.
   - A completed-service record is historical and is not a non-completed plan.
   - Priest and admin may convert a final set to a completed-service record manually when the service date is today or in the past; a future service date cannot be completed manually.
   - The system automatically converts a saved final set when its service date is strictly earlier than the current calendar date in `Europe/Prague`, at the next normal application reconciliation opportunity.
@@ -101,7 +102,8 @@ Each requirement uses:
 - **Rationale:** Candidate eligibility must separate playable, language-appropriate, non-repeating, and sufficiently preferred songs from contextual highlighting.
 - **Acceptance criteria:**
   - Candidate lists apply hard filters before antiphon or liturgical-season highlighting.
-  - The hard filters are selected/default organist repertoire, service language, melody non-repetition rule, and preference threshold.
+  - With a concrete selected/default organist, the hard filters are that organist's repertoire, service language, melody non-repetition rule, and preference threshold.
+  - With `Anonymous` organist in a Working plan, only the repertoire filter is omitted; service language, melody non-repetition, preference threshold, and contextual signals remain in force.
   - The default preference threshold is `x = 0`.
   - A candidate passes the repertoire filter when its melody-equivalence class contains at least one song explicitly in the selected/default organist's repertoire.
   - For a Czech service, the language filter displays Czech songs.
@@ -170,7 +172,7 @@ Each requirement uses:
   - Priest and admin may save final sets.
   - Priest and admin may delete final sets.
   - Priest and admin may convert final sets to completed-service records.
-  - The system provides no direct edit final set action.
+  - The system provides no direct edit final set action; admin may explicitly reopen Final to Working and then edit it.
   - Organist and admin may manage repertoire.
   - Priest, organist, and congregation member may manage their own song preferences.
   - Admin has no own song preference.
@@ -211,7 +213,7 @@ Acceptance criteria are listed under each functional requirement.
 - Current product scope is one local congregation.
 - Service time is informational only and has no filtering or decision-making effect.
 - Antiphon number and liturgical season are manual inputs and must not be derived from service date.
-- Final sets are not directly edited; required changes happen by deleting and recreating the final set.
+- Final sets are not directly edited; admin may explicitly reopen Final to Working before changing it.
 - Product requirements must remain separate from technical architecture, database schema, UI component design, implementation tasks, backlog items, and roadmap planning.
 
 ## Traceability
@@ -220,7 +222,7 @@ Requirements should be traced to accepted decisions in `docs/decisions.md` and t
 
 ## Phase 29 lookup requirements
 
-- Priest and organist fields use lookup of active catalog persons with the matching role; typed search text alone is not a valid new selection.
+- Priest and organist fields use lookup of active catalog persons with the matching role; `Anonymous` is the explicit exception allowed while a set is Working. Typed free text alone is not a valid new selection. Finalization requires concrete active priest and organist selections.
 - Song rows use lookup of active catalog songs scoped by service language: Czech services show Czech songs, Polish services show Polish songs, and Mixed services show both.
 - Song lookup searches number and title and exposes a sheet-music link only when the catalog record has one.
 - Note-only planning rows remain valid.

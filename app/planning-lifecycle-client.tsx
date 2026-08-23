@@ -178,6 +178,10 @@ class DbPlanningLifecycleClient {
     return callPlanningLifecycleApi("finalizeWorkingSet", input, actorContextFrom(input));
   }
 
+  async reopenFinalSet(input: Parameters<PlanningLifecycleService["reopenFinalSet"]>[0]) {
+    return callPlanningLifecycleApi("reopenFinalSet", input, actorContextFrom(input));
+  }
+
   async completeFinalSet(input: Parameters<PlanningLifecycleService["completeFinalSet"]>[0]) {
     return callPlanningLifecycleApi("completeFinalSet", input, actorContextFrom(input));
   }
@@ -460,7 +464,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const melodyFinalizationReason = melodyCollisionSummary(melodyCollisions);
   const hasMelodyCollisions = melodyCollisions.length > 0;
   const isCompletedRecordOpen = Boolean(completedRecord);
-  const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim() && priestId && organistId);
+  const hasServiceContext = Boolean(serviceDate && isValidServiceTime(serviceTime) && priest.trim() && organist.trim());
+  const hasConcreteFinalPeople = Boolean(priestId && organistId);
   const hasAntiphonLanguageMismatch = Boolean(referenceAntiphon && !serviceAntiphonMatchesLanguage(referenceAntiphon, serviceLanguage));
   const hasTopicLanguageMismatch = Boolean(referenceTopic && !serviceTopicMatchesLanguage(referenceTopic, serviceLanguage));
   const isFinalSetOpen = persistedSet?.status === "final";
@@ -538,8 +543,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const planningActionValidationMessages = [
     ...(!serviceDate ? ["Service date is required."] : []),
     ...(!isValidServiceTime(serviceTime) ? ["Service time is required in HH:mm format between 00:00 and 23:59."] : []),
-    ...(!priestId ? ["Priest must be selected from lookup."] : []),
-    ...(!organistId ? ["Organist must be selected from lookup."] : []),
+    ...(!priest.trim() ? ["Priest is required."] : []),
+    ...(!organist.trim() ? ["Organist is required."] : []),
     ...(hasAntiphonLanguageMismatch ? ["Selected antiphon must match the service language."] : []),
     ...(hasTopicLanguageMismatch ? ["Selected topic must match the service language."] : []),
     ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
@@ -559,7 +564,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       setSelectedCandidateAvailability({ key: candidateAvailabilityKey, byRow: {} });
       return;
     }
-    if (!serviceDate || !organistId) {
+    if (!serviceDate) {
       setSelectedCandidateAvailability({
         key: candidateAvailabilityKey,
         byRow: Object.fromEntries(selectedCandidateRows.map((selected) => [selected.rowId, "unavailable"])) as Record<number, SelectedCandidateAvailability>,
@@ -734,8 +739,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       defaults.priest.id ? catalogClient.getPerson({ id: defaults.priest.id }) : Promise.resolve({ success: false as const, error: { code: "notFound" as const, message: "No default priest." } }),
       defaults.organist.id ? catalogClient.getPerson({ id: defaults.organist.id }) : Promise.resolve({ success: false as const, error: { code: "notFound" as const, message: "No default organist." } }),
     ]);
-    const priest = priestResult.success && priestResult.value.active && priestResult.value.priest ? { id: priestResult.value.id, displayName: priestResult.value.displayName } : { displayName: "" };
-    const organist = organistResult.success && organistResult.value.active && organistResult.value.organist ? { id: organistResult.value.id, displayName: organistResult.value.displayName } : { displayName: "" };
+    const priest = priestResult.success && priestResult.value.active && priestResult.value.priest ? { id: priestResult.value.id, displayName: priestResult.value.displayName } : { displayName: "Anonymous" };
+    const organist = organistResult.success && organistResult.value.active && organistResult.value.organist ? { id: organistResult.value.id, displayName: organistResult.value.displayName } : { displayName: "Anonymous" };
     return { priest, organist };
   }
 
@@ -952,6 +957,14 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     });
   }
 
+  function selectAnonymous(role: PersonRole) {
+    lookupTracker.invalidate(getPersonLookupScope(role));
+    guardedEditorUpdate(() => {
+      if (role === "priest") { setPriest("Anonymous"); setPriestId(undefined); }
+      else { lookupTracker.invalidatePrefix("song:"); setOrganist("Anonymous"); setOrganistId(undefined); }
+    });
+  }
+
   function getCanonicalCandidateUsages(activeRowId: number) {
     return buildCanonicalCandidateUsages({
       currentPlanId: persistedSet?.id,
@@ -965,14 +978,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
   async function queryCandidateResults(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
-    if (!organistId) {
-      lookupTracker.invalidate(scope);
-      setCandidateResults((current) => ({ ...current, [rowId]: [] }));
-      setCandidateLoading((current) => ({ ...current, [rowId]: false }));
-      setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
-      setServiceError(null);
-      return;
-    }
     const languageAtRequest = serviceLanguage;
     const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", referenceTopic?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
@@ -1001,10 +1006,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     const request = ++detailEligibilityRequest.current;
     setDetailEligibilityCandidates([]);
     setDetailEligibilityError(undefined);
-    if (!organistId) {
-      setDetailEligibilityLoading(false);
-      return;
-    }
     setDetailEligibilityLoading(true);
     try {
       const candidates = await interactionClient.queryCandidates({
@@ -1116,7 +1117,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setRows((currentRows) => openSingleCandidateRow(currentRows, rowId));
     setPlanningExpansion({ kind: "candidateList", rowId });
     setCandidateResults({});
-    setCandidateLoading({ [rowId]: Boolean(organistId) });
+    setCandidateLoading({ [rowId]: true });
     setCandidateErrors({});
     void queryCandidateResults(rowId, "");
   }
@@ -1257,8 +1258,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         issues: [
           ...(!serviceDate ? [{ path: "serviceDate", message: "Service date is required." }] : []),
           ...(!isValidServiceTime(serviceTime) ? [{ path: "serviceTime", message: "Service time is required in HH:mm format between 00:00 and 23:59." }] : []),
-          ...(!priestId ? [{ path: "priest", message: "Priest must be selected from lookup." }] : []),
-          ...(!organistId ? [{ path: "organist", message: "Organist must be selected from lookup." }] : []),
+          ...(!priest.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
+          ...(!organist.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
         ],
       });
       setSaveState("errors");
@@ -1325,6 +1326,11 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") {
       return;
     }
+    if (!hasConcreteFinalPeople) {
+      setServiceError({ code: "invalidInput", message: "Choose a concrete active priest and organist before finalization." });
+      setSaveState("errors");
+      return;
+    }
     if (hasAntiphonLanguageMismatch) {
       setServiceError({ code: "invalidInput", message: "Selected antiphon must match the service language." });
       setSaveState("errors");
@@ -1359,6 +1365,21 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
     setWorkspace(getWorkspaceAfterFinalize());
+  }
+
+  async function reopenFinalSet() {
+    if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "final" || selectedRole !== "admin") return;
+    const result = await planningLifecycleService.reopenFinalSet({
+      role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
+      finalSetId: persistedSet.id,
+    });
+    if (!result.success) { setServiceError(result.error); setSaveState("errors"); return; }
+    setServiceError(null);
+    setSaveState("saved");
+    await openPersistedSet(result.value);
+    await refreshDbSets();
+    setWorkspace("planning");
   }
 
   async function completeFinalSet() {
@@ -1601,21 +1622,21 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
             </label>
             <label>
               Priest
-              <select disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); }}>
-                <option value="">Select active priest</option>
+              <select disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("priest"); else { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); } }}>
+                <option value="">Anonymous</option>
                 {priestId && !priestResults.some((person) => person.id === priestId) && <option value={priestId} disabled aria-label={`Historical inactive priest ${priest}`}>{priest} (historical inactive)</option>}
                 {priestResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
               </select>
-              <span className="field-help">{priestId ? "Selected catalog priest." : priest ? "Historical or incomplete priest selection — choose an active catalog priest before saving." : "No priest selected."}</span>
+              <span className="field-help">{priestId ? "Selected priest." : "Anonymous is allowed while the plan is Working."}</span>
             </label>
             <label>
               Organist
-              <select disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); }}>
-                <option value="">Select active organist</option>
+              <select disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("organist"); else { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); } }}>
+                <option value="">Anonymous</option>
                 {organistId && !organistResults.some((person) => person.id === organistId) && <option value={organistId} disabled aria-label={`Historical inactive organist ${organist}`}>{organist} (historical inactive)</option>}
                 {organistResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
               </select>
-              <span className="field-help">{organistId ? "Selected catalog organist." : organist ? "Historical or incomplete organist selection — choose an active catalog organist before saving." : "No organist selected."}</span>
+              <span className="field-help">{organistId ? "Selected organist; repertoire filter is active." : "Anonymous: repertoire filter is not applied while choosing candidates."}</span>
             </label>
             <label className="note-field">
               Service note
@@ -1679,7 +1700,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
                                               candidates={candidateResults[row.id] ?? []}
                                               loading={candidateLoading[row.id] ?? false}
                                               error={candidateErrors[row.id]}
-                                              prerequisiteMessage={!organistId ? "Select an active organist in Service context to see candidates." : undefined}
+                                              prerequisiteMessage={undefined}
                                               serviceLanguage={serviceLanguage}
                                               disabled={!canEditRows}
                                               selectionUnavailable={rowCandidateUnavailable(row) && Boolean(row.selectedSong && row.songSearch === formatPlanningSongField(row.selectedSong))}
@@ -1747,13 +1768,14 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
                     <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
                       Finalize set
                     </button>
                   </>
                 )}
                 {!isCompletedRecordOpen && (
                   <>
+                    {isFinalSetOpen && selectedRole === "admin" && <button type="button" onClick={reopenFinalSet}>Reopen for editing</button>}
                     <button type="button" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"} title={completeDateReason || undefined}>
                       Complete service
                     </button>

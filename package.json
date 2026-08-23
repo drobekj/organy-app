@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "python scripts/refine-210-patch.py && python scripts/refine-210-onboarding-patch.py && python scripts/refine-210-consistency-patch.py",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -15,7 +14,7 @@
     "db:stop": "docker compose down",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "test:lifecycle": "tsx scripts/lifecycle-regression-tests.ts",
-    "test": "tsx scripts/lifecycle-regression-tests.ts && tsx scripts/service-context-defaults-tests.ts && tsx scripts/catalog-tests.ts && tsx scripts/workspace-tests.ts && tsx scripts/phase-30-1-contract-tests.ts && tsx scripts/planning-ui-workflow-static-tests.ts && tsx scripts/phase-30-1-adversarial-tests.ts && tsx scripts/phase-30-1-candidate-flow-tests.ts && tsx scripts/product-refinement-210-tests.ts && node scripts/refine-210-emit-patch.mjs",
+    "test": "tsx scripts/lifecycle-regression-tests.ts && tsx scripts/service-context-defaults-tests.ts && tsx scripts/catalog-tests.ts && tsx scripts/workspace-tests.ts && tsx scripts/phase-30-1-contract-tests.ts && tsx scripts/planning-ui-workflow-static-tests.ts && tsx scripts/phase-30-1-adversarial-tests.ts && tsx scripts/phase-30-1-candidate-flow-tests.ts && tsx scripts/product-refinement-210-tests.ts",
     "db:seed:catalog": "tsx scripts/db-seed-catalog.ts",
     "db:catalog-lifecycle-smoke": "tsx scripts/db-catalog-lifecycle-smoke.ts",
     "db:catalog-seed-smoke": "tsx scripts/db-catalog-seed-smoke.ts",
@@ -82,7 +81,8 @@
     "test:phase-31-20": "tsx scripts/phase-31-20-tests.tsx",
     "verify:phase-31-20": "npm run test:phase-31-20 && tsx scripts/verify-phase-31-20.ts",
     "db:bootstrap:auth": "tsx scripts/db-bootstrap-protected-auth.ts",
-    "test:phase-31-28": "tsx scripts/phase-31-28-tests.ts"
+    "test:phase-31-28": "tsx scripts/phase-31-28-tests.ts",
+    "test:product-refinement-210": "tsx scripts/product-refinement-210-tests.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.25",

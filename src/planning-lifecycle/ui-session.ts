@@ -23,8 +23,8 @@ export function getNewestCompletedRecord(records: CompletedServiceRecord[]): Com
 export function getDraftPeopleDefaults(records: CompletedServiceRecord[]): DraftPeopleDefaults {
   const newest = getNewestCompletedRecord(records);
   return {
-    priest: newest?.serviceContext.priest ?? { displayName: "" },
-    organist: newest?.serviceContext.organist ?? { displayName: "" },
+    priest: newest?.serviceContext.priest ?? { displayName: "Anonymous" },
+    organist: newest?.serviceContext.organist ?? { displayName: "Anonymous" },
   };
 }
 

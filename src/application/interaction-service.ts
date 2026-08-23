@@ -82,7 +82,6 @@ export class InMemoryInteractionServiceRepository implements InteractionReposito
 }
 
 export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongPreference[], repertoire: Set<string>, knowledge: { antiphons: KnowledgeMapping[]; seasons: KnowledgeMapping[]; melodyClasses: MelodyClass[]; melodyWindow?: MelodyNonRepetitionConfig }, input: CandidateQueryInput): CandidateQueryResult[] {
-  if (!input.organistPersonId) return [];
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const window = knowledge.melodyWindow ?? { months: 2 };
   const recentClassIds = getRecentMelodyClassIds(knowledge.melodyClasses, input, window);
@@ -97,7 +96,7 @@ export function queryCandidatesFromData(songs: CatalogSong[], preferences: SongP
     const classId = melody?.id ?? `song:${song.songId}`;
     if (melody && recentClassIds.has(melody.id)) continue;
     const allClassSongIds = melody?.songIds ?? [song.songId];
-    if (!allClassSongIds.some((songId) => repertoire.has(songId))) continue;
+    if (input.organistPersonId && !allClassSongIds.some((songId) => repertoire.has(songId))) continue;
 
     const aggregatePreferenceScore = preferences.filter((preference) => preference.songId === song.songId).reduce((sum, preference) => sum + preference.score, 0);
     if (aggregatePreferenceScore < threshold) continue;

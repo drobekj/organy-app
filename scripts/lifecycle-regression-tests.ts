@@ -104,7 +104,7 @@ const tests: TestCase[] = [
       const laterTime = completedRecordFixture("completed-service-3", "2026-07-11", "11:00", "2026-07-11T08:00:00.000Z", "later-time");
       const laterCompletedAt = completedRecordFixture("completed-service-4", "2026-07-11", "11:00", "2026-07-11T09:00:00.000Z", "later-completed-at");
       const highestId = completedRecordFixture("completed-service-5", "2026-07-11", "11:00", "2026-07-11T09:00:00.000Z", "highest-id");
-      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "" }, organist: { displayName: "" } });
+      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "Anonymous" }, organist: { displayName: "Anonymous" } });
       const defaults = getDraftPeopleDefaults([highestId, laterCompletedAt, laterTime, sameDateLaterTime, base]);
       assert.deepEqual(defaults.priest, { id: "priest-highest-id", displayName: "Priest highest-id" });
       assert.deepEqual(defaults.organist, { id: "organist-highest-id", displayName: "Organist highest-id" });
@@ -268,7 +268,7 @@ const tests: TestCase[] = [
       const secondDelete = await service.deleteCompletedRecord({ role: "admin", recordId: older.id });
       assert.equal(secondDelete.success, true);
       const emptyRecords = await service.listCompletedRecords();
-      assert.deepEqual(getDraftPeopleDefaults(emptyRecords.success ? emptyRecords.value : []), { priest: { displayName: "" }, organist: { displayName: "" } });
+      assert.deepEqual(getDraftPeopleDefaults(emptyRecords.success ? emptyRecords.value : []), { priest: { displayName: "Anonymous" }, organist: { displayName: "Anonymous" } });
     },
   },
 

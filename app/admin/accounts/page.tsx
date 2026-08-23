@@ -5,6 +5,7 @@ import { PostgresProtectedAccountAdminService } from "../../../src/application/p
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 import { ProvisionProtectedAccountForm } from "./provision-protected-account-form";
 import { ProtectedAccountEditor } from "./protected-account-editor";
+import { ProtectedStaffOnboardingForm } from "./protected-staff-onboarding-form";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -16,12 +17,20 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
   catch (error) { if (error instanceof ProtectedActorError) redirect("/sign-in"); throw error; }
   if (!currentUser.roles.includes("admin")) redirect("/");
   const snapshot = await new PostgresProtectedAccountAdminService(authPool).list(requestHeaders);
+  const peopleResult = await authPool.query(`
+    select p.id, p.display_name, p.priest, p.organist
+    from catalog_persons p
+    where p.active = true and (p.priest = true or p.organist = true)
+    order by lower(p.display_name)
+  `);
+  const staffPeople = peopleResult.rows.map((row) => ({ id: String(row.id), displayName: String(row.display_name), priest: Boolean(row.priest), organist: Boolean(row.organist) }));
   const params = await searchParams;
   const message = first(params.message);
   const error = first(params.error);
   return <main className="shell"><section className="card planning-form" aria-label="Protected Account administration">
     <div className="app-header"><div><p className="eyebrow">Administration</p><h1>Protected Accounts</h1></div><a href="/">Back to planning</a></div>
     <p className="field-help">Protected staff use username + password. Church-domain roles remain authoritative only in app_user_roles.</p>
+    <section className="detail-panel" aria-label="Add staff account"><h2>Add priest / organist account</h2><ProtectedStaffOnboardingForm people={staffPeople} /></section>
     {message && <p className="saved-summary" role="status">{message}</p>}
     {error && <p className="auth-error" role="alert">{error}</p>}
     <section className="detail-panel" aria-label="Provision protected Account"><h2>Provision future staff Account</h2><ProvisionProtectedAccountForm targets={snapshot.eligibleActors} /></section>
