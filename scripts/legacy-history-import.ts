@@ -150,7 +150,7 @@ async function applyImport(
           `insert into completed_service_rows
              (completed_service_id, position, song_id, song_language, song_number, song_title, note, created_at, updated_at)
            values ($1, $2, $3, $4, $5, $6, $7, now(), now())`,
-          [completed.id, index + 1, snapshot.songId ?? null, snapshot.language ?? null, snapshot.number ?? null, snapshot.title ?? null, snapshot.note ?? null],
+          [completed.id, index + 1, snapshot.songId ?? null, snapshot.language ?? null, snapshot.number ?? null, snapshot.title ?? null, null],
         );
       }
       inserted += 1;
