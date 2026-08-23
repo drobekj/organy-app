@@ -86,7 +86,7 @@ const finalizeReplacement = `  async function finalizeWorkingSet() {
 
     const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
     if (languageDeviationConfirmation.cancelled) {
-      setServiceError({ code: "invalidInput", message: `Finalization cancelled. Rows ${languageDeviationConfirmation.deviationRows.join(", ")} do not match the ${serviceLanguage} service language.` });
+      setServiceError({ code: "invalidInput", message: "Finalization cancelled. Rows " + languageDeviationConfirmation.deviationRows.join(", ") + " do not match the " + serviceLanguage + " service language." });
       setSaveState("errors");
       return;
     }
