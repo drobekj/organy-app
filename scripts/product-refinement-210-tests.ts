@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { queryReferenceCandidatesFromData, type ReferenceCandidateData } from "../src/application/reference-candidate-service";
 import { getDraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { parseLegacyPeople, parseLegacyRows, parseLegacyServices } from "./legacy-history-parser";
@@ -54,19 +54,19 @@ assert.deepEqual(parseLegacyRows(legacyFixture), [
 assert.deepEqual(parseLegacyPeople(legacyFixture, "Kazatele"), [{ id: 7, displayName: "Lukáš Borecki" }]);
 assert.deepEqual(parseLegacyPeople(legacyFixture, "Varhanici"), [{ id: 1, displayName: "Jaroslav Drobek" }]);
 
-const client = await readFile("app/planning-lifecycle-client.tsx", "utf8");
+const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 assert.ok(client.includes('>Anonymous</option>'), "Planning selectors must expose Anonymous.");
 assert.ok(client.includes("Reopen for editing"), "Admin Final UI must expose Reopen for editing.");
 assert.ok(client.includes("repertoire filter is not applied"), "Anonymous organist help must explain repertoire behavior.");
 assert.ok(!client.includes("Select active priest</option>"), "Old empty priest placeholder must be removed.");
 assert.ok(!client.includes("Select active organist</option>"), "Old empty organist placeholder must be removed.");
 
-const service = await readFile("src/application/planning-lifecycle/service.ts", "utf8");
+const service = readFileSync("src/application/planning-lifecycle/service.ts", "utf8");
 assert.ok(service.includes("Final service requires a concrete active priest and organist."));
 assert.ok(service.includes('ref.displayName === "Anonymous"'));
 assert.ok(service.includes("async reopenFinalSet"));
 
-const onboarding = await readFile("src/application/protected-staff-onboarding.ts", "utf8");
+const onboarding = readFileSync("src/application/protected-staff-onboarding.ts", "utf8");
 assert.ok(onboarding.includes("resolveProtectedUser"), "Staff onboarding must be protected by server-session admin resolution.");
 assert.ok(onboarding.includes("protected_account_actor_links"));
 
