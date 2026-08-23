@@ -34,6 +34,11 @@ replace_once(
     '''      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "" }, organist: { displayName: "" } });''',
     '''      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "Anonymous" }, organist: { displayName: "Anonymous" } });''',
 )
+replace_once(
+    "scripts/lifecycle-regression-tests.ts",
+    '''      assert.deepEqual(getDraftPeopleDefaults(emptyRecords.success ? emptyRecords.value : []), { priest: { displayName: "" }, organist: { displayName: "" } });''',
+    '''      assert.deepEqual(getDraftPeopleDefaults(emptyRecords.success ? emptyRecords.value : []), { priest: { displayName: "Anonymous" }, organist: { displayName: "Anonymous" } });''',
+)
 
 # Record the accepted product-contract refinements rather than leaving requirements contradictory.
 requirements = "docs/requirements.md"
