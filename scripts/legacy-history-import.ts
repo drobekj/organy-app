@@ -11,6 +11,12 @@ import {
   type LegacyRow,
   type LegacyService,
 } from "./legacy-history-parser";
+import {
+  buildLegacySongCorrections,
+  correctedCanonicalNumber,
+  songKey,
+  type LegacySongCorrection,
+} from "./legacy-history-song-resolution";
 
 type ReferenceSong = { id: string; language: Language; canonicalNumber: number; title: string };
 type PersonResolution = { id?: string; displayName: string };
@@ -35,21 +41,32 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 try {
   const referenceSongs = await loadReferenceSongs(pool);
-  const referenceByKey = new Map(referenceSongs.map((song) => [`${song.language}:${song.canonicalNumber}`, song]));
+  const referenceByKey = new Map(referenceSongs.map((song) => [songKey(song.language, song.canonicalNumber), song]));
+  const { corrections, variantEvidence } = buildLegacySongCorrections(services, rows, new Set(referenceByKey.keys()));
+
   const directOccurrences = rows.filter((row) => {
     if (!row.songNumber) return false;
     const service = serviceById.get(row.serviceId);
-    return Boolean(service && referenceByKey.has(`${service.language}:${row.songNumber}`));
+    return Boolean(service && referenceByKey.has(songKey(service.language, row.songNumber)));
+  });
+  const correctedOccurrences = rows.filter((row) => {
+    if (!row.songNumber) return false;
+    const service = serviceById.get(row.serviceId);
+    if (!service) return false;
+    const corrected = correctedCanonicalNumber(service.language, row.songNumber, corrections);
+    return corrected !== row.songNumber && referenceByKey.has(songKey(service.language, corrected));
   });
   const missingOccurrences = rows.filter((row) => !row.songNumber);
   const unmappedOccurrences = rows.filter((row) => {
     if (!row.songNumber) return false;
     const service = serviceById.get(row.serviceId);
-    return !service || !referenceByKey.has(`${service.language}:${row.songNumber}`);
+    if (!service) return true;
+    const corrected = correctedCanonicalNumber(service.language, row.songNumber, corrections);
+    return !referenceByKey.has(songKey(service.language, corrected));
   });
   const unresolvedDistinct = [...new Set(unmappedOccurrences.map((row) => {
     const service = serviceById.get(row.serviceId)!;
-    return `${service.language}:${row.songNumber}`;
+    return songKey(service.language, row.songNumber!);
   }))].sort();
 
   const duplicateDates = [...new Set(services.map((service) => service.date).filter((date, index, all) => all.indexOf(date) !== all.lastIndexOf(date)))].sort();
@@ -78,9 +95,12 @@ try {
     },
     songs: {
       directMappedOccurrences: directOccurrences.length,
+      correctedMappedOccurrences: correctedOccurrences.length,
       noNumberOccurrences: missingOccurrences.length,
       unmappedOccurrences: unmappedOccurrences.length,
       unmappedDistinct: unresolvedDistinct,
+      corrections: [...corrections.values()].sort(compareCorrections),
+      variantEvidence,
     },
     duplicateDates,
     provisionalTimes: duplicateDates.map((date) => services
@@ -93,7 +113,7 @@ try {
   if (!apply) {
     console.log("AUDIT ONLY: no database rows were changed. Add --apply only after explicit Production approval.");
   } else {
-    await applyImport(pool, services, rowsByService, priests, organists, serviceTimes, referenceByKey);
+    await applyImport(pool, services, rowsByService, priests, organists, serviceTimes, referenceByKey, corrections);
   }
 } finally {
   await pool.end();
@@ -107,6 +127,7 @@ async function applyImport(
   organists: LegacyPerson[],
   serviceTimes: Map<number, string>,
   referenceByKey: Map<string, ReferenceSong>,
+  corrections: ReadonlyMap<string, LegacySongCorrection>,
 ) {
   const client = await pool.connect();
   try {
@@ -133,7 +154,7 @@ async function applyImport(
       )).rows;
       const serviceRows = (rowsByService.get(service.id) ?? []).sort(compareLegacyRows);
       for (const [index, row] of serviceRows.entries()) {
-        const snapshot = songSnapshot(service.language, row, referenceByKey);
+        const snapshot = songSnapshot(service.language, row, referenceByKey, corrections);
         await client.query(
           `insert into completed_service_rows
              (completed_service_id, position, song_id, song_language, song_number, song_title, note, created_at, updated_at)
@@ -175,6 +196,10 @@ function compareLegacyRows(a: LegacyRow, b: LegacyRow) {
 }
 function positionFromMeaning(value?: string) { const match = value?.match(/^(\d+)\s*\./); return match ? Number(match[1]) : undefined; }
 
+function compareCorrections(a: LegacySongCorrection, b: LegacySongCorrection) {
+  return a.language.localeCompare(b.language) || a.legacyNumber - b.legacyNumber;
+}
+
 function assignProvisionalTimes(services: LegacyService[]) {
   const byDate = new Map<string, LegacyService[]>();
   for (const service of services) byDate.set(service.date, [...(byDate.get(service.date) ?? []), service]);
@@ -190,9 +215,15 @@ async function loadReferenceSongs(pool: Pool): Promise<ReferenceSong[]> {
   return result.rows.map((row) => ({ id: String(row.id), language: String(row.language) as Language, canonicalNumber: Number(row.canonical_number), title: String(row.title) }));
 }
 
-function songSnapshot(language: Language, row: LegacyRow, referenceByKey: Map<string, ReferenceSong>) {
+function songSnapshot(
+  language: Language,
+  row: LegacyRow,
+  referenceByKey: Map<string, ReferenceSong>,
+  corrections: ReadonlyMap<string, LegacySongCorrection>,
+) {
   if (!row.songNumber) return { note: "Legacy source has no song number." };
-  const reference = referenceByKey.get(`${language}:${row.songNumber}`);
+  const canonicalNumber = correctedCanonicalNumber(language, row.songNumber, corrections);
+  const reference = referenceByKey.get(songKey(language, canonicalNumber));
   if (reference) return { songId: reference.id, language, number: displayReferenceNumber(reference.canonicalNumber), title: reference.title };
   return { songId: `legacy:${language}:${row.songNumber}`, language, number: String(row.songNumber), title: `Legacy song ${row.songNumber} (unmapped)` };
 }
