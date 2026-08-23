@@ -36,6 +36,10 @@ jobs:
           s = s.replace(marker, 'async function main() {\n' + marker, 1)
           s += '\n}\nmain().catch((error) => { console.error(error); process.exitCode = 1; });\n'
           p.write_text(s)
+          client = Path('app/planning-lifecycle-client.tsx')
+          c = client.read_text()
+          c = c.replace('.join("\n")', '.join("\\n")')
+          client.write_text(c)
           PY
       - name: Setup Node.js
         uses: actions/setup-node@v4
