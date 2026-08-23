@@ -24,8 +24,8 @@ replace_once(
 # Final requires a concrete id everywhere; active catalog eligibility is enforced only when catalog enforcement is enabled.
 replace_once(
     "src/application/planning-lifecycle/service.ts",
-    '''      const person = await this.catalog.findPersonById(ref.id);\n      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });''',
-    '''      if (!this.enforceCatalogSelections) continue;\n      const person = await this.catalog.findPersonById(ref.id);\n      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });''',
+    '''  private async validateFinalPeople(serviceContext: ServiceContext): Promise<{ path: string; message: string }[]> {\n    const issues: { path: string; message: string }[] = [];\n    for (const [role, ref] of [["priest", serviceContext.priest], ["organist", serviceContext.organist]] as const) {\n      if (!ref.id) { issues.push({ path: role, message: `${role} must be a concrete active person before finalization.` }); continue; }\n      const person = await this.catalog.findPersonById(ref.id);\n      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });\n    }\n    return issues;\n  }''',
+    '''  private async validateFinalPeople(serviceContext: ServiceContext): Promise<{ path: string; message: string }[]> {\n    const issues: { path: string; message: string }[] = [];\n    for (const [role, ref] of [["priest", serviceContext.priest], ["organist", serviceContext.organist]] as const) {\n      if (!ref.id) { issues.push({ path: role, message: `${role} must be a concrete active person before finalization.` }); continue; }\n      if (!this.enforceCatalogSelections) continue;\n      const person = await this.catalog.findPersonById(ref.id);\n      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });\n    }\n    return issues;\n  }''',
 )
 
 # The accepted no-history state is now explicit Anonymous rather than an empty person field.
