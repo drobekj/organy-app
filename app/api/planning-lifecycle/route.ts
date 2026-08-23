@@ -17,6 +17,7 @@ type PlanningLifecycleAction =
   | "loadCompletedRecord"
   | "saveWorkingSet"
   | "finalizeWorkingSet"
+  | "reopenFinalSet"
   | "completeFinalSet"
   | "deletePlanningSet"
   | "updateCompletedRecord"
@@ -109,7 +110,7 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
+  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
 function isObjectWithRecordId(input: unknown): input is { recordId: string } {
