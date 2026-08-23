@@ -1,6 +1,6 @@
 export type LegacyLanguage = "czech" | "polish";
 export type LegacyService = { id: number; date: string; language: LegacyLanguage; priestId?: number; organistId?: number };
-export type LegacyRow = { id: number; serviceId: number; songNumber?: number; meaning?: string };
+export type LegacyRow = { id: number; serviceId: number; songNumber: number | null; meaning?: string };
 export type LegacyPerson = { id: number; displayName: string };
 
 export function decodeLegacySql(buffer: Buffer): string {
@@ -20,15 +20,12 @@ export function parseLegacyServices(text: string): LegacyService[] {
 }
 
 export function parseLegacyRows(text: string): LegacyRow[] {
-  return tableTuples(text, "BohosluzbyPisne").map((f) => {
-    const songNumber = sqlNumber(f[2]);
-    return {
-      id: requiredNumber(f[0], "BohosluzbyPisne.Id"),
-      serviceId: requiredNumber(f[1], "BohosluzbyPisne.BohosluzbaId"),
-      ...(songNumber !== undefined && songNumber !== 0 ? { songNumber } : {}),
-      ...(sqlString(f[3]) ? { meaning: sqlString(f[3]) } : {}),
-    };
-  });
+  return tableTuples(text, "BohosluzbyPisne").map((f) => ({
+    id: requiredNumber(f[0], "BohosluzbyPisne.Id"),
+    serviceId: requiredNumber(f[1], "BohosluzbyPisne.BohosluzbaId"),
+    songNumber: nullableRequiredNumber(f[2], "BohosluzbyPisne.PisenId"),
+    ...(sqlString(f[3]) ? { meaning: sqlString(f[3]) } : {}),
+  }));
 }
 
 export function parseLegacyPeople(text: string, table: "Kazatele" | "Varhanici"): LegacyPerson[] {
@@ -83,6 +80,11 @@ function requiredNumber(value: string | undefined, label: string): number {
   const parsed = sqlNumber(value);
   if (parsed === undefined) throw new Error(`${label} is not numeric.`);
   return parsed;
+}
+
+function nullableRequiredNumber(value: string | undefined, label: string): number | null {
+  if (value && /^NULL$/i.test(value)) return null;
+  return requiredNumber(value, label);
 }
 
 function sqlDate(value: string | undefined): string {
