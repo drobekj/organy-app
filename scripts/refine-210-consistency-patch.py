@@ -13,12 +13,12 @@ def replace_once(path: str, old: str, new: str) -> None:
 replace_once(
     "src/application/interaction-contracts.ts",
     '''  queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {\n    if (!input.organistPersonId) return [];\n    const languageSet = new Set(languagesForService(input.serviceLanguage));''',
-    '''  queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {\n    const languageSet = new Set(languagesForService(input.serviceLanguage));''',
+    '''  queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {\n    const organistPersonId = input.organistPersonId;\n    const languageSet = new Set(languagesForService(input.serviceLanguage));''',
 )
 replace_once(
     "src/application/interaction-contracts.ts",
     '''      if (!allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(input.organistPersonId!, songId)))) continue;''',
-    '''      if (input.organistPersonId && !allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(input.organistPersonId, songId)))) continue;''',
+    '''      if (organistPersonId && !allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(organistPersonId, songId)))) continue;''',
 )
 
 # Record the accepted product-contract refinements rather than leaving requirements contradictory.
