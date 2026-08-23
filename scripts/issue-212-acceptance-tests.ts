@@ -7,6 +7,7 @@ assert(source.includes("const candidateAvailabilityApplies = !isCompletedRecordO
 assert(source.includes("if (!candidateAvailabilityApplies || selectedCandidateRows.length === 0)"), "Completed records must skip availability refreshes.");
 assert(source.includes("const rowCandidateUnavailable = (row: EditableRow) => candidateAvailabilityApplies &&"), "Completed rows must not be rendered unavailable by planning filters.");
 assert(source.includes("Choose a concrete active priest and organist before finalization."), "Finalization must expose one concise people prerequisite.");
+assert(source.includes('persistedSet?.status === "working" && !hasConcreteFinalPeople ? ["Choose a concrete active priest and organist before finalization."]'), "The concrete-person prerequisite must be visible before Finalize is clicked.");
 
 const finalizeStart = source.indexOf("  async function finalizeWorkingSet() {");
 const finalizeEnd = source.indexOf("\n  async function reopenFinalSet()", finalizeStart);
