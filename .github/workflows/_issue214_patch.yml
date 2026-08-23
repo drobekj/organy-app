@@ -34,6 +34,10 @@ jobs:
           if marker not in s:
               raise SystemExit('Issue 214 test marker missing')
           s = s.replace(marker, 'async function main() {\n' + marker, 1)
+          s = s.replace(
+              'ids.filter((id) => id === "czech:1").map((songId) => ({ songId, melodyClassId: "class-a" })).concat(ids.filter((id) => id === "czech:2").map((songId) => ({ songId, melodyClassId: "class-b" })))',
+              'ids.flatMap((songId): { songId: string; melodyClassId: string }[] => songId === "czech:1" ? [{ songId, melodyClassId: "class-a" }] : songId === "czech:2" ? [{ songId, melodyClassId: "class-b" }] : [])',
+          )
           s += '\n}\nmain().catch((error) => { console.error(error); process.exitCode = 1; });\n'
           p.write_text(s)
           client = Path('app/planning-lifecycle-client.tsx')
