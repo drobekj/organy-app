@@ -9,7 +9,6 @@ import {
 } from "../src/application/planning-lifecycle";
 import { getDraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { parseLegacyPeople, parseLegacyRows, parseLegacyServices } from "./legacy-history-parser";
-import { buildLegacySongCorrections, correctedCanonicalNumber } from "./legacy-history-song-resolution";
 
 const data: ReferenceCandidateData = {
   melodyWindowMonths: 2,
@@ -47,6 +46,7 @@ const legacyFixture = [
   "INSERT [dbo].[Bohosluzby] ([Id], [Datum], [Jazyk], [KazatelId], [VarhanikId]) VALUES (12, CAST(N'2022-11-06T00:00:00.000' AS DateTime), N'polská', 7, NULL)",
   "INSERT [dbo].[BohosluzbyPisne] ([Id], [BohosluzbaId], [PisenId], [Vyznam]) VALUES (1002, 11, 253, N'1.pisen')",
   "INSERT [dbo].[BohosluzbyPisne] ([Id], [BohosluzbaId], [PisenId], [Vyznam]) VALUES (1003, 11, NULL, N'2.pisen')",
+  "INSERT [dbo].[BohosluzbyPisne] ([Id], [BohosluzbaId], [PisenId], [Vyznam]) VALUES (1004, 11, 0, N'3.pisen')",
   "INSERT [dbo].[Kazatele] ([Id], [Jmeno], [Prijmeni]) VALUES (7, N'Lukáš', N'Borecki')",
   "INSERT [dbo].[Varhanici] ([Id], [Jmeno], [Prijmeni]) VALUES (1, N'Jaroslav', N'Drobek')",
 ].join("\n");
@@ -56,52 +56,19 @@ assert.deepEqual(parseLegacyServices(legacyFixture), [
 ]);
 assert.deepEqual(parseLegacyRows(legacyFixture), [
   { id: 1002, serviceId: 11, songNumber: 253, meaning: "1.pisen" },
-  { id: 1003, serviceId: 11, meaning: "2.pisen" },
+  { id: 1003, serviceId: 11, songNumber: null, meaning: "2.pisen" },
+  { id: 1004, serviceId: 11, songNumber: 0, meaning: "3.pisen" },
 ]);
 assert.deepEqual(parseLegacyPeople(legacyFixture, "Kazatele"), [{ id: 7, displayName: "Lukáš Borecki" }]);
 assert.deepEqual(parseLegacyPeople(legacyFixture, "Varhanici"), [{ id: 1, displayName: "Jaroslav Drobek" }]);
 
-const correctionReferenceKeys = new Set([
-  "czech:680",
-  "czech:5210", "czech:5220",
-  "czech:3761", "czech:3762",
-  "czech:6831", "czech:6832",
-  "czech:7331", "czech:7332",
-  "polish:4381", "polish:4382",
-  "polish:6571", "polish:6572",
-]);
-const correctionServices = [
-  { id: 1, date: "2026-01-01", language: "czech" as const },
-  { id: 2, date: "2026-01-02", language: "polish" as const },
-];
-const baseOnlyResolution = buildLegacySongCorrections(correctionServices, [
-  { id: 1, serviceId: 1, songNumber: 860 },
-  { id: 2, serviceId: 1, songNumber: 683 },
-  { id: 3, serviceId: 2, songNumber: 1039 },
-], correctionReferenceKeys);
-assert.equal(correctedCanonicalNumber("czech", 860, baseOnlyResolution.corrections), 680, "User-confirmed Czech 860 must map to current Czech 680.");
-assert.equal(correctedCanonicalNumber("polish", 1039, baseOnlyResolution.corrections), 1039, "Polish 1039 must remain unresolved.");
-assert.equal(correctedCanonicalNumber("czech", 683, baseOnlyResolution.corrections), 683, "An unsuffixed variant family must not be guessed when no concrete variant occurs elsewhere.");
-const baseOnly683Evidence = baseOnlyResolution.variantEvidence.find((item) => item.language === "czech" && item.legacyNumber === 683);
-assert.deepEqual(baseOnly683Evidence?.variants, [
-  { canonicalNumber: 6831, occurrences: 0 },
-  { canonicalNumber: 6832, occurrences: 0 },
-]);
-assert.equal(baseOnly683Evidence?.selectedCanonicalNumber, undefined);
-
-const singleVariantResolution = buildLegacySongCorrections(correctionServices, [
-  { id: 1, serviceId: 1, songNumber: 683 },
-  { id: 2, serviceId: 1, songNumber: 6831 },
-  { id: 3, serviceId: 1, songNumber: 6831 },
-], correctionReferenceKeys);
-assert.equal(correctedCanonicalNumber("czech", 683, singleVariantResolution.corrections), 6831, "Exactly one historically used concrete variant must backfill the old unsuffixed number.");
-
-const ambiguousVariantResolution = buildLegacySongCorrections(correctionServices, [
-  { id: 1, serviceId: 1, songNumber: 733 },
-  { id: 2, serviceId: 1, songNumber: 7331 },
-  { id: 3, serviceId: 1, songNumber: 7332 },
-], correctionReferenceKeys);
-assert.equal(correctedCanonicalNumber("czech", 733, ambiguousVariantResolution.corrections), 733, "If both variants occur historically, the unsuffixed number must remain unresolved.");
+const importSource = readFileSync("scripts/legacy-history-import.ts", "utf8");
+assert.ok(importSource.includes("--songs-source="), "Legacy import must accept the manually corrected BohosluzbyPisne source separately.");
+assert.ok(importSource.includes('if (row.songNumber === null) return {};'), "Legacy NULL must remain an empty song snapshot.");
+assert.ok(importSource.includes('if (row.songNumber === 0) return { language, number: "0" };'), "Legacy zero must remain visible as the literal number 0.");
+assert.ok(importSource.includes("unmappedPositiveOccurrences"), "Audit must distinguish unresolved positive numbers from historical zero/NULL values.");
+assert.ok(importSource.includes("Legacy import blocked:"), "Apply mode must block if any positive corrected song number still lacks a catalog match.");
+assert.ok(!importSource.includes("buildLegacySongCorrections"), "Manually corrected legacy rows must never be guessed or globally rewritten during import.");
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 assert.ok(client.includes('>Anonymous</option>'), "Planning selectors must expose Anonymous.");
