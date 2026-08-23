@@ -44,6 +44,25 @@ jobs:
           c = client.read_text()
           c = c.replace('.join("\n")', '.join("\\n")')
           client.write_text(c)
+          lifecycle = Path('scripts/lifecycle-regression-tests.ts')
+          l = lifecycle.read_text()
+          old = '''      const tooManyRows = await service.updateCompletedRecord({
+        role: "admin",
+        recordId: record.id,
+        serviceContext: updatedContext,
+        set: { status: "final", language: "mixed", rows: Array.from({ length: 11 }, (_, index) => ({ note: `row ${index}` })) },
+      });
+      assert.equal(tooManyRows.success, false);'''
+          new = '''      const historicalManyRows = await service.updateCompletedRecord({
+        role: "admin",
+        recordId: record.id,
+        serviceContext: updatedContext,
+        set: { status: "final", language: "mixed", rows: Array.from({ length: 11 }, (_, index) => ({ note: `row ${index}` })) },
+      });
+      assert.equal(historicalManyRows.success, true);'''
+          if old not in l:
+              raise SystemExit('Historical row-count regression anchor missing')
+          lifecycle.write_text(l.replace(old, new, 1))
           PY
       - name: Setup Node.js
         uses: actions/setup-node@v4
