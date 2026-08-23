@@ -528,14 +528,15 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     completed: completedRecords.map((record) => [record.id, record.serviceContext.serviceDate, record.set.rows.map((row) => row.song?.songId ?? "")]),
   });
   const candidateAvailabilityCurrent = selectedCandidateAvailability.key === candidateAvailabilityKey;
-  const hasUnavailableCandidates = selectedCandidateRows.some((selected) => {
+  const candidateAvailabilityApplies = !isCompletedRecordOpen;
+  const hasUnavailableCandidates = candidateAvailabilityApplies && selectedCandidateRows.some((selected) => {
     if (serviceLanguage !== "mixed" && selected.language !== serviceLanguage) return true;
     return candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[selected.rowId] === "unavailable";
   });
-  const hasCandidateAvailabilityError = candidateAvailabilityCurrent && selectedCandidateRows.some((selected) => selectedCandidateAvailability.byRow[selected.rowId] === "error");
-  const candidateAvailabilityPending = selectedCandidateRows.length > 0 && !candidateAvailabilityCurrent;
+  const hasCandidateAvailabilityError = candidateAvailabilityApplies && candidateAvailabilityCurrent && selectedCandidateRows.some((selected) => selectedCandidateAvailability.byRow[selected.rowId] === "error");
+  const candidateAvailabilityPending = candidateAvailabilityApplies && selectedCandidateRows.length > 0 && !candidateAvailabilityCurrent;
   const hasCandidateAvailabilityBlock = candidateAvailabilityPending || hasUnavailableCandidates || hasCandidateAvailabilityError;
-  const rowCandidateUnavailable = (row: EditableRow) => Boolean(row.selectedSong?.songId) && (
+  const rowCandidateUnavailable = (row: EditableRow) => candidateAvailabilityApplies && Boolean(row.selectedSong?.songId) && (
     (serviceLanguage !== "mixed" && row.selectedSong!.language !== serviceLanguage)
     || (candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[row.id] === "unavailable")
   );
@@ -545,6 +546,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     ...(!isValidServiceTime(serviceTime) ? ["Service time is required in HH:mm format between 00:00 and 23:59."] : []),
     ...(!priest.trim() ? ["Priest is required."] : []),
     ...(!organist.trim() ? ["Organist is required."] : []),
+    ...(!isCompletedRecordOpen && persistedSet?.status === "working" && !hasConcreteFinalPeople ? ["Choose a concrete active priest and organist before finalization."] : []),
     ...(hasAntiphonLanguageMismatch ? ["Selected antiphon must match the service language."] : []),
     ...(hasTopicLanguageMismatch ? ["Selected topic must match the service language."] : []),
     ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
@@ -560,7 +562,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
   useEffect(() => {
     const request = ++selectedCandidateAvailabilityRequest.current;
-    if (selectedCandidateRows.length === 0) {
+    if (!candidateAvailabilityApplies || selectedCandidateRows.length === 0) {
       setSelectedCandidateAvailability({ key: candidateAvailabilityKey, byRow: {} });
       return;
     }
@@ -602,7 +604,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     return () => {
       if (selectedCandidateAvailabilityRequest.current === request) selectedCandidateAvailabilityRequest.current += 1;
     };
-  }, [candidateAvailabilityKey, interactionClient]);
+  }, [candidateAvailabilityKey, interactionClient, candidateAvailabilityApplies]);
   const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
   const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
   const visibleCatalogSongs = useMemo(() => {
@@ -1323,11 +1325,19 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   }
 
   async function finalizeWorkingSet() {
-    if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") {
-      return;
-    }
+    if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") return;
     if (!hasConcreteFinalPeople) {
       setServiceError({ code: "invalidInput", message: "Choose a concrete active priest and organist before finalization." });
+      setSaveState("errors");
+      return;
+    }
+    if (!hasServiceContext) {
+      setServiceError({ code: "invalidInput", message: "Complete the service context before finalization." });
+      setSaveState("errors");
+      return;
+    }
+    if (hasInvalidLookupState) {
+      setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before finalization." });
       setSaveState("errors");
       return;
     }
@@ -1341,8 +1351,45 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       setSaveState("errors");
       return;
     }
+    if (hasCandidateAvailabilityBlock) {
+      setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." });
+      setSaveState("errors");
+      return;
+    }
     if (hasMelodyCollisions) {
       setServiceError({ code: "invalidInput", message: melodyFinalizationReason ?? "Cannot finalize: the same melody is used more than once." });
+      setSaveState("errors");
+      return;
+    }
+
+    const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
+    if (languageDeviationConfirmation.cancelled) {
+      setServiceError({ code: "invalidInput", message: "Finalization cancelled. Rows " + languageDeviationConfirmation.deviationRows.join(", ") + " do not match the " + serviceLanguage + " service language." });
+      setSaveState("errors");
+      return;
+    }
+
+    const saveResult = await planningLifecycleService.saveWorkingSet({
+      role: selectedRole,
+      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
+      existingSetId: persistedSet.id,
+      serviceContext: {
+        serviceDate,
+        serviceTime: normalizeServiceTime(serviceTime),
+        language: serviceLanguage,
+        priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
+        organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
+        ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
+      },
+      set: { status: "working", language: serviceLanguage, rows: planningRows },
+      allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,
+    });
+    if (!saveResult.success) {
+      setServiceError(saveResult.error);
       setSaveState("errors");
       return;
     }
@@ -1350,11 +1397,11 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     const result = await planningLifecycleService.finalizeWorkingSet({
       role: selectedRole,
       ...({ localActorUserId: activeActor.userId } as Record<string, string>),
-      workingSetId: persistedSet.id,
+      workingSetId: saveResult.value.id,
     });
-
     if (!result.success) {
-      setServiceError(result.error);
+      const peopleIssue = result.error.issues?.some((issue: { path: string }) => issue.path === "priest" || issue.path === "organist");
+      setServiceError(peopleIssue ? { code: result.error.code, message: "Choose a concrete active priest and organist before finalization." } : result.error);
       setSaveState("errors");
       return;
     }
@@ -1414,8 +1461,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (!completedRecord || selectedRole !== "admin") return;
     if (hasAntiphonLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected antiphon must match the service language." }); setSaveState("errors"); return; }
     if (hasTopicLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected topic must match the service language." }); setSaveState("errors"); return; }
-    if (hasCandidateAvailabilityBlock) { setServiceError({ code: "invalidInput", message: hasUnavailableCandidates ? "Every candidate must be available." : hasCandidateAvailabilityError ? "Candidate availability could not be checked." : "Candidate availability is being checked." }); setSaveState("errors"); return; }
-
     const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
     if (languageDeviationConfirmation.cancelled) {
       setServiceError({ code: "invalidInput", message: `Save cancelled. Rows ${languageDeviationConfirmation.deviationRows.join(", ")} do not match the ${serviceLanguage} service language.` });
@@ -1768,7 +1813,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
                     <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
                       Save working set
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
                       Finalize set
                     </button>
                   </>
@@ -1786,7 +1831,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
                       Save completed changes
                     </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>
