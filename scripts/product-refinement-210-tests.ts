@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { InMemoryCatalogRepository } from "../src/application/catalog";
 import { queryReferenceCandidatesFromData, type ReferenceCandidateData } from "../src/application/reference-candidate-service";
+import {
+  InMemoryCompletedServiceRecordRepository,
+  InMemoryPlanningSetRepository,
+  PlanningLifecycleService,
+} from "../src/application/planning-lifecycle";
 import { getDraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { parseLegacyPeople, parseLegacyRows, parseLegacyServices } from "./legacy-history-parser";
 
@@ -61,13 +67,70 @@ assert.ok(client.includes("repertoire filter is not applied"), "Anonymous organi
 assert.ok(!client.includes("Select active priest</option>"), "Old empty priest placeholder must be removed.");
 assert.ok(!client.includes("Select active organist</option>"), "Old empty organist placeholder must be removed.");
 
-const service = readFileSync("src/application/planning-lifecycle/service.ts", "utf8");
-assert.ok(service.includes("Final service requires a concrete active priest and organist."));
-assert.ok(service.includes('ref.displayName === "Anonymous"'));
-assert.ok(service.includes("async reopenFinalSet"));
+const serviceSource = readFileSync("src/application/planning-lifecycle/service.ts", "utf8");
+assert.ok(serviceSource.includes("Final service requires a concrete active priest and organist."));
+assert.ok(serviceSource.includes('ref.displayName === "Anonymous"'));
+assert.ok(serviceSource.includes("async reopenFinalSet"));
 
 const onboarding = readFileSync("src/application/protected-staff-onboarding.ts", "utf8");
 assert.ok(onboarding.includes("resolveProtectedUser"), "Staff onboarding must be protected by server-session admin resolution.");
 assert.ok(onboarding.includes("protected_account_actor_links"));
 
-console.log("Issue 210 product refinement regression tests passed.");
+async function lifecycleBehaviorTests() {
+  const createService = () => new PlanningLifecycleService({
+    planningSets: new InMemoryPlanningSetRepository(),
+    completedServiceRecords: new InMemoryCompletedServiceRecordRepository(),
+    catalog: new InMemoryCatalogRepository(),
+  });
+
+  const anonymousService = createService();
+  const anonymousWorking = await anonymousService.saveWorkingSet({
+    role: "admin",
+    serviceContext: {
+      serviceDate: "2026-09-06",
+      serviceTime: "10:00",
+      language: "czech",
+      priest: { displayName: "Anonymous" },
+      organist: { displayName: "Anonymous" },
+    },
+    set: { status: "working", language: "czech", rows: [{ note: "Instrumental" }] },
+  });
+  assert.equal(anonymousWorking.success, true, "Anonymous must be persistable as Working.");
+  if (anonymousWorking.success) {
+    const blockedFinal = await anonymousService.finalizeWorkingSet({ role: "admin", workingSetId: anonymousWorking.value.id });
+    assert.equal(blockedFinal.success, false, "Anonymous must not be Finalizable.");
+    if (!blockedFinal.success) assert.equal(blockedFinal.error.code, "invalidInput");
+  }
+
+  const reopenService = createService();
+  const working = await reopenService.saveWorkingSet({
+    role: "admin",
+    serviceContext: {
+      serviceDate: "2026-09-13",
+      serviceTime: "10:00",
+      language: "czech",
+      priest: { id: "demo-priest", displayName: "Demo Priest" },
+      organist: { id: "demo-organist", displayName: "Demo Organist" },
+    },
+    set: { status: "working", language: "czech", rows: [{ note: "Instrumental" }] },
+  });
+  assert.equal(working.success, true);
+  if (!working.success) return;
+  const final = await reopenService.finalizeWorkingSet({ role: "admin", workingSetId: working.value.id });
+  assert.equal(final.success, true);
+  if (!final.success) return;
+  const denied = await reopenService.reopenFinalSet({ role: "priest", finalSetId: final.value.id });
+  assert.equal(denied.success, false, "Only admin may reopen Final.");
+  const reopened = await reopenService.reopenFinalSet({ role: "admin", finalSetId: final.value.id });
+  assert.equal(reopened.success, true, "Admin must be able to reopen Final.");
+  if (reopened.success) {
+    assert.equal(reopened.value.status, "working");
+    assert.equal(reopened.value.id, final.value.id);
+    assert.deepEqual(reopened.value.rows, final.value.rows, "Reopen must preserve ordered content.");
+    assert.deepEqual(reopened.value.serviceContext, final.value.serviceContext, "Reopen must preserve service context.");
+  }
+}
+
+lifecycleBehaviorTests()
+  .then(() => console.log("Issue 210 product refinement regression tests passed."))
+  .catch((error) => { console.error(error); process.exitCode = 1; });
