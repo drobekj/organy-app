@@ -1,0 +1,47 @@
+name: Apply Issue 210 refinement patch
+
+on:
+  push:
+    branches:
+      - refine/issue-210-product-workflow
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refine/issue-210-product-workflow
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply deterministic source patches
+        run: |
+          python scripts/refine-210-patch.py
+          python scripts/refine-210-onboarding-patch.py
+          python scripts/refine-210-consistency-patch.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Product refinement tests
+        run: npm run test:product-refinement-210
+      - name: Regression tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Commit verified source changes
+        run: |
+          rm scripts/refine-210-patch.py scripts/refine-210-onboarding-patch.py scripts/refine-210-consistency-patch.py .github/workflows/refine-210-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Implement product refinement workflow (#210)"
+          git push origin HEAD:refine/issue-210-product-workflow
