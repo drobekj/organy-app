@@ -21,6 +21,13 @@ replace_once(
     '''      if (organistPersonId && !allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(organistPersonId, songId)))) continue;''',
 )
 
+# Final requires a concrete id everywhere; active catalog eligibility is enforced only when catalog enforcement is enabled.
+replace_once(
+    "src/application/planning-lifecycle/service.ts",
+    '''      const person = await this.catalog.findPersonById(ref.id);\n      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });''',
+    '''      if (!this.enforceCatalogSelections) continue;\n      const person = await this.catalog.findPersonById(ref.id);\n      if (!isEligiblePerson(person, role)) issues.push({ path: role, message: `${role} is not active for the selected role.` });''',
+)
+
 # The accepted no-history state is now explicit Anonymous rather than an empty person field.
 replace_once(
     "scripts/lifecycle-regression-tests.ts",
