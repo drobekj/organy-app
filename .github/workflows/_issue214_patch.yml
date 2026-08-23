@@ -62,7 +62,10 @@ jobs:
       assert.equal(historicalManyRows.success, true);'''
           if old not in l:
               raise SystemExit('Historical row-count regression anchor missing')
-          lifecycle.write_text(l.replace(old, new, 1))
+          l = l.replace(old, new, 1)
+          if 'assert.equal(tooManyRows.success, false)' in l:
+              raise SystemExit('Obsolete Completed row-count assertion survived patch')
+          lifecycle.write_text(l)
           PY
       - name: Setup Node.js
         uses: actions/setup-node@v4
