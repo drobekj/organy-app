@@ -26,6 +26,17 @@ jobs:
         run: |
           sed -i 's/) : ReferenceCandidateQueryResult\[\] {/): ReferenceCandidateQueryResult[] {/' scripts/_issue214_patch.py
           python scripts/_issue214_patch.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/issue-214-tests.ts')
+          s = p.read_text()
+          marker = 'const referenceData: ReferenceCandidateData = {'
+          if marker not in s:
+              raise SystemExit('Issue 214 test marker missing')
+          s = s.replace(marker, 'async function main() {\n' + marker, 1)
+          s += '\n}\nmain().catch((error) => { console.error(error); process.exitCode = 1; });\n'
+          p.write_text(s)
+          PY
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
