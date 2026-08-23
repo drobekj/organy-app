@@ -9,6 +9,7 @@ import {
 } from "../src/application/planning-lifecycle";
 import { getDraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { parseLegacyPeople, parseLegacyRows, parseLegacyServices } from "./legacy-history-parser";
+import { buildLegacySongCorrections, correctedCanonicalNumber } from "./legacy-history-song-resolution";
 
 const data: ReferenceCandidateData = {
   melodyWindowMonths: 2,
@@ -59,6 +60,48 @@ assert.deepEqual(parseLegacyRows(legacyFixture), [
 ]);
 assert.deepEqual(parseLegacyPeople(legacyFixture, "Kazatele"), [{ id: 7, displayName: "Lukáš Borecki" }]);
 assert.deepEqual(parseLegacyPeople(legacyFixture, "Varhanici"), [{ id: 1, displayName: "Jaroslav Drobek" }]);
+
+const correctionReferenceKeys = new Set([
+  "czech:680",
+  "czech:5210", "czech:5220",
+  "czech:3761", "czech:3762",
+  "czech:6831", "czech:6832",
+  "czech:7331", "czech:7332",
+  "polish:4381", "polish:4382",
+  "polish:6571", "polish:6572",
+]);
+const correctionServices = [
+  { id: 1, date: "2026-01-01", language: "czech" as const },
+  { id: 2, date: "2026-01-02", language: "polish" as const },
+];
+const baseOnlyResolution = buildLegacySongCorrections(correctionServices, [
+  { id: 1, serviceId: 1, songNumber: 860 },
+  { id: 2, serviceId: 1, songNumber: 683 },
+  { id: 3, serviceId: 2, songNumber: 1039 },
+], correctionReferenceKeys);
+assert.equal(correctedCanonicalNumber("czech", 860, baseOnlyResolution.corrections), 680, "User-confirmed Czech 860 must map to current Czech 680.");
+assert.equal(correctedCanonicalNumber("polish", 1039, baseOnlyResolution.corrections), 1039, "Polish 1039 must remain unresolved.");
+assert.equal(correctedCanonicalNumber("czech", 683, baseOnlyResolution.corrections), 683, "An unsuffixed variant family must not be guessed when no concrete variant occurs elsewhere.");
+const baseOnly683Evidence = baseOnlyResolution.variantEvidence.find((item) => item.language === "czech" && item.legacyNumber === 683);
+assert.deepEqual(baseOnly683Evidence?.variants, [
+  { canonicalNumber: 6831, occurrences: 0 },
+  { canonicalNumber: 6832, occurrences: 0 },
+]);
+assert.equal(baseOnly683Evidence?.selectedCanonicalNumber, undefined);
+
+const singleVariantResolution = buildLegacySongCorrections(correctionServices, [
+  { id: 1, serviceId: 1, songNumber: 683 },
+  { id: 2, serviceId: 1, songNumber: 6831 },
+  { id: 3, serviceId: 1, songNumber: 6831 },
+], correctionReferenceKeys);
+assert.equal(correctedCanonicalNumber("czech", 683, singleVariantResolution.corrections), 6831, "Exactly one historically used concrete variant must backfill the old unsuffixed number.");
+
+const ambiguousVariantResolution = buildLegacySongCorrections(correctionServices, [
+  { id: 1, serviceId: 1, songNumber: 733 },
+  { id: 2, serviceId: 1, songNumber: 7331 },
+  { id: 3, serviceId: 1, songNumber: 7332 },
+], correctionReferenceKeys);
+assert.equal(correctedCanonicalNumber("czech", 733, ambiguousVariantResolution.corrections), 733, "If both variants occur historically, the unsuffixed number must remain unresolved.");
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 assert.ok(client.includes('>Anonymous</option>'), "Planning selectors must expose Anonymous.");
