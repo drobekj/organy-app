@@ -4,13 +4,15 @@ on:
   push:
     branches:
       - fix/issue-212-acceptance-finalize-completed
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
+    if: github.actor != 'github-actions[bot]' && (github.event_name == 'push' || github.head_ref == 'fix/issue-212-acceptance-finalize-completed')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
