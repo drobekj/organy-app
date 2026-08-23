@@ -23,7 +23,9 @@ jobs:
         with:
           ref: fix/issue-214-completed-truth-retro-identity
       - name: Apply patch
-        run: python scripts/_issue214_patch.py
+        run: |
+          sed -i 's/) : ReferenceCandidateQueryResult\[\] {/): ReferenceCandidateQueryResult[] {/' scripts/_issue214_patch.py
+          python scripts/_issue214_patch.py
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
