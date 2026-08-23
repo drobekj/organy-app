@@ -21,6 +21,13 @@ replace_once(
     '''      if (organistPersonId && !allClassSongIds.some((songId) => this.repertoire.has(this.repertoireKey(organistPersonId, songId)))) continue;''',
 )
 
+# The accepted no-history state is now explicit Anonymous rather than an empty person field.
+replace_once(
+    "scripts/lifecycle-regression-tests.ts",
+    '''      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "" }, organist: { displayName: "" } });''',
+    '''      assert.deepEqual(getDraftPeopleDefaults([]), { priest: { displayName: "Anonymous" }, organist: { displayName: "Anonymous" } });''',
+)
+
 # Record the accepted product-contract refinements rather than leaving requirements contradictory.
 requirements = "docs/requirements.md"
 replace_once(
