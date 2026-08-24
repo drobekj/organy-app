@@ -77,8 +77,7 @@ export async function POST(request: Request) {
     if (body.action === "loadPlanningSet") {
       const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;
       if (!setId) return invalidInput("setId is required.");
-      const set = await planningSets.findById(setId);
-      return NextResponse.json(set ? { success: true, value: set } : { success: false, error: { code: "notFound", message: "Planning set was not found." } });
+      return NextResponse.json(await readService.loadPlanningSet(setId));
     }
 
     const service = createDbBackedPlanningLifecycleService({

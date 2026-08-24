@@ -136,13 +136,13 @@ const tests: TestCase[] = [
         assert.equal(denied.success ? undefined : denied.error.code, "permissionDenied");
       }
 
-      const tooManyRows = await service.updateCompletedRecord({
+      const historicalManyRows = await service.updateCompletedRecord({
         role: "admin",
         recordId: record.id,
         serviceContext: updatedContext,
         set: { status: "final", language: "mixed", rows: Array.from({ length: 11 }, (_, index) => ({ note: `row ${index}` })) },
       });
-      assert.equal(tooManyRows.success, false);
+      assert.equal(historicalManyRows.success, true);
 
       const active = await service.saveWorkingSet({ role: "admin", serviceContext: czechContext, set: secondWorkingSet });
       assert.equal(active.success, true);

@@ -3,10 +3,13 @@ import type { PlanningSet, ServiceContext } from "../../planning-lifecycle";
 export type PlanningSetId = string;
 export type CompletedServiceRecordId = string;
 
+export type PlanningSetRevisionState = { reason: string; conflictingCompletedRecordIds: string[] };
+
 export type PersistedPlanningSet = PlanningSet & {
   id: PlanningSetId;
   serviceContext: ServiceContext;
   completedAt?: Date;
+  needsRevision?: PlanningSetRevisionState;
 };
 
 export type CompletedServiceRecord = {
@@ -22,6 +25,7 @@ export interface PlanningSetRepository {
   findById(id: PlanningSetId): Promise<PersistedPlanningSet | undefined>;
   saveWorkingSet(set: PlanningSet & { status: "working" }, serviceContext: ServiceContext, existingId?: PlanningSetId): Promise<PersistedPlanningSet>;
   saveFinalSet(set: PlanningSet & { status: "final" }, serviceContext: ServiceContext, existingId?: PlanningSetId): Promise<PersistedPlanningSet>;
+  demoteFinalToWorking(id: PlanningSetId): Promise<void>;
   deleteById(id: PlanningSetId): Promise<void>;
 }
 
@@ -29,7 +33,7 @@ export interface CompletedServiceRecordRepository {
   createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord>;
   list(): Promise<CompletedServiceRecord[]>;
   findById(id: CompletedServiceRecordId): Promise<CompletedServiceRecord | undefined>;
-  update(id: CompletedServiceRecordId, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }): Promise<CompletedServiceRecord>;
+  update(id: CompletedServiceRecordId, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }, invalidatedPlanIds?: PlanningSetId[]): Promise<CompletedServiceRecord>;
   deleteById(id: CompletedServiceRecordId): Promise<void>;
   deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void>;
 }

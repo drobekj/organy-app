@@ -5,6 +5,7 @@ export type {
   FinalSetCompletionPersistenceResult,
   FinalSetCompletionRepository,
   PersistedPlanningSet,
+  PlanningSetRevisionState,
   PlanningSetId,
   PlanningSetRepository,
 } from "./ports";

@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       const action = String(form.get("action") ?? "");
       const result = await perform(service, request.headers, action, {
         appUserId: form.get("appUserId"),
+        personId: form.get("personId"),
         username: form.get("username"),
         password: form.get("password"),
         roles: form.getAll("roles").map(String),
@@ -59,6 +60,14 @@ async function perform(service: PostgresProtectedAccountAdminService, headers: H
   if (action === "resetPassword") {
     const payload = await service.resetPassword(headers, { appUserId: input.appUserId, password: input.password });
     return { payload, message: "Protected Account password reset. Existing sessions were revoked.", currentAdminLostAccess: false };
+  }
+  if (action === "deleteAccount") {
+    const payload = await service.deleteAccount(headers, { appUserId: input.appUserId });
+    return { payload, message: "Protected Account deleted. Person and service history were preserved.", currentAdminLostAccess: false };
+  }
+  if (action === "deletePerson") {
+    const payload = await service.deletePerson(headers, { personId: input.personId });
+    return { payload, message: "Person permanently deleted.", currentAdminLostAccess: false };
   }
   throw new ProtectedAccountAdminError("invalidInput", "Unsupported protected Account administration action.");
 }

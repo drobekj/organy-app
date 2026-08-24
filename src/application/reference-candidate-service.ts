@@ -163,6 +163,7 @@ export function queryReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateQueryInput,
 ): ReferenceCandidateQueryResult[] {
+  if (input.historicalTruth) return queryHistoricalTruthReferenceCandidates(data.songs, input.queryText);
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
   const membersByClass = groupSongsByClass(data.songs);
@@ -196,6 +197,51 @@ export function queryReferenceCandidatesFromData(
   }
 
   return candidates.sort(compareConcreteResults);
+}
+
+function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[], queryText?: string): ReferenceCandidateQueryResult[] {
+  const query = queryText?.trim() ?? "";
+  const zeroCandidates: ReferenceCandidateQueryResult[] = (["czech", "polish"] as const).map((language) => ({
+    songId: `historical-zero:${language}`,
+    language,
+    number: "0",
+    title: "Historical zero value",
+    equivalentNumbers: [],
+    melodyClassId: `historical-zero:${language}`,
+    melodyMembers: [],
+    aggregatePreferenceScore: 0,
+    antiphonMatch: false,
+    seasonMatch: false,
+    signal: "none",
+    preferenceShade: "none",
+    repertoire: false,
+    availability: { kind: "available" },
+    suppressedByMelodyWindow: false,
+    orderKey: `historical:0:${language}`,
+  }));
+  const concrete = songs
+    .filter((song) => !query || matchesReferenceCandidateSearch(song, query))
+    .map((song): ReferenceCandidateQueryResult => ({
+      songId: song.id,
+      language: song.language,
+      number: song.displayNumber,
+      title: song.title,
+      equivalentNumbers: [],
+      melodyClassId: `historical:${song.id}`,
+      melodyMembers: [],
+      aggregatePreferenceScore: 0,
+      antiphonMatch: false,
+      seasonMatch: false,
+      signal: "none",
+      preferenceShade: "none",
+      repertoire: false,
+      availability: { kind: "available" },
+      suppressedByMelodyWindow: false,
+      orderKey: `historical:1:${concreteOrderKey(song)}`,
+    }));
+  const q = query.toLocaleLowerCase();
+  return [...zeroCandidates.filter((candidate) => !q || candidate.number.includes(q) || candidate.title.toLocaleLowerCase().includes(q)), ...concrete]
+    .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));
 }
 
 export function hydrateReferenceCandidatesFromData(

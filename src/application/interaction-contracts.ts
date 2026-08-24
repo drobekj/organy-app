@@ -14,7 +14,7 @@ export type KnowledgeMapping = { id: string; key: string; songId: string; synthe
 export type MelodyNonRepetitionConfig = { months: number };
 export type CandidateUsageSource = "completed" | "working" | "final" | "current";
 export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number; rowLabel?: string };
-export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[] };
+export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[]; historicalTruth?: boolean };
 export type CandidateMelodyMember = { songId: string; language: ConcreteSongLanguage; number: string; title: string; repertoire: boolean; aggregatePreferenceScore: number; sheetMusicUrl?: string };
 export type CandidateOccupyingRow = { rowId: number; label: string };
 export type CandidateAvailability = { kind: "available" } | { kind: "occupiedByCurrentRows"; rows: CandidateOccupyingRow[] };
@@ -78,6 +78,7 @@ export class InMemoryInteractionRepository {
   listKnowledge() { return { antiphons: this.antiphons.map((m) => ({ ...m })), seasons: this.seasons.map((m) => ({ ...m })), melodyWindow: this.getMelodyWindow(), melodyClasses: this.listMelodyClasses() }; }
 
   queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {
+    if (input.historicalTruth) return queryHistoricalTruthCatalogCandidates(songs, input.queryText);
     const organistPersonId = input.organistPersonId;
     const languageSet = new Set(languagesForService(input.serviceLanguage));
     const recentClassIds = getRecentMelodyClassIds(this.melodyClasses, input, this.melodyWindow);
@@ -116,6 +117,47 @@ export class InMemoryInteractionRepository {
   createSyntheticScaleSongs(count: number): CatalogSong[] { return Array.from({ length: count }, (_, index) => ({ songId: `synthetic-scale-${index + 1}`, language: index % 2 === 0 ? "czech" : "polish", number: `SYN-${String(index + 1).padStart(5, "0")}`, title: `Synthetic Scale Song ${index + 1}`, active: true })); }
   private preferenceKey(profileId: string, songId: string) { return `${profileId}:${songId}`; }
   private repertoireKey(personId: string, songId: string) { return `${personId}:${songId}`; }
+}
+
+function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], queryText?: string): CandidateQueryResult[] {
+  const query = queryText?.trim().toLocaleLowerCase() ?? "";
+  const zeroCandidates: CandidateQueryResult[] = (["czech", "polish"] as const).map((language) => ({
+    songId: `historical-zero:${language}`,
+    language,
+    number: "0",
+    title: "Historical zero value",
+    equivalentNumbers: [],
+    aggregatePreferenceScore: 0,
+    antiphonMatch: false,
+    seasonMatch: false,
+    signal: "none",
+    preferenceShade: "none",
+    repertoire: false,
+    availability: { kind: "available" },
+    suppressedByMelodyWindow: false,
+    orderKey: `historical:0:${language}`,
+  }));
+  const concrete = songs
+    .filter((song) => !query || song.number.toLocaleLowerCase().includes(query) || song.title.toLocaleLowerCase().includes(query))
+    .map((song): CandidateQueryResult => ({
+      songId: song.songId,
+      language: song.language,
+      number: song.number,
+      title: song.title,
+      equivalentNumbers: [],
+      aggregatePreferenceScore: 0,
+      antiphonMatch: false,
+      seasonMatch: false,
+      signal: "none",
+      preferenceShade: "none",
+      repertoire: false,
+      availability: { kind: "available" },
+      suppressedByMelodyWindow: false,
+      ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}),
+      orderKey: `historical:1:${song.language}:${song.number}:${song.songId}`,
+    }));
+  return [...zeroCandidates.filter((candidate) => !query || candidate.number.includes(query) || candidate.title.toLocaleLowerCase().includes(query)), ...concrete]
+    .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));
 }
 
 function getRecentMelodyClassIds(classes: MelodyClass[], input: CandidateQueryInput, window: MelodyNonRepetitionConfig): Set<string> {

@@ -7,6 +7,7 @@ import {
   serviceContexts,
   serviceSetRows,
   serviceSets,
+  melodyNonRepetitionConfig,
 } from "../../db/schema";
 import type {
   CompletedServiceRecord,
@@ -144,6 +145,14 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
     existingId?: PlanningSetId,
   ): Promise<PersistedPlanningSet> {
     return this.saveSet(set, serviceContext, existingId);
+  }
+
+  async demoteFinalToWorking(id: PlanningSetId): Promise<void> {
+    const numericId = parsePlanningSetId(id);
+    if (numericId === undefined) return;
+    await updateTable(this.dependencies.db, serviceSets)
+      .set({ status: "working", updatedAt: new Date() })
+      .where(eq(serviceSets.id, numericId));
   }
 
   async deleteById(id: PlanningSetId): Promise<void> {
@@ -403,7 +412,7 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
     return { id: formatCompletedServiceRecordId(row.id), sourceFinalSetId: row.serviceSetId ? formatPlanningSetId(row.serviceSetId) : "", set: { status: "final", language: context.serviceLanguage, rows: rows.map(mapRowRecordToPlanningRow) }, serviceContext: mapContextRecordToServiceContext(context), completedAt: new Date(row.completedAt) };
   }
 
-  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }): Promise<CompletedServiceRecord> {
+  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }, invalidatedPlanIds: PlanningSetId[] = []): Promise<CompletedServiceRecord> {
     const numericId = parsePlanningSetId(id);
     if (numericId === undefined) {
       throw new Error(`Completed service record id '${id}' is not valid.`);
@@ -421,6 +430,10 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
         .where(eq(serviceContexts.id, existing.serviceContextId));
       await updateTable(tx, completedServices).set({ updatedAt: now }).where(eq(completedServices.id, numericId));
       await replaceCompletedRows(tx, numericId, set.rows, now);
+      for (const planId of invalidatedPlanIds) {
+        const planNumericId = parsePlanningSetId(planId);
+        if (planNumericId !== undefined) await updateTable(tx, serviceSets).set({ status: "working", updatedAt: now }).where(eq(serviceSets.id, planNumericId));
+      }
       const [updated] = (await selectAll(tx).from(completedServices).where(eq(completedServices.id, numericId)).limit(1)) as CompletedServiceRecordRecord[];
       return this.hydrateWithExecutor(tx, updated);
     });
@@ -466,6 +479,10 @@ export function createDbBackedPlanningLifecycleService(
     referenceTopics: dependencies.referenceTopics,
     referenceSongs: dependencies.referenceSongs,
     referenceMelodyClasses: dependencies.referenceMelodyClasses,
+    melodyNonRepetitionMonths: async () => {
+      const rows = await dependencies.db.select({ months: melodyNonRepetitionConfig.months }).from(melodyNonRepetitionConfig).limit(1);
+      return Number(rows[0]?.months ?? 2);
+    },
     now: dependencies.now,
   });
 }

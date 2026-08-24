@@ -43,6 +43,7 @@ export type PlanningLifecycleServiceDependencies = {
   referenceTopics?: Pick<ReferenceThematicSectionProvider, "getSectionById">;
   referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
   referenceMelodyClasses?: ReferenceMelodyClassProvider;
+  melodyNonRepetitionMonths?: () => number | Promise<number>;
   now?: () => Date;
   enforceCatalogSelections?: boolean;
 };
@@ -90,6 +91,7 @@ export type UpdateCompletedRecordInput = {
   serviceContext: ServiceContext;
   set: PlanningSet & { status: "final" };
   allowLanguageDeviations?: boolean;
+  acceptPlanInvalidation?: boolean;
 };
 
 export type DeleteCompletedRecordInput = {
@@ -108,6 +110,7 @@ export class PlanningLifecycleService {
   private readonly referenceTopics?: Pick<ReferenceThematicSectionProvider, "getSectionById">;
   private readonly referenceSongs?: { getById(id: string): ReferenceCatalogRecord | undefined | Promise<ReferenceCatalogRecord | undefined> };
   private readonly referenceMelodyClasses?: ReferenceMelodyClassProvider;
+  private readonly melodyNonRepetitionMonths: () => Promise<number>;
   private readonly enforceCatalogSelections: boolean;
 
   constructor(dependencies: PlanningLifecycleServiceDependencies) {
@@ -119,6 +122,7 @@ export class PlanningLifecycleService {
     this.referenceTopics = dependencies.referenceTopics;
     this.referenceSongs = dependencies.referenceSongs;
     this.referenceMelodyClasses = dependencies.referenceMelodyClasses;
+    this.melodyNonRepetitionMonths = async () => Number(await dependencies.melodyNonRepetitionMonths?.() ?? 2);
     this.enforceCatalogSelections = dependencies.enforceCatalogSelections ?? true;
     this.now = dependencies.now ?? (() => new Date());
   }
@@ -126,7 +130,7 @@ export class PlanningLifecycleService {
 
   async listPlanningSets(): Promise<PlanningServiceResult<PersistedPlanningSet[]>> {
     await this.reconcilePastFinalSets();
-    return success(await this.planningSets.list());
+    return success(await this.annotateRevisionStates(await this.planningSets.list()));
   }
 
   async listCompletedRecords(): Promise<PlanningServiceResult<CompletedServiceRecord[]>> {
@@ -136,7 +140,8 @@ export class PlanningLifecycleService {
 
   async loadPlanningSet(setId: PlanningSetId): Promise<PlanningServiceResult<PersistedPlanningSet>> {
     const set = await this.planningSets.findById(setId);
-    return set ? success(set) : failure({ code: "notFound", message: "Planning set was not found." });
+    if (!set) return failure({ code: "notFound", message: "Planning set was not found." });
+    return success((await this.annotateRevisionStates([set]))[0]);
   }
 
   async loadCompletedRecord(recordId: string): Promise<PlanningServiceResult<CompletedServiceRecord>> {
@@ -190,6 +195,9 @@ export class PlanningLifecycleService {
     if (duplicate) {
       return failure({ code: "invalidInput", message: `A service already exists for ${serviceContext.serviceDate} at ${serviceContext.serviceTime}.` });
     }
+
+    const historyConflicts = await this.findHistoryConflictsForPlan({ ...(normalized.set as PlanningSet & { status: "working" }), id: input.existingSetId ?? "candidate", serviceContext: normalized.serviceContext });
+    if (historyConflicts.length > 0) return failure({ code: "invalidInput", message: "Working planning set conflicts with authoritative Completed history.", issues: historyConflicts.map((conflict) => ({ path: "historyNonRepeat", message: conflict.reason })) });
 
     return success(await this.planningSets.saveWorkingSet(normalized.set as PlanningSet & { status: "working" }, normalized.serviceContext, input.existingSetId));
   }
@@ -245,6 +253,9 @@ export class PlanningLifecycleService {
         }))),
       });
     }
+
+    const historyConflicts = await this.findHistoryConflictsForPlan({ ...workingSet, status: "final", rows: finalSet.rows });
+    if (historyConflicts.length > 0) return failure({ code: "invalidInput", message: "Final planning set conflicts with authoritative Completed history.", issues: historyConflicts.map((conflict) => ({ path: "historyNonRepeat", message: conflict.reason })) });
 
     const persistedFinalSet = await this.planningSets.saveFinalSet(
       finalSet,
@@ -321,40 +332,50 @@ export class PlanningLifecycleService {
     if (!canPerformPlanningAction(input.role, "editCompletedServiceRecord")) {
       return failure({ code: "permissionDenied", message: "Only admin can edit completed service records." });
     }
-
     const existing = await this.completedServiceRecords.findById(input.recordId);
-    if (!existing) {
-      return failure({ code: "notFound", message: "Completed record was not found." });
-    }
+    if (!existing) return failure({ code: "notFound", message: "Completed record was not found." });
 
     const rawServiceContext: ServiceContext = normalizeServiceContext(input.serviceContext);
     const serviceContextIssues = validateSaveWorkingSetServiceContext(rawServiceContext, input.set);
-    if (serviceContextIssues.length > 0) {
-      return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
-    }
+    if (serviceContextIssues.length > 0) return failure({ code: "invalidInput", message: "Service context is required before saving completed changes.", issues: serviceContextIssues });
 
     const antiphonContext = await this.validateAndNormalizeReferenceAntiphon(rawServiceContext, existing);
     if (!antiphonContext.success) return antiphonContext;
     const topicContext = await this.validateAndNormalizeReferenceTopic(antiphonContext.value, existing);
     if (!topicContext.success) return topicContext;
-    const serviceContext = topicContext.value;
-    const normalized = await this.validateAndNormalizeCatalogReferences(serviceContext, input.set, existing, input.allowLanguageDeviations === true);
-    if (normalized.issues.length > 0) {
-      return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
-    }
+    const normalized = await this.validateAndNormalizeCatalogReferences(topicContext.value, input.set, existing, true, true);
+    if (normalized.issues.length > 0) return failure({ code: "invalidInput", message: "Historical song references are invalid.", issues: normalized.issues });
 
-    const validation = validatePlanningSet(normalized.set);
-    if (!validation.valid) {
-      return failure({ code: "invalidInput", message: "Completed record rows are invalid.", issues: validation.issues });
-    }
+    const historicalValidation = validateHistoricalCompletedSet(normalized.set);
+    if (historicalValidation.length > 0) return failure({ code: "invalidInput", message: "Completed historical rows are malformed.", issues: historicalValidation });
 
-    const duplicate = await this.findDuplicateService(serviceContext, undefined, input.recordId);
-    if (duplicate) {
-      return failure({ code: "invalidInput", message: `A service already exists for ${serviceContext.serviceDate} at ${serviceContext.serviceTime}.` });
+    const duplicate = await this.findDuplicateService(normalized.serviceContext, undefined, input.recordId);
+    if (duplicate) return failure({ code: "invalidInput", message: `A service already exists for ${normalized.serviceContext.serviceDate} at ${normalized.serviceContext.serviceTime}.` });
+
+    const proposed: CompletedServiceRecord = {
+      ...existing,
+      serviceContext: normalized.serviceContext,
+      set: { status: "final", language: normalized.serviceContext.language, rows: normalized.set.rows },
+    };
+    const [currentImpact, proposedImpact] = await Promise.all([
+      this.findPlansImpactedByCompleted(existing),
+      this.findPlansImpactedByCompleted(proposed),
+    ]);
+    const currentIds = new Set(currentImpact.map((impact) => impact.planId));
+    const newlyImpacted = proposedImpact.filter((impact) => !currentIds.has(impact.planId));
+    if (newlyImpacted.length > 0 && input.acceptPlanInvalidation !== true) {
+      return failure({
+        code: "invalidInput",
+        message: "Completed correction would invalidate active plans. Confirmation is required.",
+        issues: newlyImpacted.map((impact) => ({
+          path: `retroactivePlan.${impact.planId}`,
+          message: `${impact.reason} ${impact.planStatus === "final" ? "This Final plan will move to Working." : "This Working plan will require revision."}`,
+        })),
+      });
     }
 
     try {
-      return success(await this.completedServiceRecords.update(input.recordId, normalized.serviceContext, { status: "final", language: normalized.serviceContext.language, rows: normalized.set.rows }));
+      return success(await this.completedServiceRecords.update(input.recordId, normalized.serviceContext, proposed.set, newlyImpacted.map((impact) => impact.planId)));
     } catch {
       return failure({ code: "notFound", message: "Completed record was not found." });
     }
@@ -540,7 +561,7 @@ export class PlanningLifecycleService {
     return success({ ...serviceContext, referenceTopic: serviceTopicSnapshot(authoritative) });
   }
 
-  private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord, allowLanguageDeviations = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
+  private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord, allowLanguageDeviations = false, allowHistoricalTruthRows = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
     const issues: { path: string; message: string }[] = [];
     if (!this.enforceCatalogSelections) {
       return {
@@ -575,7 +596,12 @@ export class PlanningLifecycleService {
 
     for (const [index, row] of normalizedRows.entries()) {
       if (!row.song) continue;
-      if (!row.song.songId) { issues.push({ path: `rows.${index}.song`, message: "Song must be selected from the song catalog." }); continue; }
+      if (allowHistoricalTruthRows && row.song.number.trim() === "0") {
+        if (row.song.language !== "czech" && row.song.language !== "polish") issues.push({ path: `rows.${index}.song.language`, message: "Historical zero must retain Czech or Polish language." });
+        else row.song = { language: row.song.language, number: "0" };
+        continue;
+      }
+      if (!row.song.songId) { issues.push({ path: `rows.${index}.song`, message: "Positive historical song number must be selected from the catalog." }); continue; }
       if (consumeUnchangedSongSnapshot(unchangedSongs, row.song)) {
         if (!allowLanguageDeviations && !languagesForService(normalizedContext.language).includes(row.song.language)) {
           issues.push({ path: `rows.${index}.song`, message: "Song is not active for this service language." });
@@ -598,6 +624,62 @@ export class PlanningLifecycleService {
     return { serviceContext: normalizedContext, set: { ...set, rows: normalizedRows } as TSet, issues };
   }
 
+  private async annotateRevisionStates(sets: PersistedPlanningSet[]): Promise<PersistedPlanningSet[]> {
+    if (!this.referenceMelodyClasses || sets.length === 0) return sets;
+    return Promise.all(sets.map(async (set) => {
+      const conflicts = await this.findHistoryConflictsForPlan(set);
+      if (conflicts.length === 0) return { ...set, needsRevision: undefined };
+      return {
+        ...set,
+        needsRevision: {
+          reason: `Needs revision: ${conflicts.map((conflict) => conflict.reason).join(" ")}`,
+          conflictingCompletedRecordIds: [...new Set(conflicts.map((conflict) => conflict.completedRecordId))],
+        },
+      };
+    }));
+  }
+
+  private async findPlansImpactedByCompleted(record: CompletedServiceRecord): Promise<HistoryConflict[]> {
+    const plans = await this.planningSets.list();
+    const impacts: HistoryConflict[] = [];
+    for (const plan of plans) impacts.push(...await this.findHistoryConflictsForPlan(plan, [record]));
+    return impacts;
+  }
+
+  private async findHistoryConflictsForPlan(plan: PersistedPlanningSet, completedOverride?: CompletedServiceRecord[]): Promise<HistoryConflict[]> {
+    if (!this.referenceMelodyClasses) return [];
+    const completed = completedOverride ?? await this.completedServiceRecords.list();
+    if (completed.length === 0) return [];
+    const months = Math.max(0, Math.floor(await this.melodyNonRepetitionMonths()));
+    const planSongIds = plan.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []);
+    const completedSongIds = completed.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []));
+    const allIds = [...new Set([...planSongIds, ...completedSongIds])];
+    const memberships = await this.referenceMelodyClasses.getClassMemberships(allIds);
+    const classBySong = new Map(memberships.map((membership) => [membership.songId, membership.melodyClassId]));
+    const classOf = (songId: string) => classBySong.get(songId) ?? `reference-singleton:${songId}`;
+    const conflicts: HistoryConflict[] = [];
+    for (const record of completed) {
+      if (!isWithinCalendarMonths(plan.serviceContext.serviceDate, record.serviceContext.serviceDate, months)) continue;
+      let found: HistoryConflict | undefined;
+      for (const planRow of plan.rows) {
+        if (!planRow.song?.songId) continue;
+        for (const historicalRow of record.set.rows) {
+          if (!historicalRow.song?.songId || classOf(planRow.song.songId) !== classOf(historicalRow.song.songId)) continue;
+          found = {
+            planId: plan.id,
+            planStatus: plan.status,
+            completedRecordId: record.id,
+            reason: `${plan.serviceContext.serviceDate} ${plan.serviceContext.serviceTime}: song ${planRow.song.number} conflicts with Completed ${record.serviceContext.serviceDate} ${record.serviceContext.serviceTime}, song ${historicalRow.song.number}, within the ${months}-month melody non-repetition period.`,
+          };
+          break;
+        }
+        if (found) break;
+      }
+      if (found) conflicts.push(found);
+    }
+    return conflicts;
+  }
+
   private async validateFinalPeople(serviceContext: ServiceContext): Promise<{ path: string; message: string }[]> {
     const issues: { path: string; message: string }[] = [];
     for (const [role, ref] of [["priest", serviceContext.priest], ["organist", serviceContext.organist]] as const) {
@@ -616,6 +698,33 @@ export class PlanningLifecycleService {
     const completed = await this.completedServiceRecords.list();
     return completed.find((record) => record.id !== currentCompletedRecordId && record.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(record.serviceContext.serviceTime) === serviceContext.serviceTime);
   }
+}
+
+type HistoryConflict = { planId: PlanningSetId; planStatus: "working" | "final"; completedRecordId: string; reason: string };
+
+function validateHistoricalCompletedSet(set: PlanningSet): { path: string; message: string }[] {
+  const issues: { path: string; message: string }[] = [];
+  if (set.status !== "final") issues.push({ path: "status", message: "Completed snapshot status must be final." });
+  if (set.language !== "czech" && set.language !== "polish" && set.language !== "mixed") issues.push({ path: "language", message: "Completed snapshot language is invalid." });
+  if (!Array.isArray(set.rows)) return [...issues, { path: "rows", message: "Completed rows must be an array." }];
+  set.rows.forEach((row, index) => {
+    if (!row || typeof row !== "object") { issues.push({ path: `rows.${index}`, message: "Historical row is malformed." }); return; }
+    if (!row.song) return;
+    if ((row.song.language !== "czech" && row.song.language !== "polish") || typeof row.song.number !== "string" || !row.song.number.trim()) issues.push({ path: `rows.${index}.song`, message: "Historical song reference is malformed." });
+    if (row.song.songId !== undefined && (typeof row.song.songId !== "string" || !row.song.songId.trim())) issues.push({ path: `rows.${index}.song.songId`, message: "Historical catalog song ID is malformed." });
+  });
+  return issues;
+}
+
+function isWithinCalendarMonths(leftDate: string, rightDate: string, months: number): boolean {
+  const left = Date.parse(`${leftDate}T00:00:00Z`);
+  const right = Date.parse(`${rightDate}T00:00:00Z`);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
+  return right >= addMonthsUtc(left, -months) && right <= addMonthsUtc(left, months);
+}
+function addMonthsUtc(value: number, months: number): number {
+  const date = new Date(value);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, date.getUTCDate());
 }
 
 function normalizeServiceContext(context: ServiceContext): ServiceContext {
