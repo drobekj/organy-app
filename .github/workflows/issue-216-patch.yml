@@ -1,0 +1,94 @@
+name: Issue 216 single historical zero patch
+
+on:
+  push:
+    branches:
+      - fix/issue-216-single-historical-zero
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply narrow source and regression patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"expected patch anchor not found in {path}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace(
+              "src/application/interaction-contracts.ts",
+              '    if (input.historicalTruth) return queryHistoricalTruthCatalogCandidates(songs, input.queryText);',
+              '    if (input.historicalTruth) return queryHistoricalTruthCatalogCandidates(songs, input.serviceLanguage, input.queryText);',
+          )
+          replace(
+              "src/application/interaction-contracts.ts",
+              '''function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], queryText?: string): CandidateQueryResult[] {\n  const query = queryText?.trim().toLocaleLowerCase() ?? "";\n  const zeroCandidates: CandidateQueryResult[] = (["czech", "polish"] as const).map((language) => ({\n    songId: `historical-zero:${language}`,\n    language,\n    number: "0",\n    title: "Historical zero value",\n    equivalentNumbers: [],\n    aggregatePreferenceScore: 0,\n    antiphonMatch: false,\n    seasonMatch: false,\n    signal: "none",\n    preferenceShade: "none",\n    repertoire: false,\n    availability: { kind: "available" },\n    suppressedByMelodyWindow: false,\n    orderKey: `historical:0:${language}`,\n  }));''',
+              '''function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], serviceLanguage: ServiceLanguage, queryText?: string): CandidateQueryResult[] {\n  const query = queryText?.trim().toLocaleLowerCase() ?? "";\n  const zeroLanguage: ConcreteSongLanguage = serviceLanguage === "polish" ? "polish" : "czech";\n  const zeroCandidate: CandidateQueryResult = {\n    songId: `historical-zero:${zeroLanguage}`,\n    language: zeroLanguage,\n    number: "0",\n    title: "Historical zero value",\n    equivalentNumbers: [],\n    aggregatePreferenceScore: 0,\n    antiphonMatch: false,\n    seasonMatch: false,\n    signal: "none",\n    preferenceShade: "none",\n    repertoire: false,\n    availability: { kind: "available" },\n    suppressedByMelodyWindow: false,\n    orderKey: "historical:0",\n  };''',
+          )
+          replace(
+              "src/application/interaction-contracts.ts",
+              '''  return [...zeroCandidates.filter((candidate) => !query || candidate.number.includes(query) || candidate.title.toLocaleLowerCase().includes(query)), ...concrete]\n    .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));''',
+              '''  const includeZero = !query || zeroCandidate.number.includes(query) || zeroCandidate.title.toLocaleLowerCase().includes(query);\n  return [...(includeZero ? [zeroCandidate] : []), ...concrete]\n    .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));''',
+          )
+
+          replace(
+              "src/application/reference-candidate-service.ts",
+              '  if (input.historicalTruth) return queryHistoricalTruthReferenceCandidates(data.songs, input.queryText);',
+              '  if (input.historicalTruth) return queryHistoricalTruthReferenceCandidates(data.songs, input.serviceLanguage, input.queryText);',
+          )
+          replace(
+              "src/application/reference-candidate-service.ts",
+              '''function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[], queryText?: string): ReferenceCandidateQueryResult[] {\n  const query = queryText?.trim() ?? "";\n  const zeroCandidates: ReferenceCandidateQueryResult[] = (["czech", "polish"] as const).map((language) => ({\n    songId: `historical-zero:${language}`,\n    language,\n    number: "0",\n    title: "Historical zero value",\n    equivalentNumbers: [],\n    melodyClassId: `historical-zero:${language}`,\n    melodyMembers: [],\n    aggregatePreferenceScore: 0,\n    antiphonMatch: false,\n    seasonMatch: false,\n    signal: "none",\n    preferenceShade: "none",\n    repertoire: false,\n    availability: { kind: "available" },\n    suppressedByMelodyWindow: false,\n    orderKey: `historical:0:${language}`,\n  }));''',
+              '''function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[], serviceLanguage: CandidateQueryInput["serviceLanguage"], queryText?: string): ReferenceCandidateQueryResult[] {\n  const query = queryText?.trim() ?? "";\n  const zeroLanguage = serviceLanguage === "polish" ? "polish" : "czech";\n  const zeroCandidate: ReferenceCandidateQueryResult = {\n    songId: `historical-zero:${zeroLanguage}`,\n    language: zeroLanguage,\n    number: "0",\n    title: "Historical zero value",\n    equivalentNumbers: [],\n    melodyClassId: `historical-zero:${zeroLanguage}`,\n    melodyMembers: [],\n    aggregatePreferenceScore: 0,\n    antiphonMatch: false,\n    seasonMatch: false,\n    signal: "none",\n    preferenceShade: "none",\n    repertoire: false,\n    availability: { kind: "available" },\n    suppressedByMelodyWindow: false,\n    orderKey: "historical:0",\n  };''',
+          )
+          replace(
+              "src/application/reference-candidate-service.ts",
+              '''  return [...zeroCandidates.filter((candidate) => !q || candidate.number.includes(q) || candidate.title.toLocaleLowerCase().includes(q)), ...concrete]\n    .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));''',
+              '''  const includeZero = !q || zeroCandidate.number.includes(q) || zeroCandidate.title.toLocaleLowerCase().includes(q);\n  return [...(includeZero ? [zeroCandidate] : []), ...concrete]\n    .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));''',
+          )
+
+          replace(
+              "scripts/issue-214-tests.ts",
+              '''assert(historical.some((candidate) => candidate.number === "0" && candidate.language === "czech"));\nassert(historical.every((candidate) => candidate.availability.kind === "available" && candidate.signal === "none" && candidate.preferenceShade === "none" && !candidate.repertoire));''',
+              '''assert.equal(historical.filter((candidate) => candidate.number === "0").length, 1, "Historical truth must expose exactly one zero option.");\nassert(historical.some((candidate) => candidate.number === "0" && candidate.language === "czech"));\nassert(historical.every((candidate) => candidate.availability.kind === "available" && candidate.signal === "none" && candidate.preferenceShade === "none" && !candidate.repertoire));''',
+          )
+          replace(
+              "scripts/issue-214-tests.ts",
+              '''assert(memoryCandidates.some((candidate) => candidate.language === "czech"));\nassert(memoryCandidates.some((candidate) => candidate.number === "0"));''',
+              '''assert(memoryCandidates.some((candidate) => candidate.language === "czech"));\nassert.equal(memoryCandidates.filter((candidate) => candidate.number === "0").length, 1, "In-memory historical truth must expose exactly one zero option.");\nassert(memoryCandidates.some((candidate) => candidate.number === "0" && candidate.language === "polish"));''',
+          )
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Focused regression
+        run: npm run test:issue-214
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Full test suite
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Commit patch and remove runner
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/issue-216-patch.yml
+          git add src/application/interaction-contracts.ts src/application/reference-candidate-service.ts scripts/issue-214-tests.ts
+          git commit -m "fix: show one historical zero candidate"
+          git push origin HEAD:fix/issue-216-single-historical-zero
