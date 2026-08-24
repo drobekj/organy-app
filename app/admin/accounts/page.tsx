@@ -6,7 +6,7 @@ import { ProtectedActorError, resolveProtectedUser } from "../../../src/applicat
 import { ProvisionProtectedAccountForm } from "./provision-protected-account-form";
 import { ProtectedAccountEditor } from "./protected-account-editor";
 import { ProtectedStaffOnboardingForm } from "./protected-staff-onboarding-form";
-import { ConfirmSubmitButton } from "./confirm-submit-button";
+import { PersonDeleteButton } from "./person-delete-button";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -38,7 +38,7 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
     {error && <p className="auth-error" role="alert">{error}</p>}
     <section className="detail-panel" aria-label="Provision protected Account"><h2>Provision future staff Account</h2><ProvisionProtectedAccountForm targets={snapshot.eligibleActors} /></section>
     <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} currentAppUserId={currentUser.id} />)}</div></section>
-    <section className="detail-panel" aria-label="Person deletion"><h2>Persons</h2><p className="field-help">Permanent deletion is allowed only for a Person with no protected Account and no Working, Final, or Completed service reference. Otherwise deactivate the Person in Catalog.</p><div style={{ display: "grid", gap: "0.6rem" }}>{allPeople.map((person) => <div className="rows-header" key={person.id}><span>{person.displayName} · {person.active ? "active" : "inactive"} · {[person.priest ? "priest" : "", person.organist ? "organist" : ""].filter(Boolean).join(", ") || "no staff role"}</span><form action="/api/protected-accounts" method="post"><input type="hidden" name="action" value="deletePerson" /><input type="hidden" name="personId" value={person.id} /><ConfirmSubmitButton message={`Permanently delete Person ${person.displayName}? This succeeds only when no account or service history references it.`}>Delete Person permanently</ConfirmSubmitButton></form></div>)}</div></section>
+    <section className="detail-panel" aria-label="Person deletion"><h2>Persons</h2><p className="field-help">Permanent deletion is allowed only for a Person with no protected Account and no Working, Final, or Completed service reference. Otherwise deactivate the Person in Catalog.</p><div style={{ display: "grid", gap: "0.6rem" }}>{allPeople.map((person) => <div className="rows-header" key={person.id}><span>{person.displayName} · {person.active ? "active" : "inactive"} · {[person.priest ? "priest" : "", person.organist ? "organist" : ""].filter(Boolean).join(", ") || "no staff role"}</span><PersonDeleteButton personId={person.id} displayName={person.displayName} /></div>)}</div></section>
   </section></main>;
 }
 
