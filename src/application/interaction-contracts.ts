@@ -78,7 +78,7 @@ export class InMemoryInteractionRepository {
   listKnowledge() { return { antiphons: this.antiphons.map((m) => ({ ...m })), seasons: this.seasons.map((m) => ({ ...m })), melodyWindow: this.getMelodyWindow(), melodyClasses: this.listMelodyClasses() }; }
 
   queryCandidates(songs: CatalogSong[], input: CandidateQueryInput): CandidateQueryResult[] {
-    if (input.historicalTruth) return queryHistoricalTruthCatalogCandidates(songs, input.queryText);
+    if (input.historicalTruth) return queryHistoricalTruthCatalogCandidates(songs, input.serviceLanguage, input.queryText);
     const organistPersonId = input.organistPersonId;
     const languageSet = new Set(languagesForService(input.serviceLanguage));
     const recentClassIds = getRecentMelodyClassIds(this.melodyClasses, input, this.melodyWindow);
@@ -119,11 +119,12 @@ export class InMemoryInteractionRepository {
   private repertoireKey(personId: string, songId: string) { return `${personId}:${songId}`; }
 }
 
-function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], queryText?: string): CandidateQueryResult[] {
+function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], serviceLanguage: ServiceLanguage, queryText?: string): CandidateQueryResult[] {
   const query = queryText?.trim().toLocaleLowerCase() ?? "";
-  const zeroCandidates: CandidateQueryResult[] = (["czech", "polish"] as const).map((language) => ({
-    songId: `historical-zero:${language}`,
-    language,
+  const zeroLanguage: ConcreteSongLanguage = serviceLanguage === "polish" ? "polish" : "czech";
+  const zeroCandidate: CandidateQueryResult = {
+    songId: `historical-zero:${zeroLanguage}`,
+    language: zeroLanguage,
     number: "0",
     title: "Historical zero value",
     equivalentNumbers: [],
@@ -135,8 +136,8 @@ function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], queryText?:
     repertoire: false,
     availability: { kind: "available" },
     suppressedByMelodyWindow: false,
-    orderKey: `historical:0:${language}`,
-  }));
+    orderKey: "historical:0",
+  };
   const concrete = songs
     .filter((song) => !query || song.number.toLocaleLowerCase().includes(query) || song.title.toLocaleLowerCase().includes(query))
     .map((song): CandidateQueryResult => ({
@@ -156,7 +157,8 @@ function queryHistoricalTruthCatalogCandidates(songs: CatalogSong[], queryText?:
       ...(song.sheetMusicUrl ? { sheetMusicUrl: song.sheetMusicUrl } : {}),
       orderKey: `historical:1:${song.language}:${song.number}:${song.songId}`,
     }));
-  return [...zeroCandidates.filter((candidate) => !query || candidate.number.includes(query) || candidate.title.toLocaleLowerCase().includes(query)), ...concrete]
+  const includeZero = !query || zeroCandidate.number.includes(query) || zeroCandidate.title.toLocaleLowerCase().includes(query);
+  return [...(includeZero ? [zeroCandidate] : []), ...concrete]
     .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));
 }
 

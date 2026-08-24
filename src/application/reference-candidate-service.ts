@@ -163,7 +163,7 @@ export function queryReferenceCandidatesFromData(
   data: ReferenceCandidateData,
   input: CandidateQueryInput,
 ): ReferenceCandidateQueryResult[] {
-  if (input.historicalTruth) return queryHistoricalTruthReferenceCandidates(data.songs, input.queryText);
+  if (input.historicalTruth) return queryHistoricalTruthReferenceCandidates(data.songs, input.serviceLanguage, input.queryText);
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
   const membersByClass = groupSongsByClass(data.songs);
@@ -199,15 +199,16 @@ export function queryReferenceCandidatesFromData(
   return candidates.sort(compareConcreteResults);
 }
 
-function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[], queryText?: string): ReferenceCandidateQueryResult[] {
+function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[], serviceLanguage: CandidateQueryInput["serviceLanguage"], queryText?: string): ReferenceCandidateQueryResult[] {
   const query = queryText?.trim() ?? "";
-  const zeroCandidates: ReferenceCandidateQueryResult[] = (["czech", "polish"] as const).map((language) => ({
-    songId: `historical-zero:${language}`,
-    language,
+  const zeroLanguage = serviceLanguage === "polish" ? "polish" : "czech";
+  const zeroCandidate: ReferenceCandidateQueryResult = {
+    songId: `historical-zero:${zeroLanguage}`,
+    language: zeroLanguage,
     number: "0",
     title: "Historical zero value",
     equivalentNumbers: [],
-    melodyClassId: `historical-zero:${language}`,
+    melodyClassId: `historical-zero:${zeroLanguage}`,
     melodyMembers: [],
     aggregatePreferenceScore: 0,
     antiphonMatch: false,
@@ -217,8 +218,8 @@ function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[]
     repertoire: false,
     availability: { kind: "available" },
     suppressedByMelodyWindow: false,
-    orderKey: `historical:0:${language}`,
-  }));
+    orderKey: "historical:0",
+  };
   const concrete = songs
     .filter((song) => !query || matchesReferenceCandidateSearch(song, query))
     .map((song): ReferenceCandidateQueryResult => ({
@@ -240,7 +241,8 @@ function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[]
       orderKey: `historical:1:${concreteOrderKey(song)}`,
     }));
   const q = query.toLocaleLowerCase();
-  return [...zeroCandidates.filter((candidate) => !q || candidate.number.includes(q) || candidate.title.toLocaleLowerCase().includes(q)), ...concrete]
+  const includeZero = !q || zeroCandidate.number.includes(q) || zeroCandidate.title.toLocaleLowerCase().includes(q);
+  return [...(includeZero ? [zeroCandidate] : []), ...concrete]
     .sort((left, right) => left.orderKey.localeCompare(right.orderKey, undefined, { numeric: true }));
 }
 
