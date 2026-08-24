@@ -36,6 +36,11 @@ export class InMemoryPlanningSetRepository implements PlanningSetRepository {
     return this.saveSet(set, serviceContext, existingId);
   }
 
+  async demoteFinalToWorking(id: PlanningSetId): Promise<void> {
+    const current = this.sets.get(id);
+    if (current?.status === "final") this.sets.set(id, { ...current, status: "working" });
+  }
+
   async deleteById(id: PlanningSetId): Promise<void> {
     this.sets.delete(id);
 
@@ -67,6 +72,8 @@ export class InMemoryCompletedServiceRecordRepository implements CompletedServic
   private readonly records = new Map<string, CompletedServiceRecord>();
   private nextId = 1;
 
+  constructor(private readonly planningSets?: Pick<PlanningSetRepository, "demoteFinalToWorking">) {}
+
   async createFromFinalSet(record: Omit<CompletedServiceRecord, "id">): Promise<CompletedServiceRecord> {
     const completedRecord: CompletedServiceRecord = {
       ...cloneCompletedServiceRecordInput(record),
@@ -86,7 +93,7 @@ export class InMemoryCompletedServiceRecordRepository implements CompletedServic
     return record ? cloneCompletedServiceRecord(record) : undefined;
   }
 
-  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }): Promise<CompletedServiceRecord> {
+  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }, invalidatedPlanIds: PlanningSetId[] = []): Promise<CompletedServiceRecord> {
     const existing = this.records.get(id);
     if (!existing) {
       throw new Error(`Completed service record '${id}' was not found.`);
@@ -101,6 +108,7 @@ export class InMemoryCompletedServiceRecordRepository implements CompletedServic
     };
 
     this.records.set(id, updated);
+    for (const planId of invalidatedPlanIds) await this.planningSets?.demoteFinalToWorking(planId);
     return cloneCompletedServiceRecord(updated);
   }
 

@@ -1077,3 +1077,19 @@ textarea {
   gap: 0.65rem;
   flex-wrap: wrap;
 }
+
+
+.needs-revision-record {
+  border: 2px solid var(--danger);
+  border-radius: 0.85rem;
+  padding: 0.35rem;
+}
+.needs-revision-record > button {
+  outline: none;
+}
+.needs-revision-message {
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin: 0.35rem 0.5rem 0.25rem;
+}

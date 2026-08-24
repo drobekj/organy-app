@@ -75,6 +75,7 @@ export type CandidateQueryContextInput = {
   currentPlanId?: string;
   queryText?: string;
   preferenceThreshold?: number;
+  historicalTruth?: boolean;
 };
 
 export function getCandidatePopupRows(candidates: CandidateQueryResult[]): CandidatePopupRow[] {
@@ -142,6 +143,7 @@ export function buildCandidateQueryInput(input: CandidateQueryContextInput): Can
     preferenceThreshold: typeof input.preferenceThreshold === "number" ? input.preferenceThreshold : PHASE_30_1_PREFERENCE_THRESHOLD,
     ...(input.currentPlanId ? { currentPlanId: input.currentPlanId } : {}),
     candidateUsages: input.candidateUsages ?? [],
+    ...(input.historicalTruth ? { historicalTruth: true } : {}),
   };
 }
 

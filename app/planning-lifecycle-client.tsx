@@ -72,7 +72,7 @@ type CatalogClient = CatalogService | DbCatalogClient;
 type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
 type MelodyResult = { success: true; value: ReferenceMelodyClass } | { success: false; error: PlanningServiceError };
 type RepertoireResult = { success: true; value: ReferenceRepertoireMembership } | { success: false; error: PlanningServiceError };
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }): Promise<MelodyResult>; mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }): Promise<MelodyResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }): Promise<MelodyResult>; mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }): Promise<MelodyResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
 const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
 
 type PlanningRepositories = {
@@ -213,7 +213,7 @@ export class DbInteractionClient implements InteractionClient {
   async mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }) { return this.transport("mergeReferenceMelodyClasses", { referenceSongId: input.referenceSongId, mergeWithReferenceSongId: input.mergeWithReferenceSongId }, input.actor); }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
-  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) { return unwrapCandidateResponse(await this.transport("queryCandidates", buildCandidateQueryInput(input))); }
+  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }) { return unwrapCandidateResponse(await this.transport("queryCandidates", buildCandidateQueryInput(input))); }
   async hydrateCandidates(input: CandidateHydrationClientInput) { return unwrapCandidateResponse(await this.transport("hydrateCandidates", input)); }
 }
 
@@ -240,7 +240,7 @@ export class MemoryInteractionClient implements InteractionClient {
   async mergeReferenceMelodyClasses() { return { success: false as const, error: { code: "permissionDenied" as const, message: "Reference melody classes are available only in DB runtime." } }; }
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return this.repo.setRepertoire(input.actor, input.organistPersonId, input.songId, input.active); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
-  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages> }) {
+  async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }) {
     const result = await this.service.queryCandidates(buildCandidateQueryInput(input));
     return result.success ? applyMemoryTopicSignal(result.value, input.referenceTopicId) : [];
   }
@@ -315,13 +315,10 @@ function actorContextFrom(input: unknown): LocalActorRequest | undefined { if (t
 export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser }: PlanningLifecycleClientProps) {
   const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
   const interactionRepository = useMemo(() => new InMemoryInteractionRepository(), []);
-  const repositories = useMemo<PlanningRepositories>(
-    () => ({
-      planningSets: new InMemoryPlanningSetRepository(),
-      completedServiceRecords: new InMemoryCompletedServiceRecordRepository(),
-    }),
-    [],
-  );
+  const repositories = useMemo<PlanningRepositories>(() => {
+    const planningSets = new InMemoryPlanningSetRepository();
+    return { planningSets, completedServiceRecords: new InMemoryCompletedServiceRecordRepository(planningSets) };
+  }, []);
   const planningLifecycleService = useMemo(
     () =>
       runtimeMode === "db"
@@ -454,7 +451,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const activeRecordGroups = useMemo(() => groupActivePlanningSets(savedDbSets), [savedDbSets]);
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
-  const hasValidationErrors = validationResults.some((result) => !result.valid);
+  const hasValidationErrors = !completedRecord && validationResults.some((result) => !result.valid);
   const melodyCollisions = useMemo(() => findMelodyCollisions(rows.map((row, index) => ({
     rowId: row.id,
     rowLabel: `Row ${index + 1}`,
@@ -540,7 +537,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     (serviceLanguage !== "mixed" && row.selectedSong!.language !== serviceLanguage)
     || (candidateAvailabilityCurrent && selectedCandidateAvailability.byRow[row.id] === "unavailable")
   );
-  const hasEmptyRowValidation = validationResults.some((result) => result.issues.some((issue) => issue.path === "row"));
+  const hasEmptyRowValidation = !isCompletedRecordOpen && validationResults.some((result) => result.issues.some((issue) => issue.path === "row"));
   const planningActionValidationMessages = [
     ...(!serviceDate ? ["Service date is required."] : []),
     ...(!isValidServiceTime(serviceTime) ? ["Service time is required in HH:mm format between 00:00 and 23:59."] : []),
@@ -552,7 +549,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     ...(hasEmptyRowValidation ? ["Every row must include either a complete song reference or a non-empty textual note."] : []),
     ...(hasUnavailableCandidates ? ["Every candidate must be available."] : []),
     ...(hasCandidateAvailabilityError ? ["Candidate availability could not be checked."] : []),
-    ...validationResults.flatMap((result, index) => result.issues
+    ...(!isCompletedRecordOpen ? validationResults : []).flatMap((result, index) => result.issues
       .filter((issue) => issue.path !== "row")
       .map((issue) => `Row ${index + 1}: ${issue.message}`)),
     ...(hasInvalidLookupState ? [workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving."] : []),
@@ -987,7 +984,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
     setCandidateResults((current) => ({ ...current, [rowId]: [] }));
     try {
-      const candidates = await interactionClient.queryCandidates({ serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, referenceAntiphonId: referenceAntiphon?.id, referenceTopicId: referenceTopic?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
+      const candidates = await interactionClient.queryCandidates(isCompletedRecordOpen ? { serviceDate, serviceLanguage: languageAtRequest, queryText: value, candidateUsages: [], historicalTruth: true } : { serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, referenceAntiphonId: referenceAntiphon?.id, referenceTopicId: referenceTopic?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
       setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
       setCandidateLoading((current) => ({ ...current, [rowId]: false }));
@@ -1010,7 +1007,13 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setDetailEligibilityError(undefined);
     setDetailEligibilityLoading(true);
     try {
-      const candidates = await interactionClient.queryCandidates({
+      const candidates = await interactionClient.queryCandidates(isCompletedRecordOpen ? {
+        serviceDate,
+        serviceLanguage,
+        queryText: "",
+        candidateUsages: [],
+        historicalTruth: true,
+      } : {
         serviceDate,
         serviceLanguage,
         organistPersonId: organistId,
@@ -1461,16 +1464,9 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (!completedRecord || selectedRole !== "admin") return;
     if (hasAntiphonLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected antiphon must match the service language." }); setSaveState("errors"); return; }
     if (hasTopicLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected topic must match the service language." }); setSaveState("errors"); return; }
-    const languageDeviationConfirmation = confirmLanguageDeviationSave(planningRows, serviceLanguage, window.confirm);
-    if (languageDeviationConfirmation.cancelled) {
-      setServiceError({ code: "invalidInput", message: `Save cancelled. Rows ${languageDeviationConfirmation.deviationRows.join(", ")} do not match the ${serviceLanguage} service language.` });
-      setSaveState("errors");
-      return;
-    }
-
     if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
 
-    const result = await planningLifecycleService.updateCompletedRecord({
+    const baseInput = {
       role: selectedRole,
       ...({ localActorUserId: activeActor.userId } as Record<string, string>),
       recordId: completedRecord.id,
@@ -1486,15 +1482,21 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
         ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
       },
-      set: { status: "final", language: serviceLanguage, rows: planningRows },
-      allowLanguageDeviations: languageDeviationConfirmation.allowLanguageDeviations || undefined,
-    });
-
+      set: { status: "final" as const, language: serviceLanguage, rows: planningRows },
+    };
+    let result = await planningLifecycleService.updateCompletedRecord(baseInput);
     if (!result.success) {
-      setServiceError(result.error);
-      setSaveState("errors");
-      return;
+      const retroIssues = result.error.issues?.filter((issue: { path: string }) => issue.path.startsWith("retroactivePlan.")) ?? [];
+      if (retroIssues.length > 0) {
+        const accepted = window.confirm(`This historical correction invalidates active plans:
+
+${retroIssues.map((issue: { message: string }) => `• ${issue.message}`).join("\n")}
+
+Save the correction and mark those plans for revision?`);
+        if (accepted) result = await planningLifecycleService.updateCompletedRecord({ ...baseInput, acceptPlanInvalidation: true });
+      }
     }
+    if (!result.success) { setServiceError(result.error); setSaveState("errors"); return; }
 
     setLastSavedRecord({ kind: "completed", id: result.value.id });
     setServiceError(null);
@@ -1609,9 +1611,9 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         {workspace === "plans" && (
           <section className="db-workspace" aria-label="Plans">
             <div className="rows-header"><h2>Working plans</h2><button type="button" onClick={startNewDbDraft}>Start new set</button></div>
-            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
+            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={`${recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}${set.needsRevision ? " needs-revision-record" : ""}`}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button>{set.needsRevision && <p className="needs-revision-message" role="alert">{set.needsRevision.reason}</p>}</li>)}</ul>}
             <h2>Final plans</h2>
-            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
+            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={`${recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}${set.needsRevision ? " needs-revision-record" : ""}`}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button>{set.needsRevision && <p className="needs-revision-message" role="alert">{set.needsRevision.reason}</p>}</li>)}</ul>}
           </section>
         )}
 
@@ -1681,7 +1683,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
                 {organistId && !organistResults.some((person) => person.id === organistId) && <option value={organistId} disabled aria-label={`Historical inactive organist ${organist}`}>{organist} (historical inactive)</option>}
                 {organistResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
               </select>
-              <span className="field-help">{organistId ? "Selected organist; repertoire filter is active." : "Anonymous: repertoire filter is not applied while choosing candidates."}</span>
+              <span className="field-help">{isCompletedRecordOpen ? "Historical truth mode: no Planning filters are applied." : organistId ? "Selected organist; repertoire filter is active." : "Anonymous: repertoire filter is not applied while choosing candidates."}</span>
             </label>
             <label className="note-field">
               Service note
@@ -1831,7 +1833,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
                       Save completed changes
                     </button>
                     <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>

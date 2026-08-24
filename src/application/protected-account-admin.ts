@@ -158,6 +158,49 @@ export class PostgresProtectedAccountAdminService {
     } finally { client.release(); }
   }
 
+  async deleteAccount(headers: Headers, input: { appUserId?: unknown }) {
+    const currentAdmin = await this.requireAdmin(headers);
+    const appUserId = requireText(input.appUserId, "Application user is required.");
+    if (currentAdmin.id === appUserId) throw new ProtectedAccountAdminError("permissionDenied", "Sign in as another admin before deleting your own protected Account.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await serializeAdminMutation(client);
+      const target = await requireLinkedTarget(client, appUserId);
+      if (target.active && target.roles.includes("admin")) await assertAnotherActiveAdmin(client, appUserId);
+      await client.query("delete from auth_sessions where user_id = $1", [target.authUserId]);
+      await client.query("delete from auth_users where id = $1", [target.authUserId]);
+      await client.query("commit");
+      return { appUserId, deletedAuthUserId: target.authUserId, currentAdminLostAccess: false as const };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw normalizeAdminError(error);
+    } finally { client.release(); }
+  }
+
+  async deletePerson(headers: Headers, input: { personId?: unknown }) {
+    await this.requireAdmin(headers);
+    const personId = requireText(input.personId, "Person is required.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await serializeAdminMutation(client);
+      const person = await client.query("select id, display_name from catalog_persons where id = $1 for update", [personId]);
+      if (!person.rows[0]) throw new ProtectedAccountAdminError("notFound", "Person was not found.");
+      const serviceUse = await client.query("select 1 from service_contexts where priest_id = $1 or organist_id = $1 limit 1", [personId]);
+      if (serviceUse.rows[0]) throw new ProtectedAccountAdminError("conflict", "Person is referenced by service history or an active plan. Deactivate the Person instead of deleting it.");
+      const protectedUse = await client.query(`select 1 from app_users u join protected_account_actor_links l on l.app_user_id = u.id where u.person_id = $1 limit 1`, [personId]);
+      if (protectedUse.rows[0]) throw new ProtectedAccountAdminError("conflict", "Delete the protected Account before deleting this Person.");
+      await client.query("delete from app_users where person_id = $1", [personId]);
+      await client.query("delete from catalog_persons where id = $1", [personId]);
+      await client.query("commit");
+      return { personId, displayName: String(person.rows[0].display_name), currentAdminLostAccess: false as const };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw normalizeAdminError(error);
+    } finally { client.release(); }
+  }
+
   private async requireAdmin(headers: Headers) {
     try {
       const user = await resolveProtectedUser(headers, this.pool);
