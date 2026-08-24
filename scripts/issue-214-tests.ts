@@ -38,6 +38,12 @@ assert(memoryCandidates.some((candidate) => candidate.language === "czech"));
 assert.equal(memoryCandidates.filter((candidate) => candidate.number === "0").length, 1, "In-memory historical truth must expose exactly one zero option.");
 assert(memoryCandidates.some((candidate) => candidate.number === "0" && candidate.language === "polish"));
 
+const mixedHistorical = queryReferenceCandidatesFromData(referenceData, {
+  serviceDate: "2026-08-30", serviceLanguage: "mixed", historicalTruth: true,
+});
+assert.equal(mixedHistorical.filter((candidate) => candidate.number === "0").length, 1, "Mixed historical truth must still expose one zero option.");
+assert(mixedHistorical.some((candidate) => candidate.number === "0" && candidate.language === "czech"), "Mixed zero uses the stable Czech storage fallback without filtering concrete candidates.");
+
 const plans = new InMemoryPlanningSetRepository();
 const completed = new InMemoryCompletedServiceRecordRepository(plans);
 await plans.saveFinalSet({ status: "final", language: "czech", rows: [{ song: { songId: "czech:1", language: "czech", number: "1", title: "One" } }] }, {
