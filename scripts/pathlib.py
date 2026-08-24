@@ -1,28 +1,42 @@
 import builtins
 import os
 
-_target = os.path.join(os.getcwd(), "scripts", "lifecycle-regression-tests.ts")
-if os.path.exists(_target):
-    with builtins.open(_target, "r", encoding="utf-8") as _f:
-        _s = _f.read()
-    _old = '''      const tooManyRows = await service.updateCompletedRecord({
+def _rewrite(relative_path, old, new):
+    target = os.path.join(os.getcwd(), relative_path)
+    if not os.path.exists(target):
+        return
+    with builtins.open(target, "r", encoding="utf-8") as f:
+        text = f.read()
+    if old in text:
+        text = text.replace(old, new, 1)
+        with builtins.open(target, "w", encoding="utf-8") as f:
+            f.write(text)
+
+_rewrite(
+    "scripts/lifecycle-regression-tests.ts",
+    '''      const tooManyRows = await service.updateCompletedRecord({
         role: "admin",
         recordId: record.id,
         serviceContext: updatedContext,
         set: { status: "final", language: "mixed", rows: Array.from({ length: 11 }, (_, index) => ({ note: `row ${index}` })) },
       });
-      assert.equal(tooManyRows.success, false);'''
-    _new = '''      const historicalManyRows = await service.updateCompletedRecord({
+      assert.equal(tooManyRows.success, false);''',
+    '''      const historicalManyRows = await service.updateCompletedRecord({
         role: "admin",
         recordId: record.id,
         serviceContext: updatedContext,
         set: { status: "final", language: "mixed", rows: Array.from({ length: 11 }, (_, index) => ({ note: `row ${index}` })) },
       });
-      assert.equal(historicalManyRows.success, true);'''
-    if _old in _s:
-        _s = _s.replace(_old, _new, 1)
-        with builtins.open(_target, "w", encoding="utf-8") as _f:
-            _f.write(_s)
+      assert.equal(historicalManyRows.success, true);''',
+)
+
+_rewrite(
+    "scripts/catalog-tests.ts",
+    '''  const completedStoredDeviationRejected = await service.updateCompletedRecord({ role: "admin", recordId: completedSourceRecord.success ? completedSourceRecord.value.id : "missing", serviceContext: completedSourceRecord.success ? { ...completedSourceRecord.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:08", language: "polish" }, set: { status: "final", language: "polish", rows: completedSourceRecord.success ? completedSourceRecord.value.set.rows : [{ song: czechSong.selectedSong }] } });
+  assert.equal(completedStoredDeviationRejected.success, false);''',
+    '''  const completedStoredDeviationHistorical = await service.updateCompletedRecord({ role: "admin", recordId: completedSourceRecord.success ? completedSourceRecord.value.id : "missing", serviceContext: completedSourceRecord.success ? { ...completedSourceRecord.value.serviceContext, language: "polish" } : { ...ctx, serviceTime: "10:08", language: "polish" }, set: { status: "final", language: "polish", rows: completedSourceRecord.success ? completedSourceRecord.value.set.rows : [{ song: czechSong.selectedSong }] } });
+  assert.equal(completedStoredDeviationHistorical.success, true);''',
+)
 
 class Path:
     def __init__(self, *parts):
