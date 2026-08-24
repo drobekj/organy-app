@@ -3,7 +3,7 @@ import { ConfirmSubmitButton } from "./confirm-submit-button";
 
 type Account = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: string[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
 
-export function ProtectedAccountEditor({ account, currentAppUserId }: { account: Account; currentAppUserId: string }) {
+export function ProtectedAccountEditor({ account, currentAppUserId, canDeactivate }: { account: Account; currentAppUserId: string; canDeactivate: boolean }) {
   const eligibility = account.personId ? [account.personPriest ? "priest" : "", account.personOrganist ? "organist" : ""].filter(Boolean).join(", ") || "none" : undefined;
   const canResetPassword = account.appUserId !== currentAppUserId;
   return <article className="detail-panel">
@@ -14,12 +14,12 @@ export function ProtectedAccountEditor({ account, currentAppUserId }: { account:
         <p className="field-help">{account.personId ? `${account.personDisplayName ?? account.personId} · Person eligibility: ${eligibility}` : "No Person linkage"}</p>
         <p><strong>{account.active ? "Active" : "Inactive"}</strong></p>
       </div>
-      <form action="/api/protected-accounts" method="post">
+      {account.active && !canDeactivate ? <p className="field-help">Last active admin cannot be deactivated.</p> : <form action="/api/protected-accounts" method="post">
         <input type="hidden" name="action" value="setActive" />
         <input type="hidden" name="appUserId" value={account.appUserId} />
         <input type="hidden" name="active" value={account.active ? "false" : "true"} />
         <button type="submit">{account.active ? "Deactivate" : "Reactivate"}</button>
-      </form>
+      </form>}
     </div>
     <form action="/api/protected-accounts" method="post" className="planning-form">
       <input type="hidden" name="action" value="updateRoles" />

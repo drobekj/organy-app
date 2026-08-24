@@ -18,6 +18,7 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
   catch (error) { if (error instanceof ProtectedActorError) redirect("/sign-in"); throw error; }
   if (!currentUser.roles.includes("admin")) redirect("/");
   const snapshot = await new PostgresProtectedAccountAdminService(authPool).list(requestHeaders);
+  const activeAdminCount = snapshot.accounts.filter((account) => account.active && account.roles.includes("admin")).length;
   const peopleResult = await authPool.query(`
     select p.id, p.display_name, p.priest, p.organist
     from catalog_persons p
@@ -37,7 +38,7 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
     {message && <p className="saved-summary" role="status">{message}</p>}
     {error && <p className="auth-error" role="alert">{error}</p>}
     <section className="detail-panel" aria-label="Provision protected Account"><h2>Provision future staff Account</h2><ProvisionProtectedAccountForm targets={snapshot.eligibleActors} /></section>
-    <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} currentAppUserId={currentUser.id} />)}</div></section>
+    <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} currentAppUserId={currentUser.id} canDeactivate={!(account.active && account.roles.includes("admin") && activeAdminCount === 1)} />)}</div></section>
     <section className="detail-panel" aria-label="Person deletion"><h2>Persons</h2><p className="field-help">Permanent deletion is allowed only for a Person with no protected Account and no Working, Final, or Completed service reference. Otherwise deactivate the Person in Catalog.</p><div style={{ display: "grid", gap: "0.6rem" }}>{allPeople.map((person) => <div className="rows-header" key={person.id}><span>{person.displayName} · {person.active ? "active" : "inactive"} · {[person.priest ? "priest" : "", person.organist ? "organist" : ""].filter(Boolean).join(", ") || "no staff role"}</span><PersonDeleteButton personId={person.id} displayName={person.displayName} /></div>)}</div></section>
   </section></main>;
 }
