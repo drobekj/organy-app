@@ -26,6 +26,7 @@ const historical = queryReferenceCandidatesFromData(referenceData, {
 assert(historical.some((candidate) => candidate.songId === "czech:1"));
 assert(historical.some((candidate) => candidate.songId === "polish:1"), "Historical truth must not language-filter.");
 assert(historical.some((candidate) => candidate.songId === "czech:2"), "Historical truth must not repertoire/preference/non-repeat-filter.");
+assert.equal(historical.filter((candidate) => candidate.number === "0").length, 1, "Historical truth must expose exactly one zero option.");
 assert(historical.some((candidate) => candidate.number === "0" && candidate.language === "czech"));
 assert(historical.every((candidate) => candidate.availability.kind === "available" && candidate.signal === "none" && candidate.preferenceShade === "none" && !candidate.repertoire));
 assert.equal(historical.filter((candidate) => candidate.number === "1").length, 2, "Melody-equivalent concrete numbers remain independently selectable.");
@@ -34,7 +35,14 @@ const memoryCandidates = new InMemoryInteractionRepository().queryCandidates(awa
   serviceDate: "2026-08-30", serviceLanguage: "polish", organistPersonId: "missing", preferenceThreshold: 999, historicalTruth: true,
 });
 assert(memoryCandidates.some((candidate) => candidate.language === "czech"));
-assert(memoryCandidates.some((candidate) => candidate.number === "0"));
+assert.equal(memoryCandidates.filter((candidate) => candidate.number === "0").length, 1, "In-memory historical truth must expose exactly one zero option.");
+assert(memoryCandidates.some((candidate) => candidate.number === "0" && candidate.language === "polish"));
+
+const mixedHistorical = queryReferenceCandidatesFromData(referenceData, {
+  serviceDate: "2026-08-30", serviceLanguage: "mixed", historicalTruth: true,
+});
+assert.equal(mixedHistorical.filter((candidate) => candidate.number === "0").length, 1, "Mixed historical truth must still expose one zero option.");
+assert(mixedHistorical.some((candidate) => candidate.number === "0" && candidate.language === "czech"), "Mixed zero uses the stable Czech storage fallback without filtering concrete candidates.");
 
 const plans = new InMemoryPlanningSetRepository();
 const completed = new InMemoryCompletedServiceRecordRepository(plans);
