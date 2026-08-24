@@ -189,8 +189,8 @@ async function staticCoverage() {
   assert.match(planning, /referenceTopicId: referenceTopic\?\.id/);
   assert.match(
     planning,
-    /async function loadDetailEligibility[\s\S]*?interactionClient\.queryCandidates\(\{[\s\S]*?referenceAntiphonId: referenceAntiphon\?\.id,[\s\S]*?referenceTopicId: referenceTopic\?\.id,[\s\S]*?queryText: ""/,
-    "Detail eligibility refresh must preserve the selected Reference Topic so season signals are not replaced with none.",
+    /async function loadDetailEligibility[\s\S]*?interactionClient\.queryCandidates\([\s\S]*?referenceAntiphonId: referenceAntiphon\?\.id,[\s\S]*?referenceTopicId: referenceTopic\?\.id,[\s\S]*?queryText: ""/,
+    "Detail eligibility refresh must preserve the selected Reference Topic on the normal Planning branch so season signals are not replaced with none.",
   );
   assert.match(planning, /Selected topic must match the service language\./);
   assert.match(component, /\["polish", "czech"\]/);
