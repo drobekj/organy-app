@@ -12,7 +12,7 @@ def replace_once(path: str, old: str, new: str) -> None:
 replace_once(
     "app/planning-lifecycle-client.tsx",
     'const byId = new Map(result.value.map((song: CatalogSong) => [song.songId, song]));',
-    'const byId = new Map(result.value.map((song: CatalogSong) => [song.songId, song] as const));',
+    'const byId = new Map<string, CatalogSong>((result.value as CatalogSong[]).map((song) => [song.songId, song]));',
 )
 
 replace_once(
