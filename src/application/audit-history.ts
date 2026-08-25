@@ -43,6 +43,10 @@ export function humanAuditActor(actor: ActorIdentity): AuditActorSnapshot {
 
 export function systemAuditActor(): AuditActorSnapshot { return { kind: "system" }; }
 
+export function canReadAuditHistory(roles: readonly string[]): boolean {
+  return roles.includes("admin");
+}
+
 export function auditEventValues(input: AuditEventInput) {
   return {
     actorKind: input.actor.kind,
