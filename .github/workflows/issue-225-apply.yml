@@ -7,6 +7,7 @@ on:
       - .github/workflows/issue-225-apply.yml
       - scripts/issue-225-apply.py
       - scripts/issue-225-fix-page.py
+      - scripts/issue-225-fix-types.py
 
 permissions:
   contents: write
@@ -24,6 +25,7 @@ jobs:
           cache: npm
       - run: python scripts/issue-225-apply.py
       - run: python scripts/issue-225-fix-page.py
+      - run: python scripts/issue-225-fix-types.py
       - run: npm install --save-exact @vercel/functions@3.9.5
       - run: npm run typecheck
       - run: npm test
@@ -31,7 +33,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f .github/workflows/issue-225-apply.yml scripts/issue-225-apply.py scripts/issue-225-fix-page.py
+          git rm -f .github/workflows/issue-225-apply.yml scripts/issue-225-apply.py scripts/issue-225-fix-page.py scripts/issue-225-fix-types.py
           git add -A
           git commit -m "Issue 225: reduce DB-backed interaction latency"
           git push origin HEAD:fix/issue-225-db-latency
