@@ -33,3 +33,13 @@ export function getAppDbPool(databaseUrl: string | undefined = process.env.DATAB
   appDbPools.set(key, pool);
   return pool;
 }
+
+/** Acceptance-only teardown for temporary databases. Production must keep warm pools alive. */
+export async function disposeAppDbPoolForAcceptance(databaseUrl: string | undefined): Promise<void> {
+  const key = databaseUrl?.trim();
+  if (!key) return;
+  const pool = appDbPools.get(key);
+  if (!pool) return;
+  appDbPools.delete(key);
+  await pool.end();
+}
