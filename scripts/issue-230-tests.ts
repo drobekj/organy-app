@@ -26,10 +26,12 @@ async function main() {
   assert.match(clientSource, /completedInvalidationPreview\?\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");
   assert.match(clientSource, /historyConflictCount/, "History must expose a concise current-conflict count");
   const recordAlarmRule = cssSource.match(/\.saved-set-list button\.needs-revision-record\s*\{([\s\S]*?)\}/)?.[1] ?? "";
-  assert.match(recordAlarmRule, /outline:\s*3px solid var\(--danger\)/);
+  assert.match(recordAlarmRule, /border:\s*3px solid var\(--danger\)/);
+  assert.doesNotMatch(recordAlarmRule, /outline:/, "conflicting record must have one red contour, not border plus outline");
   assert.match(recordAlarmRule, /background:\s*#fef3f2/);
   const rowAlarmRule = cssSource.match(/\.needs-revision-row\s*\{([\s\S]*?)\}/)?.[1] ?? "";
-  assert.match(rowAlarmRule, /outline:\s*3px solid var\(--danger\)/);
+  assert.match(rowAlarmRule, /border:\s*3px solid var\(--danger\)/);
+  assert.doesNotMatch(rowAlarmRule, /outline:/, "conflicting fieldset must preserve native legend-gap geometry with one border");
   assert.match(rowAlarmRule, /background:\s*#fef3f2/);
   const rowInputRule = cssSource.match(/\.needs-revision-row \.candidate-combobox > input\s*\{([\s\S]*?)\}/)?.[1] ?? "";
   assert.match(rowInputRule, /border-color:\s*var\(--border\)/, "inner song control stays gray inside a red conflict row");
@@ -133,6 +135,26 @@ async function main() {
     const activeAfterFirst = snapshotAfterFirst.activeSets.find((plan) => plan.id === working.id);
     assert.deepEqual(activeAfterFirst?.needsRevision?.conflictingRowIndexes, [0]);
 
+    const workingConflictPreviewResponse = await planningLifecyclePost(requestFor("previewPlanningSetConflict", {
+      setId: working.id,
+      serviceDate: working.serviceContext.serviceDate,
+      rows: working.rows,
+    }));
+    assert.equal(workingConflictPreviewResponse.status, 200);
+    const workingConflictPreview = await workingConflictPreviewResponse.json() as { success: boolean; value?: PlanningPreviewValue };
+    assert.equal(workingConflictPreview.success, true);
+    assert.deepEqual(workingConflictPreview.value?.conflictingRowIndexes, [0], "current Working draft preview must expose the persisted historical conflict");
+
+    const resolvedWorkingPreviewResponse = await planningLifecyclePost(requestFor("previewPlanningSetConflict", {
+      setId: working.id,
+      serviceDate: working.serviceContext.serviceDate,
+      rows: [{ song: song(0) }, { song: song(4) }],
+    }));
+    assert.equal(resolvedWorkingPreviewResponse.status, 200);
+    const resolvedWorkingPreview = await resolvedWorkingPreviewResponse.json() as { success: boolean; value?: PlanningPreviewValue };
+    assert.equal(resolvedWorkingPreview.success, true);
+    assert.deepEqual(resolvedWorkingPreview.value?.conflictingRowIndexes, [], "replacing the conflicting Working song must clear the authoritative draft conflict before Save");
+
     const loadedResponse = await planningLifecyclePost(requestFor("loadCompletedRecord", { recordId: completedId }));
     assert.equal(loadedResponse.status, 200);
     const loaded = await loadedResponse.json() as { success: boolean; value?: CompletedServiceRecord };
@@ -235,6 +257,9 @@ type PreviewImpact = {
 type PreviewValue = {
   impactedPlans: PreviewImpact[];
   newlyImpactedPlans: PreviewImpact[];
+};
+type PlanningPreviewValue = {
+  conflictingRowIndexes: number[];
 };
 
 function requestFor(action: string, input: unknown): Request {

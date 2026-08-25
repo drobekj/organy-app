@@ -1081,9 +1081,7 @@ textarea {
 
 .saved-set-list button.needs-revision-record {
   background: #fef3f2;
-  border-color: var(--danger);
-  outline: 3px solid var(--danger);
-  outline-offset: -3px;
+  border: 3px solid var(--danger);
 }
 
 .history-scroll-list {
@@ -1094,9 +1092,7 @@ textarea {
 
 .needs-revision-row {
   background: #fef3f2;
-  border-color: var(--danger);
-  outline: 3px solid var(--danger);
-  outline-offset: -3px;
+  border: 3px solid var(--danger);
 }
 
 .needs-revision-row .candidate-combobox > input {
