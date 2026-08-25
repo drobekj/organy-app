@@ -31,7 +31,7 @@ export type ReferenceCandidateSong = ReferenceCatalogRecord & {
   classId: string;
   aggregatePreferenceScore: number;
   repertoire: boolean;
-  fallbackRepertoire: boolean;
+  fallbackRepertoire?: boolean;
 };
 
 export type ReferenceCandidateMelodyMember = {
