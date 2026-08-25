@@ -3,7 +3,7 @@ import type { PlanningSet, ServiceContext } from "../../planning-lifecycle";
 export type PlanningSetId = string;
 export type CompletedServiceRecordId = string;
 
-export type PlanningSetRevisionState = { reason: string; conflictingCompletedRecordIds: string[]; conflictingRowIndexes: number[] };
+export type PlanningSetRevisionState = { reason: string; conflictingCompletedRecordIds: string[]; conflictingRowIndexes?: number[] };
 
 export type PersistedPlanningSet = PlanningSet & {
   id: PlanningSetId;
