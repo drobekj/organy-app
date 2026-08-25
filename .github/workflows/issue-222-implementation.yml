@@ -65,10 +65,7 @@ jobs:
         run: npm run build
       - name: Commit verified implementation
         run: |
-          rm scripts/issue-222-implementation.py
-          rm scripts/issue-222-correction.py
-          rm scripts/issue-222-correction-2.py
-          rm .github/workflows/issue-222-implementation.yml
+          git restore --source=HEAD -- .github/workflows/ci.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
