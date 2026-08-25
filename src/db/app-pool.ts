@@ -19,6 +19,12 @@ export function getAppDbPool(databaseUrl: string | undefined = process.env.DATAB
     connectionTimeoutMillis: 10_000,
     allowExitOnIdle: true,
   });
+  pool.on("error", (error) => {
+    console.error("PostgreSQL idle client error.", {
+      name: error.name,
+      message: error.message,
+    });
+  });
   // @vercel/functions documents node-postgres Pool as supported, while the
   // current DbPool union declaration does not structurally accept pg.Pool.
   attachDatabasePool(pool as unknown as Parameters<typeof attachDatabasePool>[0]);

@@ -15,6 +15,7 @@ const decision = read("docs/production-hosting-decision.md");
 const runbook = read("docs/production-runtime-runbook.md");
 const recovery = read("scripts/lib/postgres-recovery.ts");
 const authServer = read("src/auth/server.ts");
+const appPool = read("src/db/app-pool.ts");
 const pkg = JSON.parse(read("package.json")) as {
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
@@ -93,7 +94,9 @@ assert.equal(
   "documented bootstrap must match package.json",
 );
 
-assert.ok(authServer.includes('from "pg"'), "production auth runtime must still be recognized as a pg consumer");
+assert.ok(authServer.includes("getAppDbPool"), "production auth runtime must use the shared application DB pool");
+assert.ok(appPool.includes('from "pg"'), "shared application DB pool must remain a pg consumer");
+assert.ok(appPool.includes("attachDatabasePool"), "shared application DB pool must remain Vercel-managed");
 assert.ok(
   pkg.dependencies?.pg || pkg.devDependencies?.pg,
   "pg must remain declared while the later deployment slice resolves production packaging",
