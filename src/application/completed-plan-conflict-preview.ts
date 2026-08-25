@@ -36,22 +36,25 @@ export async function enrichRevisionRowIndexes(input: {
   melodyClasses: ReferenceMelodyClassProvider;
   months: number;
 }): Promise<PersistedPlanningSet[]> {
-  const revisionPlans = input.plans.filter((plan) => plan.needsRevision);
-  if (revisionPlans.length === 0) return input.plans;
-  const impacts = await findCompletedPlanConflicts(revisionPlans, input.completedRecords, input.melodyClasses, input.months);
-  const indexesByPlan = new Map<PlanningSetId, Set<number>>();
+  if (input.plans.length === 0) return input.plans;
+  const impacts = await findCompletedPlanConflicts(input.plans, input.completedRecords, input.melodyClasses, input.months);
+  const impactsByPlan = new Map<PlanningSetId, CompletedPlanConflictImpact[]>();
   for (const impact of impacts) {
-    const indexes = indexesByPlan.get(impact.planId) ?? new Set<number>();
-    impact.conflictingRowIndexes.forEach((index) => indexes.add(index));
-    indexesByPlan.set(impact.planId, indexes);
+    const planImpacts = impactsByPlan.get(impact.planId) ?? [];
+    planImpacts.push(impact);
+    impactsByPlan.set(impact.planId, planImpacts);
   }
+
   return input.plans.map((plan) => {
-    if (!plan.needsRevision) return plan;
+    const planImpacts = impactsByPlan.get(plan.id) ?? [];
+    if (planImpacts.length === 0) return { ...plan, needsRevision: undefined };
+    const conflictingRowIndexes = [...new Set(planImpacts.flatMap((impact) => impact.conflictingRowIndexes))].sort((left, right) => left - right);
     return {
       ...plan,
       needsRevision: {
-        ...plan.needsRevision,
-        conflictingRowIndexes: [...(indexesByPlan.get(plan.id) ?? new Set<number>())].sort((left, right) => left - right),
+        reason: `Needs revision: ${planImpacts.map((impact) => impact.reason).join(" ")}`,
+        conflictingCompletedRecordIds: [...new Set(planImpacts.map((impact) => impact.completedRecordId))],
+        conflictingRowIndexes,
       },
     };
   });
