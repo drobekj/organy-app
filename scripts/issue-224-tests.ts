@@ -34,6 +34,20 @@ async function main() {
   assert.match(cssSource, /\.needs-revision-row\s*\{[\s\S]*?border:\s*2px solid var\(--danger\)/);
   assert.match(cssSource, /\.history-scroll-list\s*\{[\s\S]*?overflow-y:\s*auto/);
 
+  const previewWarningIndex = clientSource.indexOf('className="error-summary completed-invalidation-warning"');
+  const serviceContextIndex = clientSource.indexOf('<legend>Service context</legend>');
+  const formActionsIndex = clientSource.indexOf('<div className="form-actions">');
+  assert.ok(previewWarningIndex > serviceContextIndex && previewWarningIndex < formActionsIndex, "Completed conflict warning must render in the Planning alert slot above form actions");
+  assert.match(clientSource, /Historical correction conflicts with/, "Completed conflict warning must use terse copy");
+  assert.doesNotMatch(clientSource, /Open a red-outlined plan/, "Plans alert must not contain verbose navigation copy");
+  assert.doesNotMatch(clientSource, /needs-revision-message/, "per-plan revision explanation must be removed");
+  assert.match(clientSource, /className=\{set\.needsRevision \? "needs-revision-record" : undefined\}/, "revision styling must be applied to the existing plan button");
+  assert.match(cssSource, /\.saved-set-list button\.needs-revision-record\s*\{[\s\S]*?border-color:\s*var\(--danger\)/, "conflicting plan must replace the normal gray button border with red");
+  const rowInputRule = cssSource.match(/\.needs-revision-row \.candidate-combobox > input\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  assert.match(rowInputRule, /border-color:\s*var\(--border\)/, "inner conflicting-song control must keep the normal gray border");
+  assert.doesNotMatch(rowInputRule, /border-color:\s*var\(--danger\)/, "inner conflicting-song control must not receive the red row border");
+  assert.match(rowInputRule, /color:\s*#98a2b3/, "conflicting song text must remain muted");
+
   const pool = new Pool({ connectionString: databaseUrl });
   const db = drizzle(pool, { schema });
   const dependencies: PlanningLifecycleDrizzleAdapterDependencies = {
