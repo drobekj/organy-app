@@ -1,6 +1,14 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
+
+def read(path: str) -> str:
+    return (root / path).read_text(encoding="utf-8")
+
+def write(path: str, content: str) -> None:
+    (root / path).write_text(content, encoding="utf-8")
+
+# Correct the generated acceptance harness for the repository's CJS tsx mode.
 path = root / "scripts/issue-222-audit-tests.ts"
 path.write_text(r'''import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -76,4 +84,53 @@ void main().catch((error: unknown) => {
   process.exitCode = 1;
 });
 ''', encoding="utf-8")
-print("Issue #222 acceptance harness corrected.")
+
+# Preserve validated action values across transaction closures so TypeScript
+# does not lose narrowing of optional request properties.
+for route in ["app/api/catalog/route.ts", "app/api/planning-lifecycle/route.ts"]:
+    text = read(route)
+    marker = '  if (!body.action || !['
+    if marker not in text:
+        raise RuntimeError(f"Action validation marker missing in {route}")
+    text = text.replace(marker, '  const action = body.action;\n  if (!action || ![', 1)
+    # Only the post-parse/action-handling portion needs the stable alias.
+    split_at = text.index('  const action = body.action;')
+    prefix, suffix = text[:split_at], text[split_at:]
+    suffix = suffix.replace('body.action', 'action')
+    suffix = suffix.replace('const action = action;', 'const action = body.action;', 1)
+    write(route, prefix + suffix)
+
+# Repository-level actor parameters are optional for legacy direct repository
+# acceptance harnesses. Production services still always pass the actor, and
+# audit writing only occurs when that actor is present.
+melody = read("src/application/reference-melody.ts")
+melody = melody.replace(
+    'mergeReferenceMelodyClasses(referenceSongId: string, mergeWithReferenceSongId: string, actor: ActorIdentity): Promise<ReferenceMelodyClass | undefined>;',
+    'mergeReferenceMelodyClasses(referenceSongId: string, mergeWithReferenceSongId: string, actor?: ActorIdentity): Promise<ReferenceMelodyClass | undefined>;'
+)
+melody = melody.replace(
+    'async mergeReferenceMelodyClasses(anchor: string, target: string, actor: ActorIdentity) {',
+    'async mergeReferenceMelodyClasses(anchor: string, target: string, actor?: ActorIdentity) {'
+)
+melody = melody.replace(
+    'if (anchorClass !== targetClass && result) {',
+    'if (anchorClass !== targetClass && result && actor) {'
+)
+write("src/application/reference-melody.ts", melody)
+
+antiphon = read("src/application/reference-antiphon-recommendation.ts")
+antiphon = antiphon.replace(
+    'set(antiphonId: string, referenceSongId: string | null, actor: ActorIdentity): Promise<SetResult>;',
+    'set(antiphonId: string, referenceSongId: string | null, actor?: ActorIdentity): Promise<SetResult>;'
+)
+antiphon = antiphon.replace(
+    'async set(antiphonId: string, referenceSongId: string | null, actor: ActorIdentity): Promise<SetResult> {',
+    'async set(antiphonId: string, referenceSongId: string | null, actor?: ActorIdentity): Promise<SetResult> {'
+)
+antiphon = antiphon.replace(
+    'if (value && beforeSongId !== afterSongId) {',
+    'if (value && beforeSongId !== afterSongId && actor) {'
+)
+write("src/application/reference-antiphon-recommendation.ts", antiphon)
+
+print("Issue #222 acceptance and type compatibility corrections applied.")
