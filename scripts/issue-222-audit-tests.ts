@@ -45,8 +45,8 @@ async function main() {
       serviceDate: "2099-01-01",
       serviceTime: "10:00",
       language: "czech" as const,
-      priest: { displayName: `${marker} Working Priest` },
-      organist: { displayName: `${marker} Working Organist` },
+      priest: { displayName: "Anonymous" },
+      organist: { displayName: "Anonymous" },
       note: `${marker} working`,
     };
     const workingSet = {
