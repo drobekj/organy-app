@@ -2,6 +2,8 @@ import { attachDatabasePool } from "@vercel/functions";
 import { Pool } from "pg";
 
 type AppDbGlobal = typeof globalThis & { __organyAppDbPools?: Map<string, Pool> };
+type ErrorAwarePool = Pool & { on(event: "error", listener: (error: Error) => void): void };
+
 const appDbGlobal = globalThis as AppDbGlobal;
 const appDbPools = appDbGlobal.__organyAppDbPools ?? new Map<string, Pool>();
 appDbGlobal.__organyAppDbPools = appDbPools;
@@ -19,7 +21,7 @@ export function getAppDbPool(databaseUrl: string | undefined = process.env.DATAB
     connectionTimeoutMillis: 10_000,
     allowExitOnIdle: true,
   });
-  pool.on("error", (error) => {
+  (pool as ErrorAwarePool).on("error", (error: Error) => {
     console.error("PostgreSQL idle client error.", {
       name: error.name,
       message: error.message,
