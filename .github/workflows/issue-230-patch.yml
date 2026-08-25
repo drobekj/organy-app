@@ -37,17 +37,23 @@ jobs:
           ref: fix/issue-230-persistent-bidirectional-conflicts
       - name: Apply guarded patch
         run: python scripts/issue-230-patch.py
-      - name: Align Issue 230 source matcher
+      - name: Align Issue 230 source matchers
         run: |
           python - <<'PY'
           from pathlib import Path
           path = Path("scripts/issue-230-tests.ts")
           text = path.read_text(encoding="utf-8")
-          old = 'assert.match(clientSource, /completedInvalidationPreview\\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");'
-          new = 'assert.match(clientSource, /completedInvalidationPreview\\?\\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");'
-          if text.count(old) != 1:
-              raise SystemExit("Issue 230 source matcher drifted")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          replacements = {
+            'assert.match(clientSource, /completedInvalidationPreview\\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");':
+              'assert.match(clientSource, /completedInvalidationPreview\\?\\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");',
+            'assert.match(cssSource, /\\.saved-set-list button\\.needs-revision-record\\s*\\{[\\s\\S]*?outline:\\s*3px solid var\\(--danger\\)[\\s\\S]*?background:\\s*#fef3f2/);\n  assert.match(cssSource, /\\.needs-revision-row\\s*\\{[\\s\\S]*?outline:\\s*3px solid var\\(--danger\\)[\\s\\S]*?background:\\s*#fef3f2/);':
+              'const recordAlarmRule = cssSource.match(/\\.saved-set-list button\\.needs-revision-record\\s*\\{([\\s\\S]*?)\\}/)?.[1] ?? "";\n  assert.match(recordAlarmRule, /outline:\\s*3px solid var\\(--danger\\)/);\n  assert.match(recordAlarmRule, /background:\\s*#fef3f2/);\n  const rowAlarmRule = cssSource.match(/\\.needs-revision-row\\s*\\{([\\s\\S]*?)\\}/)?.[1] ?? "";\n  assert.match(rowAlarmRule, /outline:\\s*3px solid var\\(--danger\\)/);\n  assert.match(rowAlarmRule, /background:\\s*#fef3f2/);',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f"Issue 230 matcher drifted: {old[:80]}")
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
           PY
       - uses: actions/setup-node@v4
         with:
