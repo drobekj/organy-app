@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { PostgresReferenceCatalogProvider } from "../../../src/application/postgres-reference-catalog";
 import type { ReferenceCatalogQuery } from "../../../src/application/reference-catalog-contract";
+import { getAppDbPool } from "../../../src/db/app-pool";
 
 type ReferenceAction = "list" | "getById";
 
@@ -15,8 +16,7 @@ export async function POST(request: Request) {
   const error = validateInput(body.action, body.input);
   if (error) return NextResponse.json({ error }, { status: 400 });
 
-  const { Pool } = await import("pg");
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  const pool = getAppDbPool();
   try {
     const provider = new PostgresReferenceCatalogProvider(pool);
     if (body.action === "list") return NextResponse.json(await provider.list(body.input as ReferenceCatalogQuery));
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     return record ? NextResponse.json(record) : NextResponse.json({ error: "Reference catalog record not found." }, { status: 404 });
   } catch (caught) {
     return NextResponse.json({ error: caught instanceof Error ? caught.message : "Reference catalog API failed." }, { status: 500 });
-  } finally { await pool.end(); }
+  }
 }
 
 function validateInput(action: ReferenceAction, input: unknown): string | undefined {

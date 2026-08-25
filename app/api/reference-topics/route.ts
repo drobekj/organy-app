@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
+import { getAppDbPool } from "../../../src/db/app-pool";
 
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const language = (value: unknown): value is "czech" | "polish" => value === "czech" || value === "polish";
@@ -20,8 +21,7 @@ export async function POST(request: Request) {
   } else {
     if (Object.keys(input).length !== 2 || !language(input.language) || !Number.isInteger(input.canonicalSongNumber) || Number(input.canonicalSongNumber) <= 0) return NextResponse.json({ error: "Valid Topic resolution input is required." }, { status: 400 });
   }
-  const { Pool } = await import("pg");
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  const pool = getAppDbPool();
   try {
     const provider = new PostgresReferenceThematicSectionProvider(pool);
     if (body.action === "listSections") return NextResponse.json(await provider.listSections(input.language as "czech" | "polish"));
@@ -33,7 +33,5 @@ export async function POST(request: Request) {
     return found ? NextResponse.json(found) : NextResponse.json({ error: "Reference Topic not found." }, { status: 404 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Reference Topic API failed." }, { status: 500 });
-  } finally {
-    await pool.end();
   }
 }

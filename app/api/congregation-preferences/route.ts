@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
+import { getAppDbPool } from "../../../src/db/app-pool";
 import { CongregationVoterError, PostgresCongregationPreferenceService } from "../../../src/application/congregation-preference-voter";
 
 const congregationVoterCookie = "organy_congregation_voter";
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     return response;
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  const pool = getAppDbPool();
   try {
     const service = new PostgresCongregationPreferenceService(pool);
     if (action === "enterNickname") {
@@ -52,8 +52,6 @@ export async function POST(request: NextRequest) {
       return problem(error.message, status);
     }
     return problem(error instanceof Error ? error.message : "Congregation preference request failed.", 500);
-  } finally {
-    await pool.end();
   }
 }
 

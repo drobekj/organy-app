@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { Pool, type PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
+import { getAppDbPool } from "../../../src/db/app-pool";
 import { PgInteractionRepository } from "../../../src/application/db-interaction-repository";
 import { InteractionService } from "../../../src/application/interaction-service";
 import type { ActorIdentity } from "../../../src/application/interaction-contracts";
@@ -20,13 +21,13 @@ const pgCatalog = (pool: Pick<Pool, "query">) => ({ listSongs: async () => {
 
 type InteractionPoolLease = { pool: Pool; release: () => Promise<void> };
 type InteractionPoolLeaseFactory = (databaseUrl: string) => InteractionPoolLease;
-const productionPoolLease: InteractionPoolLeaseFactory = (databaseUrl) => {
-  const pool = new Pool({ connectionString: databaseUrl });
-  return { pool, release: () => pool.end() };
-};
+const productionPoolLease: InteractionPoolLeaseFactory = (databaseUrl) => ({
+  pool: getAppDbPool(databaseUrl),
+  release: async () => undefined,
+});
 let acquirePoolLease = productionPoolLease;
 
-/** Narrow acceptance seam. Production continues to own and close one Pool per request. */
+/** Narrow acceptance seam. Production uses the warm process-level managed pool. */
 export function useInteractionPoolForAcceptance(pool: Pool): () => void {
   const previous = acquirePoolLease;
   acquirePoolLease = () => ({ pool, release: async () => undefined });

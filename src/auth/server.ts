@@ -3,18 +3,14 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { username } from "better-auth/plugins";
 import { APIError } from "better-auth/api";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import * as schema from "../db/schema";
+import { getAppDbPool } from "../db/app-pool";
 import { assertProductionRuntimeConfig } from "../config/production-runtime";
-
-type AuthGlobal = typeof globalThis & { __organyAuthPool?: Pool };
-const authGlobal = globalThis as AuthGlobal;
 
 // Build/test module construction may use this inert local fallback. Protected runtime access
 // always passes through assertProtectedAuthConfigured() before Better Auth session work.
 const databaseUrl = process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/organy_app";
-export const authPool = authGlobal.__organyAuthPool ?? new Pool({ connectionString: databaseUrl });
-if (process.env.NODE_ENV !== "production") authGlobal.__organyAuthPool = authPool;
+export const authPool = getAppDbPool(databaseUrl);
 
 const authDb = drizzle(authPool, { schema });
 

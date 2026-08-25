@@ -157,6 +157,10 @@ type PlanningLifecycleClientProps = {
 };
 
 class DbPlanningLifecycleClient {
+  async getWorkspaceSnapshot() {
+    return callPlanningLifecycleApi("getWorkspaceSnapshot", {});
+  }
+
   async listPlanningSets() {
     return callPlanningLifecycleApi("listPlanningSets", {});
   }
@@ -276,6 +280,8 @@ function candidateBaseNumber(value: string): number | undefined {
 class DbCatalogClient {
   async getPerson(input: { id: string }) { return callCatalogApi("getPerson", input); }
   async getSong(input: { songId: string }) { return callCatalogApi("getSong", input); }
+  async getSongs(input: { songIds: string[] }) { return callCatalogApi("getSongs", input); }
+  async getPlanningPeople() { return callCatalogApi("getPlanningPeople", {}); }
   async searchPeople(input: { role: PersonRole; query?: string }) { return callCatalogApi("searchPeople", input); }
   async listPeople() { return callCatalogApi("listPeople", {}); }
   async savePerson(input: { role: PlanningRole; actorUserId?: string; person: Omit<CatalogPerson, "id"> & { id?: string } }) { return callCatalogApi("savePerson", input, input.actorUserId ? { userId: input.actorUserId, role: input.role } : undefined); }
@@ -450,10 +456,27 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   }, [runtimeMode]);
 
   useEffect(() => {
-    void refreshCatalogAdmin();
-    void catalogClient.searchPeople({ role: "priest", query: "" }).then((r) => { if (r.success) setPriestResults(r.value); });
-    void catalogClient.searchPeople({ role: "organist", query: "" }).then((r) => { if (r.success) setOrganistResults(r.value); });
-  }, [selectedRole, runtimeMode, catalogClient]);
+    if (workspace !== "planning") return;
+    if (runtimeMode === "db" && catalogClient instanceof DbCatalogClient) {
+      void catalogClient.getPlanningPeople().then((result) => {
+        if (!result.success) return;
+        setPriestResults(result.value.priests);
+        setOrganistResults(result.value.organists);
+      });
+      return;
+    }
+    void Promise.all([
+      catalogClient.searchPeople({ role: "priest", query: "" }),
+      catalogClient.searchPeople({ role: "organist", query: "" }),
+    ]).then(([priests, organists]) => {
+      if (priests.success) setPriestResults(priests.value);
+      if (organists.success) setOrganistResults(organists.value);
+    });
+  }, [workspace, runtimeMode, catalogClient]);
+
+  useEffect(() => {
+    if (workspace === "catalog" && selectedRole === "admin") void refreshCatalogAdmin();
+  }, [workspace, selectedRole, runtimeMode, catalogClient]);
 
   useEffect(() => {
     if (!persistedSet && !completedRecord && saveState === "unsaved") {
@@ -810,8 +833,21 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   }
 
   async function refreshDbSets() {
-    const result = await planningLifecycleService.listPlanningSets();
-    const completedResult = await planningLifecycleService.listCompletedRecords();
+    if (runtimeMode === "db" && planningLifecycleService instanceof DbPlanningLifecycleClient) {
+      const snapshot = await planningLifecycleService.getWorkspaceSnapshot();
+      if (snapshot.success) {
+        setSavedDbSets(snapshot.value.activeSets);
+        setCompletedRecords(snapshot.value.completedRecords);
+        setDraftPeopleDefaults(snapshot.value.draftPeopleDefaults);
+        return snapshot.value;
+      }
+      return { activeSets: savedDbSets, completedRecords, draftPeopleDefaults };
+    }
+
+    const [result, completedResult] = await Promise.all([
+      planningLifecycleService.listPlanningSets(),
+      planningLifecycleService.listCompletedRecords(),
+    ]);
     const activeSets = result.success ? result.value : savedDbSets;
     const completed = completedResult.success ? completedResult.value : completedRecords;
     const defaults = await getEligibleDraftPeopleDefaults(completed);
@@ -828,6 +864,14 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
   async function refreshCatalogAdmin() {
     if (selectedRole !== "admin") return;
+    if (runtimeMode === "db" && catalogClient instanceof DbCatalogClient) {
+      const snapshot = await callCatalogApi("getAdminCatalogSnapshot", {}, activeActor);
+      if (snapshot.success) {
+        setPeopleAdmin(snapshot.value.people);
+        setSongsAdmin(snapshot.value.songs);
+      }
+      return;
+    }
     const [people, songs] = await Promise.all([catalogClient.listPeople(), catalogClient.listSongs()]);
     if (people.success) setPeopleAdmin(people.value);
     if (songs.success) setSongsAdmin(songs.value);
@@ -851,6 +895,22 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
   async function toggleAdminSong(song: CatalogSong) {
     return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, actorUserId: activeActor.userId, songId: song.songId, active: !song.active }));
+  }
+
+  async function enrichEditableRowsWithCurrentSheetMusic(rowsToEnrich: EditableRow[]): Promise<EditableRow[]> {
+    const songIds = [...new Set(rowsToEnrich.flatMap((row) => row.selectedSong?.songId ? [row.selectedSong.songId] : []))];
+    if (songIds.length === 0) return rowsToEnrich;
+    if (runtimeMode === "db" && catalogClient instanceof DbCatalogClient) {
+      const result = await catalogClient.getSongs({ songIds });
+      if (!result.success) return rowsToEnrich;
+      const byId = new Map<string, CatalogSong>((result.value as CatalogSong[]).map((song) => [song.songId, song]));
+      return rowsToEnrich.map((row) => {
+        if (!row.selectedSong?.songId) return row;
+        const current = byId.get(row.selectedSong.songId);
+        return current?.sheetMusicUrl ? { ...row, selectedSong: { ...row.selectedSong, sheetMusicUrl: current.sheetMusicUrl } } : row;
+      });
+    }
+    return enrichRowsWithCurrentSheetMusic(rowsToEnrich, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } });
   }
 
   async function hydrateEditableRows(rowsToHydrate: EditableRow[], context: { organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string }): Promise<EditableRow[]> {
@@ -886,7 +946,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setCandidateAntiphonKey(set.serviceContext.antiphonKey ?? "");
     setCandidateSeasonKey(set.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = set.rows.length ? set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, set.serviceContext.language)];
-    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }), { organistPersonId: set.serviceContext.organist.id, referenceAntiphonId: set.serviceContext.referenceAntiphon?.id, referenceTopicId: set.serviceContext.referenceTopic?.id, antiphonKey: set.serviceContext.antiphonKey, liturgicalSeasonKey: set.serviceContext.liturgicalSeasonKey }));
+    setRows(await hydrateEditableRows(await enrichEditableRowsWithCurrentSheetMusic(editableRows), { organistPersonId: set.serviceContext.organist.id, referenceAntiphonId: set.serviceContext.referenceAntiphon?.id, referenceTopicId: set.serviceContext.referenceTopic?.id, antiphonKey: set.serviceContext.antiphonKey, liturgicalSeasonKey: set.serviceContext.liturgicalSeasonKey }));
     setNextRowId(editableRows.length + 1);
     setSaveState(set.status === "working" ? "saved" : "finalized");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -910,7 +970,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setCandidateAntiphonKey(record.serviceContext.antiphonKey ?? "");
     setCandidateSeasonKey(record.serviceContext.liturgicalSeasonKey ?? "");
     const editableRows = record.set.rows.length ? record.set.rows.map((row, index) => fromPlanningRow(row, index + 1)) : [createEmptyRow(1, record.serviceContext.language)];
-    setRows(await hydrateEditableRows(await enrichRowsWithCurrentSheetMusic(editableRows, { findSongById: async (songId) => { const result = await catalogClient.getSong({ songId }); return result.success ? result.value : undefined; } }), { organistPersonId: record.serviceContext.organist.id, referenceAntiphonId: record.serviceContext.referenceAntiphon?.id, referenceTopicId: record.serviceContext.referenceTopic?.id, antiphonKey: record.serviceContext.antiphonKey, liturgicalSeasonKey: record.serviceContext.liturgicalSeasonKey }));
+    setRows(await hydrateEditableRows(await enrichEditableRowsWithCurrentSheetMusic(editableRows), { organistPersonId: record.serviceContext.organist.id, referenceAntiphonId: record.serviceContext.referenceAntiphon?.id, referenceTopicId: record.serviceContext.referenceTopic?.id, antiphonKey: record.serviceContext.antiphonKey, liturgicalSeasonKey: record.serviceContext.liturgicalSeasonKey }));
     setNextRowId(editableRows.length + 1);
     setSaveState("completed");
     setLastSavedRecord(clearLastSavedRecordOnOpen());
@@ -922,7 +982,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (result.success) {
       await openCompletedRecord(result.value);
       setWorkspace(getWorkspaceAfterOpenRecord());
-      await refreshDbSets();
       return;
     }
     setServiceError(result.error);
@@ -934,7 +993,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (result.success) {
       await openPersistedSet(result.value);
       setWorkspace(getWorkspaceAfterOpenRecord());
-      await refreshDbSets();
       return;
     }
     setServiceError(result.error);
@@ -963,7 +1021,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   }
 
   async function startNewDbDraft() {
-    const { draftPeopleDefaults: defaults } = await refreshDbSets();
+    const defaults = draftPeopleDefaults;
     setPersistedSet(null);
     setCompletedRecord(null);
     setSavedWorkingSet(null);

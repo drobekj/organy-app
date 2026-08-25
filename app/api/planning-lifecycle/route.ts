@@ -18,8 +18,12 @@ import { PostgresReferenceMelodyClassProvider } from "../../../src/application/r
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
 import { enrichRevisionRowIndexes, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
 import { auditEventValues, humanAuditActor, systemAuditActor } from "../../../src/application/audit-history";
+import { DrizzleCatalogRepository, getEligiblePersonDefaultById } from "../../../src/application/catalog";
+import { getDraftPeopleDefaults } from "../../../src/planning-lifecycle/ui-session";
+import { getAppDbPool } from "../../../src/db/app-pool";
 
 type PlanningLifecycleAction =
+  | "getWorkspaceSnapshot"
   | "listPlanningSets"
   | "listCompletedRecords"
   | "loadPlanningSet"
@@ -56,8 +60,8 @@ export async function POST(request: Request) {
     return invalidInput("Unsupported Planning Lifecycle action.");
   }
 
-  const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const pool = getAppDbPool();
 
   try {
     const actor = await resolveProtectedActor(request.headers, pool, body.actor);
@@ -67,6 +71,61 @@ export async function POST(request: Request) {
       schema,
     };
     const melodyClasses = new PostgresReferenceMelodyClassProvider(pool);
+
+    if (action === "getWorkspaceSnapshot") {
+      const snapshot = await db.transaction(async (tx) => {
+        const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
+        const planningSets = new DrizzlePlanningSetRepository(txDependencies);
+        const completedRepository = new DrizzleCompletedServiceRecordRepository(txDependencies);
+        const finalSetCompletion = new DrizzleFinalSetCompletionRepository(txDependencies);
+        const completedAt = new Date();
+        const overdue = (await planningSets.list())
+          .filter((set) => set.status === "final" && isPastPragueDate(set.serviceContext.serviceDate, completedAt))
+          .sort((left, right) => left.serviceContext.serviceDate.localeCompare(right.serviceContext.serviceDate) || left.id.localeCompare(right.id));
+
+        for (const finalSet of overdue) {
+          const outcome = await finalSetCompletion.completeFinalSet(finalSet.id, completedAt);
+          if (outcome.status !== "completed") continue;
+          await tx.insert(schema.auditEvents).values(auditEventValues({
+            actor: systemAuditActor(),
+            action: "planning.final.autoComplete",
+            objectKind: "completedService",
+            objectRef: outcome.record.id,
+            beforeState: { sourceFinalSetId: finalSet.id },
+            afterState: outcome.record,
+          }));
+        }
+
+        return {
+          activeSets: await planningSets.list(),
+          completedRecords: await completedRepository.list(),
+        };
+      });
+      const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+      const activeSets = await enrichRevisionRowIndexes({
+        plans: snapshot.activeSets,
+        completedRecords: snapshot.completedRecords,
+        melodyClasses,
+        months: melodyWindow.success ? melodyWindow.value.months : 2,
+      });
+      const rawDefaults = getDraftPeopleDefaults(snapshot.completedRecords);
+      const catalog = new DrizzleCatalogRepository(db);
+      const [priest, organist] = await Promise.all([
+        getEligiblePersonDefaultById(catalog, rawDefaults.priest.id, "priest"),
+        getEligiblePersonDefaultById(catalog, rawDefaults.organist.id, "organist"),
+      ]);
+      return NextResponse.json({
+        success: true,
+        value: {
+          activeSets,
+          completedRecords: snapshot.completedRecords,
+          draftPeopleDefaults: {
+            priest: priest ?? { displayName: "Anonymous" },
+            organist: organist ?? { displayName: "Anonymous" },
+          },
+        },
+      });
+    }
 
     // List reads are the normal reconciliation boundary. Each actual automatic
     // Final → Completed conversion is audited from the same transaction and from
@@ -191,8 +250,6 @@ export async function POST(request: Request) {
       { error: { code: "internalError", message } },
       { status: 500 },
     );
-  } finally {
-    await pool.end();
   }
 }
 
@@ -237,7 +294,7 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
+  return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
 function isObjectWithRecordId(input: unknown): input is { recordId: string } {
