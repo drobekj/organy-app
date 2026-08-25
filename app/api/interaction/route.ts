@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { PgInteractionRepository } from "../../../src/application/db-interaction-repository";
 import { InteractionService } from "../../../src/application/interaction-service";
 import type { ActorIdentity } from "../../../src/application/interaction-contracts";
@@ -11,8 +11,9 @@ import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommend
 import { ReferenceCandidateError, ReferenceCandidateService } from "../../../src/application/reference-candidate-service";
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
 import type { CandidateHydrationInput, CandidateQueryInput, CandidateUsage } from "../../../src/application/interaction-contracts";
+import { appendAuditEvent, humanAuditActor } from "../../../src/application/audit-history";
 
-const pgCatalog = (pool: Pool) => ({ listSongs: async () => {
+const pgCatalog = (pool: Pick<Pool, "query">) => ({ listSongs: async () => {
   const { rows } = await pool.query("select song_id, language, number, title, active, sheet_music_url from catalog_songs order by language, number");
   return rows.map((row) => ({ songId: String(row.song_id), language: row.language as "czech" | "polish", number: String(row.number), title: String(row.title), active: Boolean(row.active), ...(row.sheet_music_url ? { sheetMusicUrl: String(row.sheet_music_url) } : {}) }));
 } });
@@ -50,19 +51,19 @@ export async function POST(request: Request) {
     switch (body.action) {
       case "listLocalActors": return NextResponse.json({ success: true, value: [{ id: actor.userId, displayName: actor.displayName, ...(actor.personId ? { personId: actor.personId } : {}), active: true, roles: [actor.role] }] });
       case "resolveActor": return NextResponse.json({ success: true, value: actor });
-      case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await service.saveOwnPreference(actor, String(input.songId), Number(input.score))); }
+      case "saveOwnPreference": { const input = asRecord(body.input); return NextResponse.json(await auditedInteractionMutation(pool, actor, "preference.local.save", "songPreference", String(input.songId), body.input, (client) => new InteractionService(new PgInteractionRepository(client), pgCatalog(client)).saveOwnPreference(actor, String(input.songId), Number(input.score)))); }
       case "getOwnReferencePreference":
       case "getReferenceOwnPreference": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferenceOwnPreference(actor, input.referenceSongId)); }
       case "saveOwnReferencePreference":
-      case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await service.saveReferenceOwnPreference(actor, input.referenceSongId, input.score!)); }
+      case "saveReferenceOwnPreference": { const input = referencePreferenceInput(body.input, true); return respond(await auditedInteractionMutation(pool, actor, "preference.reference.save", "referencePreference", input.referenceSongId, body.input, (client) => new InteractionService(new PgInteractionRepository(client), pgCatalog(client)).saveReferenceOwnPreference(actor, input.referenceSongId, input.score!))); }
       case "getReferencePreferenceAggregate": { const input = referencePreferenceInput(body.input, false); return respond(await service.getReferencePreferenceAggregate(actor, input.referenceSongId)); }
       case "getReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.get(actor, input.referenceSongId, input.organistPersonId)); }
-      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceRepertoire.set(actor, input.referenceSongId, input.organistPersonId, input.active!)); }
+      case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await auditedInteractionMutation(pool, actor, "repertoire.reference.set", "referenceRepertoire", `${input.organistPersonId ?? actor.personId ?? actor.userId}:${input.referenceSongId}`, body.input, (client) => new ReferenceRepertoireService(new PgReferenceRepertoireRepository(client)).set(actor, input.referenceSongId, input.organistPersonId, input.active!))); }
       case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(actor, input.referenceSongId)); }
       case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(actor, input.referenceSongId, input.mergeWithReferenceSongId!)); }
       case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(actor, input.antiphonId)); }
       case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(actor, input.antiphonId, input.referenceSongId!)); }
-      case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await service.setRepertoire(actor, String(input.organistPersonId), String(input.songId), Boolean(input.active))); }
+      case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await auditedInteractionMutation(pool, actor, "repertoire.local.set", "repertoire", `${String(input.organistPersonId)}:${String(input.songId)}`, body.input, (client) => new InteractionService(new PgInteractionRepository(client), pgCatalog(client)).setRepertoire(actor, String(input.organistPersonId), String(input.songId), Boolean(input.active)))); }
       case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(actor)); }
       case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(actor, input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
@@ -77,6 +78,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Interaction API request failed." } }, { status: 500 });
   } finally { await lease.release(); }
 }
+async function auditedInteractionMutation<T>(
+  pool: Pool,
+  actor: ActorIdentity,
+  action: string,
+  objectKind: string,
+  objectRef: string,
+  requestDelta: unknown,
+  mutate: (client: PoolClient) => Promise<{ success: true; value: T } | { success: false; error: { code: string; message: string } }>,
+) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await mutate(client);
+    if (result.success) {
+      await appendAuditEvent(client, {
+        actor: humanAuditActor(actor),
+        action,
+        objectKind,
+        objectRef,
+        beforeState: null,
+        afterState: { request: requestDelta, result: result.value },
+      });
+    }
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally { client.release(); }
+}
+
 function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === "object" ? value as Record<string, unknown> : {}; }
 function referencePreferenceInput(value: unknown, includeScore: boolean): { referenceSongId: string; score?: number } {
   const input = asRecord(value); const allowed = includeScore ? ["referenceSongId", "score"] : ["referenceSongId"];

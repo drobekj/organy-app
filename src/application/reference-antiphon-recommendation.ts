@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import type { ActorIdentity } from "./interaction-contracts";
 import type { InteractionResult } from "./interaction-service";
 import { displayReferenceNumber } from "./reference-catalog-contract";
+import { appendAuditEvent, humanAuditActor } from "./audit-history";
 
 export type RecommendedReferenceSong = {
   referenceSongId: string;
@@ -19,7 +20,7 @@ type SetResult =
 
 export interface ReferenceAntiphonRecommendationRepository {
   get(antiphonId: string): Promise<ReferenceAntiphonRecommendation | undefined>;
-  set(antiphonId: string, referenceSongId: string | null): Promise<SetResult>;
+  set(antiphonId: string, referenceSongId: string | null, actor?: ActorIdentity): Promise<SetResult>;
 }
 
 const joinedReadSql = `select a.id antiphon_id, s.id reference_song_id, s.language, s.canonical_number, s.title
@@ -31,10 +32,11 @@ const joinedReadSql = `select a.id antiphon_id, s.id reference_song_id, s.langua
 export class PgReferenceAntiphonRecommendationRepository implements ReferenceAntiphonRecommendationRepository {
   constructor(private readonly pool: Pool) {}
   async get(antiphonId: string) { return joinedRead(this.pool, antiphonId); }
-  async set(antiphonId: string, referenceSongId: string | null): Promise<SetResult> {
+  async set(antiphonId: string, referenceSongId: string | null, actor?: ActorIdentity): Promise<SetResult> {
     const client = await this.pool.connect();
     try {
       await client.query("begin");
+      const before = await joinedRead(client, antiphonId);
       const antiphon = (await client.query("select language from reference_antiphons where id=$1 for update", [antiphonId])).rows[0] as { language: "czech" | "polish" } | undefined;
       if (!antiphon) {
         await client.query("rollback");
@@ -59,6 +61,18 @@ export class PgReferenceAntiphonRecommendationRepository implements ReferenceAnt
           on conflict(antiphon_id) do update set reference_song_id=excluded.reference_song_id,updated_at=now()`, [antiphonId, referenceSongId]);
       }
       const value = await joinedRead(client, antiphonId);
+      const beforeSongId = before?.recommendedSong?.referenceSongId ?? null;
+      const afterSongId = value?.recommendedSong?.referenceSongId ?? null;
+      if (value && beforeSongId !== afterSongId && actor) {
+        await appendAuditEvent(client, {
+          actor: humanAuditActor(actor),
+          action: "knowledge.antiphonRecommendation.set",
+          objectKind: "antiphon",
+          objectRef: antiphonId,
+          beforeState: before ?? null,
+          afterState: value,
+        });
+      }
       await client.query("commit");
       return { kind: "ok", value: value! };
     } catch (error) {
@@ -92,7 +106,7 @@ export class ReferenceAntiphonRecommendationService {
   }
   async set(actor: ActorIdentity, antiphonId: string, referenceSongId: string | null): Promise<InteractionResult<ReferenceAntiphonRecommendation>> {
     if (actor.role !== "admin") return fail("permissionDenied", "Only admin may manage antiphon recommendations.");
-    const result = await this.repo.set(antiphonId, referenceSongId);
+    const result = await this.repo.set(antiphonId, referenceSongId, actor);
     if (result.kind === "antiphonNotFound") return fail("notFound", "Reference antiphon was not found.");
     if (result.kind === "songNotFound") return fail("notFound", "Reference catalog record was not found.");
     if (result.kind === "languageMismatch") return fail("invalidInput", "Recommended song must match the antiphon language.");

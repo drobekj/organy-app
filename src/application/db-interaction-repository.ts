@@ -4,7 +4,7 @@ import type { AppUser, KnowledgeMapping, MelodyClass, MelodyNonRepetitionConfig,
 import type { PlanningRole } from "../planning-lifecycle";
 
 export class PgInteractionRepository implements InteractionRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pick<Pool, "query">) {}
   async listUsers(): Promise<AppUser[]> { const { rows } = await this.pool.query("select u.id, u.display_name, u.person_id, u.active, coalesce(array_agg(r.role) filter (where r.role is not null), '{}') as roles from app_users u left join app_user_roles r on r.user_id = u.id group by u.id order by u.id"); return rows.map((r) => ({ id: String(r.id), displayName: String(r.display_name), ...(r.person_id ? { personId: String(r.person_id) } : {}), active: Boolean(r.active), roles: normalizeRoles(r.roles) })); }
   async listProfiles(): Promise<PreferenceProfile[]> { const { rows } = await this.pool.query("select id, user_id, category from preference_profiles order by id"); return rows.map((r) => ({ id: String(r.id), userId: String(r.user_id), category: fromDbCategory(String(r.category)) })); }
   async listPreferences(): Promise<SongPreference[]> { const { rows } = await this.pool.query("select profile_id, song_id, score from song_preferences"); return rows.map((r) => ({ profileId: String(r.profile_id), songId: String(r.song_id), score: Number(r.score) })); }

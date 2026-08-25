@@ -2,7 +2,41 @@ import { Pool, type PoolClient } from "pg";
 
 const APPLY_FLAG = "--apply";
 const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
-const EXPECTED_PUBLIC_TABLES = 32;
+const EXPECTED_PUBLIC_TABLES = [
+  "antiphon_mappings",
+  "app_user_roles",
+  "app_users",
+  "audit_events",
+  "auth_accounts",
+  "auth_sessions",
+  "auth_users",
+  "auth_verifications",
+  "catalog_persons",
+  "catalog_songs",
+  "completed_service_rows",
+  "completed_services",
+  "liturgical_season_mappings",
+  "melody_equivalence_classes",
+  "melody_non_repetition_config",
+  "organist_repertoire",
+  "preference_profiles",
+  "protected_account_actor_links",
+  "reference_antiphon_recommendations",
+  "reference_antiphons",
+  "reference_catalog_songs",
+  "reference_melody_classes",
+  "reference_organist_repertoire",
+  "reference_song_melody_memberships",
+  "reference_song_preferences",
+  "reference_thematic_parents",
+  "reference_thematic_ranges",
+  "reference_thematic_sections",
+  "service_contexts",
+  "service_set_rows",
+  "service_sets",
+  "song_melody_equivalence",
+  "song_preferences",
+].sort();
 const PROTECTED_ROLES = ["admin", "priest", "organist"] as const;
 type ProtectedRole = typeof PROTECTED_ROLES[number];
 type Queryable = { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }> };
@@ -44,6 +78,7 @@ const IDENTITY_TABLES = new Set([
 ]);
 
 const MUST_REMAIN_EMPTY = new Set([
+  "audit_events",
   "auth_sessions",
   "auth_verifications",
   "preference_profiles",
@@ -171,8 +206,8 @@ function quoteIdentifier(value: string): string {
 async function assertProviderAndReferenceBoundary(db: Queryable): Promise<void> {
   const tables = (await db.query("select tablename from pg_tables where schemaname='public' order by tablename"))
     .rows.map((row: Record<string, unknown>) => String(row.tablename));
-  if (tables.length !== EXPECTED_PUBLIC_TABLES) {
-    throw new Error(`Protected Production identity bootstrap requires the reviewed ${EXPECTED_PUBLIC_TABLES}-table Production schema.`);
+  if (!sameStrings(tables, EXPECTED_PUBLIC_TABLES)) {
+    throw new Error(`Protected Production identity bootstrap requires the reviewed ${EXPECTED_PUBLIC_TABLES.length}-table Production schema including the append-only audit boundary.`);
   }
 
   const provider = (await db.query(`

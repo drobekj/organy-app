@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import {
   createDbBackedPlanningLifecycleService,
+  DrizzleCompletedServiceRecordRepository,
+  DrizzleFinalSetCompletionRepository,
+  DrizzlePlanningSetRepository,
+  isPastPragueDate,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
@@ -9,6 +13,7 @@ import { PostgresReferenceAntiphonProvider } from "../../../src/application/post
 import { PostgresReferenceCatalogProvider } from "../../../src/application/postgres-reference-catalog";
 import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
 import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
+import { auditEventValues, humanAuditActor, systemAuditActor } from "../../../src/application/audit-history";
 
 type PlanningLifecycleAction =
   | "listPlanningSets"
@@ -41,7 +46,8 @@ export async function POST(request: Request) {
   let body: PlanningLifecycleRequest;
   try { body = (await request.json()) as PlanningLifecycleRequest; } catch { return invalidInput("Malformed JSON body."); }
 
-  if (!body.action || !isPlanningLifecycleAction(body.action)) {
+  const action = body.action;
+  if (!action || !isPlanningLifecycleAction(action)) {
     return invalidInput("Unsupported Planning Lifecycle action.");
   }
 
@@ -56,41 +62,77 @@ export async function POST(request: Request) {
       schema,
     };
 
-    // List reads are the normal reconciliation boundary for Phase 31.25.
-    // They still pass through authenticated DB runtime in Phase 31.28.
-    const readService = createDbBackedPlanningLifecycleService(adapterDependencies);
-    if (body.action === "listPlanningSets") {
-      return NextResponse.json(await readService.listPlanningSets());
-    }
-    if (body.action === "listCompletedRecords") {
-      return NextResponse.json(await readService.listCompletedRecords());
+    // List reads are the normal reconciliation boundary. Each actual automatic
+    // Final → Completed conversion is audited from the same transaction and from
+    // the completion outcome that still knows the immutable source Final id.
+    if (action === "listPlanningSets" || action === "listCompletedRecords") {
+      const result = await db.transaction(async (tx) => {
+        const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
+        const planningSets = new DrizzlePlanningSetRepository(txDependencies);
+        const finalSetCompletion = new DrizzleFinalSetCompletionRepository(txDependencies);
+        const completedAt = new Date();
+        const overdue = (await planningSets.list())
+          .filter((set) => set.status === "final" && isPastPragueDate(set.serviceContext.serviceDate, completedAt))
+          .sort((left, right) => left.serviceContext.serviceDate.localeCompare(right.serviceContext.serviceDate) || left.id.localeCompare(right.id));
+
+        for (const finalSet of overdue) {
+          const outcome = await finalSetCompletion.completeFinalSet(finalSet.id, completedAt);
+          if (outcome.status !== "completed") continue;
+          await tx.insert(schema.auditEvents).values(auditEventValues({
+            actor: systemAuditActor(),
+            action: "planning.final.autoComplete",
+            objectKind: "completedService",
+            objectRef: outcome.record.id,
+            beforeState: { sourceFinalSetId: finalSet.id },
+            afterState: outcome.record,
+          }));
+        }
+
+        const readService = createDbBackedPlanningLifecycleService(txDependencies);
+        return action === "listPlanningSets" ? await readService.listPlanningSets() : await readService.listCompletedRecords();
+      });
+      return NextResponse.json(result);
     }
 
-    const planningSets = new (await import("../../../src/application/planning-lifecycle")).DrizzlePlanningSetRepository(adapterDependencies);
-    if (body.action === "loadCompletedRecord") {
+    const readService = createDbBackedPlanningLifecycleService(adapterDependencies);
+    if (action === "loadCompletedRecord") {
       const recordId = isObjectWithRecordId(body.input) ? body.input.recordId : undefined;
       if (!recordId) return invalidInput("recordId is required.");
-      const records = new (await import("../../../src/application/planning-lifecycle")).DrizzleCompletedServiceRecordRepository(adapterDependencies);
-      const record = await records.findById(recordId);
+      const record = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).findById(recordId);
       return NextResponse.json(record ? { success: true, value: record } : { success: false, error: { code: "notFound", message: "Completed record was not found." } });
     }
-    if (body.action === "loadPlanningSet") {
+    if (action === "loadPlanningSet") {
       const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;
       if (!setId) return invalidInput("setId is required.");
       return NextResponse.json(await readService.loadPlanningSet(setId));
     }
 
-    const service = createDbBackedPlanningLifecycleService({
-      ...adapterDependencies,
-      referenceAntiphons: new PostgresReferenceAntiphonProvider(pool),
-      referenceTopics: new PostgresReferenceThematicSectionProvider(pool),
-      referenceSongs: new PostgresReferenceCatalogProvider(pool),
-      referenceMelodyClasses: new PostgresReferenceMelodyClassProvider(pool),
-    });
     if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");
-    if (body.action === "saveWorkingSet" && (!isRecord(body.input.serviceContext) || !isRecord(body.input.set))) return invalidInput("saveWorkingSet requires serviceContext and set objects.");
+    if (action === "saveWorkingSet" && (!isRecord(body.input.serviceContext) || !isRecord(body.input.set))) return invalidInput("saveWorkingSet requires serviceContext and set objects.");
     const input = { ...body.input, role: actor.role };
-    const result = await service[body.action](input as never);
+    const result = await db.transaction(async (tx) => {
+      const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
+      const before = await planningBeforeState(action, body.input as Record<string, unknown>, txDependencies);
+      const service = createDbBackedPlanningLifecycleService({
+        ...txDependencies,
+        referenceAntiphons: new PostgresReferenceAntiphonProvider(pool),
+        referenceTopics: new PostgresReferenceThematicSectionProvider(pool),
+        referenceSongs: new PostgresReferenceCatalogProvider(pool),
+        referenceMelodyClasses: new PostgresReferenceMelodyClassProvider(pool),
+      });
+      const mutation = await service[action](input as never);
+      if (mutation.success) {
+        await tx.insert(schema.auditEvents).values(auditEventValues({
+          actor: humanAuditActor(actor),
+          action: planningAuditAction(action),
+          objectKind: planningObjectKind(action),
+          objectRef: planningObjectRef(action, body.input as Record<string, unknown>, mutation.value),
+          beforeState: before ?? null,
+          afterState: mutation.value ?? { request: body.input },
+        }));
+      }
+      return mutation;
+    });
 
     return NextResponse.json(result);
   } catch (error) {
@@ -103,6 +145,43 @@ export async function POST(request: Request) {
   } finally {
     await pool.end();
   }
+}
+
+async function planningBeforeState(action: PlanningLifecycleAction, input: Record<string, unknown>, dependencies: PlanningLifecycleDrizzleAdapterDependencies): Promise<unknown> {
+  const plans = new DrizzlePlanningSetRepository(dependencies);
+  const completed = new DrizzleCompletedServiceRecordRepository(dependencies);
+  if (action === "saveWorkingSet" && typeof input.existingSetId === "string") return plans.findById(input.existingSetId);
+  if (action === "finalizeWorkingSet" && typeof input.workingSetId === "string") return plans.findById(input.workingSetId);
+  if (action === "reopenFinalSet" && typeof input.finalSetId === "string") return plans.findById(input.finalSetId);
+  if (action === "completeFinalSet" && typeof input.finalSetId === "string") return plans.findById(input.finalSetId);
+  if (action === "deletePlanningSet" && typeof input.setId === "string") return plans.findById(input.setId);
+  if ((action === "updateCompletedRecord" || action === "deleteCompletedRecord") && typeof input.recordId === "string") return completed.findById(input.recordId);
+  return null;
+}
+
+function planningAuditAction(action: PlanningLifecycleAction): string {
+  const labels: Partial<Record<PlanningLifecycleAction, string>> = {
+    saveWorkingSet: "planning.working.save",
+    finalizeWorkingSet: "planning.final.create",
+    reopenFinalSet: "planning.final.reopen",
+    completeFinalSet: "planning.final.complete",
+    deletePlanningSet: "planning.plan.delete",
+    updateCompletedRecord: "planning.completed.update",
+    deleteCompletedRecord: "planning.completed.delete",
+  };
+  return labels[action] ?? `planning.${action}`;
+}
+
+function planningObjectKind(action: PlanningLifecycleAction): string {
+  return action === "updateCompletedRecord" || action === "deleteCompletedRecord" || action === "completeFinalSet" ? "completedService" : "planningSet";
+}
+
+function planningObjectRef(action: PlanningLifecycleAction, input: Record<string, unknown>, value: unknown): string {
+  if (value && typeof value === "object" && "id" in value && typeof (value as { id?: unknown }).id === "string") return (value as { id: string }).id;
+  for (const key of action === "updateCompletedRecord" || action === "deleteCompletedRecord" ? ["recordId"] : ["existingSetId", "workingSetId", "finalSetId", "setId"]) {
+    if (typeof input[key] === "string" && input[key]) return String(input[key]);
+  }
+  return "new";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }

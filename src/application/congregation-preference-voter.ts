@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
+import { appendAuditEvent } from "./audit-history";
 
 export type CongregationVoterContext = {
   nickname: string;
@@ -117,14 +118,37 @@ export class PostgresCongregationPreferenceService {
     const score = validateCongregationScore(rawScore);
     const context = await this.resolveContext(token);
     await this.requireReferenceSong(songId);
-    await this.pool.query(
-      `insert into reference_song_preferences (profile_id, reference_song_id, score)
-       values ($1, $2, $3)
-       on conflict (profile_id, reference_song_id)
-       do update set score = excluded.score, updated_at = now()`,
-      [context.profileId, songId, score],
-    );
-    return { nickname: context.nickname, referenceSongId: songId, score, limit: 1 };
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const existing = await client.query(
+        "select score from reference_song_preferences where profile_id = $1 and reference_song_id = $2 for update",
+        [context.profileId, songId],
+      );
+      const beforeScore = existing.rows[0] ? Number(existing.rows[0].score) : null;
+      if (beforeScore !== score) {
+        await client.query(
+          `insert into reference_song_preferences (profile_id, reference_song_id, score)
+           values ($1, $2, $3)
+           on conflict (profile_id, reference_song_id)
+           do update set score = excluded.score, updated_at = now()`,
+          [context.profileId, songId, score],
+        );
+        await appendAuditEvent(client, {
+          actor: { kind: "human", userId: context.userId, displayName: context.nickname, role: context.role },
+          action: "preference.reference.save",
+          objectKind: "referencePreference",
+          objectRef: `${context.profileId}:${songId}`,
+          beforeState: { score: beforeScore },
+          afterState: { score },
+        });
+      }
+      await client.query("commit");
+      return { nickname: context.nickname, referenceSongId: songId, score, limit: 1 };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw error;
+    } finally { client.release(); }
   }
 
   private async ensureVoter(

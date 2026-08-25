@@ -3,6 +3,7 @@ import { CatalogService, DrizzleCatalogRepository, type CatalogPerson } from "..
 import type { PlanningRole, ServiceLanguage } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
 import { ProtectedActorError, resolveProtectedActor } from "../../../src/application/protected-actor";
+import { auditEventValues, humanAuditActor } from "../../../src/application/audit-history";
 
 type CatalogAction = "getPerson" | "getSong" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
 const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
@@ -14,18 +15,42 @@ export async function POST(request: Request) {
 
   let body: { action?: CatalogAction; input?: unknown; actor?: unknown };
   try { body = (await request.json()) as typeof body; } catch { return NextResponse.json({ error: { code: "invalidInput", message: "Malformed JSON body." } }, { status: 400 }); }
-  if (!body.action || !["getPerson", "getSong", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(body.action)) return invalidInput("Unsupported catalog action.");
-  const validationError = validateActionInput(body.action, body.input);
+  const action = body.action;
+  if (!action || !["getPerson", "getSong", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(action)) return invalidInput("Unsupported catalog action.");
+  const validationError = validateActionInput(action, body.input);
   if (validationError) return invalidInput(validationError);
 
   const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
     const actor = await resolveProtectedActor(request.headers, pool, body.actor);
-    const service = new CatalogService(new DrizzleCatalogRepository(drizzle(pool, { schema })));
+    const db = drizzle(pool, { schema });
     let input = body.input as Record<string, unknown>;
-    if (body.action === "savePerson" || body.action === "setSongActive") input = { ...input, role: actor.role };
-    return NextResponse.json(await service[body.action](input as never));
+    if (action === "savePerson" || action === "setSongActive") input = { ...input, role: actor.role };
+    if (action === "savePerson" || action === "setSongActive") {
+      const result = await db.transaction(async (tx) => {
+        const repo = new DrizzleCatalogRepository(tx);
+        const service = new CatalogService(repo);
+        const before = action === "savePerson"
+          ? (isRecord(input.person) && typeof input.person.id === "string" ? await repo.findPersonById(input.person.id) : undefined)
+          : await repo.findSongById(String(input.songId));
+        const mutation = await service[action](input as never);
+        if (mutation.success) {
+          await tx.insert(schema.auditEvents).values(auditEventValues({
+            actor: humanAuditActor(actor),
+            action: action === "savePerson" ? "catalog.person.save" : "catalog.song.setActive",
+            objectKind: action === "savePerson" ? "person" : "song",
+            objectRef: action === "savePerson" ? (mutation.value as { id: string }).id : (mutation.value as { songId: string }).songId,
+            beforeState: before ?? null,
+            afterState: mutation.value,
+          }));
+        }
+        return mutation;
+      });
+      return NextResponse.json(result);
+    }
+    const service = new CatalogService(new DrizzleCatalogRepository(db));
+    return NextResponse.json(await service[action](input as never));
   } catch (error) {
     if (error instanceof ProtectedActorError) return protectedActorFailure(error);
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Catalog API failed." } }, { status: 500 });

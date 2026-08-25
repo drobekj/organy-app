@@ -15,7 +15,41 @@ import {
 
 const APPLY_FLAG = "--apply";
 const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
-const EXPECTED_PUBLIC_TABLES = 32;
+const EXPECTED_PUBLIC_TABLES = [
+  "antiphon_mappings",
+  "app_user_roles",
+  "app_users",
+  "audit_events",
+  "auth_accounts",
+  "auth_sessions",
+  "auth_users",
+  "auth_verifications",
+  "catalog_persons",
+  "catalog_songs",
+  "completed_service_rows",
+  "completed_services",
+  "liturgical_season_mappings",
+  "melody_equivalence_classes",
+  "melody_non_repetition_config",
+  "organist_repertoire",
+  "preference_profiles",
+  "protected_account_actor_links",
+  "reference_antiphon_recommendations",
+  "reference_antiphons",
+  "reference_catalog_songs",
+  "reference_melody_classes",
+  "reference_organist_repertoire",
+  "reference_song_melody_memberships",
+  "reference_song_preferences",
+  "reference_thematic_parents",
+  "reference_thematic_ranges",
+  "reference_thematic_sections",
+  "service_contexts",
+  "service_set_rows",
+  "service_sets",
+  "song_melody_equivalence",
+  "song_preferences",
+].sort();
 const CONFIG_TABLE = "melody_non_repetition_config";
 const FINAL_NON_EMPTY_TABLES = [
   CONFIG_TABLE,
@@ -34,7 +68,7 @@ const SAFE_FAILURES = new Set([
   `${DIRECT_URL_KEY} must use the postgres or postgresql protocol.`,
   `${DIRECT_URL_KEY} must be the direct/unpooled PostgreSQL endpoint.`,
   `Only the optional ${APPLY_FLAG} argument is accepted.`,
-  `Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES}-table Phase 31.38 schema.`,
+  `Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES.length}-table schema including the append-only audit boundary.`,
   "Production reference synchronization refuses a target with Neon Auth/Data API state.",
   "Production reference synchronization refuses unexpected or partially synchronized application data.",
   "Reviewed migration-owned configuration singleton is missing or has unexpected contents.",
@@ -309,8 +343,8 @@ async function assertDatabaseMatchesAuthoritativeSources(pool: Pool, sources: Au
 
 async function classifyTarget(pool: Pool): Promise<TargetState> {
   const boundary = await inspectProviderBoundary(pool);
-  if (boundary.publicTables.length !== EXPECTED_PUBLIC_TABLES) {
-    throw new Error(`Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES}-table Phase 31.38 schema.`);
+  if (!sameStrings(boundary.publicTables, EXPECTED_PUBLIC_TABLES)) {
+    throw new Error(`Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES.length}-table schema including the append-only audit boundary.`);
   }
   if (boundary.neonAuthSchema || boundary.authenticatedRole || boundary.anonymousRole) {
     throw new Error("Production reference synchronization refuses a target with Neon Auth/Data API state.");
