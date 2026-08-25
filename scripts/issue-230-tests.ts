@@ -23,10 +23,14 @@ async function main() {
   const cssSource = await readFile("app/globals.css", "utf8");
   assert.match(clientSource, /record\.conflictState \? "needs-revision-record" : undefined/, "History must style conflicting Completed records");
   assert.match(clientSource, /completedConflictRowIndexes\.has\(index\)/, "opened Completed records must mark exact conflicting rows");
-  assert.match(clientSource, /completedInvalidationPreview\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");
+  assert.match(clientSource, /completedInvalidationPreview\?\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");
   assert.match(clientSource, /historyConflictCount/, "History must expose a concise current-conflict count");
-  assert.match(cssSource, /\.saved-set-list button\.needs-revision-record\s*\{[\s\S]*?outline:\s*3px solid var\(--danger\)[\s\S]*?background:\s*#fef3f2/);
-  assert.match(cssSource, /\.needs-revision-row\s*\{[\s\S]*?outline:\s*3px solid var\(--danger\)[\s\S]*?background:\s*#fef3f2/);
+  const recordAlarmRule = cssSource.match(/\.saved-set-list button\.needs-revision-record\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  assert.match(recordAlarmRule, /outline:\s*3px solid var\(--danger\)/);
+  assert.match(recordAlarmRule, /background:\s*#fef3f2/);
+  const rowAlarmRule = cssSource.match(/\.needs-revision-row\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  assert.match(rowAlarmRule, /outline:\s*3px solid var\(--danger\)/);
+  assert.match(rowAlarmRule, /background:\s*#fef3f2/);
   const rowInputRule = cssSource.match(/\.needs-revision-row \.candidate-combobox > input\s*\{([\s\S]*?)\}/)?.[1] ?? "";
   assert.match(rowInputRule, /border-color:\s*var\(--border\)/, "inner song control stays gray inside a red conflict row");
 

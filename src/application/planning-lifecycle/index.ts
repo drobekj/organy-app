@@ -1,4 +1,5 @@
 export type {
+  CompletedServiceConflictState,
   CompletedServiceRecord,
   CompletedServiceRecordId,
   CompletedServiceRecordRepository,

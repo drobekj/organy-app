@@ -5,6 +5,7 @@ import {
   DrizzleFinalSetCompletionRepository,
   DrizzlePlanningSetRepository,
   isPastPragueDate,
+  type CompletedServiceRecord,
   type PersistedPlanningSet,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
@@ -16,7 +17,7 @@ import { PostgresReferenceCatalogProvider } from "../../../src/application/postg
 import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
 import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
-import { enrichRevisionRowIndexes, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
+import { enrichCompletedConflictStates, enrichPlanningConflictStates, enrichRevisionRowIndexes, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
 import { auditEventValues, humanAuditActor, systemAuditActor } from "../../../src/application/audit-history";
 import { DrizzleCatalogRepository, getEligiblePersonDefaultById } from "../../../src/application/catalog";
 import { getDraftPeopleDefaults } from "../../../src/planning-lifecycle/ui-session";
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
         };
       });
       const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
-      const activeSets = await enrichRevisionRowIndexes({
+      const conflictState = await enrichPlanningConflictStates({
         plans: snapshot.activeSets,
         completedRecords: snapshot.completedRecords,
         melodyClasses,
@@ -117,8 +118,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         value: {
-          activeSets,
-          completedRecords: snapshot.completedRecords,
+          activeSets: conflictState.plans,
+          completedRecords: conflictState.completedRecords,
           draftPeopleDefaults: {
             priest: priest ?? { displayName: "Anonymous" },
             organist: organist ?? { displayName: "Anonymous" },
@@ -156,14 +157,25 @@ export async function POST(request: Request) {
         const readService = createDbBackedPlanningLifecycleService(txDependencies);
         return action === "listPlanningSets" ? await readService.listPlanningSets() : await readService.listCompletedRecords();
       });
-      if (action === "listPlanningSets" && result.success) {
-        const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
+      if (result.success) {
         const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
-        const value = await enrichRevisionRowIndexes({
-          plans: result.value as PersistedPlanningSet[],
-          completedRecords,
+        const months = melodyWindow.success ? melodyWindow.value.months : 2;
+        if (action === "listPlanningSets") {
+          const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
+          const value = await enrichRevisionRowIndexes({
+            plans: result.value as PersistedPlanningSet[],
+            completedRecords,
+            melodyClasses,
+            months,
+          });
+          return NextResponse.json({ ...result, value });
+        }
+        const plans = await new DrizzlePlanningSetRepository(adapterDependencies).list();
+        const value = await enrichCompletedConflictStates({
+          plans,
+          completedRecords: result.value as CompletedServiceRecord[],
           melodyClasses,
-          months: melodyWindow.success ? melodyWindow.value.months : 2,
+          months,
         });
         return NextResponse.json({ ...result, value });
       }
@@ -175,7 +187,16 @@ export async function POST(request: Request) {
       const recordId = isObjectWithRecordId(body.input) ? body.input.recordId : undefined;
       if (!recordId) return invalidInput("recordId is required.");
       const record = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).findById(recordId);
-      return NextResponse.json(record ? { success: true, value: record } : { success: false, error: { code: "notFound", message: "Completed record was not found." } });
+      if (!record) return NextResponse.json({ success: false, error: { code: "notFound", message: "Completed record was not found." } });
+      const plans = await new DrizzlePlanningSetRepository(adapterDependencies).list();
+      const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+      const [value] = await enrichCompletedConflictStates({
+        plans,
+        completedRecords: [record],
+        melodyClasses,
+        months: melodyWindow.success ? melodyWindow.value.months : 2,
+      });
+      return NextResponse.json({ success: true, value });
     }
     if (action === "loadPlanningSet") {
       const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;

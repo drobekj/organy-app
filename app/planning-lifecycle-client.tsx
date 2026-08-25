@@ -500,6 +500,16 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const activeRecordGroups = useMemo(() => groupActivePlanningSets(savedDbSets), [savedDbSets]);
   const revisionPlanCount = activeRecordGroups.working.filter((set) => set.needsRevision).length + activeRecordGroups.final.filter((set) => set.needsRevision).length;
   const conflictingRevisionRowIndexes = useMemo(() => new Set(persistedSet?.needsRevision?.conflictingRowIndexes ?? []), [persistedSet?.id, persistedSet?.needsRevision]);
+  const completedConflictImpacts = completedInvalidationPreview?.impactedPlans ?? [];
+  const completedConflictPlanCount = completedInvalidationPreview
+    ? new Set(completedConflictImpacts.map((impact) => impact.planId)).size
+    : new Set(completedRecord?.conflictState?.conflictingPlanIds ?? []).size;
+  const completedConflictRowIndexes = useMemo(() => new Set(
+    completedInvalidationPreview
+      ? completedConflictImpacts.flatMap((impact) => impact.conflictingCompletedRowIndexes)
+      : completedRecord?.conflictState?.conflictingRowIndexes ?? [],
+  ), [completedInvalidationPreview, completedRecord?.id, completedRecord?.conflictState]);
+  const historyConflictCount = completedRecords.filter((record) => record.conflictState).length;
   const completedRecordsNewestFirst = useMemo(() => [...completedRecords].sort((left, right) => {
     const dateOrder = right.serviceContext.serviceDate.localeCompare(left.serviceContext.serviceDate);
     if (dateOrder !== 0) return dateOrder;
@@ -1758,7 +1768,8 @@ Save the correction and mark those plans for revision?`);
         {workspace === "history" && (
           <section className="db-workspace" aria-label="Completed history">
             <h2>Completed history</h2>
-            {completedRecordsNewestFirst.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list history-scroll-list">{completedRecordsNewestFirst.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" onClick={() => loadCompletedRecord(record.id)}>{formatCompletedRecordSummary(record)}</button></li>)}</ul>}
+            {historyConflictCount > 0 && <p className="error-summary" role="alert">{historyConflictCount} completed service{historyConflictCount === 1 ? "" : "s"} conflict{historyConflictCount === 1 ? "s" : ""} with active plans.</p>}
+            {completedRecordsNewestFirst.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list history-scroll-list">{completedRecordsNewestFirst.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" className={record.conflictState ? "needs-revision-record" : undefined} onClick={() => loadCompletedRecord(record.id)}>{formatCompletedRecordSummary(record)}</button></li>)}</ul>}
           </section>
         )}
 
@@ -1858,7 +1869,7 @@ Save the correction and mark those plans for revision?`);
 
           <div className="rows-list">
             {rows.map((row, index) => {
-              const revisionConflict = Boolean(persistedSet?.needsRevision && conflictingRevisionRowIndexes.has(index));
+              const revisionConflict = Boolean((persistedSet?.needsRevision && conflictingRevisionRowIndexes.has(index)) || (completedRecord && completedConflictRowIndexes.has(index)));
               return (
                 <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
@@ -1947,9 +1958,9 @@ Save the correction and mark those plans for revision?`);
             </ul>
           )}
 
-          {isCompletedRecordOpen && completedInvalidationPreview && completedInvalidationPreview.newlyImpactedPlans.length > 0 && (
+          {isCompletedRecordOpen && completedConflictPlanCount > 0 && (
             <p className="error-summary completed-invalidation-warning" role="alert">
-              Historical correction conflicts with {completedInvalidationPreview.newlyImpactedPlans.length} active plan{completedInvalidationPreview.newlyImpactedPlans.length === 1 ? "" : "s"}: {completedInvalidationPreview.newlyImpactedPlans.map((impact) => formatConflictPreviewPlanLabel(impact, savedDbSets)).join(", ")}.
+              Historical correction conflicts with {completedConflictPlanCount} active plan{completedConflictPlanCount === 1 ? "" : "s"}{completedConflictImpacts.length > 0 ? `: ${completedConflictImpacts.map((impact) => formatConflictPreviewPlanLabel(impact, savedDbSets)).join(", ")}` : ""}.{completedInvalidationPreview && completedInvalidationPreview.newlyImpactedPlans.length > 0 ? " New conflict added." : ""}
             </p>
           )}
 
