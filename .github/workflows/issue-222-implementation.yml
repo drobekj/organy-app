@@ -6,6 +6,7 @@ on:
       - feat/issue-222-audit-history
     paths:
       - scripts/issue-222-implementation.py
+      - scripts/issue-222-correction.py
       - .github/workflows/issue-222-implementation.yml
 
 permissions:
@@ -45,6 +46,8 @@ jobs:
         run: npm ci --no-audit --no-fund --loglevel=error
       - name: Apply Issue 222 source patch
         run: python3 scripts/issue-222-implementation.py
+      - name: Correct Issue 222 acceptance harness
+        run: python3 scripts/issue-222-correction.py
       - name: Generate Drizzle migration
         run: npx drizzle-kit generate --name issue_222_audit_history
       - name: Apply migrations
@@ -60,6 +63,7 @@ jobs:
       - name: Commit verified implementation
         run: |
           rm scripts/issue-222-implementation.py
+          rm scripts/issue-222-correction.py
           rm .github/workflows/issue-222-implementation.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
