@@ -77,7 +77,8 @@ async function main() {
     assert.equal(humanEvents.rows[0].actor_role, "admin");
     assert.equal(String(humanEvents.rows[0].object_ref), String(workingSetId));
     assert.equal(humanEvents.rows[0].before_state, null, "create action has no prior state");
-    assert.equal(String(humanEvents.rows[0].after_state?.id), String(workingSetId), "event preserves meaningful created state");
+    const createdState = humanEvents.rows[0].after_state as { id?: unknown } | null;
+    assert.equal(String(createdState?.id), String(workingSetId), "event preserves meaningful created state");
 
     const persistedRows = await pool.query("select count(*)::int as count from service_set_rows where service_set_id = $1", [workingSetId]);
     assert.equal(persistedRows.rows[0].count, 2, "the audited action really persists multiple business rows");
