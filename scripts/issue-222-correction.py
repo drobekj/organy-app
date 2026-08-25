@@ -87,18 +87,27 @@ void main().catch((error: unknown) => {
 
 # Preserve validated action values across transaction closures so TypeScript
 # does not lose narrowing of optional request properties.
-for route in ["app/api/catalog/route.ts", "app/api/planning-lifecycle/route.ts"]:
-    text = read(route)
-    marker = '  if (!body.action || !['
-    if marker not in text:
-        raise RuntimeError(f"Action validation marker missing in {route}")
-    text = text.replace(marker, '  const action = body.action;\n  if (!action || ![', 1)
-    # Only the post-parse/action-handling portion needs the stable alias.
-    split_at = text.index('  const action = body.action;')
-    prefix, suffix = text[:split_at], text[split_at:]
-    suffix = suffix.replace('body.action', 'action')
-    suffix = suffix.replace('const action = action;', 'const action = body.action;', 1)
-    write(route, prefix + suffix)
+catalog_path = "app/api/catalog/route.ts"
+catalog = read(catalog_path)
+catalog_marker = '  if (!body.action || !['
+if catalog_marker not in catalog:
+    raise RuntimeError("Catalog action validation marker missing")
+catalog = catalog.replace(catalog_marker, '  const action = body.action;\n  if (!action || ![', 1)
+split_at = catalog.index('  const action = body.action;')
+prefix, suffix = catalog[:split_at], catalog[split_at:]
+suffix = suffix.replace('body.action', 'action').replace('const action = action;', 'const action = body.action;', 1)
+write(catalog_path, prefix + suffix)
+
+planning_path = "app/api/planning-lifecycle/route.ts"
+planning = read(planning_path)
+planning_marker = '  if (!body.action || !isPlanningLifecycleAction(body.action)) {'
+if planning_marker not in planning:
+    raise RuntimeError("Planning action validation marker missing")
+planning = planning.replace(planning_marker, '  const action = body.action;\n  if (!action || !isPlanningLifecycleAction(action)) {', 1)
+split_at = planning.index('  const action = body.action;')
+prefix, suffix = planning[:split_at], planning[split_at:]
+suffix = suffix.replace('body.action', 'action').replace('const action = action;', 'const action = body.action;', 1)
+write(planning_path, prefix + suffix)
 
 # Repository-level actor parameters are optional for legacy direct repository
 # acceptance harnesses. Production services still always pass the actor, and
