@@ -37,6 +37,18 @@ jobs:
           ref: fix/issue-230-persistent-bidirectional-conflicts
       - name: Apply guarded patch
         run: python scripts/issue-230-patch.py
+      - name: Align Issue 230 source matcher
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/issue-230-tests.ts")
+          text = path.read_text(encoding="utf-8")
+          old = 'assert.match(clientSource, /completedInvalidationPreview\\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");'
+          new = 'assert.match(clientSource, /completedInvalidationPreview\\?\\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");'
+          if text.count(old) != 1:
+              raise SystemExit("Issue 230 source matcher drifted")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
       - uses: actions/setup-node@v4
         with:
           node-version: 22
