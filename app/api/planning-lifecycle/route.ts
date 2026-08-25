@@ -5,14 +5,18 @@ import {
   DrizzleFinalSetCompletionRepository,
   DrizzlePlanningSetRepository,
   isPastPragueDate,
+  type PersistedPlanningSet,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
+import type { PlanningSet, ServiceContext } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
 import { ProtectedActorError, resolveProtectedActor } from "../../../src/application/protected-actor";
 import { PostgresReferenceAntiphonProvider } from "../../../src/application/postgres-reference-antiphon";
 import { PostgresReferenceCatalogProvider } from "../../../src/application/postgres-reference-catalog";
 import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
 import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
+import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
+import { enrichRevisionRowIndexes, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
 import { auditEventValues, humanAuditActor, systemAuditActor } from "../../../src/application/audit-history";
 
 type PlanningLifecycleAction =
@@ -20,6 +24,7 @@ type PlanningLifecycleAction =
   | "listCompletedRecords"
   | "loadPlanningSet"
   | "loadCompletedRecord"
+  | "previewCompletedRecordInvalidation"
   | "saveWorkingSet"
   | "finalizeWorkingSet"
   | "reopenFinalSet"
@@ -61,6 +66,7 @@ export async function POST(request: Request) {
       db: db as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"],
       schema,
     };
+    const melodyClasses = new PostgresReferenceMelodyClassProvider(pool);
 
     // List reads are the normal reconciliation boundary. Each actual automatic
     // Final → Completed conversion is audited from the same transaction and from
@@ -91,6 +97,17 @@ export async function POST(request: Request) {
         const readService = createDbBackedPlanningLifecycleService(txDependencies);
         return action === "listPlanningSets" ? await readService.listPlanningSets() : await readService.listCompletedRecords();
       });
+      if (action === "listPlanningSets" && result.success) {
+        const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
+        const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+        const value = await enrichRevisionRowIndexes({
+          plans: result.value as PersistedPlanningSet[],
+          completedRecords,
+          melodyClasses,
+          months: melodyWindow.success ? melodyWindow.value.months : 2,
+        });
+        return NextResponse.json({ ...result, value });
+      }
       return NextResponse.json(result);
     }
 
@@ -104,7 +121,39 @@ export async function POST(request: Request) {
     if (action === "loadPlanningSet") {
       const setId = isObjectWithSetId(body.input) ? body.input.setId : undefined;
       if (!setId) return invalidInput("setId is required.");
-      return NextResponse.json(await readService.loadPlanningSet(setId));
+      const result = await readService.loadPlanningSet(setId);
+      if (!result.success) return NextResponse.json(result);
+      const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
+      const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+      const [value] = await enrichRevisionRowIndexes({
+        plans: [result.value],
+        completedRecords,
+        melodyClasses,
+        months: melodyWindow.success ? melodyWindow.value.months : 2,
+      });
+      return NextResponse.json({ ...result, value });
+    }
+    if (action === "previewCompletedRecordInvalidation") {
+      if (actor.role !== "admin") return NextResponse.json({ success: false, error: { code: "permissionDenied", message: "Only the active admin role can preview completed-plan invalidation." } });
+      if (!isCompletedPreviewInput(body.input)) return invalidInput("Completed invalidation preview requires recordId, serviceContext and final set rows.");
+      const completedRepository = new DrizzleCompletedServiceRecordRepository(adapterDependencies);
+      const currentRecord = await completedRepository.findById(body.input.recordId);
+      if (!currentRecord) return NextResponse.json({ success: false, error: { code: "notFound", message: "Completed record was not found." } });
+      const plans = await new DrizzlePlanningSetRepository(adapterDependencies).list();
+      const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+      const proposedRecord = {
+        ...currentRecord,
+        serviceContext: body.input.serviceContext as ServiceContext,
+        set: body.input.set as PlanningSet & { status: "final" },
+      };
+      const value = await previewCompletedPlanInvalidation({
+        plans,
+        currentRecord,
+        proposedRecord,
+        melodyClasses,
+        months: melodyWindow.success ? melodyWindow.value.months : 2,
+      });
+      return NextResponse.json({ success: true, value });
     }
 
     if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");
@@ -118,7 +167,7 @@ export async function POST(request: Request) {
         referenceAntiphons: new PostgresReferenceAntiphonProvider(pool),
         referenceTopics: new PostgresReferenceThematicSectionProvider(pool),
         referenceSongs: new PostgresReferenceCatalogProvider(pool),
-        referenceMelodyClasses: new PostgresReferenceMelodyClassProvider(pool),
+        referenceMelodyClasses: melodyClasses,
       });
       const mutation = await service[action](input as never);
       if (mutation.success) {
@@ -188,7 +237,7 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
+  return ["listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
 function isObjectWithRecordId(input: unknown): input is { recordId: string } {
@@ -197,6 +246,13 @@ function isObjectWithRecordId(input: unknown): input is { recordId: string } {
 
 function isObjectWithSetId(input: unknown): input is { setId: string } {
   return typeof input === "object" && input !== null && "setId" in input && typeof (input as { setId?: unknown }).setId === "string";
+}
+
+function isCompletedPreviewInput(input: unknown): input is { recordId: string; serviceContext: ServiceContext; set: PlanningSet & { status: "final" } } {
+  if (!isRecord(input) || typeof input.recordId !== "string" || !input.recordId.trim()) return false;
+  if (!isRecord(input.serviceContext) || typeof input.serviceContext.serviceDate !== "string" || typeof input.serviceContext.serviceTime !== "string") return false;
+  if (!isRecord(input.set) || input.set.status !== "final" || !Array.isArray(input.set.rows)) return false;
+  return true;
 }
 
 function protectedActorFailure(error: ProtectedActorError) {

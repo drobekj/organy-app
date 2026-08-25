@@ -1,6 +1,7 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { authPool } from "../../../src/auth/server";
+import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../../../src/application/active-role";
 import { canReadAuditHistory, listAuditEvents } from "../../../src/application/audit-history";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 
@@ -10,7 +11,8 @@ export default async function AuditHistoryPage() {
   let currentUser;
   try { currentUser = await resolveProtectedUser(requestHeaders, authPool); }
   catch (error) { if (error instanceof ProtectedActorError) redirect("/sign-in"); throw error; }
-  if (!canReadAuditHistory(currentUser.roles)) redirect("/");
+  const activeRole = resolveOwnedActiveRole(currentUser.roles, (await cookies()).get(ACTIVE_ROLE_COOKIE_NAME)?.value);
+  if (!canReadAuditHistory(currentUser.roles) || activeRole !== "admin") redirect("/");
 
   const events = await listAuditEvents(authPool);
   return <main className="shell"><section className="card planning-form" aria-label="Audit history">

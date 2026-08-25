@@ -1,8 +1,9 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import PlanningLifecycleClient, { type RuntimeMode } from "./planning-lifecycle-client";
 import { ProtectedAccountControls } from "./protected-account-controls";
 import { ProtectedActorError, resolveProtectedUser } from "../src/application/protected-actor";
+import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../src/application/active-role";
 import { authPool } from "../src/auth/server";
 
 export default async function Home() {
@@ -11,10 +12,11 @@ export default async function Home() {
 
   try {
     const authenticatedUser = await resolveProtectedUser(await headers(), authPool);
+    const activeRole = resolveOwnedActiveRole(authenticatedUser.roles, (await cookies()).get(ACTIVE_ROLE_COOKIE_NAME)?.value);
     return (
       <>
-        <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} />
-        <PlanningLifecycleClient runtimeMode="db" authenticatedUser={authenticatedUser} />
+        <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} initialActiveRole={activeRole} />
+        <PlanningLifecycleClient runtimeMode="db" authenticatedUser={authenticatedUser} initialActiveRole={activeRole} />
       </>
     );
   } catch (error) {

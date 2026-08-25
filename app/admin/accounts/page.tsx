@@ -1,6 +1,7 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { authPool } from "../../../src/auth/server";
+import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../../../src/application/active-role";
 import { PostgresProtectedAccountAdminService } from "../../../src/application/protected-account-admin";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 import { ProvisionProtectedAccountForm } from "./provision-protected-account-form";
@@ -16,7 +17,8 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
   let currentUser;
   try { currentUser = await resolveProtectedUser(requestHeaders, authPool); }
   catch (error) { if (error instanceof ProtectedActorError) redirect("/sign-in"); throw error; }
-  if (!currentUser.roles.includes("admin")) redirect("/");
+  const activeRole = resolveOwnedActiveRole(currentUser.roles, (await cookies()).get(ACTIVE_ROLE_COOKIE_NAME)?.value);
+  if (!currentUser.roles.includes("admin") || activeRole !== "admin") redirect("/");
   const snapshot = await new PostgresProtectedAccountAdminService(authPool).list(requestHeaders);
   const activeAdminCount = snapshot.accounts.filter((account) => account.active && account.roles.includes("admin")).length;
   const peopleResult = await authPool.query(`
