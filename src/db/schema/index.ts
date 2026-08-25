@@ -3,6 +3,7 @@ import {
   check,
   date,
   integer,
+  jsonb,
   time,
   pgEnum,
   pgTable,
@@ -374,6 +375,35 @@ export const organistRepertoire = pgTable("organist_repertoire", {
 export const antiphonMappings = pgTable("antiphon_mappings", { id: text("id").primaryKey(), antiphonKey: text("antiphon_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
 export const liturgicalSeasonMappings = pgTable("liturgical_season_mappings", { id: text("id").primaryKey(), seasonKey: text("season_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
 export const melodyNonRepetitionConfig = pgTable("melody_non_repetition_config", { id: text("id").primaryKey().default("global"), months: integer("months").notNull().default(2), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow() }, (table) => ({ singletonConfig: check("melody_non_repetition_config_singleton", sql`${table.id} = 'global'`), nonNegativeWindow: check("melody_non_repetition_config_non_negative", sql`${table.months} >= 0`) }));
+
+export const auditEvents = pgTable("audit_events", {
+  id: serial("id").primaryKey(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  actorKind: text("actor_kind").notNull(),
+  actorUserId: text("actor_user_id"),
+  actorDisplayName: text("actor_display_name"),
+  actorRole: text("actor_role"),
+  actorPersonId: text("actor_person_id"),
+  action: text("action").notNull(),
+  objectKind: text("object_kind").notNull(),
+  objectRef: text("object_ref").notNull(),
+  beforeState: jsonb("before_state"),
+  afterState: jsonb("after_state"),
+}, (table) => ({
+  occurredAtIndex: index("audit_events_occurred_at_idx").on(table.occurredAt),
+  objectIndex: index("audit_events_object_idx").on(table.objectKind, table.objectRef),
+  actorKindValid: check("audit_events_actor_kind_valid", sql`${table.actorKind} in ('human', 'system')`),
+  actorSnapshotValid: check("audit_events_actor_snapshot_valid", sql`(
+    ${table.actorKind} = 'system' and ${table.actorUserId} is null and ${table.actorDisplayName} is null and ${table.actorRole} is null
+  ) or (
+    ${table.actorKind} = 'human' and ${table.actorUserId} is not null and btrim(${table.actorUserId}) <> '' and
+    ${table.actorDisplayName} is not null and btrim(${table.actorDisplayName}) <> '' and
+    ${table.actorRole} is not null and btrim(${table.actorRole}) <> ''
+  )`),
+  actionNonEmpty: check("audit_events_action_non_empty", sql`btrim(${table.action}) <> ''`),
+  objectKindNonEmpty: check("audit_events_object_kind_non_empty", sql`btrim(${table.objectKind}) <> ''`),
+  objectRefNonEmpty: check("audit_events_object_ref_non_empty", sql`btrim(${table.objectRef}) <> ''`),
+}));
 
 export const serviceContextsRelations = relations(serviceContexts, ({ many }) => ({
   serviceSets: many(serviceSets),

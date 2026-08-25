@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import type { ActorIdentity } from "./interaction-contracts";
 import type { InteractionResult } from "./interaction-service";
 import { displayReferenceNumber } from "./reference-catalog-contract";
+import { appendAuditEvent, humanAuditActor } from "./audit-history";
 
 export type ReferenceMelodyMember = { referenceSongId: string; language: "czech" | "polish"; canonicalNumber: number; displayNumber: string; title: string };
 export type ReferenceMelodyClass = { referenceSongId: string; classId: string; members: ReferenceMelodyMember[] };
@@ -9,7 +10,7 @@ export type ReferenceMelodyClass = { referenceSongId: string; classId: string; m
 export interface ReferenceMelodyRepository {
   referenceSongExists(referenceSongId: string): Promise<boolean>;
   getReferenceMelodyClass(referenceSongId: string): Promise<ReferenceMelodyClass | undefined>;
-  mergeReferenceMelodyClasses(referenceSongId: string, mergeWithReferenceSongId: string): Promise<ReferenceMelodyClass | undefined>;
+  mergeReferenceMelodyClasses(referenceSongId: string, mergeWithReferenceSongId: string, actor?: ActorIdentity): Promise<ReferenceMelodyClass | undefined>;
 }
 
 const memberSql = `select m.reference_song_id, m.class_id, s.language, s.canonical_number, s.title
@@ -21,13 +22,15 @@ export class PgReferenceMelodyRepository implements ReferenceMelodyRepository {
   constructor(private readonly pool: Pool, private readonly options: { failAfterMembershipMove?: boolean } = {}) {}
   async referenceSongExists(id: string) { return (await this.pool.query("select 1 from reference_catalog_songs where id=$1", [id])).rows.length === 1; }
   async getReferenceMelodyClass(id: string) { return readClass(this.pool, id); }
-  async mergeReferenceMelodyClasses(anchor: string, target: string) {
+  async mergeReferenceMelodyClasses(anchor: string, target: string, actor?: ActorIdentity) {
     const client = await this.pool.connect();
     try {
       await client.query("begin");
       // A transaction-scoped lock serializes the small administrative merge operation,
       // including overlapping merges whose class ids change while another waits.
       await client.query("select pg_advisory_xact_lock(hashtext('reference-melody-merge'))");
+      const beforeAnchor = await readClass(client, anchor);
+      const beforeTarget = anchor === target ? beforeAnchor : await readClass(client, target);
       const memberships = await client.query("select reference_song_id,class_id from reference_song_melody_memberships where reference_song_id=any($1::text[]) order by class_id for update", [[anchor, target]]);
       if (memberships.rows.length !== (anchor === target ? 1 : 2)) { await client.query("rollback"); return undefined; }
       const anchorClass = String(memberships.rows.find((row) => row.reference_song_id === anchor)!.class_id);
@@ -42,6 +45,16 @@ export class PgReferenceMelodyRepository implements ReferenceMelodyRepository {
         await client.query("delete from reference_melody_classes where id=$1", [targetClass]);
       }
       const result = await readClass(client, anchor);
+      if (anchorClass !== targetClass && result && actor) {
+        await appendAuditEvent(client, {
+          actor: humanAuditActor(actor),
+          action: "knowledge.melody.merge",
+          objectKind: "melodyClass",
+          objectRef: result.classId,
+          beforeState: { anchor: beforeAnchor, target: beforeTarget },
+          afterState: result,
+        });
+      }
       await client.query("commit");
       return result;
     } catch (error) { await client.query("rollback").catch(() => undefined); throw error; }
@@ -67,7 +80,7 @@ export class ReferenceMelodyService {
     if (actor.role !== "admin") return fail("permissionDenied", "Only admin may merge reference melody classes.");
     if (!await this.repo.referenceSongExists(anchor)) return fail("notFound", "Anchor Reference catalog record was not found.");
     if (!await this.repo.referenceSongExists(target)) return fail("notFound", "Merge target Reference catalog record was not found.");
-    const value = await this.repo.mergeReferenceMelodyClasses(anchor, target);
+    const value = await this.repo.mergeReferenceMelodyClasses(anchor, target, actor);
     return value ? ok(value) : fail("notFound", "Reference catalog record was not found.");
   }
 }

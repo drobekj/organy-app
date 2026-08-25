@@ -45,7 +45,7 @@ export function ProtectedAccountControls({ displayName, roles }: { displayName: 
   return (
     <section className="protected-account-controls" aria-label="Signed-in account">
       <strong>{displayName}</strong>
-      {roles.includes("admin") && <a href="/admin/accounts">Manage accounts</a>}
+      {roles.includes("admin") && <><a href="/admin/accounts">Manage accounts</a><a href="/admin/audit-history">Audit history</a></>}
       <button type="button" onClick={() => { setEditingPassword((value) => !value); setFeedback(null); }}>Change password</button>
       <button type="button" onClick={signOut} disabled={pending}>Sign out</button>
       {editingPassword && (

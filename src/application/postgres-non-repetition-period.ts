@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import type { ActorIdentity } from "./interaction-contracts";
+import { appendAuditEvent, humanAuditActor } from "./audit-history";
 import {
   findNonRepetitionPlanConflicts,
   melodyWindowConflictMessage,
@@ -38,6 +39,8 @@ export class PostgresNonRepetitionPeriodService {
     try {
       await client.query("begin");
       await client.query("lock table service_contexts, service_sets, service_set_rows, reference_song_melody_memberships in share mode");
+      const currentResult = await client.query("select months from melody_non_repetition_config where id = 'global' for update");
+      const beforeMonths = Number(currentResult.rows[0]?.months ?? 2);
       const usages = await listSavedPlanMelodyUsages(client);
       const conflicts = findNonRepetitionPlanConflicts(usages, months);
       if (conflicts.length > 0) {
@@ -52,10 +55,20 @@ export class PostgresNonRepetitionPeriodService {
         };
       }
 
-      await client.query(
-        "insert into melody_non_repetition_config (id, months) values ('global', $1) on conflict (id) do update set months = excluded.months, updated_at = now()",
-        [months],
-      );
+      if (beforeMonths !== months) {
+        await client.query(
+          "insert into melody_non_repetition_config (id, months) values ('global', $1) on conflict (id) do update set months = excluded.months, updated_at = now()",
+          [months],
+        );
+        await appendAuditEvent(client, {
+          actor: humanAuditActor(actor),
+          action: "knowledge.nonRepetition.set",
+          objectKind: "nonRepetitionConfig",
+          objectRef: "global",
+          beforeState: { months: beforeMonths },
+          afterState: { months },
+        });
+      }
       await client.query("commit");
       return success(months);
     } catch (error) {
