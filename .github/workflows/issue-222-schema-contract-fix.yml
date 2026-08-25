@@ -86,8 +86,8 @@ jobs:
           s = p.read_text()
           s = s.replace('const EXPECTED_PUBLIC_TABLES = 32;', tables)
           s = s.replace('`Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES}-table Phase 31.38 schema.`', '`Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES.length}-table schema including the append-only audit boundary.`')
-          s = s.replace('if (boundary.publicTables.length !== EXPECTED_PUBLIC_TABLES) {\n    throw new Error(`Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES}-table Phase 31.38 schema.`);\n  }', 'if (!sameStrings(boundary.publicTables, EXPECTED_PUBLIC_TABLES)) {\n    throw new Error(`Production reference synchronization requires the reviewed ${EXPECTED_PUBLIC_TABLES.length}-table schema including the append-only audit boundary.`);\n  }')
-          if 'EXPECTED_PUBLIC_TABLES = 32' in s or 'reviewed ${EXPECTED_PUBLIC_TABLES}-table' in s:
+          s = s.replace('if (boundary.publicTables.length !== EXPECTED_PUBLIC_TABLES) {', 'if (!sameStrings(boundary.publicTables, EXPECTED_PUBLIC_TABLES)) {')
+          if 'EXPECTED_PUBLIC_TABLES = 32' in s or 'boundary.publicTables.length !== EXPECTED_PUBLIC_TABLES' in s or 'reviewed ${EXPECTED_PUBLIC_TABLES}-table' in s:
               raise SystemExit('production sync replacement incomplete')
           p.write_text(s)
 
