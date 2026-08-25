@@ -17,7 +17,7 @@ import {
   type PlanningSetId,
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
-import type { ConcreteSongLanguage, PlanningRole, PlanningRow, PlanningSet, ServiceAntiphonReference, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
+import type { ConcreteSongLanguage, PlanningRole, PlanningRow, PlanningSet, ServiceAntiphonReference, ServiceContext, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, serviceAntiphonMatchesLanguage, serviceTopicMatchesLanguage, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";

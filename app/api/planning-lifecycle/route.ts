@@ -5,6 +5,7 @@ import {
   DrizzleFinalSetCompletionRepository,
   DrizzlePlanningSetRepository,
   isPastPragueDate,
+  type PersistedPlanningSet,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
 import type { PlanningSet, ServiceContext } from "../../../src/planning-lifecycle";
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
         const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
         const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
         const value = await enrichRevisionRowIndexes({
-          plans: result.value,
+          plans: result.value as PersistedPlanningSet[],
           completedRecords,
           melodyClasses,
           months: melodyWindow.success ? melodyWindow.value.months : 2,

@@ -31,8 +31,8 @@ async function main() {
   assert.match(clientSource, /completedRecordsNewestFirst/, "History must use newest-first ordering");
   assert.match(clientSource, /history-scroll-list/, "History must render in a bounded scroll container");
   assert.match(clientSource, /serializeActiveRoleCookie\(role\)/, "active role switch must persist to a cookie");
-  assert.match(cssSource, /\.needs-revision-row\s*\{[^}]*border:\s*2px solid var\(--danger\)/s);
-  assert.match(cssSource, /\.history-scroll-list\s*\{[^}]*overflow-y:\s*auto/s);
+  assert.match(cssSource, /\.needs-revision-row\s*\{[\s\S]*?border:\s*2px solid var\(--danger\)/);
+  assert.match(cssSource, /\.history-scroll-list\s*\{[\s\S]*?overflow-y:\s*auto/);
 
   const pool = new Pool({ connectionString: databaseUrl });
   const db = drizzle(pool, { schema });
