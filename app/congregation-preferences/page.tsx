@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { Pool } from "pg";
+import { getAppDbPool } from "../../src/db/app-pool";
 import { CongregationVoterError, PostgresCongregationPreferenceService } from "../../src/application/congregation-preference-voter";
 import { PostgresReferenceCatalogProvider } from "../../src/application/postgres-reference-catalog";
 
@@ -22,9 +22,8 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   const search = first(params.q) ?? "";
   const selectedId = first(params.song);
   const saved = first(params.saved) === "1";
-  const pool = new Pool({ connectionString: databaseUrl, max: 4 });
-  try {
-    const service = new PostgresCongregationPreferenceService(pool);
+  const pool = getAppDbPool(databaseUrl);
+  const service = new PostgresCongregationPreferenceService(pool);
     let voter;
     try {
       voter = await service.resolveContext(token);
@@ -94,9 +93,6 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
         </section>
       </main>
     );
-  } finally {
-    await pool.end();
-  }
 }
 
 function nicknameEntry(message?: string) {

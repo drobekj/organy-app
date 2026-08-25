@@ -21,6 +21,7 @@ export interface CatalogRepository {
   listPeople(): Promise<CatalogPerson[]>;
   upsertPerson(person: CatalogPerson): Promise<CatalogPerson>;
   findSongById(id: string): Promise<CatalogSong | undefined>;
+  findSongsByIds(ids: string[]): Promise<CatalogSong[]>;
   searchSongs(languages: ConcreteSongLanguage[], query: string): Promise<CatalogSong[]>;
   listSongs(): Promise<CatalogSong[]>;
   upsertSong(song: CatalogSong): Promise<CatalogSong>;
@@ -31,6 +32,7 @@ export class CatalogService {
   constructor(private readonly repo: CatalogRepository) {}
   async getPerson(input: { id: string }) { const person = await this.repo.findPersonById(input.id); return person ? success(person) : failure({ code: "notFound", message: "Person was not found." }); }
   async getSong(input: { songId: string }) { const song = await this.repo.findSongById(input.songId); return song ? success(song) : failure({ code: "notFound", message: "Song was not found." }); }
+  async getSongs(input: { songIds: string[] }) { return success(await this.repo.findSongsByIds(input.songIds)); }
   async searchPeople(input: { role: PersonRole; query?: string }) { return success(await this.repo.searchPeople(input.role, input.query ?? "")); }
   async listPeople() { return success(await this.repo.listPeople()); }
   async savePerson(input: { role: PlanningRole; person: Omit<CatalogPerson, "id"> & { id?: string } }): Promise<PlanningServiceResult<CatalogPerson>> {
@@ -55,6 +57,7 @@ export class InMemoryCatalogRepository implements CatalogRepository {
   async listPeople() { return [...this.people]; }
   async upsertPerson(person: CatalogPerson) { const i = this.people.findIndex((p) => p.id === person.id); if (i >= 0) this.people[i] = person; else this.people.push(person); return person; }
   async findSongById(id: string) { return this.songs.find((s) => s.songId === id); }
+  async findSongsByIds(ids: string[]) { const wanted = new Set(ids); return this.songs.filter((song) => wanted.has(song.songId)); }
   async searchSongs(languages: ConcreteSongLanguage[], query: string) { const q = query.toLowerCase(); return this.songs.filter((s) => s.active && languages.includes(s.language) && (s.number.toLowerCase().includes(q) || s.title.toLowerCase().includes(q))); }
   async listSongs() { return [...this.songs]; }
   async upsertSong(song: CatalogSong) { if (this.songs.some((s) => s.songId !== song.songId && s.language === song.language && s.number === song.number)) throw new Error("Duplicate song language/number."); const i = this.songs.findIndex((s) => s.songId === song.songId); if (i >= 0) this.songs[i] = song; else this.songs.push(song); return song; }
@@ -68,6 +71,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
   async listPeople() { return (await this.db.select().from(catalogPersons).orderBy(asc(catalogPersons.displayName))).map(mapPerson); }
   async upsertPerson(person: CatalogPerson) { const now = new Date(); const [r] = await this.db.insert(catalogPersons).values({ ...person, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: catalogPersons.id, set: { displayName: person.displayName, active: person.active, priest: person.priest, organist: person.organist, updatedAt: now } }).returning(); return mapPerson(r); }
   async findSongById(id: string) { const [r] = await this.db.select().from(catalogSongs).where(eq(catalogSongs.songId, id)).limit(1); return r && mapSong(r); }
+  async findSongsByIds(ids: string[]) { if (ids.length === 0) return []; return (await this.db.select().from(catalogSongs).where(inArray(catalogSongs.songId, ids))).map(mapSong); }
   async searchSongs(languages: ConcreteSongLanguage[], query: string) { const rows = await this.db.select().from(catalogSongs).where(and(eq(catalogSongs.active, true), inArray(catalogSongs.language, languages), or(ilike(catalogSongs.number, `%${query}%`), ilike(catalogSongs.title, `%${query}%`)))).orderBy(asc(catalogSongs.language), asc(catalogSongs.number)); return rows.map(mapSong); }
   async listSongs() { return (await this.db.select().from(catalogSongs).orderBy(asc(catalogSongs.language), asc(catalogSongs.number))).map(mapSong); }
   async upsertSong(song: CatalogSong) { const now = new Date(); const [r] = await this.db.insert(catalogSongs).values({ ...song, sheetMusicUrl: song.sheetMusicUrl ?? null, createdAt: now, updatedAt: now }).onConflictDoUpdate({ target: catalogSongs.songId, set: { title: song.title, active: song.active, sheetMusicUrl: song.sheetMusicUrl ?? null, updatedAt: now } }).returning(); return mapSong(r); }

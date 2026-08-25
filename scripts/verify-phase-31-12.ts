@@ -6,6 +6,7 @@ import { POST, useInteractionPoolForAcceptance } from "../app/api/interaction/ro
 import { POST as planningLifecyclePOST } from "../app/api/planning-lifecycle/route";
 import type { CandidateQueryInput, CandidateQueryResult } from "../src/application/interaction-contracts";
 import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
+import { disposeAppDbPoolForAcceptance } from "../src/db/app-pool";
 import {
   createDatabaseSql,
   createNpmInvocation,
@@ -284,6 +285,7 @@ async function main() {
         await verifyReferenceCandidateLifecycle(pool);
       } finally {
         restore();
+        await disposeAppDbPoolForAcceptance(databaseUrl);
         await pool.end();
         await waitForDatabaseConnectionsToClose(control, name);
       }

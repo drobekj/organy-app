@@ -4,8 +4,9 @@ import type { PlanningRole, ServiceLanguage } from "../../../src/planning-lifecy
 import * as schema from "../../../src/db/schema";
 import { ProtectedActorError, resolveProtectedActor } from "../../../src/application/protected-actor";
 import { auditEventValues, humanAuditActor } from "../../../src/application/audit-history";
+import { getAppDbPool } from "../../../src/db/app-pool";
 
-type CatalogAction = "getPerson" | "getSong" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
+type CatalogAction = "getPerson" | "getSong" | "getSongs" | "getPlanningPeople" | "getAdminCatalogSnapshot" | "searchPeople" | "listPeople" | "savePerson" | "searchSongs" | "listSongs" | "setSongActive";
 const roles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 const serviceLanguages: ServiceLanguage[] = ["czech", "polish", "mixed"];
 
@@ -16,12 +17,12 @@ export async function POST(request: Request) {
   let body: { action?: CatalogAction; input?: unknown; actor?: unknown };
   try { body = (await request.json()) as typeof body; } catch { return NextResponse.json({ error: { code: "invalidInput", message: "Malformed JSON body." } }, { status: 400 }); }
   const action = body.action;
-  if (!action || !["getPerson", "getSong", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(action)) return invalidInput("Unsupported catalog action.");
+  if (!action || !["getPerson", "getSong", "getSongs", "getPlanningPeople", "getAdminCatalogSnapshot", "searchPeople", "listPeople", "savePerson", "searchSongs", "listSongs", "setSongActive"].includes(action)) return invalidInput("Unsupported catalog action.");
   const validationError = validateActionInput(action, body.input);
   if (validationError) return invalidInput(validationError);
 
-  const [{ Pool }, { drizzle }] = await Promise.all([import("pg"), import("drizzle-orm/node-postgres")]);
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const pool = getAppDbPool();
   try {
     const actor = await resolveProtectedActor(request.headers, pool, body.actor);
     const db = drizzle(pool, { schema });
@@ -50,18 +51,35 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
     const service = new CatalogService(new DrizzleCatalogRepository(db));
+    if (action === "getPlanningPeople") {
+      const [priests, organists] = await Promise.all([
+        service.searchPeople({ role: "priest", query: "" }),
+        service.searchPeople({ role: "organist", query: "" }),
+      ]);
+      if (!priests.success) return NextResponse.json(priests);
+      if (!organists.success) return NextResponse.json(organists);
+      return NextResponse.json({ success: true, value: { priests: priests.value, organists: organists.value } });
+    }
+    if (action === "getAdminCatalogSnapshot") {
+      if (actor.role !== "admin") return NextResponse.json({ success: false, error: { code: "permissionDenied", message: "Only admin can load the management catalog." } });
+      const [people, songs] = await Promise.all([service.listPeople(), service.listSongs()]);
+      if (!people.success) return NextResponse.json(people);
+      if (!songs.success) return NextResponse.json(songs);
+      return NextResponse.json({ success: true, value: { people: people.value, songs: songs.value } });
+    }
     return NextResponse.json(await service[action](input as never));
   } catch (error) {
     if (error instanceof ProtectedActorError) return protectedActorFailure(error);
     return NextResponse.json({ error: { code: "internalError", message: error instanceof Error ? error.message : "Catalog API failed." } }, { status: 500 });
-  } finally { await pool.end(); }
+  }
 }
 
 function validateActionInput(action: CatalogAction, input: unknown): string | undefined {
-  if (action === "listPeople" || action === "listSongs") return undefined;
+  if (action === "listPeople" || action === "listSongs" || action === "getPlanningPeople" || action === "getAdminCatalogSnapshot") return undefined;
   if (!isRecord(input)) return "Input object is required.";
   if (action === "getPerson") return typeof input.id === "string" && input.id.trim() ? undefined : "Non-empty person ID is required.";
   if (action === "getSong") return typeof input.songId === "string" && input.songId.trim() ? undefined : "Non-empty song ID is required.";
+  if (action === "getSongs") return Array.isArray(input.songIds) && input.songIds.length <= 100 && input.songIds.every((id) => typeof id === "string" && id.trim()) ? undefined : "songIds must be an array of at most 100 non-empty IDs.";
   if (action === "searchPeople") {
     if (input.role !== "priest" && input.role !== "organist") return "Valid person lookup role is required.";
     if (input.query !== undefined && typeof input.query !== "string") return "Lookup query must be a string when provided.";

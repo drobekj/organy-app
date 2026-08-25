@@ -25,12 +25,15 @@ const vercel = JSON.parse(read("vercel.json")) as {
   git?: { deploymentEnabled?: boolean };
 };
 const authServer = read("src/auth/server.ts");
+const appPool = read("src/db/app-pool.ts");
 const runbook = read("docs/production-runtime-runbook.md");
 
 assert.equal(pkg.engines?.node, "22.x", "package.json must machine-pin Node 22.x");
 assert.equal(pkg.dependencies?.pg, "^8.16.3", "pg must be an explicit production dependency");
 assert.equal(pkg.devDependencies?.pg, undefined, "pg must not remain dev-only");
-assert.ok(authServer.includes('from "pg"'), "production auth runtime must remain recognized as a pg consumer");
+assert.ok(authServer.includes("getAppDbPool"), "production auth runtime must use the shared application DB pool");
+assert.ok(appPool.includes('from "pg"'), "shared application DB pool must remain a pg consumer");
+assert.ok(appPool.includes("attachDatabasePool"), "shared application DB pool must remain Vercel-managed");
 
 const rootLock = lock.packages?.[""];
 assert.equal(rootLock?.engines?.node, "22.x", "package-lock root must preserve the Node 22.x pin");
