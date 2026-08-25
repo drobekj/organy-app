@@ -33,7 +33,7 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git rm .github/workflows/issue-224-client-patch.yml scripts/issue-224-client-patch.py scripts/issue-224-patch-script-fix.py
+          git rm -f .github/workflows/issue-224-client-patch.yml scripts/issue-224-client-patch.py scripts/issue-224-patch-script-fix.py
           git add app/planning-lifecycle-client.tsx app/globals.css
           git commit -m "Issue 224: fix conflict signals, role persistence and history UX"
           git push origin HEAD:fix/issue-224-predeploy-conflict-role-history
