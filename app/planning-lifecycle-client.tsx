@@ -21,6 +21,7 @@ import type { ConcreteSongLanguage, PlanningRole, PlanningRow, PlanningSet, Serv
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, serviceAntiphonMatchesLanguage, serviceTopicMatchesLanguage, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
+import { resolvePlanningDraftConflictRow, type PlanningDraftConflictPreviewState } from "../src/planning-lifecycle/conflict-ui";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
 import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, getPlanningCandidateRowLookupState, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
@@ -188,6 +189,10 @@ class DbPlanningLifecycleClient {
 
   async previewCompletedRecordInvalidation(input: { role: PlanningRole; localActorUserId: string; recordId: string; serviceContext: ServiceContext; set: PlanningSet & { status: "final" } }) {
     return callPlanningLifecycleApi("previewCompletedRecordInvalidation", input, actorContextFrom(input));
+  }
+
+  async previewPlanningSetConflict(input: { setId: PlanningSetId; serviceDate: string; rows: PlanningRow[] }) {
+    return callPlanningLifecycleApi("previewPlanningSetConflict", input);
   }
 
   async saveWorkingSet(input: Parameters<PlanningLifecycleService["saveWorkingSet"]>[0]) {
@@ -384,6 +389,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [completedInvalidationPreview, setCompletedInvalidationPreview] = useState<CompletedPlanInvalidationPreview | null>(null);
   const completedInvalidationPreviewRequest = useRef(0);
+  const [planningDraftConflictPreview, setPlanningDraftConflictPreview] = useState<PlanningDraftConflictPreviewState | null>(null);
+  const planningDraftConflictPreviewRequest = useRef(0);
   const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
   const [completedRecords, setCompletedRecords] = useState<CompletedServiceRecord[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
@@ -500,6 +507,11 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const activeRecordGroups = useMemo(() => groupActivePlanningSets(savedDbSets), [savedDbSets]);
   const revisionPlanCount = activeRecordGroups.working.filter((set) => set.needsRevision).length + activeRecordGroups.final.filter((set) => set.needsRevision).length;
   const conflictingRevisionRowIndexes = useMemo(() => new Set(persistedSet?.needsRevision?.conflictingRowIndexes ?? []), [persistedSet?.id, persistedSet?.needsRevision]);
+  const planningConflictPreviewKey = useMemo(() => (
+    persistedSet && persistedSet.status === "working" && !completedRecord
+      ? JSON.stringify([persistedSet.id, serviceDate, planningRows.map((row) => row.song?.songId ?? null)])
+      : ""
+  ), [persistedSet?.id, persistedSet?.status, completedRecord?.id, serviceDate, planningRows]);
   const completedConflictImpacts = completedInvalidationPreview?.impactedPlans ?? [];
   const completedConflictPlanCount = completedInvalidationPreview
     ? new Set(completedConflictImpacts.map((impact) => impact.planId)).size
@@ -644,6 +656,33 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       set: { status: "final" as const, language: serviceLanguage, rows: planningRows },
     };
   }
+
+  useEffect(() => {
+    const request = ++planningDraftConflictPreviewRequest.current;
+    const previewKey = planningConflictPreviewKey;
+    if (runtimeMode !== "db" || !previewKey || !persistedSet || persistedSet.status !== "working" || completedRecord || !(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
+      setPlanningDraftConflictPreview(null);
+      return;
+    }
+    void planningLifecycleService.previewPlanningSetConflict({
+      setId: persistedSet.id,
+      serviceDate,
+      rows: planningRows,
+    }).then((result) => {
+      if (request !== planningDraftConflictPreviewRequest.current) return;
+      if (!result.success) {
+        setPlanningDraftConflictPreview(null);
+        return;
+      }
+      const value = result.value as { conflictingRowIndexes?: number[] };
+      setPlanningDraftConflictPreview({ key: previewKey, conflictingRowIndexes: value.conflictingRowIndexes ?? [] });
+    }).catch(() => {
+      if (request === planningDraftConflictPreviewRequest.current) setPlanningDraftConflictPreview(null);
+    });
+    return () => {
+      if (planningDraftConflictPreviewRequest.current === request) planningDraftConflictPreviewRequest.current += 1;
+    };
+  }, [runtimeMode, planningConflictPreviewKey, persistedSet?.id, persistedSet?.status, completedRecord?.id, serviceDate, planningLifecycleService]);
 
   useEffect(() => {
     const request = ++completedInvalidationPreviewRequest.current;
@@ -1869,7 +1908,18 @@ Save the correction and mark those plans for revision?`);
 
           <div className="rows-list">
             {rows.map((row, index) => {
-              const revisionConflict = Boolean((persistedSet?.needsRevision && conflictingRevisionRowIndexes.has(index)) || (completedRecord && completedConflictRowIndexes.has(index)));
+              const planningRevisionConflict = persistedSet && !completedRecord
+                ? resolvePlanningDraftConflictRow({
+                    persistedConflict: Boolean(persistedSet.needsRevision && conflictingRevisionRowIndexes.has(index)),
+                    persistedSongId: persistedSet.rows[index]?.song?.songId,
+                    draftSongId: planningRows[index]?.song?.songId,
+                    selectedCandidateSuppressedByMelodyWindow: row.selectedCandidate?.suppressedByMelodyWindow,
+                    currentPreviewKey: planningConflictPreviewKey,
+                    preview: planningDraftConflictPreview,
+                    rowIndex: index,
+                  })
+                : false;
+              const revisionConflict = Boolean(planningRevisionConflict || (completedRecord && completedConflictRowIndexes.has(index)));
               return (
                 <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>

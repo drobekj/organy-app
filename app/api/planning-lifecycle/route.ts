@@ -17,7 +17,7 @@ import { PostgresReferenceCatalogProvider } from "../../../src/application/postg
 import { PostgresReferenceThematicSectionProvider } from "../../../src/application/postgres-reference-thematic-section";
 import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
-import { enrichCompletedConflictStates, enrichPlanningConflictStates, enrichRevisionRowIndexes, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
+import { enrichCompletedConflictStates, enrichPlanningConflictStates, enrichRevisionRowIndexes, findCompletedPlanConflicts, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
 import { auditEventValues, humanAuditActor, systemAuditActor } from "../../../src/application/audit-history";
 import { DrizzleCatalogRepository, getEligiblePersonDefaultById } from "../../../src/application/catalog";
 import { getDraftPeopleDefaults } from "../../../src/planning-lifecycle/ui-session";
@@ -30,6 +30,7 @@ type PlanningLifecycleAction =
   | "loadPlanningSet"
   | "loadCompletedRecord"
   | "previewCompletedRecordInvalidation"
+  | "previewPlanningSetConflict"
   | "saveWorkingSet"
   | "finalizeWorkingSet"
   | "reopenFinalSet"
@@ -213,6 +214,29 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ ...result, value });
     }
+    if (action === "previewPlanningSetConflict") {
+      if (!isPlanningSetConflictPreviewInput(body.input)) return invalidInput("Planning conflict preview requires setId, serviceDate and rows.");
+      const planningRepository = new DrizzlePlanningSetRepository(adapterDependencies);
+      const currentSet = await planningRepository.findById(body.input.setId);
+      if (!currentSet) return NextResponse.json({ success: false, error: { code: "notFound", message: "Planning set was not found." } });
+      if (currentSet.status !== "working") return NextResponse.json({ success: false, error: { code: "invalidStatus", message: "Only a Working planning set can be previewed as an editable draft." } });
+      const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
+      const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+      const proposedPlan: PersistedPlanningSet = {
+        ...currentSet,
+        serviceContext: { ...currentSet.serviceContext, serviceDate: body.input.serviceDate },
+        rows: body.input.rows,
+      };
+      const impacts = await findCompletedPlanConflicts(
+        [proposedPlan],
+        completedRecords,
+        melodyClasses,
+        melodyWindow.success ? melodyWindow.value.months : 2,
+      );
+      const conflictingRowIndexes = [...new Set(impacts.flatMap((impact) => impact.conflictingRowIndexes))].sort((left, right) => left - right);
+      return NextResponse.json({ success: true, value: { conflictingRowIndexes } });
+    }
+
     if (action === "previewCompletedRecordInvalidation") {
       if (actor.role !== "admin") return NextResponse.json({ success: false, error: { code: "permissionDenied", message: "Only the active admin role can preview completed-plan invalidation." } });
       if (!isCompletedPreviewInput(body.input)) return invalidInput("Completed invalidation preview requires recordId, serviceContext and final set rows.");
@@ -315,7 +339,15 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
+  return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "previewPlanningSetConflict", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
+}
+
+function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; rows: PlanningSet["rows"] } {
+  return isRecord(input)
+    && typeof input.setId === "string"
+    && typeof input.serviceDate === "string"
+    && Array.isArray(input.rows)
+    && input.rows.every(isRecord);
 }
 
 function isObjectWithRecordId(input: unknown): input is { recordId: string } {
