@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { CandidateQueryResult } from "../application/interaction-contracts";
 import { getCandidateLineViewModel } from "./candidate-line";
+import { candidatesForView, type CandidateViewMode } from "./candidate-view";
 import type { ConcreteSongLanguage, ServiceLanguage } from "./model";
 import { consumeSelectedDetailDismissPointer, MelodyClassDetail, type MelodyClassDetailMode } from "./melody-detail";
 
@@ -80,6 +81,28 @@ const planningOverlayCss = `
   z-index: 40;
 }
 .row-card .candidate-combobox > .candidate-listbox > * { direction: ltr; }
+.candidate-view-toggle {
+  background: var(--surface, #fff);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  position: sticky;
+  top: 0;
+  width: 100%;
+  z-index: 3;
+}
+.candidate-view-toggle button {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  min-height: 2.2rem;
+  padding: 0.35rem 0.65rem;
+}
+.candidate-view-toggle button + button { border-left: 1px solid var(--border); }
+.candidate-view-toggle button[aria-pressed="true"] {
+  background: #eff6ff;
+  box-shadow: inset 0 -2px 0 #2563eb;
+  font-weight: 700;
+}
 .row-card .candidate-combobox > .melody-detail-candidate {
   right: 0;
   max-height: min(32rem, 70vh);
@@ -129,9 +152,14 @@ export function getInitialCandidateIndex(candidates: CandidateQueryResult[], cur
   return candidates.length > 0 ? 0 : -1;
 }
 
-export function getCandidateEmptyMessage(queryText: string): string {
-  return queryText.trim()
-    ? "No candidate matches this search within the current filters."
+export function getCandidateEmptyMessage(queryText: string, view: CandidateViewMode = "songs"): string {
+  if (queryText.trim()) {
+    return view === "melodies"
+      ? "No melody representative matches this search within the current filters."
+      : "No candidate matches this search within the current filters.";
+  }
+  return view === "melodies"
+    ? "No melody representatives satisfy the current language, repertoire, preference and melody rules."
     : "No songs satisfy the current language, repertoire, preference and melody rules.";
 }
 
@@ -149,6 +177,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   const autoScrolled = useRef(false);
   const pendingFullCandidateDismiss = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [candidateView, setCandidateView] = useState<CandidateViewMode>("songs");
   const [detailReturnSongId, setDetailReturnSongId] = useState<string | undefined>();
   const [detailReturnCandidates, setDetailReturnCandidates] = useState<CandidateQueryResult[] | undefined>();
   const [suppressCandidateOverlay, setSuppressCandidateOverlay] = useState(false);
@@ -158,7 +187,11 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     ? `${props.selectedSong.number}${props.selectedSong.title ? ` · ${props.selectedSong.title}` : ""}`
     : "";
   const candidateQueryText = confirmedLabel && props.value === confirmedLabel ? "" : props.value;
-  const visibleCandidates = detailReturnCandidates ?? props.candidates;
+  const rawVisibleCandidates = detailReturnCandidates ?? props.candidates;
+  const visibleCandidates = useMemo(
+    () => candidatesForView(rawVisibleCandidates, candidateView),
+    [rawVisibleCandidates, candidateView],
+  );
   const visibleLoading = detailReturnCandidates ? false : props.loading;
   const visibleError = detailReturnCandidates ? undefined : props.error;
   const allOccupied = visibleCandidates.length > 0 && visibleCandidates.every((candidate) => !isCandidateSelectable(candidate));
@@ -206,13 +239,15 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
   }, [props.detail, props.open, props.onCancel]);
 
   useEffect(() => {
-    if (!props.open) {
+    if (!props.open && !candidateDetailOpen) {
       autoScrolled.current = false;
       setActiveIndex(-1);
+      setCandidateView("songs");
       setDetailReturnSongId(undefined);
       setDetailReturnCandidates(undefined);
       return;
     }
+    if (!props.open) return;
     if (blockedByPrerequisite || visibleLoading || visibleError || visibleCandidates.length === 0) {
       setActiveIndex(-1);
       return;
@@ -224,7 +259,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
       autoScrolled.current = true;
       queueMicrotask(() => scrollOptionInsideList(listRef.current, initial));
     }
-  }, [props.open, visibleLoading, visibleError, props.prerequisiteMessage, candidateIds, props.value, currentSongId, effectiveFocusSongId, visibleCandidates]);
+  }, [props.open, candidateDetailOpen, visibleLoading, visibleError, props.prerequisiteMessage, candidateIds, props.value, currentSongId, effectiveFocusSongId, visibleCandidates]);
 
   function moveActive(key: string) {
     const next = candidateIndexForKey(activeIndex, key, visibleCandidates.length);
@@ -253,7 +288,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      const candidate = detailReturnCandidates ? visibleCandidates[activeIndex] : props.candidates[activeIndex];
+      const candidate = visibleCandidates[activeIndex];
       if (candidate && isCandidateSelectable(candidate)) props.onSelect(candidate);
     }
   }
@@ -274,8 +309,15 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     autoScrolled.current = false;
     setActiveIndex(index);
     setDetailReturnSongId(candidate.songId);
-    setDetailReturnCandidates([...visibleCandidates]);
+    setDetailReturnCandidates([...rawVisibleCandidates]);
     props.onOpen();
+  }
+
+  function switchCandidateView(next: CandidateViewMode) {
+    if (next === candidateView) return;
+    autoScrolled.current = false;
+    setCandidateView(next);
+    setActiveIndex(-1);
   }
 
   return (
@@ -353,94 +395,106 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
         />
       )}
       {candidateListVisible && (
-        <div
-          id={listboxId}
-          ref={listRef}
-          className="candidate-popup candidate-listbox"
-          role="listbox"
-          aria-label={`Song candidates for ${props.rowLabel}`}
-          aria-busy={!blockedByPrerequisite && visibleLoading}
-        >
-          {blockedByPrerequisite && (
-            <div className="candidate-list-state candidate-list-prerequisite" role="status">
-              <p>{props.prerequisiteMessage}</p>
-            </div>
-          )}
-          {!blockedByPrerequisite && visibleLoading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
-          {!blockedByPrerequisite && !visibleLoading && visibleError && (
-            <div className="candidate-list-state candidate-list-error" role="alert">
-              <p>{visibleError}</p>
-              <div className="candidate-list-actions">
-                <button type="button" onClick={props.onRetry}>Retry</button>
+        <div ref={listRef} className="candidate-popup candidate-listbox">
+          <div className="candidate-view-toggle" role="group" aria-label="Candidate view">
+            <button
+              type="button"
+              aria-pressed={candidateView === "songs"}
+              onClick={() => switchCandidateView("songs")}
+            >Songs</button>
+            <button
+              type="button"
+              aria-pressed={candidateView === "melodies"}
+              onClick={() => switchCandidateView("melodies")}
+            >Melodies</button>
+          </div>
+          <div
+            id={listboxId}
+            role="listbox"
+            aria-label={`${candidateView === "melodies" ? "Melody" : "Song"} candidates for ${props.rowLabel}`}
+            aria-busy={!blockedByPrerequisite && visibleLoading}
+          >
+            {blockedByPrerequisite && (
+              <div className="candidate-list-state candidate-list-prerequisite" role="status">
+                <p>{props.prerequisiteMessage}</p>
               </div>
-            </div>
-          )}
-          {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.length === 0 && (
-            <p className="candidate-list-state" role="status">{getCandidateEmptyMessage(candidateQueryText)}</p>
-          )}
-          {!blockedByPrerequisite && !visibleLoading && !visibleError && allOccupied && (
-            <p className="candidate-list-state" role="status">All matching melodies are already occupied in this service.</p>
-          )}
-          {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.map((candidate, index) => {
-            const current = Boolean(currentSongId && candidate.songId === currentSongId);
-            const selectable = isCandidateSelectable(candidate);
-            const viewModel = getCandidateLineViewModel(candidate);
-            return (
-              <div
-                key={candidate.songId}
-                className={`candidate-option-row ${viewModel.backgroundClass}${current ? " candidate-option-current" : ""}${index === activeIndex && !current ? " candidate-option-active" : ""}`}
-                style={{
-                  alignItems: "center",
-                  minHeight: "2.2rem",
-                  padding: "0.1rem 0.15rem",
-                  ...(current ? { background: "#eff6ff", border: "1px solid #84adff", borderRadius: "0.65rem" } : {}),
-                }}
-              >
+            )}
+            {!blockedByPrerequisite && visibleLoading && <p className="candidate-list-state" role="status">Loading candidates…</p>}
+            {!blockedByPrerequisite && !visibleLoading && visibleError && (
+              <div className="candidate-list-state candidate-list-error" role="alert">
+                <p>{visibleError}</p>
+                <div className="candidate-list-actions">
+                  <button type="button" onClick={props.onRetry}>Retry</button>
+                </div>
+              </div>
+            )}
+            {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.length === 0 && (
+              <p className="candidate-list-state" role="status">{getCandidateEmptyMessage(candidateQueryText, candidateView)}</p>
+            )}
+            {!blockedByPrerequisite && !visibleLoading && !visibleError && allOccupied && (
+              <p className="candidate-list-state" role="status">All matching melodies are already occupied in this service.</p>
+            )}
+            {!blockedByPrerequisite && !visibleLoading && !visibleError && visibleCandidates.map((candidate, index) => {
+              const current = Boolean(currentSongId && candidate.songId === currentSongId);
+              const selectable = isCandidateSelectable(candidate);
+              const viewModel = getCandidateLineViewModel(candidate);
+              return (
                 <div
-                  id={optionId(listboxId, candidate.songId)}
-                  className={`candidate-option${selectable ? "" : " candidate-option-disabled"}`}
-                  role="option"
-                  aria-selected={current}
-                  aria-disabled={!selectable}
-                  data-song-id={candidate.songId}
-                  data-candidate-option
-                  onClick={() => {
-                    if (candidateDetailOpen) {
-                      returnToVisibleCandidate(candidate, index);
-                      return;
-                    }
-                    if (selectable) props.onSelect(candidate);
+                  key={candidate.songId}
+                  className={`candidate-option-row ${viewModel.backgroundClass}${current ? " candidate-option-current" : ""}${index === activeIndex && !current ? " candidate-option-active" : ""}`}
+                  style={{
+                    alignItems: "center",
+                    minHeight: "2.2rem",
+                    padding: "0.1rem 0.15rem",
+                    ...(current ? { background: "#eff6ff", border: "1px solid #84adff", borderRadius: "0.65rem" } : {}),
                   }}
                 >
                   <div
-                    className="candidate-option-content"
-                    style={{ alignItems: "center", minHeight: "2rem", padding: "0 0.35rem", ...(current ? { background: "transparent" } : {}) }}
+                    id={optionId(listboxId, candidate.songId)}
+                    className={`candidate-option${selectable ? "" : " candidate-option-disabled"}`}
+                    role="option"
+                    aria-selected={current}
+                    aria-disabled={!selectable}
+                    data-song-id={candidate.songId}
+                    data-candidate-option
+                    onClick={() => {
+                      if (candidateDetailOpen) {
+                        returnToVisibleCandidate(candidate, index);
+                        return;
+                      }
+                      if (selectable) props.onSelect(candidate);
+                    }}
                   >
-                    <span className={`candidate-option-main ${viewModel.contentTextClass}`} style={{ alignItems: "center", minHeight: "2rem" }}>
-                      <strong>{candidate.number}</strong><span>{candidate.title}</span>
-                    </span>
+                    <div
+                      className="candidate-option-content"
+                      style={{ alignItems: "center", minHeight: "2rem", padding: "0 0.35rem", ...(current ? { background: "transparent" } : {}) }}
+                    >
+                      <span className={`candidate-option-main ${viewModel.contentTextClass}`} style={{ alignItems: "center", minHeight: "2rem" }}>
+                        <strong>{candidate.number}</strong><span>{candidate.title}</span>
+                      </span>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    className="candidate-inline-detail"
+                    style={{
+                      alignItems: "center",
+                      alignSelf: "center",
+                      borderRadius: "0.65rem",
+                      display: "inline-flex",
+                      height: "2rem",
+                      justifyContent: "center",
+                      lineHeight: 1,
+                      minWidth: "4.7rem",
+                      padding: "0 0.65rem",
+                    }}
+                    onClick={() => props.onOpenDetail?.(candidate)}
+                    aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}
+                  >Detail</button>
                 </div>
-                <button
-                  type="button"
-                  className="candidate-inline-detail"
-                  style={{
-                    alignItems: "center",
-                    alignSelf: "center",
-                    borderRadius: "0.65rem",
-                    display: "inline-flex",
-                    height: "2rem",
-                    justifyContent: "center",
-                    lineHeight: 1,
-                    minWidth: "4.7rem",
-                    padding: "0 0.65rem",
-                  }}
-                  onClick={() => props.onOpenDetail?.(candidate)}
-                  aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}
-                >Detail</button>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
