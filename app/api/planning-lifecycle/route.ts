@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import {
   createDbBackedPlanningLifecycleService,
   DrizzleCompletedServiceRecordRepository,
+  DrizzleFinalSetCompletionRepository,
   DrizzlePlanningSetRepository,
+  isPastPragueDate,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
@@ -60,29 +62,34 @@ export async function POST(request: Request) {
       schema,
     };
 
-    // List reads are the normal reconciliation boundary. Any Final → Completed
-    // conversion they cause is a system action and is audited in the same transaction.
+    // List reads are the normal reconciliation boundary. Each actual automatic
+    // Final → Completed conversion is audited from the same transaction and from
+    // the completion outcome that still knows the immutable source Final id.
     if (action === "listPlanningSets" || action === "listCompletedRecords") {
       const result = await db.transaction(async (tx) => {
         const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
-        const records = new DrizzleCompletedServiceRecordRepository(txDependencies);
-        const beforeIds = new Set((await records.list()).map((record) => record.id));
-        const readService = createDbBackedPlanningLifecycleService(txDependencies);
-        const value = action === "listPlanningSets" ? await readService.listPlanningSets() : await readService.listCompletedRecords();
-        if (value.success) {
-          for (const record of await records.list()) {
-            if (beforeIds.has(record.id)) continue;
-            await tx.insert(schema.auditEvents).values(auditEventValues({
-              actor: systemAuditActor(),
-              action: "planning.final.autoComplete",
-              objectKind: "completedService",
-              objectRef: record.id,
-              beforeState: { sourceFinalSetId: record.sourceFinalSetId },
-              afterState: record,
-            }));
-          }
+        const planningSets = new DrizzlePlanningSetRepository(txDependencies);
+        const finalSetCompletion = new DrizzleFinalSetCompletionRepository(txDependencies);
+        const completedAt = new Date();
+        const overdue = (await planningSets.list())
+          .filter((set) => set.status === "final" && isPastPragueDate(set.serviceContext.serviceDate, completedAt))
+          .sort((left, right) => left.serviceContext.serviceDate.localeCompare(right.serviceContext.serviceDate) || left.id.localeCompare(right.id));
+
+        for (const finalSet of overdue) {
+          const outcome = await finalSetCompletion.completeFinalSet(finalSet.id, completedAt);
+          if (outcome.status !== "completed") continue;
+          await tx.insert(schema.auditEvents).values(auditEventValues({
+            actor: systemAuditActor(),
+            action: "planning.final.autoComplete",
+            objectKind: "completedService",
+            objectRef: outcome.record.id,
+            beforeState: { sourceFinalSetId: finalSet.id },
+            afterState: outcome.record,
+          }));
         }
-        return value;
+
+        const readService = createDbBackedPlanningLifecycleService(txDependencies);
+        return action === "listPlanningSets" ? await readService.listPlanningSets() : await readService.listCompletedRecords();
       });
       return NextResponse.json(result);
     }
