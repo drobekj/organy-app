@@ -1,0 +1,35 @@
+name: Issue 224 typecheck correction
+
+on:
+  push:
+    branches:
+      - fix/issue-224-predeploy-conflict-role-history
+    paths:
+      - .github/workflows/issue-224-typecheck-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/issue-224-predeploy-conflict-role-history
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: python scripts/issue-224-typecheck-fix.py
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Commit corrected files and remove helpers
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/issue-224-typecheck-fix.yml scripts/issue-224-typecheck-fix.py
+          git add app/planning-lifecycle-client.tsx app/api/planning-lifecycle/route.ts scripts/issue-224-tests.ts
+          git commit -m "Issue 224: fix acceptance typecheck"
+          git push origin HEAD:fix/issue-224-predeploy-conflict-role-history
