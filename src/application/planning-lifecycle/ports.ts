@@ -4,6 +4,7 @@ export type PlanningSetId = string;
 export type CompletedServiceRecordId = string;
 
 export type PlanningSetRevisionState = { reason: string; conflictingCompletedRecordIds: string[]; conflictingRowIndexes?: number[] };
+export type CompletedServiceConflictState = { conflictingPlanIds: PlanningSetId[]; conflictingRowIndexes: number[] };
 
 export type PersistedPlanningSet = PlanningSet & {
   id: PlanningSetId;
@@ -18,6 +19,7 @@ export type CompletedServiceRecord = {
   set: PlanningSet & { status: "final" };
   serviceContext: ServiceContext;
   completedAt: Date;
+  conflictState?: CompletedServiceConflictState;
 };
 
 export interface PlanningSetRepository {

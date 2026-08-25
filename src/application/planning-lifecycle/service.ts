@@ -361,8 +361,8 @@ export class PlanningLifecycleService {
       this.findPlansImpactedByCompleted(existing),
       this.findPlansImpactedByCompleted(proposed),
     ]);
-    const currentIds = new Set(currentImpact.map((impact) => impact.planId));
-    const newlyImpacted = proposedImpact.filter((impact) => !currentIds.has(impact.planId));
+    const currentConflictKeys = new Set(currentImpact.map(historyConflictKey));
+    const newlyImpacted = proposedImpact.filter((impact) => !currentConflictKeys.has(historyConflictKey(impact)));
     if (newlyImpacted.length > 0 && input.acceptPlanInvalidation !== true) {
       return failure({
         code: "invalidInput",
@@ -375,7 +375,7 @@ export class PlanningLifecycleService {
     }
 
     try {
-      return success(await this.completedServiceRecords.update(input.recordId, normalized.serviceContext, proposed.set, newlyImpacted.map((impact) => impact.planId)));
+      return success(await this.completedServiceRecords.update(input.recordId, normalized.serviceContext, proposed.set, [...new Set(newlyImpacted.map((impact) => impact.planId))]));
     } catch {
       return failure({ code: "notFound", message: "Completed record was not found." });
     }
@@ -634,6 +634,7 @@ export class PlanningLifecycleService {
         needsRevision: {
           reason: `Needs revision: ${conflicts.map((conflict) => conflict.reason).join(" ")}`,
           conflictingCompletedRecordIds: [...new Set(conflicts.map((conflict) => conflict.completedRecordId))],
+          conflictingRowIndexes: [...new Set(conflicts.map((conflict) => conflict.planRowIndex))].sort((left, right) => left - right),
         },
       };
     }));
@@ -660,22 +661,20 @@ export class PlanningLifecycleService {
     const conflicts: HistoryConflict[] = [];
     for (const record of completed) {
       if (!isWithinCalendarMonths(plan.serviceContext.serviceDate, record.serviceContext.serviceDate, months)) continue;
-      let found: HistoryConflict | undefined;
-      for (const planRow of plan.rows) {
+      for (const [planRowIndex, planRow] of plan.rows.entries()) {
         if (!planRow.song?.songId) continue;
-        for (const historicalRow of record.set.rows) {
+        for (const [completedRowIndex, historicalRow] of record.set.rows.entries()) {
           if (!historicalRow.song?.songId || classOf(planRow.song.songId) !== classOf(historicalRow.song.songId)) continue;
-          found = {
+          conflicts.push({
             planId: plan.id,
             planStatus: plan.status,
             completedRecordId: record.id,
+            planRowIndex,
+            completedRowIndex,
             reason: `${plan.serviceContext.serviceDate} ${plan.serviceContext.serviceTime}: song ${planRow.song.number} conflicts with Completed ${record.serviceContext.serviceDate} ${record.serviceContext.serviceTime}, song ${historicalRow.song.number}, within the ${months}-month melody non-repetition period.`,
-          };
-          break;
+          });
         }
-        if (found) break;
       }
-      if (found) conflicts.push(found);
     }
     return conflicts;
   }
@@ -700,7 +699,11 @@ export class PlanningLifecycleService {
   }
 }
 
-type HistoryConflict = { planId: PlanningSetId; planStatus: "working" | "final"; completedRecordId: string; reason: string };
+type HistoryConflict = { planId: PlanningSetId; planStatus: "working" | "final"; completedRecordId: string; planRowIndex: number; completedRowIndex: number; reason: string };
+
+function historyConflictKey(conflict: HistoryConflict): string {
+  return `${conflict.planId} ${conflict.completedRecordId} ${conflict.planRowIndex} ${conflict.completedRowIndex}`;
+}
 
 function validateHistoricalCompletedSet(set: PlanningSet): { path: string; message: string }[] {
   const issues: { path: string; message: string }[] = [];

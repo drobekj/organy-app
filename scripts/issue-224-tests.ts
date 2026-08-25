@@ -31,7 +31,7 @@ async function main() {
   assert.match(clientSource, /completedRecordsNewestFirst/, "History must use newest-first ordering");
   assert.match(clientSource, /history-scroll-list/, "History must render in a bounded scroll container");
   assert.match(clientSource, /serializeActiveRoleCookie\(role\)/, "active role switch must persist to a cookie");
-  assert.match(cssSource, /\.needs-revision-row\s*\{[\s\S]*?border:\s*2px solid var\(--danger\)/);
+  assert.match(cssSource, /\.needs-revision-row\s*\{[\s\S]*?outline:\s*3px solid var\(--danger\)/);
   assert.match(cssSource, /\.history-scroll-list\s*\{[\s\S]*?overflow-y:\s*auto/);
 
   const previewWarningIndex = clientSource.indexOf('className="error-summary completed-invalidation-warning"');
