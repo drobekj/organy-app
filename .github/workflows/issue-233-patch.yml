@@ -60,7 +60,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app src scripts/issue-224-tests.ts scripts/issue-230-tests.ts scripts/issue-233-tests.ts .github/workflows/issue-233.yml
+          git add app src scripts/issue-224-tests.ts scripts/issue-230-tests.ts scripts/issue-233-tests.ts
+          git rm .github/workflows/issue-233.yml
           git rm scripts/issue-233-patch.py scripts/issue-233-compat.py .github/workflows/issue-233-patch.yml
           git commit -m "Issue 233: fix alarm geometry and live Working conflicts"
           git push origin HEAD:fix/issue-233-live-working-conflict
