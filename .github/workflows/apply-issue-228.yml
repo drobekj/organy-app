@@ -1,0 +1,56 @@
+name: Apply Issue 228 guarded patch
+
+on:
+  push:
+    branches: [fix/issue-228-conflict-acceptance-polish]
+    paths:
+      - .github/workflows/apply-issue-228.yml
+      - scripts/apply-issue-228-patch.py
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: organy_issue_228
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d organy_issue_228"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/organy_issue_228
+      ORGANY_RUNTIME: db
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/issue-228-conflict-acceptance-polish
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply guarded source delta
+        run: python scripts/apply-issue-228-patch.py
+      - run: npm ci
+      - run: npm run db:migrate
+      - name: Refined Issue 224 DB/UI acceptance
+        run: npx tsx scripts/issue-224-tests.ts
+      - run: npm run typecheck
+      - run: npm test
+      - name: Commit product delta and remove staging helpers
+        run: |
+          git rm .github/workflows/apply-issue-228.yml scripts/apply-issue-228-patch.py
+          git add app/planning-lifecycle-client.tsx app/globals.css scripts/issue-224-tests.ts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Issue 228: polish conflict acceptance UI"
+          git push origin HEAD:fix/issue-228-conflict-acceptance-polish
