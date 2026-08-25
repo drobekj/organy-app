@@ -128,6 +128,7 @@ async function assertRuntimePoolDiscipline() {
   assert.match(poolSource, /attachDatabasePool\(/, "managed pool must be attached to the Vercel Functions runtime");
   assert.match(poolSource, /__organyAppDbPools/, "managed pool must be reused across warm module instances/HMR");
   assert.equal((poolSource.match(/new\s+Pool\s*\(/g) ?? []).length, 1, "application pool module must have one construction site");
+  assert.match(poolSource, /PostgreSQL idle client error\./, "shared pool must handle background idle-client errors instead of crashing the process");
 
   const authSource = await readFile("src/auth/server.ts", "utf8");
   assert.match(authSource, /getAppDbPool\(databaseUrl\)/, "auth must reuse the same managed pool infrastructure");
@@ -154,7 +155,7 @@ async function assertClientRequestCompaction() {
   assert.doesNotMatch(completedOpen, /refreshDbSets\(/, "read-only Completed open must not refetch the whole workspace");
   const planOpen = extractFunction(client, "async function loadDbSet", "async function saveWorkingSet");
   assert.doesNotMatch(planOpen, /refreshDbSets\(/, "read-only plan open must not refetch the whole workspace");
-  const newDraft = extractFunction(client, "async function startNewDbDraft", "async function refreshCatalogAdmin");
+  const newDraft = extractFunction(client, "async function startNewDbDraft", "function guardedEditorUpdate");
   assert.doesNotMatch(newDraft, /refreshDbSets\(/, "starting a draft must reuse already-loaded defaults instead of a network refresh");
 }
 
