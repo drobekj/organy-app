@@ -8,6 +8,41 @@ const MIGRATION_SCRIPT = "scripts/production-first-migrate.ts";
 const LOCAL_DIRECT_URL = process.env.DATABASE_URL_UNPOOLED;
 const SENSITIVE_POOLED_URL = "postgres://private-user:private-password@private-pooler.example.test/private-db";
 const CONFIG_TABLE = "melody_non_repetition_config";
+const EXPECTED_PUBLIC_TABLES = [
+  "antiphon_mappings",
+  "app_user_roles",
+  "app_users",
+  "audit_events",
+  "auth_accounts",
+  "auth_sessions",
+  "auth_users",
+  "auth_verifications",
+  "catalog_persons",
+  "catalog_songs",
+  "completed_service_rows",
+  "completed_services",
+  "liturgical_season_mappings",
+  "melody_equivalence_classes",
+  "melody_non_repetition_config",
+  "organist_repertoire",
+  "preference_profiles",
+  "protected_account_actor_links",
+  "reference_antiphon_recommendations",
+  "reference_antiphons",
+  "reference_catalog_songs",
+  "reference_melody_classes",
+  "reference_organist_repertoire",
+  "reference_song_melody_memberships",
+  "reference_song_preferences",
+  "reference_thematic_parents",
+  "reference_thematic_ranges",
+  "reference_thematic_sections",
+  "service_contexts",
+  "service_set_rows",
+  "service_sets",
+  "song_melody_equivalence",
+  "song_preferences",
+].sort();
 const EXPECTED_NON_EMPTY = [
   CONFIG_TABLE,
   "reference_antiphons",
@@ -132,7 +167,7 @@ async function main(): Promise<void> {
 
     const migration = run(MIGRATION_SCRIPT, ["--apply"], LOCAL_DIRECT_URL);
     assert.equal(migration.status, 0, `Phase 31.38 schema setup must pass: ${redactedOutput(migration, LOCAL_DIRECT_URL)}`);
-    assert.equal((await publicTables(pool)).length, 32, "Phase 31.39 must start from the exact reviewed 32-table Phase 31.38 schema");
+    assert.deepEqual(await publicTables(pool), EXPECTED_PUBLIC_TABLES, "Phase 31.39 must start from the exact reviewed 33-table schema including audit_events");
     assert.deepEqual(await nonEmptyPublicTables(pool), [CONFIG_TABLE]);
 
     const preflight = run(SCRIPT, [], LOCAL_DIRECT_URL);
@@ -154,6 +189,7 @@ async function main(): Promise<void> {
     assert.match(apply.stdout, /Production authoritative reference synchronization: PASS/);
     assert.ok(!output(apply).includes(LOCAL_DIRECT_URL));
     assert.deepEqual(await nonEmptyPublicTables(pool), EXPECTED_NON_EMPTY);
+    assert.equal(Number((await pool.query("select count(*)::int n from audit_events")).rows[0].n), 0, "reference synchronization must never write audit_events");
 
     const expectedSnapshot = {
       catalog: { total: 1798, czech: 808, polish: 990 },
@@ -181,6 +217,7 @@ async function main(): Promise<void> {
     assert.equal(repeated.status, 0, `authorized synchronization rerun must be idempotent: ${redactedOutput(repeated, LOCAL_DIRECT_URL)}`);
     assert.deepEqual(await exactSnapshot(pool), expectedSnapshot);
     assert.deepEqual(await nonEmptyPublicTables(pool), EXPECTED_NON_EMPTY);
+    assert.equal(Number((await pool.query("select count(*)::int n from audit_events")).rows[0].n), 0, "reference synchronization must never write audit_events");
 
     const providerState = (await pool.query(`select
       exists(select 1 from pg_namespace where nspname='neon_auth') neon_auth_schema,
