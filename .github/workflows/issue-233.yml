@@ -6,6 +6,7 @@ on:
       - app/api/planning-lifecycle/route.ts
       - app/globals.css
       - app/planning-lifecycle-client.tsx
+      - src/planning-lifecycle/candidate-list.tsx
       - src/planning-lifecycle/conflict-ui.ts
       - scripts/issue-224-tests.ts
       - scripts/issue-230-tests.ts
@@ -45,7 +46,7 @@ jobs:
         run: npx tsx scripts/issue-224-tests.ts
       - name: Issue 230 regression
         run: npx tsx scripts/issue-230-tests.ts
-      - name: Issue 233 UI state acceptance
+      - name: Issue 233/235 UI state acceptance
         run: npx tsx scripts/issue-233-tests.ts
       - run: npm run typecheck
       - run: npm test

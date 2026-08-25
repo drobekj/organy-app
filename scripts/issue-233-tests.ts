@@ -6,6 +6,7 @@ async function main() {
   const cssSource = await readFile("app/globals.css", "utf8");
   const clientSource = await readFile("app/planning-lifecycle-client.tsx", "utf8");
   const routeSource = await readFile("app/api/planning-lifecycle/route.ts", "utf8");
+  const candidateListSource = await readFile("src/planning-lifecycle/candidate-list.tsx", "utf8");
 
   const rowAlarmRule = cssSource.match(/\.needs-revision-row\s*\{([\s\S]*?)\}/)?.[1] ?? "";
   assert.match(rowAlarmRule, /border:\s*3px solid var\(--danger\)/);
@@ -20,6 +21,14 @@ async function main() {
   assert.match(routeSource, /findCompletedPlanConflicts/);
   assert.match(routeSource, /previewPlanningSetConflict/);
 
+  assert.match(
+    candidateListSource,
+    /function isCandidateSelectable\(candidate: CandidateQueryResult\): boolean \{\s*return candidate\.availability\.kind === "available";/,
+    "Working candidate UI must keep unavailable/conflicting candidates non-selectable",
+  );
+  const explicitSelectionGuards = clientSource.match(/if \(candidate\.availability\.kind !== "available"\)/g) ?? [];
+  assert.ok(explicitSelectionGuards.length >= 2, "both direct candidate selection paths must reject unavailable candidates");
+
   const persistedConflict = {
     persistedConflict: true,
     persistedSongId: "song:conflict",
@@ -32,21 +41,21 @@ async function main() {
     draftSongId: "song:conflict",
     selectedCandidateSuppressedByMelodyWindow: true,
     preview: null,
-  }), true, "unchanged conflicted Working row keeps the persisted alarm while preview is pending");
+  }), true, "unchanged externally-conflicted Working row keeps the persisted alarm while preview is pending");
 
   assert.equal(resolvePlanningDraftConflictRow({
     ...persistedConflict,
     draftSongId: "song:safe",
     selectedCandidateSuppressedByMelodyWindow: false,
     preview: { key: "old-key", conflictingRowIndexes: [0] },
-  }), false, "changed non-conflicting candidate clears the alarm immediately and ignores stale preview state");
+  }), false, "accepted replacement clears the old alarm immediately and ignores stale preview state");
 
   assert.equal(resolvePlanningDraftConflictRow({
     ...persistedConflict,
-    draftSongId: "song:other-conflict",
+    draftSongId: "song:safe",
     selectedCandidateSuppressedByMelodyWindow: true,
-    preview: { key: "old-key", conflictingRowIndexes: [] },
-  }), true, "changed conflicting candidate keeps the alarm immediately while authoritative preview is pending");
+    preview: null,
+  }), false, "optimistic UI must not invent a new Working conflict from a selected-candidate flag; such candidates are rejected before selection");
 
   assert.equal(resolvePlanningDraftConflictRow({
     ...persistedConflict,
@@ -60,9 +69,9 @@ async function main() {
     draftSongId: "song:safe",
     selectedCandidateSuppressedByMelodyWindow: false,
     preview: { key: "new-key", conflictingRowIndexes: [0] },
-  }), true, "current authoritative preview overrides optimistic state when DB truth still conflicts");
+  }), true, "current authoritative preview may re-apply an alarm only when concurrent DB truth still conflicts");
 
-  console.log("Issue #233 alarm geometry and live Working conflict acceptance passed.");
+  console.log("Issue #233/#235 Working conflict UI contract acceptance passed.");
 }
 
 void main().catch((error: unknown) => {

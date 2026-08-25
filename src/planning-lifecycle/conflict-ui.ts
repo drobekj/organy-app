@@ -17,7 +17,10 @@ export function resolvePlanningDraftConflictRow(input: {
   }
 
   if (input.draftSongId !== input.persistedSongId) {
-    return Boolean(input.draftSongId && input.selectedCandidateSuppressedByMelodyWindow);
+    // Working candidate selection already rejects unavailable/non-repetition conflicts.
+    // A changed accepted candidate therefore clears the persisted alarm immediately;
+    // only a current authoritative preview may re-apply one for concurrent DB truth.
+    return false;
   }
 
   return input.persistedConflict;
