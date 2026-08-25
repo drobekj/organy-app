@@ -1,6 +1,7 @@
 import type { PlanningRole } from "../planning-lifecycle";
 
 export const ACTIVE_ROLE_COOKIE_NAME = "organy-active-role";
+export const ACTIVE_ROLE_CHANGED_EVENT = "organy-active-role-changed";
 
 const planningRoles: PlanningRole[] = ["priest", "organist", "admin", "congregationMember"];
 
