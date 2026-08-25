@@ -17,7 +17,7 @@ import {
   type PlanningSetId,
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
-import type { ConcreteSongLanguage, PlanningRole, PlanningRow, ServiceAntiphonReference, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
+import type { ConcreteSongLanguage, PlanningRole, PlanningRow, PlanningSet, ServiceAntiphonReference, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, serviceAntiphonMatchesLanguage, serviceTopicMatchesLanguage, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
@@ -25,6 +25,8 @@ import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
 import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, getPlanningCandidateRowLookupState, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
+import type { CompletedPlanInvalidationPreview } from "../src/application/completed-plan-conflict-preview";
+import { ACTIVE_ROLE_CHANGED_EVENT, serializeActiveRoleCookie } from "../src/application/active-role";
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
 import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";
 import { MemoryReferenceThematicSectionProvider } from "../src/application/reference-thematic-section";
@@ -151,6 +153,7 @@ export type RuntimeMode = "memory" | "db";
 type PlanningLifecycleClientProps = {
   runtimeMode: RuntimeMode;
   authenticatedUser?: AppUser;
+  initialActiveRole?: PlanningRole;
 };
 
 class DbPlanningLifecycleClient {
@@ -168,6 +171,10 @@ class DbPlanningLifecycleClient {
 
   async loadPlanningSet(setId: PlanningSetId) {
     return callPlanningLifecycleApi("loadPlanningSet", { setId });
+  }
+
+  async previewCompletedRecordInvalidation(input: { role: PlanningRole; localActorUserId: string; recordId: string; serviceContext: ServiceContext; set: PlanningSet & { status: "final" } }) {
+    return callPlanningLifecycleApi("previewCompletedRecordInvalidation", input, actorContextFrom(input));
   }
 
   async saveWorkingSet(input: Parameters<PlanningLifecycleService["saveWorkingSet"]>[0]) {
@@ -312,7 +319,7 @@ async function callPlanningLifecycleApi(action: string, input: unknown, actor?: 
 const jsonHeaders = { "content-type": "application/json" };
 function actorContextFrom(input: unknown): LocalActorRequest | undefined { if (typeof input !== "object" || input === null || !("localActorUserId" in input)) return undefined; const value = input as { localActorUserId?: unknown; role?: unknown }; return typeof value.localActorUserId === "string" ? { userId: value.localActorUserId, ...(typeof value.role === "string" ? { role: value.role as PlanningRole } : {}) } : undefined; }
 
-export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser }: PlanningLifecycleClientProps) {
+export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole }: PlanningLifecycleClientProps) {
   const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
   const interactionRepository = useMemo(() => new InMemoryInteractionRepository(), []);
   const repositories = useMemo<PlanningRepositories>(() => {
@@ -360,6 +367,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
   const [persistedSet, setPersistedSet] = useState<PersistedPlanningSet | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
+  const [completedInvalidationPreview, setCompletedInvalidationPreview] = useState<CompletedPlanInvalidationPreview | null>(null);
+  const completedInvalidationPreviewRequest = useRef(0);
   const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
   const [completedRecords, setCompletedRecords] = useState<CompletedServiceRecord[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
@@ -421,12 +430,20 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const availableUsers = runtimeMode === "db" ? (authenticatedUser ? [authenticatedUser] : []) : memoryUsers;
   const demoUsers = availableUsers.map((user) => ({ id: user.id, label: user.displayName, roles: user.roles }));
   const [selectedUserId, setSelectedUserId] = useState(authenticatedUser?.id ?? "demo-priest-user");
-  const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>(authenticatedUser?.roles[0] ?? "priest");
+  const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>(initialActiveRole ?? authenticatedUser?.roles[0] ?? "priest");
   const storedUser = availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0];
   const effectiveRole = storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0];
   const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
   const selectedRole = activeActor.role;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
+
+  function selectAssignedRole(role: PlanningRole) {
+    setSelectedAssignedRole(role);
+    if (runtimeMode === "db") {
+      document.cookie = serializeActiveRoleCookie(role);
+      window.dispatchEvent(new CustomEvent(ACTIVE_ROLE_CHANGED_EVENT, { detail: role }));
+    }
+  }
 
   useEffect(() => {
     void refreshDbSets();
@@ -449,6 +466,14 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
   const activeRecordGroups = useMemo(() => groupActivePlanningSets(savedDbSets), [savedDbSets]);
+  const revisionPlanCount = activeRecordGroups.working.filter((set) => set.needsRevision).length + activeRecordGroups.final.filter((set) => set.needsRevision).length;
+  const conflictingRevisionRowIndexes = useMemo(() => new Set(persistedSet?.needsRevision?.conflictingRowIndexes ?? []), [persistedSet?.id, persistedSet?.needsRevision]);
+  const completedRecordsNewestFirst = useMemo(() => [...completedRecords].sort((left, right) => {
+    const dateOrder = right.serviceContext.serviceDate.localeCompare(left.serviceContext.serviceDate);
+    if (dateOrder !== 0) return dateOrder;
+    const completedOrder = new Date(right.completedAt).getTime() - new Date(left.completedAt).getTime();
+    return completedOrder || right.id.localeCompare(left.id);
+  }), [completedRecords]);
   const lifecycleState = completedRecord ? "completed" : persistedSet?.status ?? "working draft";
   const validationResults = useMemo(() => planningRows.map(validatePlanningRow), [planningRows]);
   const hasValidationErrors = !completedRecord && validationResults.some((result) => !result.valid);
@@ -556,6 +581,47 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     ...(melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen ? [melodyFinalizationReason] : []),
     ...(completeDateReason ? [`Complete service disabled: ${completeDateReason}`] : []),
   ].filter((message, index, messages) => messages.indexOf(message) === index);
+
+  function completedDraftInput(record: CompletedServiceRecord) {
+    return {
+      role: selectedRole,
+      localActorUserId: activeActor.userId,
+      recordId: record.id,
+      serviceContext: {
+        serviceDate,
+        serviceTime: normalizeServiceTime(serviceTime),
+        language: serviceLanguage,
+        priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
+        organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
+        ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
+      },
+      set: { status: "final" as const, language: serviceLanguage, rows: planningRows },
+    };
+  }
+
+  useEffect(() => {
+    const request = ++completedInvalidationPreviewRequest.current;
+    if (runtimeMode !== "db" || selectedRole !== "admin" || !completedRecord || !(planningLifecycleService instanceof DbPlanningLifecycleClient)) {
+      setCompletedInvalidationPreview(null);
+      return;
+    }
+    const input = completedDraftInput(completedRecord);
+    void planningLifecycleService.previewCompletedRecordInvalidation(input)
+      .then((result) => {
+        if (request !== completedInvalidationPreviewRequest.current) return;
+        setCompletedInvalidationPreview(result.success ? result.value as CompletedPlanInvalidationPreview : null);
+      })
+      .catch(() => {
+        if (request === completedInvalidationPreviewRequest.current) setCompletedInvalidationPreview(null);
+      });
+    return () => {
+      if (completedInvalidationPreviewRequest.current === request) completedInvalidationPreviewRequest.current += 1;
+    };
+  }, [runtimeMode, selectedRole, completedRecord?.id, serviceDate, serviceTime, serviceLanguage, priest, priestId, organist, organistId, serviceNote, referenceAntiphon, referenceTopic, candidateAntiphonKey, candidateSeasonKey, planningRows, planningLifecycleService]);
 
   useEffect(() => {
     const request = ++selectedCandidateAvailabilityRequest.current;
@@ -1466,25 +1532,23 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (hasTopicLanguageMismatch) { setServiceError({ code: "invalidInput", message: "Selected topic must match the service language." }); setSaveState("errors"); return; }
     if (hasInvalidLookupState) { setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before saving." }); setSaveState("errors"); return; }
 
-    const baseInput = {
-      role: selectedRole,
-      ...({ localActorUserId: activeActor.userId } as Record<string, string>),
-      recordId: completedRecord.id,
-      serviceContext: {
-        serviceDate,
-        serviceTime: normalizeServiceTime(serviceTime),
-        language: serviceLanguage,
-        priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
-        organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
-        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
-        ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
-        ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
-        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
-        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
-      },
-      set: { status: "final" as const, language: serviceLanguage, rows: planningRows },
-    };
-    let result = await planningLifecycleService.updateCompletedRecord(baseInput);
+    const baseInput = completedDraftInput(completedRecord);
+    const previewImpacts = completedInvalidationPreview?.newlyImpactedPlans ?? [];
+    let acceptedPreviewInvalidation = false;
+    if (previewImpacts.length > 0) {
+      acceptedPreviewInvalidation = window.confirm(`This historical correction invalidates active plans:
+
+${previewImpacts.map((impact) => `• ${impact.reason} ${impact.planStatus === "final" ? "This Final plan will move to Working." : "This Working plan will require revision."}`).join("\n")}
+
+Save the correction and mark those plans for revision?`);
+      if (!acceptedPreviewInvalidation) {
+        setServiceError(null);
+        setSaveState("unsaved");
+        return;
+      }
+    }
+
+    let result = await planningLifecycleService.updateCompletedRecord({ ...baseInput, ...(acceptedPreviewInvalidation ? { acceptPlanInvalidation: true } : {}) });
     if (!result.success) {
       const retroIssues = result.error.issues?.filter((issue: { path: string }) => issue.path.startsWith("retroactivePlan.")) ?? [];
       if (retroIssues.length > 0) {
@@ -1493,13 +1557,19 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 ${retroIssues.map((issue: { message: string }) => `• ${issue.message}`).join("\n")}
 
 Save the correction and mark those plans for revision?`);
-        if (accepted) result = await planningLifecycleService.updateCompletedRecord({ ...baseInput, acceptPlanInvalidation: true });
+        if (!accepted) {
+          setServiceError(null);
+          setSaveState("unsaved");
+          return;
+        }
+        result = await planningLifecycleService.updateCompletedRecord({ ...baseInput, acceptPlanInvalidation: true });
       }
     }
     if (!result.success) { setServiceError(result.error); setSaveState("errors"); return; }
 
     setLastSavedRecord({ kind: "completed", id: result.value.id });
     setServiceError(null);
+    setCompletedInvalidationPreview(null);
     setSaveState("completed");
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
@@ -1608,8 +1678,16 @@ Save the correction and mark those plans for revision?`);
           {saveState === "errors" && "Service error"}
         </div>
 
+        {isCompletedRecordOpen && completedInvalidationPreview && completedInvalidationPreview.newlyImpactedPlans.length > 0 && (
+          <div className="error-summary completed-invalidation-warning" role="alert">
+            <strong>Saving this historical correction will require confirmation because active plans would be invalidated or marked for revision.</strong>
+            <ul>{completedInvalidationPreview.newlyImpactedPlans.map((impact) => <li key={impact.planId}>{impact.reason}</li>)}</ul>
+          </div>
+        )}
+
         {workspace === "plans" && (
           <section className="db-workspace" aria-label="Plans">
+            {revisionPlanCount > 0 && <p className="error-summary" role="alert">{revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"} require revision. Open a red-outlined plan to see the conflicting song field{revisionPlanCount === 1 ? "" : "s"}.</p>}
             <div className="rows-header"><h2>Working plans</h2><button type="button" onClick={startNewDbDraft}>Start new set</button></div>
             {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={`${recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}${set.needsRevision ? " needs-revision-record" : ""}`}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button>{set.needsRevision && <p className="needs-revision-message" role="alert">{set.needsRevision.reason}</p>}</li>)}</ul>}
             <h2>Final plans</h2>
@@ -1620,7 +1698,7 @@ Save the correction and mark those plans for revision?`);
         {workspace === "history" && (
           <section className="db-workspace" aria-label="Completed history">
             <h2>Completed history</h2>
-            {completedRecords.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list">{completedRecords.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" onClick={() => loadCompletedRecord(record.id)}>{formatCompletedRecordSummary(record)}</button></li>)}</ul>}
+            {completedRecordsNewestFirst.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list history-scroll-list">{completedRecordsNewestFirst.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" onClick={() => loadCompletedRecord(record.id)}>{formatCompletedRecordSummary(record)}</button></li>)}</ul>}
           </section>
         )}
 
@@ -1720,8 +1798,9 @@ Save the correction and mark those plans for revision?`);
 
           <div className="rows-list">
             {rows.map((row, index) => {
+              const revisionConflict = Boolean(persistedSet?.needsRevision && conflictingRevisionRowIndexes.has(index));
               return (
-                <fieldset className="row-card" key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
+                <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
                     <button type="button" className="row-icon-button" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
@@ -1945,7 +2024,7 @@ Save the correction and mark those plans for revision?`);
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => setSelectedAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong>{storedUser.roles.length > 1 && <label>Assigned role<select value={effectiveRole} onChange={(event) => setSelectedAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>}<p>DB runtime identity comes from the protected server session. No user switch is available.</p></div>}
+            {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong>{storedUser.roles.length > 1 && <label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>}<p>DB runtime identity comes from the protected server session. No user switch is available.</p></div>}
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}

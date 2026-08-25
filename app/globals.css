@@ -1093,3 +1093,23 @@ textarea {
   font-weight: 700;
   margin: 0.35rem 0.5rem 0.25rem;
 }
+
+.history-scroll-list {
+  max-height: min(24rem, 70vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.needs-revision-row {
+  border: 2px solid var(--danger);
+}
+
+.needs-revision-row .candidate-combobox > input {
+  border-color: var(--danger);
+  color: #98a2b3;
+}
+
+.completed-invalidation-warning ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
