@@ -1079,19 +1079,8 @@ textarea {
 }
 
 
-.needs-revision-record {
-  border: 2px solid var(--danger);
-  border-radius: 0.85rem;
-  padding: 0.35rem;
-}
-.needs-revision-record > button {
-  outline: none;
-}
-.needs-revision-message {
-  color: var(--danger);
-  font-size: 0.875rem;
-  font-weight: 700;
-  margin: 0.35rem 0.5rem 0.25rem;
+.saved-set-list button.needs-revision-record {
+  border-color: var(--danger);
 }
 
 .history-scroll-list {
@@ -1105,11 +1094,6 @@ textarea {
 }
 
 .needs-revision-row .candidate-combobox > input {
-  border-color: var(--danger);
+  border-color: var(--border);
   color: #98a2b3;
-}
-
-.completed-invalidation-warning ul {
-  margin: 0.5rem 0 0;
-  padding-left: 1.25rem;
 }

@@ -143,6 +143,15 @@ function candidateFromSelectedSong(song: { songId?: string; language: ConcreteSo
 
 
 
+function formatConflictPreviewPlanLabel(
+  impact: CompletedPlanInvalidationPreview["newlyImpactedPlans"][number],
+  plans: PersistedPlanningSet[],
+): string {
+  const plan = plans.find((candidate) => candidate.id === impact.planId);
+  const status = impact.planStatus === "final" ? "Final" : "Working";
+  return plan ? `${status} ${plan.serviceContext.serviceDate} ${plan.serviceContext.serviceTime}` : `${status} plan`;
+}
+
 function isFuturePragueDate(serviceDate: string): boolean {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   return serviceDate > today;
@@ -1736,20 +1745,13 @@ Save the correction and mark those plans for revision?`);
           {saveState === "errors" && "Service error"}
         </div>
 
-        {isCompletedRecordOpen && completedInvalidationPreview && completedInvalidationPreview.newlyImpactedPlans.length > 0 && (
-          <div className="error-summary completed-invalidation-warning" role="alert">
-            <strong>Saving this historical correction will require confirmation because active plans would be invalidated or marked for revision.</strong>
-            <ul>{completedInvalidationPreview.newlyImpactedPlans.map((impact) => <li key={impact.planId}>{impact.reason}</li>)}</ul>
-          </div>
-        )}
-
         {workspace === "plans" && (
           <section className="db-workspace" aria-label="Plans">
-            {revisionPlanCount > 0 && <p className="error-summary" role="alert">{revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"} require revision. Open a red-outlined plan to see the conflicting song field{revisionPlanCount === 1 ? "" : "s"}.</p>}
+            {revisionPlanCount > 0 && <p className="error-summary" role="alert">{revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"} {revisionPlanCount === 1 ? "requires" : "require"} revision.</p>}
             <div className="rows-header"><h2>Working plans</h2><button type="button" onClick={startNewDbDraft}>Start new set</button></div>
-            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={`${recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}${set.needsRevision ? " needs-revision-record" : ""}`}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button>{set.needsRevision && <p className="needs-revision-message" role="alert">{set.needsRevision.reason}</p>}</li>)}</ul>}
+            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
             <h2>Final plans</h2>
-            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={`${recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}${set.needsRevision ? " needs-revision-record" : ""}`}><button type="button" onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button>{set.needsRevision && <p className="needs-revision-message" role="alert">{set.needsRevision.reason}</p>}</li>)}</ul>}
+            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
           </section>
         )}
 
@@ -1943,6 +1945,12 @@ Save the correction and mark those plans for revision?`);
             <ul className="validation-list planning-action-validation-list" aria-label="Planning action validation errors">
               {planningActionValidationMessages.map((message) => <li key={message}>{message}</li>)}
             </ul>
+          )}
+
+          {isCompletedRecordOpen && completedInvalidationPreview && completedInvalidationPreview.newlyImpactedPlans.length > 0 && (
+            <p className="error-summary completed-invalidation-warning" role="alert">
+              Historical correction conflicts with {completedInvalidationPreview.newlyImpactedPlans.length} active plan{completedInvalidationPreview.newlyImpactedPlans.length === 1 ? "" : "s"}: {completedInvalidationPreview.newlyImpactedPlans.map((impact) => formatConflictPreviewPlanLabel(impact, savedDbSets)).join(", ")}.
+            </p>
           )}
 
           <div className="form-actions">
