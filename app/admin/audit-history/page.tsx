@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { authPool } from "../../../src/auth/server";
-import { listAuditEvents } from "../../../src/application/audit-history";
+import { canReadAuditHistory, listAuditEvents } from "../../../src/application/audit-history";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 
 export default async function AuditHistoryPage() {
@@ -10,7 +10,7 @@ export default async function AuditHistoryPage() {
   let currentUser;
   try { currentUser = await resolveProtectedUser(requestHeaders, authPool); }
   catch (error) { if (error instanceof ProtectedActorError) redirect("/sign-in"); throw error; }
-  if (!currentUser.roles.includes("admin")) redirect("/");
+  if (!canReadAuditHistory(currentUser.roles)) redirect("/");
 
   const events = await listAuditEvents(authPool);
   return <main className="shell"><section className="card planning-form" aria-label="Audit history">
