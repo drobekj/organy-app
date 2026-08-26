@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Pool } from "pg";
 import { ReferenceCandidateService } from "../src/application/reference-candidate-service";
+import { candidatesForView } from "../src/planning-lifecycle/candidate-view";
 import {
   PHASE_31_43_TARGET_PERSON_ID,
   resolveContractIdentities,
@@ -206,7 +207,10 @@ async function main(): Promise<void> {
     assert.equal(Number((await pool.query("select count(*)::int as count from reference_organist_repertoire")).rows[0].count), 0);
 
     const candidateService = new ReferenceCandidateService(pool);
-    const beforeCandidates = await candidateService.queryCandidates({ serviceDate: "2026-08-19", serviceLanguage: "mixed", organistPersonId: TARGET, candidateUsages: [] });
+    const beforeCandidates = candidatesForView(
+      await candidateService.queryCandidates({ serviceDate: "2026-08-19", serviceLanguage: "mixed", organistPersonId: TARGET, candidateUsages: [] }),
+      "songs",
+    );
     assert.equal(beforeCandidates.length, 0, "Pristine repertoire unexpectedly yielded candidates.");
 
     const beforeDryKnowledge = await knowledgeFingerprint();
@@ -246,7 +250,10 @@ async function main(): Promise<void> {
     await assertAppliedCounts();
     assert.equal(await unrelatedFingerprint(), beforeUnrelated, "Definitive apply changed unrelated state.");
 
-    const candidates = await candidateService.queryCandidates({ serviceDate: "2026-08-19", serviceLanguage: "mixed", organistPersonId: TARGET, candidateUsages: [] });
+    const candidates = candidatesForView(
+      await candidateService.queryCandidates({ serviceDate: "2026-08-19", serviceLanguage: "mixed", organistPersonId: TARGET, candidateUsages: [] }),
+      "songs",
+    );
     assert.equal(candidates.length, 442, "Current class-wide candidate semantics did not produce exactly 442 playable songs.");
     assert.equal(candidates.filter((candidate) => candidate.repertoire).length, 233, "Candidate result did not preserve exactly 233 explicit repertoire pivots.");
     assert.equal(candidates.filter((candidate) => candidate.language === "czech").length, 378, "Effective Czech playable count mismatch.");

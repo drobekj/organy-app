@@ -47,6 +47,7 @@ export type ReferenceCandidateMelodyMember = {
 export type ReferenceCandidateQueryResult = CandidateQueryResult & {
   melodyClassId: string;
   melodyMembers: ReferenceCandidateMelodyMember[];
+  songsEligible: boolean;
   melodyRepresentative: boolean;
 };
 
@@ -176,7 +177,9 @@ export function queryReferenceCandidatesFromData(
   const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
   const classBySongId = new Map(data.songs.map((song) => [song.id, song.classId]));
   const membersByClass = groupSongsByClass(data.songs);
-  const representativeByClass = buildRepresentativeMap(data.songs, input.organistPersonId ? "selectedOrganist" : "fallback");
+  const representativeByClass = input.organistPersonId
+    ? buildSelectedOrganistRepresentativeMap(data.songs, input.serviceLanguage)
+    : buildRepresentativeMap(data.songs, "fallback");
   const blockedClasses = getHardBlockedClassIds(
     classBySongId,
     input.candidateUsages ?? [],
@@ -190,10 +193,13 @@ export function queryReferenceCandidatesFromData(
   const candidates: ReferenceCandidateQueryResult[] = [];
 
   for (const song of data.songs) {
-    if (!languageSet.has(song.language)) continue;
     if (blockedClasses.has(song.classId)) continue;
     const allMembers = membersByClass.get(song.classId) ?? [song];
-    if (input.organistPersonId && !allMembers.some((member) => member.repertoire)) continue;
+    const songsEligible = languageSet.has(song.language)
+      && (!input.organistPersonId || allMembers.some((member) => member.repertoire));
+    const melodyRepresentative = representativeByClass.get(song.classId) === song.id
+      && (Boolean(input.organistPersonId) || songsEligible);
+    if (!songsEligible && !melodyRepresentative) continue;
     if (song.aggregatePreferenceScore < threshold) continue;
     if (query && !matchesReferenceCandidateSearch(song, query)) continue;
 
@@ -209,7 +215,8 @@ export function queryReferenceCandidatesFromData(
       antiphonMatch,
       seasonMatch,
       availability,
-      representativeByClass.get(song.classId) === song.id,
+      songsEligible,
+      melodyRepresentative,
     ));
   }
 
@@ -229,6 +236,7 @@ function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[]
     equivalentNumbers: [],
     melodyClassId: `historical-zero:${zeroLanguage}`,
     melodyMembers: [],
+    songsEligible: true,
     melodyRepresentative: false,
     aggregatePreferenceScore: 0,
     antiphonMatch: false,
@@ -255,6 +263,7 @@ function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[]
           .map((member) => ({ songId: member.songId, number: member.number, repertoire: member.repertoire })),
         melodyClassId: song.classId,
         melodyMembers,
+        songsEligible: true,
         melodyRepresentative: representativeByClass.get(song.classId) === song.id,
         aggregatePreferenceScore: 0,
         antiphonMatch: false,
@@ -295,6 +304,7 @@ export function hydrateReferenceCandidatesFromData(
         antiphonMatch,
         seasonMatch,
         { kind: "available" },
+        true,
         representativeByClass.get(stored.classId) === stored.id,
       ),
       number: reference.number,
@@ -310,6 +320,7 @@ function toCandidate(
   antiphonMatch: boolean,
   seasonMatch: boolean,
   availability: CandidateAvailability = { kind: "available" },
+  songsEligible = true,
   melodyRepresentative = false,
 ): ReferenceCandidateQueryResult {
   const melodyMembers = orderMelodyMembers(song, allMembers).map(toMelodyMember);
@@ -325,6 +336,7 @@ function toCandidate(
     equivalentNumbers,
     melodyClassId: song.classId,
     melodyMembers,
+    songsEligible,
     melodyRepresentative,
     aggregatePreferenceScore: song.aggregatePreferenceScore,
     antiphonMatch,
@@ -383,6 +395,22 @@ export function resolveMelodyRepresentativeSongId(
   return [...members].sort(compareReferenceCatalogRecords)[0]?.id;
 }
 
+export function resolveSelectedOrganistMelodyRepresentativeSongId(
+  members: ReferenceCandidateSong[],
+  serviceLanguage: CandidateQueryInput["serviceLanguage"],
+): string | undefined {
+  const repertoire = members
+    .filter((member) => member.repertoire)
+    .sort(compareReferenceCatalogRecords);
+  if (repertoire[0]) return repertoire[0].id;
+
+  const fallbackLanguage = serviceLanguage === "mixed"
+    ? (members.some((member) => member.language === "czech") ? "czech" : "polish")
+    : serviceLanguage;
+  const fallbackMembers = members.filter((member) => member.language === fallbackLanguage);
+  return [...fallbackMembers].sort(compareReferenceCatalogRecords)[0]?.id;
+}
+
 function buildRepresentativeMap(
   songs: ReferenceCandidateSong[],
   mode: "selectedOrganist" | "fallback",
@@ -390,6 +418,18 @@ function buildRepresentativeMap(
   const result = new Map<string, string>();
   for (const [classId, members] of groupSongsByClass(songs)) {
     const representative = resolveMelodyRepresentativeSongId(members, mode);
+    if (representative) result.set(classId, representative);
+  }
+  return result;
+}
+
+function buildSelectedOrganistRepresentativeMap(
+  songs: ReferenceCandidateSong[],
+  serviceLanguage: CandidateQueryInput["serviceLanguage"],
+): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const [classId, members] of groupSongsByClass(songs)) {
+    const representative = resolveSelectedOrganistMelodyRepresentativeSongId(members, serviceLanguage);
     if (representative) result.set(classId, representative);
   }
   return result;

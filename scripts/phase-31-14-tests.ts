@@ -7,6 +7,7 @@ import {
   type ReferenceCandidateData,
   type ReferenceCandidateSong,
 } from "../src/application/reference-candidate-service";
+import { candidatesForView } from "../src/planning-lifecycle/candidate-view";
 
 const makeSong = (
   id: string,
@@ -55,7 +56,7 @@ const query = (changes: Partial<CandidateQueryInput> = {}): CandidateQueryInput 
 });
 
 function concreteRowsAndOrdering() {
-  const czech = queryReferenceCandidatesFromData(data(), query());
+  const czech = candidatesForView(queryReferenceCandidatesFromData(data(), query()), "songs");
   assert.deepEqual(czech.map((candidate) => candidate.songId), [
     "czech:10",
     "czech:28",
@@ -70,10 +71,10 @@ function concreteRowsAndOrdering() {
     "one melody class was collapsed back to one primary row",
   );
 
-  const polish = queryReferenceCandidatesFromData(data(), query({ serviceLanguage: "polish" }));
+  const polish = candidatesForView(queryReferenceCandidatesFromData(data(), query({ serviceLanguage: "polish" })), "songs");
   assert.deepEqual(polish.map((candidate) => candidate.songId), ["polish:38", "polish:613"]);
 
-  const mixed = queryReferenceCandidatesFromData(data(), query({ serviceLanguage: "mixed" }));
+  const mixed = candidatesForView(queryReferenceCandidatesFromData(data(), query({ serviceLanguage: "mixed" })), "songs");
   assert.deepEqual(mixed.map((candidate) => candidate.songId), [
     "czech:10",
     "czech:28",
@@ -87,12 +88,12 @@ function concreteRowsAndOrdering() {
 }
 
 function repertoireAndPreferences() {
-  const czech = queryReferenceCandidatesFromData(data(), query());
+  const czech = candidatesForView(queryReferenceCandidatesFromData(data(), query()), "songs");
   assert.ok(czech.some((candidate) => candidate.songId === "czech:29"), "opposite-language repertoire evidence did not unlock Czech concrete song");
   assert.ok(czech.some((candidate) => candidate.songId === "czech:421"), "second Czech member of reachable class was lost");
   assert.ok(czech.some((candidate) => candidate.songId === "czech:28"), "Polish repertoire evidence did not unlock the Czech member of class C");
 
-  const thresholdThree = queryReferenceCandidatesFromData(data(), query({ preferenceThreshold: 3 }));
+  const thresholdThree = candidatesForView(queryReferenceCandidatesFromData(data(), query({ preferenceThreshold: 3 })), "songs");
   assert.deepEqual(thresholdThree.map((candidate) => candidate.songId), ["czech:10", "czech:29"]);
   assert.equal(thresholdThree.some((candidate) => candidate.songId === "czech:421"), false, "preference score transferred within a melody class");
 
@@ -100,7 +101,7 @@ function repertoireAndPreferences() {
     songs: songs.map((candidate) => ({ ...candidate, repertoire: false })),
     melodyWindowMonths: 2,
   };
-  const noRepertoire = queryReferenceCandidatesFromData(noRepertoireData, query());
+  const noRepertoire = candidatesForView(queryReferenceCandidatesFromData(noRepertoireData, query()), "songs");
   assert.deepEqual(noRepertoire, []);
 }
 
