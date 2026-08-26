@@ -62,8 +62,8 @@ function pureRepresentativeCoverage() {
   assert.strictEqual(candidatesForView(anonymous, "songs"), anonymous, "Songs must preserve the current candidate array unchanged");
   assert.deepEqual(
     candidatesForView(anonymous, "melodies").map((row) => row.songId),
-    ["czech:12", "czech:296", "polish:5"],
-    "anonymous Melodies must prefer Jaroslav repertoire, then lowest Czech, then lowest Polish",
+    ["czech:11", "czech:12", "polish:5"],
+    "anonymous mixed-service Melodies must use lowest Czech for Czech/mixed classes and lowest Polish for Polish-only classes",
   );
 
   const nonRepresentativeSearch = queryReferenceCandidatesFromData(data, { ...base, queryText: "Forty" });
@@ -71,16 +71,16 @@ function pureRepresentativeCoverage() {
   assert.equal(nonRepresentativeSearch[0]?.melodyRepresentative, false);
   assert.deepEqual(candidatesForView(nonRepresentativeSearch, "melodies"), [], "search must not promote a sibling into the melody representative");
 
-  const representativeSearch = queryReferenceCandidatesFromData(data, { ...base, queryText: "296" });
+  const representativeSearch = queryReferenceCandidatesFromData(data, { ...base, queryText: "11" });
   assert.equal(representativeSearch[0]?.melodyRepresentative, true);
-  assert.deepEqual(candidatesForView(representativeSearch, "melodies").map((row) => row.songId), ["czech:296"]);
+  assert.deepEqual(candidatesForView(representativeSearch, "melodies").map((row) => row.songId), ["czech:11"]);
 
   const historical = queryReferenceCandidatesFromData(data, { ...base, historicalTruth: true });
   assert.ok(historical.some((row) => row.songId === "historical-zero:czech"), "Completed editing must keep historical zero in Songs");
   assert.deepEqual(
     candidatesForView(historical, "melodies").map((row) => row.songId),
-    ["czech:12", "czech:296", "polish:5"],
-    "Completed Melodies must exclude zero and use fallback representatives",
+    ["czech:11", "czech:12", "polish:5"],
+    "Completed Melodies must exclude zero and use repertoire-independent language representatives",
   );
   assert.equal(historical.find((row) => row.songId === "czech:11")?.melodyClassId, "class-a", "Completed candidates must retain real melody classes");
 
@@ -160,12 +160,12 @@ async function databaseBoundaryCoverage() {
     const anonymous = await service.queryCandidates(base);
     assert.deepEqual(
       candidatesForView(anonymous, "melodies").map((row) => row.songId),
-      ["czech:12", "czech:296", "polish:5"],
-      "DB-backed anonymous representative policy differs from confirmed contract",
+      ["czech:11", "czech:12", "polish:5"],
+      "DB-backed anonymous representative policy differs from approved repertoire-independent language contract",
     );
 
     const completed = await service.queryCandidates({ ...base, historicalTruth: true });
-    assert.deepEqual(candidatesForView(completed, "melodies").map((row) => row.songId), ["czech:12", "czech:296", "polish:5"]);
+    assert.deepEqual(candidatesForView(completed, "melodies").map((row) => row.songId), ["czech:11", "czech:12", "polish:5"]);
     assert.equal(candidatesForView(completed, "melodies").some((row) => row.songId.startsWith("historical-zero:")), false);
   } finally {
     await pool.end();
