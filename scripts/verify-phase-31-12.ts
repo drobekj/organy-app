@@ -7,6 +7,7 @@ import { POST as planningLifecyclePOST } from "../app/api/planning-lifecycle/rou
 import type { CandidateQueryInput, CandidateQueryResult } from "../src/application/interaction-contracts";
 import { useLocalActorSimulatorForAcceptance } from "../src/application/protected-actor";
 import { disposeAppDbPoolForAcceptance } from "../src/db/app-pool";
+import { candidatesForView } from "../src/planning-lifecycle/candidate-view";
 import {
   createDatabaseSql,
   createNpmInvocation,
@@ -160,7 +161,7 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   const unknownAntiphon = await query(baseQuery({ referenceAntiphonId: "czech:915", queryText: "1" }));
   assert.equal(unknownAntiphon[0].signal, "none");
 
-  const polish = await query(baseQuery({ serviceLanguage: "polish", queryText: "1" }));
+  const polish = candidatesForView(await query(baseQuery({ serviceLanguage: "polish", queryText: "1" })), "songs");
   assert.deepEqual(polish.map((candidate) => candidate.songId), ["polish:1"]);
   assert.equal(polish[0].repertoire, false);
   const mixed = await query(baseQuery({ serviceLanguage: "mixed", referenceAntiphonId: "czech:800", queryText: "1" }));
@@ -175,7 +176,10 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   const currentExcluded = await query(baseQuery({ currentPlanId: "plan-a", referenceAntiphonId: "czech:800", queryText: "1", candidateUsages: [{ songId: "czech:1", serviceDate: "2026-08-01", source: "working", planId: "plan-a" }] }));
   assert.equal(currentExcluded[0].songId, "czech:1");
 
-  const hardFiltered = await query(baseQuery({ organistPersonId: "no-authoritative-repertoire", referenceAntiphonId: "czech:800", queryText: "1" }));
+  const hardFiltered = candidatesForView(
+    await query(baseQuery({ organistPersonId: "no-authoritative-repertoire", referenceAntiphonId: "czech:800", queryText: "1" })),
+    "songs",
+  );
   assert.equal(hardFiltered.length, 0, "recommendation bypassed authoritative repertoire hard filter");
 
   const tooHigh = await query(baseQuery({ queryText: "1", preferenceThreshold: 4 }));
