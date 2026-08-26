@@ -55,6 +55,8 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
     let previousDescribedBy: string | null = null;
     let helper: HTMLElement | null = null;
     let helperHadId = false;
+    let titleArea: HTMLElement | null = null;
+    let titleTapHandler: ((event: MouseEvent) => void) | null = null;
 
     function attachToWorkspaceHeader() {
       const header = document.querySelector<HTMLElement>(".app-header");
@@ -71,6 +73,17 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
       if (helper && !helper.id) helper.id = "workspace-helper-copy";
       header.tabIndex = 0;
       if (helper?.id) header.setAttribute("aria-describedby", helper.id);
+
+      if (header.firstElementChild instanceof HTMLElement) {
+        titleArea = header.firstElementChild;
+        titleTapHandler = (event: MouseEvent) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (target?.closest("a, button, input, select, textarea, summary, details")) return;
+          header.focus();
+        };
+        titleArea.addEventListener("click", titleTapHandler);
+      }
+
       setPortalTarget(header);
     }
 
@@ -78,6 +91,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
 
     return () => {
       window.cancelAnimationFrame(frame);
+      if (titleArea && titleTapHandler) titleArea.removeEventListener("click", titleTapHandler);
       if (!attachedHeader) return;
       if (previousTabIndex === null) attachedHeader.removeAttribute("tabindex");
       else attachedHeader.setAttribute("tabindex", previousTabIndex);
