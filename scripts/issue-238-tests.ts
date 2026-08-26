@@ -38,8 +38,8 @@ async function main() {
   assert.match(styles, /\.app-header \.lede \{[\s\S]*?background: #fffbeb;[\s\S]*?opacity: 0;/, "helper copy is not a hidden light-yellow helper surface");
   assert.match(styles, /\.app-header > div:first-child:hover \.lede,[\s\S]*?\.app-header:focus \.lede/, "helper copy is not exposed on hover and keyboard focus");
 
-  assert.match(planning, /className={`status status-\$\{saveState\}`}/, "existing persistence status semantics were removed");
-  assert.match(planning, /className="saved-summary"/, "existing opened-service summary semantics were removed");
+  assert.ok(planning.includes('className={`status status-${saveState}`}'), "existing persistence status semantics were removed");
+  assert.ok(planning.includes('className="saved-summary"'), "existing opened-service summary semantics were removed");
   assert.match(styles, /\.planning-card > \.status \{[\s\S]*?order: -30;/, "persistence status is not moved under the title");
   assert.match(styles, /\.planning-card > \.saved-summary \{[\s\S]*?order: -29;/, "opened-service summary is not consolidated under the title");
   assert.match(styles, /\.status,[\s\S]*?\.saved-summary \{[\s\S]*?font-size: 0\.82rem;/, "status block is not compact");
