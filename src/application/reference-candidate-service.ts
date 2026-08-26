@@ -179,7 +179,7 @@ export function queryReferenceCandidatesFromData(
   const membersByClass = groupSongsByClass(data.songs);
   const representativeByClass = input.organistPersonId
     ? buildSelectedOrganistRepresentativeMap(data.songs, input.serviceLanguage)
-    : buildRepresentativeMap(data.songs, "fallback");
+    : buildAnonymousRepresentativeMap(data.songs, input.serviceLanguage);
   const blockedClasses = getHardBlockedClassIds(
     classBySongId,
     input.candidateUsages ?? [],
@@ -240,7 +240,7 @@ function queryHistoricalTruthReferenceCandidates(songs: ReferenceCandidateSong[]
   const query = queryText?.trim() ?? "";
   const zeroLanguage = serviceLanguage === "polish" ? "polish" : "czech";
   const membersByClass = groupSongsByClass(songs);
-  const representativeByClass = buildRepresentativeMap(songs, "fallback");
+  const representativeByClass = buildAnonymousRepresentativeMap(songs, serviceLanguage);
   const zeroCandidate: ReferenceCandidateQueryResult = {
     songId: `historical-zero:${zeroLanguage}`,
     language: zeroLanguage,
@@ -424,6 +424,18 @@ export function resolveSelectedOrganistMelodyRepresentativeSongId(
   return [...fallbackMembers].sort(compareReferenceCatalogRecords)[0]?.id;
 }
 
+export function resolveAnonymousMelodyRepresentativeSongId(
+  members: ReferenceCandidateSong[],
+  serviceLanguage: CandidateQueryInput["serviceLanguage"],
+): string | undefined {
+  const representativeLanguage = serviceLanguage === "mixed"
+    ? (members.some((member) => member.language === "czech") ? "czech" : "polish")
+    : serviceLanguage;
+  return members
+    .filter((member) => member.language === representativeLanguage)
+    .sort(compareReferenceCatalogRecords)[0]?.id;
+}
+
 function buildRepresentativeMap(
   songs: ReferenceCandidateSong[],
   mode: "selectedOrganist" | "fallback",
@@ -443,6 +455,18 @@ function buildSelectedOrganistRepresentativeMap(
   const result = new Map<string, string>();
   for (const [classId, members] of groupSongsByClass(songs)) {
     const representative = resolveSelectedOrganistMelodyRepresentativeSongId(members, serviceLanguage);
+    if (representative) result.set(classId, representative);
+  }
+  return result;
+}
+
+function buildAnonymousRepresentativeMap(
+  songs: ReferenceCandidateSong[],
+  serviceLanguage: CandidateQueryInput["serviceLanguage"],
+): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const [classId, members] of groupSongsByClass(songs)) {
+    const representative = resolveAnonymousMelodyRepresentativeSongId(members, serviceLanguage);
     if (representative) result.set(classId, representative);
   }
   return result;
