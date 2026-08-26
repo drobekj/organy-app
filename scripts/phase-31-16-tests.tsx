@@ -248,7 +248,7 @@ async function staticCoverage() {
   assert.match(component, /aria-activedescendant/);
   assert.match(component, /ArrowDown/);
   assert.match(component, /event\.key === "Enter"/);
-  assert.match(component, /props\.candidates\[activeIndex\]/, "Enter must resolve the currently active candidate");
+  assert.match(component, /visibleCandidates\[activeIndex\]/, "Enter must resolve the currently active visible candidate");
   assert.match(component, /currentTarget\.select\(\)/, "activating a non-empty Song lookup must select the whole value for replacement typing");
   assert.match(component, /scrollOptionInsideList/);
   assert.match(component, /role="option"/);
