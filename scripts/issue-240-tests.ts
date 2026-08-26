@@ -52,9 +52,9 @@ const base = {
 };
 
 const expectedMelodies: Record<ServiceLanguage, string[]> = {
-  czech: ["czech:10", "czech:30", "czech:50", "polish:1"],
-  polish: ["czech:50", "polish:1", "polish:5", "polish:7"],
-  mixed: ["czech:10", "czech:30", "czech:50", "polish:1", "polish:7"],
+  czech: ["czech:50", "polish:1"],
+  polish: ["czech:50", "polish:1"],
+  mixed: ["czech:50", "polish:1"],
 };
 
 const expectedSongs: Record<ServiceLanguage, string[]> = {
@@ -78,6 +78,8 @@ function selectedOrganistMatrixCoverage() {
       `${serviceLanguage} service does not match the Issue 240 representative matrix`,
     );
     assert.equal(new Set(melodies.map((candidate) => candidate.melodyClassId)).size, melodies.length, "Melodies must contain one concrete song per class");
+    const songsClassIds = new Set(candidatesForView(candidates, "songs").map((candidate) => candidate.melodyClassId));
+    assert.ok(melodies.every((candidate) => songsClassIds.has(candidate.melodyClassId)), "Melodies introduced a class absent from Songs");
     assert.ok(melodies.some((candidate) => candidate.songId === "czech:50"), "Czech repertoire pivot must win for every service language");
     assert.ok(melodies.some((candidate) => candidate.songId === "polish:1"), "Polish repertoire pivot must win for every service language");
   }
@@ -93,23 +95,31 @@ function selectedOrganistMatrixCoverage() {
 }
 
 function searchSelectionAvailabilityAndDetailCoverage() {
-  const polishSearch = queryReferenceCandidatesFromData(data, {
+  const absentClassSearch = queryReferenceCandidatesFromData(data, {
     ...base,
     serviceLanguage: "polish",
     queryText: "Mixed Polish five",
   });
-  assert.deepEqual(candidatesForView(polishSearch, "songs"), [], "Melodies-only fallback leaked into Songs search");
-  const representative = candidatesForView(polishSearch, "melodies")[0];
-  assert.equal(representative?.songId, "polish:5", "search did not retain the resolved representative");
+  assert.deepEqual(candidatesForView(absentClassSearch, "songs"), []);
+  assert.deepEqual(candidatesForView(absentClassSearch, "melodies"), [], "Melodies introduced a class absent from Songs");
+
+  const representativeSearch = queryReferenceCandidatesFromData(data, {
+    ...base,
+    serviceLanguage: "polish",
+    queryText: "Czech repertoire pivot",
+  });
+  assert.deepEqual(candidatesForView(representativeSearch, "songs"), [], "opposite-language pivot leaked into Songs search");
+  const representative = candidatesForView(representativeSearch, "melodies")[0];
+  assert.equal(representative?.songId, "czech:50", "representative-only search lost the eligible cross-language pivot");
   assert.deepEqual(candidateToSelectedSong(representative!), {
-    songId: "polish:5",
-    language: "polish",
-    number: "5",
-    title: "Mixed Polish five",
+    songId: "czech:50",
+    language: "czech",
+    number: "50",
+    title: "Czech repertoire pivot",
   }, "selection must persist the concrete representative");
   const detail = melodyMembersForDetail(representative!);
   assert.equal(detail.authoritative, true, "representative lost authoritative melody detail");
-  assert.deepEqual(detail.members.map((member) => member.songId), ["czech:30", "czech:40", "polish:5", "polish:15"]);
+  assert.deepEqual(detail.members.map((member) => member.songId), ["czech:50", "polish:2"]);
 
   const nonRepresentativeSearch = queryReferenceCandidatesFromData(data, {
     ...base,
@@ -123,14 +133,14 @@ function searchSelectionAvailabilityAndDetailCoverage() {
     ...base,
     serviceLanguage: "polish",
     candidateUsages: [{
-      songId: "czech:30",
+      songId: "polish:2",
       serviceDate: "2026-08-26",
       source: "current",
       rowId: 2,
       rowLabel: "Row 2",
     }],
   });
-  const occupiedRepresentative = candidatesForView(occupied, "melodies").find((candidate) => candidate.songId === "polish:5");
+  const occupiedRepresentative = candidatesForView(occupied, "melodies").find((candidate) => candidate.songId === "czech:50");
   assert.equal(occupiedRepresentative?.availability.kind, "occupiedByCurrentRows", "Melodies weakened current-service occupancy");
 }
 

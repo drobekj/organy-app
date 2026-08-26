@@ -190,15 +190,28 @@ export function queryReferenceCandidatesFromData(
   const occupancyByClass = getCurrentOccupancyByClass(classBySongId, input.candidateUsages ?? []);
   const threshold = input.preferenceThreshold ?? 0;
   const query = input.queryText?.trim() ?? "";
-  const candidates: ReferenceCandidateQueryResult[] = [];
+  const songsEligibilityBySongId = new Map<string, boolean>();
+  const songsEligibleClassIds = new Set<string>();
 
   for (const song of data.songs) {
     if (blockedClasses.has(song.classId)) continue;
     const allMembers = membersByClass.get(song.classId) ?? [song];
     const songsEligible = languageSet.has(song.language)
       && (!input.organistPersonId || allMembers.some((member) => member.repertoire));
+    songsEligibilityBySongId.set(song.id, songsEligible);
+    if (songsEligible && song.aggregatePreferenceScore >= threshold) {
+      songsEligibleClassIds.add(song.classId);
+    }
+  }
+
+  const candidates: ReferenceCandidateQueryResult[] = [];
+
+  for (const song of data.songs) {
+    if (blockedClasses.has(song.classId)) continue;
+    const allMembers = membersByClass.get(song.classId) ?? [song];
+    const songsEligible = songsEligibilityBySongId.get(song.id) ?? false;
     const melodyRepresentative = representativeByClass.get(song.classId) === song.id
-      && (Boolean(input.organistPersonId) || songsEligible);
+      && songsEligibleClassIds.has(song.classId);
     if (!songsEligible && !melodyRepresentative) continue;
     if (song.aggregatePreferenceScore < threshold) continue;
     if (query && !matchesReferenceCandidateSearch(song, query)) continue;

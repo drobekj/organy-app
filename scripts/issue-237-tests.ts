@@ -54,8 +54,8 @@ function pureRepresentativeCoverage() {
   );
   assert.deepEqual(
     candidatesForView(selected, "melodies").map((row) => row.songId),
-    ["czech:11", "czech:12", "polish:5"],
-    "selected-organist Melodies must use repertoire pivots and the Mixed-service language fallback",
+    ["czech:11"],
+    "selected-organist Melodies must use only classes represented in Songs",
   );
 
   const anonymous = queryReferenceCandidatesFromData(data, base);
@@ -155,7 +155,7 @@ async function databaseBoundaryCoverage() {
 
     const selected = await service.queryCandidates({ ...base, organistPersonId: "person-selected-237" });
     assert.deepEqual(candidatesForView(selected, "songs").map((row) => row.songId), ["czech:11", "czech:296"]);
-    assert.deepEqual(candidatesForView(selected, "melodies").map((row) => row.songId), ["czech:11", "czech:12", "polish:5"]);
+    assert.deepEqual(candidatesForView(selected, "melodies").map((row) => row.songId), ["czech:11"]);
 
     const anonymous = await service.queryCandidates(base);
     assert.deepEqual(
