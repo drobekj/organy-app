@@ -47,11 +47,15 @@ function pureRepresentativeCoverage() {
   };
 
   const selected = queryReferenceCandidatesFromData(data, { ...base, organistPersonId: "person-selected" });
-  assert.deepEqual(selected.map((row) => row.songId), ["czech:11", "czech:296"]);
+  assert.deepEqual(
+    candidatesForView(selected, "songs").map((row) => row.songId),
+    ["czech:11", "czech:296"],
+    "Issue 240 must preserve the selected-organist Songs baseline",
+  );
   assert.deepEqual(
     candidatesForView(selected, "melodies").map((row) => row.songId),
-    ["czech:11"],
-    "selected-organist Melodies must use that organist's repertoire pivot",
+    ["czech:11", "czech:12", "polish:5"],
+    "selected-organist Melodies must use repertoire pivots and the Mixed-service language fallback",
   );
 
   const anonymous = queryReferenceCandidatesFromData(data, base);
@@ -150,7 +154,8 @@ async function databaseBoundaryCoverage() {
     };
 
     const selected = await service.queryCandidates({ ...base, organistPersonId: "person-selected-237" });
-    assert.deepEqual(candidatesForView(selected, "melodies").map((row) => row.songId), ["czech:11"]);
+    assert.deepEqual(candidatesForView(selected, "songs").map((row) => row.songId), ["czech:11", "czech:296"]);
+    assert.deepEqual(candidatesForView(selected, "melodies").map((row) => row.songId), ["czech:11", "czech:12", "polish:5"]);
 
     const anonymous = await service.queryCandidates(base);
     assert.deepEqual(

@@ -4,6 +4,7 @@ import type { CatalogSong } from "../src/application/catalog";
 import type { CandidateQueryInput } from "../src/application/interaction-contracts";
 import { queryCandidatesFromData } from "../src/application/interaction-service";
 import { queryReferenceCandidatesFromData, type ReferenceCandidateData } from "../src/application/reference-candidate-service";
+import { candidatesForView } from "../src/planning-lifecycle/candidate-view";
 
 const baseInput: CandidateQueryInput = {
   serviceDate: "2026-08-09",
@@ -33,9 +34,12 @@ function authoritativeCoverage() {
     "Anonymous organist must bypass only the authoritative repertoire hard filter",
   );
   assert.deepEqual(
-    queryReferenceCandidatesFromData(data(false), { ...baseInput, organistPersonId: "empty-organist" }),
+    candidatesForView(
+      queryReferenceCandidatesFromData(data(false), { ...baseInput, organistPersonId: "empty-organist" }),
+      "songs",
+    ),
     [],
-    "a concrete organist with an empty authoritative repertoire must yield zero candidates",
+    "a concrete organist with an empty authoritative repertoire must yield zero Songs candidates",
   );
   assert.equal(
     queryReferenceCandidatesFromData(data(true), { ...baseInput, organistPersonId: "demo-organist" }).length,

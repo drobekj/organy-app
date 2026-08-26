@@ -1,0 +1,32 @@
+name: Issue 240 Melodies representative acceptance
+
+on:
+  pull_request:
+    paths:
+      - src/application/reference-candidate-service.ts
+      - src/planning-lifecycle/candidate-view.ts
+      - src/planning-lifecycle/candidate-flow.ts
+      - src/planning-lifecycle/melody-detail.tsx
+      - scripts/issue-237-tests.ts
+      - scripts/issue-240-tests.ts
+      - package.json
+      - package-lock.json
+      - .github/workflows/issue-240.yml
+  workflow_dispatch:
+
+jobs:
+  issue-240:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Issue 240 representative matrix
+        run: npm run test:issue-240
+      - run: npm run typecheck
+      - run: npm test
+      - name: Production build
+        run: npm run build

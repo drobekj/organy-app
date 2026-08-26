@@ -12,6 +12,7 @@ import {
 import { CatalogLookupRequestTracker, getSongLookupScope, refreshOpenSongLookupsOnContextChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateLine } from "../src/planning-lifecycle/candidate-line";
 import { buildCandidateQueryInput } from "../src/planning-lifecycle/candidate-flow";
+import { candidatesForView } from "../src/planning-lifecycle/candidate-view";
 
 const song = (
   id: string,
@@ -34,44 +35,46 @@ const baseSongs = [
 ];
 const data = (recommendedReferenceSongId?: string): ReferenceCandidateData => ({ songs: baseSongs, melodyWindowMonths: 2, ...(recommendedReferenceSongId ? { recommendedReferenceSongId } : {}) });
 const query = (changes: Partial<CandidateQueryInput> = {}): CandidateQueryInput => ({ serviceDate: "2026-08-09", serviceLanguage: "czech", organistPersonId: "demo-organist", preferenceThreshold: 1, candidateUsages: [], ...changes });
+const querySongs = (candidateData: ReferenceCandidateData, input: CandidateQueryInput) =>
+  candidatesForView(queryReferenceCandidatesFromData(candidateData, input), "songs");
 
 function pureCandidateCoverage() {
-  const noAntiphon = queryReferenceCandidatesFromData(data(), query());
+  const noAntiphon = querySongs(data(), query());
   assert.deepEqual(noAntiphon.map((candidate) => candidate.songId), ["czech:1", "czech:5210"]);
   assert.ok(noAntiphon.every((candidate) => !candidate.antiphonMatch && !candidate.seasonMatch && candidate.signal === "none"));
   assert.deepEqual(noAntiphon[0].equivalentNumbers, [{ songId: "polish:1", number: "1", repertoire: false }]);
   assert.equal(noAntiphon[0].melodyClassId, "class-alpha");
   assert.deepEqual(noAntiphon[0].melodyMembers.map((member) => member.songId), ["czech:1", "polish:1"]);
 
-  const recommended = queryReferenceCandidatesFromData(data("czech:1"), query({ referenceAntiphonId: "czech:800" }));
+  const recommended = querySongs(data("czech:1"), query({ referenceAntiphonId: "czech:800" }));
   assert.equal(recommended[0].songId, "czech:1");
   assert.equal(recommended[0].antiphonMatch, true);
   assert.equal(recommended[0].signal, "antiphon");
   assert.equal(recommended[0].aggregatePreferenceScore, 3);
   assert.equal(recommended[0].repertoire, true);
 
-  const legacyCannotSignal = queryReferenceCandidatesFromData(data(), query({ antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent" }));
+  const legacyCannotSignal = querySongs(data(), query({ antiphonKey: "synthetic-entry", liturgicalSeasonKey: "synthetic-advent" }));
   assert.ok(legacyCannotSignal.every((candidate) => candidate.signal === "none" && candidate.seasonMatch === false));
 
-  const filteredRecommendation = queryReferenceCandidatesFromData(data("czech:2"), query());
+  const filteredRecommendation = querySongs(data("czech:2"), query());
   assert.equal(filteredRecommendation.some((candidate) => candidate.songId === "czech:2"), false, "recommendation bypassed repertoire hard filter");
 
-  const blocked = queryReferenceCandidatesFromData(data("czech:1"), query({ candidateUsages: [{ songId: "polish:1", serviceDate: "2026-07-01", source: "completed" }] }));
+  const blocked = querySongs(data("czech:1"), query({ candidateUsages: [{ songId: "polish:1", serviceDate: "2026-07-01", source: "completed" }] }));
   assert.equal(blocked.some((candidate) => candidate.songId === "czech:1"), false, "authoritative melody class survived non-repetition");
-  const currentPlanExcluded = queryReferenceCandidatesFromData(data("czech:1"), query({ currentPlanId: "plan-a", candidateUsages: [{ songId: "czech:1", serviceDate: "2026-08-01", source: "working", planId: "plan-a" }] }));
+  const currentPlanExcluded = querySongs(data("czech:1"), query({ currentPlanId: "plan-a", candidateUsages: [{ songId: "czech:1", serviceDate: "2026-08-01", source: "working", planId: "plan-a" }] }));
   assert.equal(currentPlanExcluded.some((candidate) => candidate.songId === "czech:1"), true);
 
-  assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ serviceLanguage: "polish" })).map((candidate) => candidate.songId), ["polish:1"]);
-  const mixed = queryReferenceCandidatesFromData(data("polish:1"), query({ serviceLanguage: "mixed" }));
+  assert.deepEqual(querySongs(data(), query({ serviceLanguage: "polish" })).map((candidate) => candidate.songId), ["polish:1"]);
+  const mixed = querySongs(data("polish:1"), query({ serviceLanguage: "mixed" }));
   assert.deepEqual(mixed.map((candidate) => candidate.songId), ["czech:1", "czech:5210", "polish:1"]);
   const polishCandidate = mixed.find((candidate) => candidate.songId === "polish:1");
   assert.ok(polishCandidate);
   assert.equal(polishCandidate.antiphonMatch, true, "exact Polish recommendation signal was lost");
   assert.deepEqual(polishCandidate.equivalentNumbers, [{ songId: "czech:1", number: "1", repertoire: true }]);
 
-  assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ queryText: "52/1" })).map((candidate) => candidate.songId), ["czech:5210"]);
-  assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ queryText: "5210" })).map((candidate) => candidate.songId), ["czech:5210"]);
-  assert.deepEqual(queryReferenceCandidatesFromData(data(), query({ queryText: "Slash" })).map((candidate) => candidate.songId), ["czech:5210"]);
+  assert.deepEqual(querySongs(data(), query({ queryText: "52/1" })).map((candidate) => candidate.songId), ["czech:5210"]);
+  assert.deepEqual(querySongs(data(), query({ queryText: "5210" })).map((candidate) => candidate.songId), ["czech:5210"]);
+  assert.deepEqual(querySongs(data(), query({ queryText: "Slash" })).map((candidate) => candidate.songId), ["czech:5210"]);
 
   const hydrated = hydrateReferenceCandidatesFromData(data("czech:1"), { songs: [{ songId: "czech:1", language: "czech", number: "OLD", title: "Historical title" }], organistPersonId: "demo-organist", referenceAntiphonId: "czech:800" });
   assert.equal(hydrated[0].title, "Historical title");
@@ -127,7 +130,7 @@ async function clientCoverage() {
 }
 
 function renderCoverage() {
-  const candidate = queryReferenceCandidatesFromData(data("czech:1"), query({ referenceAntiphonId: "czech:800" }))[0];
+  const candidate = querySongs(data("czech:1"), query({ referenceAntiphonId: "czech:800" }))[0];
   const html = renderToStaticMarkup(<CandidateLine candidate={candidate} variant="popup" onSelect={() => undefined} />);
   const visibleText = html.replace(/<[^>]+>/g, "");
   assert.match(visibleText, /1 · czech · in repertoire/);

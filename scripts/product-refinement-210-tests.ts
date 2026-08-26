@@ -8,6 +8,7 @@ import {
   PlanningLifecycleService,
 } from "../src/application/planning-lifecycle";
 import { getDraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
+import { candidatesForView } from "../src/planning-lifecycle/candidate-view";
 import { parseLegacyPeople, parseLegacyRows, parseLegacyServices } from "./legacy-history-parser";
 
 const data: ReferenceCandidateData = {
@@ -34,7 +35,7 @@ const concrete = queryReferenceCandidatesFromData(data, {
   preferenceThreshold: 0,
   candidateUsages: [],
 });
-assert.deepEqual(concrete.map((item) => item.songId), ["czech:2"], "Concrete organist must keep the repertoire hard filter.");
+assert.deepEqual(candidatesForView(concrete, "songs").map((item) => item.songId), ["czech:2"], "Concrete organist must keep the Songs repertoire hard filter.");
 
 assert.deepEqual(getDraftPeopleDefaults([]), {
   priest: { displayName: "Anonymous" },
