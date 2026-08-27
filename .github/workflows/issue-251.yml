@@ -1,0 +1,32 @@
+name: Issue 251 Plans and History last editor acceptance
+
+on:
+  pull_request:
+    paths:
+      - app/api/planning-lifecycle/route.ts
+      - src/application/audit-history.ts
+      - src/application/planning-change-attribution.ts
+      - src/application/planning-lifecycle/ports.ts
+      - src/planning-lifecycle/workspace.ts
+      - scripts/workspace-tests.ts
+      - scripts/issue-251-tests.ts
+      - package.json
+      - .github/workflows/issue-251.yml
+  workflow_dispatch:
+
+jobs:
+  issue-251:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Issue 251 attribution acceptance
+        run: npm run test:issue-251
+      - run: npm run typecheck
+      - run: npm test
+      - name: Production build
+        run: npm run build

@@ -93,6 +93,21 @@ export async function listAuditEvents(db: Queryable, limit = 200): Promise<Audit
       limit $1`,
     [safeLimit],
   );
+  return mapAuditRows(rows);
+}
+
+export async function listPlanningAuditEvents(db: Queryable): Promise<AuditEventRecord[]> {
+  const { rows } = await db.query(
+    `select id, occurred_at, actor_kind, actor_user_id, actor_display_name, actor_role, actor_person_id,
+            action, object_kind, object_ref, before_state, after_state
+       from audit_events
+      where action like 'planning.%'
+      order by occurred_at asc, id asc`,
+  );
+  return mapAuditRows(rows);
+}
+
+function mapAuditRows(rows: Record<string, unknown>[]): AuditEventRecord[] {
   return rows.map((row) => ({
     id: Number(row.id),
     occurredAt: row.occurred_at instanceof Date ? row.occurred_at : new Date(String(row.occurred_at)),
