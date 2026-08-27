@@ -6,7 +6,7 @@
 
 .audit-event-list {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
 }
 
 .audit-event {
