@@ -90,7 +90,8 @@
     "test:issue-244": "tsx scripts/issue-244-tests.ts",
     "test:issue-247": "tsx scripts/issue-247-tests.ts",
     "test:issue-249": "tsx scripts/issue-249-tests.ts",
-    "test:issue-251": "tsx scripts/issue-251-tests.ts",\n    "test:issue-253": "tsx scripts/issue-253-tests.ts",
+    "test:issue-251": "tsx scripts/issue-251-tests.ts",
+    "test:issue-253": "tsx scripts/issue-253-tests.ts",
     "verify:issue-222": "tsx scripts/issue-222-audit-tests.ts"
   },
   "dependencies": {
