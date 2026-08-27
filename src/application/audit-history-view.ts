@@ -125,7 +125,7 @@ function serviceFields(snapshot: ServiceSnapshot, before: ServiceSnapshot | unde
     },
     {
       key: "rows",
-      text: `rows ${snapshot.rowsText}`,
+      text: `rows: ${snapshot.rowsText}`,
       tone: changedTone(before, snapshot.rowsComparable, before?.rowsComparable),
     },
     {
@@ -215,6 +215,7 @@ function rowToken(value: unknown): string {
   const song = isRecord(value.song) ? value.song : undefined;
   const number = song ? stringValue(song.number) : "";
   const notePresent = typeof value.note === "string" && value.note.trim().length > 0;
+  if (!number && notePresent) return "t";
   return `${number || "—"}${notePresent ? "+t" : ""}`;
 }
 
