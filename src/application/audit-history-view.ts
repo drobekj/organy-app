@@ -1,4 +1,5 @@
 import type { AuditEventRecord } from "./audit-history";
+import { formatPlanningRowsText } from "../planning-lifecycle/row-summary";
 
 export type AuditFieldTone = "normal" | "muted" | "changed";
 export type AuditServiceFieldKey =
@@ -188,7 +189,6 @@ function extractServiceSnapshot(value: unknown): ServiceSnapshot | undefined {
       ? "Final Plan"
       : "Working Plan";
 
-  const rowTokens = rows.map(rowToken);
 
   return {
     dateTime: `${serviceDate || "date missing"} ${serviceTime || "time missing"}`,
@@ -204,19 +204,10 @@ function extractServiceSnapshot(value: unknown): ServiceSnapshot | undefined {
     topicComparable: stableStringify(topicValue),
     notePresent: noteValue.length > 0,
     noteComparable: noteValue,
-    rowsText: rowTokens.length > 0 ? rowTokens.join(", ") : "—",
+    rowsText: formatPlanningRowsText(rows),
     rowsComparable: stableStringify(rows),
     lifecycle,
   };
-}
-
-function rowToken(value: unknown): string {
-  if (!isRecord(value)) return "—";
-  const song = isRecord(value.song) ? value.song : undefined;
-  const number = song ? stringValue(song.number) : "";
-  const notePresent = typeof value.note === "string" && value.note.trim().length > 0;
-  if (!number && notePresent) return "t";
-  return `${number || "—"}${notePresent ? "+t" : ""}`;
 }
 
 function displayName(value: unknown): string {

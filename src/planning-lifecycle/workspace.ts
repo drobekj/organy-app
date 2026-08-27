@@ -1,5 +1,6 @@
 import type { CompletedServiceRecord, PersistedPlanningSet, PlanningSetId, CompletedServiceRecordId } from "../application/planning-lifecycle/ports";
 import type { PlanningRole } from "./model";
+import { formatPlanningRowsSummary } from "./row-summary";
 
 export type Workspace = "planning" | "plans" | "history" | "catalog" | "development";
 export type ActiveRecordGroups = { working: PersistedPlanningSet[]; final: PersistedPlanningSet[] };
@@ -32,7 +33,7 @@ export function groupActivePlanningSets(sets: PersistedPlanningSet[]): ActiveRec
 export function formatPlanningSetSummary(set: PersistedPlanningSet): string {
   return [
     formatServiceContext(set.serviceContext),
-    `${set.rows.length} ${set.rows.length === 1 ? "row" : "rows"}`,
+    formatPlanningRowsSummary(set.rows),
     `changed by ${set.lastChangedBy ?? "—"}`,
   ].join(" · ");
 }
@@ -40,7 +41,7 @@ export function formatPlanningSetSummary(set: PersistedPlanningSet): string {
 export function formatCompletedRecordSummary(record: CompletedServiceRecord): string {
   return [
     formatServiceContext(record.serviceContext),
-    `${record.set.rows.length} ${record.set.rows.length === 1 ? "row" : "rows"}`,
+    formatPlanningRowsSummary(record.set.rows),
     `changed by ${record.lastChangedBy ?? "—"}`,
   ].join(" · ");
 }
