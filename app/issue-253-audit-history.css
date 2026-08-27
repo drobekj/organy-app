@@ -1,4 +1,4 @@
-/* Issue #253: compact Audit History service-state summaries and diffs. */
+/* Issue #253/#255: compact Audit History service-state summaries and diffs. */
 
 .audit-history-card {
   gap: 0.55rem;
@@ -19,34 +19,67 @@
   padding: 0.4rem 0.55rem;
 }
 
-.audit-event-header,
-.audit-state-line {
+.audit-event-header {
   align-items: baseline;
   display: flex;
   flex-wrap: wrap;
+  font-size: 0.84rem;
   gap: 0.22rem;
   line-height: 1.35;
   margin: 0;
   min-width: 0;
 }
 
-.audit-event-header {
-  font-size: 0.84rem;
-}
-
 .audit-state-line {
+  align-items: start;
+  display: grid;
   font-size: 0.82rem;
+  gap: 0.22rem;
+  grid-template-columns: 3.15rem minmax(0, 1fr);
+  line-height: 1.35;
+  margin: 0;
+  min-width: 0;
 }
 
 .audit-state-label {
-  flex: 0 0 auto;
-  min-width: 3.15rem;
+  white-space: nowrap;
 }
 
-.audit-state-field-group {
+.audit-service-state {
+  display: grid;
+  gap: 0.08rem;
+  max-width: 100%;
+  min-width: 0;
+  width: fit-content;
+}
+
+.audit-service-primary {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.audit-service-secondary {
+  align-items: baseline;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.audit-state-field-group,
+.audit-lifecycle-slot {
   align-items: baseline;
   display: inline-flex;
   gap: 0.22rem;
+}
+
+.audit-lifecycle-slot {
+  justify-self: end;
+  white-space: nowrap;
 }
 
 .audit-separator {
@@ -74,7 +107,11 @@
     padding: 0.4rem 0.45rem;
   }
 
-  .audit-state-label {
-    min-width: 2.9rem;
+  .audit-state-line {
+    grid-template-columns: 2.9rem minmax(0, 1fr);
+  }
+
+  .audit-service-state {
+    width: 100%;
   }
 }
