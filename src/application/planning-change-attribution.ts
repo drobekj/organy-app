@@ -78,6 +78,13 @@ export function businessContentChanged(beforeState: unknown, afterState: unknown
   return stableStringify(before) !== stableStringify(after);
 }
 
+export function shouldRecordPlanningAudit(action: string, beforeState: unknown, afterState: unknown): boolean {
+  if (action === "saveWorkingSet" || action === "updateCompletedRecord") {
+    return businessContentChanged(beforeState, afterState);
+  }
+  return true;
+}
+
 function connectEventLineage(unionFind: UnionFind, event: AuditEventRecord) {
   const objectKey = auditObjectKey(event);
   if (!objectKey) return;
