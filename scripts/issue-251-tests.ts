@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import type { AuditEventRecord } from "../src/application/audit-history";
 import type { CompletedServiceRecord, PersistedPlanningSet } from "../src/application/planning-lifecycle";
 import { attributePlanningLastEditors, businessContentChanged } from "../src/application/planning-change-attribution";
@@ -135,10 +135,8 @@ const historySummary = formatCompletedRecordSummary({ ...historyRecord, lastChan
 assert.doesNotMatch(historySummary, /Completed service/);
 assert.match(historySummary, /changed by Grace/);
 
-const [route, auditHistory] = await Promise.all([
-  readFile("app/api/planning-lifecycle/route.ts", "utf8"),
-  readFile("src/application/audit-history.ts", "utf8"),
-]);
+const route = readFileSync("app/api/planning-lifecycle/route.ts", "utf8");
+const auditHistory = readFileSync("src/application/audit-history.ts", "utf8");
 assert.match(route, /attributePlanningLastEditors/);
 assert.match(route, /listPlanningAuditEvents/);
 assert.match(auditHistory, /where action like 'planning\.%'/);
