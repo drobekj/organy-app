@@ -31,14 +31,18 @@ export function groupActivePlanningSets(sets: PersistedPlanningSet[]): ActiveRec
 
 export function formatPlanningSetSummary(set: PersistedPlanningSet): string {
   return [
-    `${formatLifecycle(set.status)} service`,
     formatServiceContext(set.serviceContext),
     `${set.rows.length} ${set.rows.length === 1 ? "row" : "rows"}`,
+    `changed by ${set.lastChangedBy ?? "—"}`,
   ].join(" · ");
 }
 
 export function formatCompletedRecordSummary(record: CompletedServiceRecord): string {
-  return ["Completed service", formatServiceContext(record.serviceContext), `${record.set.rows.length} ${record.set.rows.length === 1 ? "row" : "rows"}`].join(" · ");
+  return [
+    formatServiceContext(record.serviceContext),
+    `${record.set.rows.length} ${record.set.rows.length === 1 ? "row" : "rows"}`,
+    `changed by ${record.lastChangedBy ?? "—"}`,
+  ].join(" · ");
 }
 
 export const workspaceLabels: Record<Workspace, string> = {
@@ -61,7 +65,6 @@ export function getWorkspaceAfterDelete(deleted: PersistedRecordReference | null
 }
 export function getWorkspaceAfterOpenRecord(): Workspace { return "planning"; }
 
-function formatLifecycle(status: PersistedPlanningSet["status"]): string { return status === "working" ? "Working" : "Final"; }
 function formatServiceContext(context: PersistedPlanningSet["serviceContext"]): string {
   return `${context.serviceDate} ${context.serviceTime || "time missing"} · ${context.language} · priest ${context.priest.displayName || "—"} · organist ${context.organist.displayName || "—"}`;
 }
