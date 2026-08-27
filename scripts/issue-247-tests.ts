@@ -21,7 +21,8 @@ async function main() {
   assert.match(styles, /\.workspace-account-actions \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/, "Save and Cancel are not kept on one row");
 
   assert.match(planning, /const candidateValidationConflict = rowCandidateUnavailable\(row\) \|\| \([\s\S]*?selectedCandidateAvailability\.byRow\[row\.id\] === "error"/, "candidate availability conflicts are not mapped back to their Planning row");
-  assert.match(planning, /candidateValidationConflict \? " planning-alert-row" : ""/, "candidate validation row alert class is missing");
+  assert.match(planning, /const planningAlertConflict = candidateValidationConflict \|\| emptyRowValidationConflict;/, "Planning alert conflicts are not consolidated");
+  assert.match(planning, /planningAlertConflict \? " planning-alert-row" : ""/, "candidate validation row alert class is missing");
   assert.match(styles, /\.planning-alert-row \{[\s\S]*?background: #fef3f2;[\s\S]*?border: 3px solid var\(--danger\);/, "Planning validation row does not use the completed-conflict alert treatment");
   assert.match(planning, /"Every candidate must be available\."/);
   assert.match(planning, /"Candidate availability could not be checked\."/);
