@@ -11,6 +11,7 @@ export type PersistedPlanningSet = PlanningSet & {
   serviceContext: ServiceContext;
   completedAt?: Date;
   needsRevision?: PlanningSetRevisionState;
+  lastChangedBy?: string;
 };
 
 export type CompletedServiceRecord = {
@@ -20,6 +21,7 @@ export type CompletedServiceRecord = {
   serviceContext: ServiceContext;
   completedAt: Date;
   conflictState?: CompletedServiceConflictState;
+  lastChangedBy?: string;
 };
 
 export interface PlanningSetRepository {
