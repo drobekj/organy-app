@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authPool } from "../../../src/auth/server";
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../../../src/application/active-role";
 import { canReadAuditHistory, listAuditEvents } from "../../../src/application/audit-history";
+import { presentAuditEvent, type AuditStatePresentation } from "../../../src/application/audit-history-view";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 
 export default async function AuditHistoryPage() {
@@ -15,22 +16,43 @@ export default async function AuditHistoryPage() {
   if (!canReadAuditHistory(currentUser.roles) || activeRole !== "admin") redirect("/");
 
   const events = await listAuditEvents(authPool);
-  return <main className="shell"><section className="card planning-form" aria-label="Audit history">
-    <div className="app-header"><div><p className="eyebrow">Administration</p><h1>Audit history</h1></div><a href="/">Back to planning</a></div>
+  return <main className="shell"><section className="card planning-form audit-history-card" aria-label="Audit history">
+    <div className="app-header"><div><h1>Audit history</h1></div><a href="/">Back to planning</a></div>
     <p className="field-help">Successful business changes only. Audit history is append-only and read-only.</p>
-    <div style={{ display: "grid", gap: "0.75rem" }}>
+    <div className="audit-event-list">
       {events.length === 0 && <p>No audit events recorded yet.</p>}
-      {events.map((event) => <article className="detail-panel" key={event.id}>
-        <div className="rows-header"><strong>{event.action}</strong><span>{event.occurredAt.toLocaleString("cs-CZ", { timeZone: "Europe/Prague" })}</span></div>
-        <p><strong>Actor:</strong> {event.actorKind === "system" ? "System" : `${event.actorDisplayName} · ${event.actorRole}`}</p>
-        <p><strong>Object:</strong> {event.objectKind} · {event.objectRef}</p>
-        {event.beforeState !== null && <details><summary>Before</summary><pre>{formatState(event.beforeState)}</pre></details>}
-        {event.afterState !== null && <details><summary>After / delta</summary><pre>{formatState(event.afterState)}</pre></details>}
-      </article>)}
+      {events.map((event) => {
+        const view = presentAuditEvent(event);
+        return <article className="audit-event" key={event.id}>
+          <p className="audit-event-header">
+            <strong>{view.objectLabel}</strong>
+            <span>{view.action}</span>
+            <Separator />
+            <span>Actor: {view.actorLabel}</span>
+            <Separator />
+            <span>{view.occurredAtLabel}</span>
+          </p>
+          <AuditStateLine label="before" state={view.before} />
+          <AuditStateLine label="after" state={view.after} />
+        </article>;
+      })}
     </div>
   </section></main>;
 }
 
-function formatState(value: unknown): string {
-  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+function AuditStateLine({ label, state }: { label: "before" | "after"; state: AuditStatePresentation }) {
+  return <p className="audit-state-line">
+    <strong className="audit-state-label">{label}:</strong>
+    {state.kind === "service" && state.fields.map((field, index) => <span className="audit-state-field-group" key={field.key}>
+      {index > 0 && <Separator />}
+      <span className={field.tone === "muted" ? "audit-state-muted" : field.tone === "changed" ? "audit-state-changed" : undefined}>
+        {field.text}
+      </span>
+    </span>)}
+    {state.kind === "generic" && <code className="audit-generic-state">{state.text}</code>}
+  </p>;
+}
+
+function Separator() {
+  return <span className="audit-separator" aria-hidden="true">·</span>;
 }

@@ -1,0 +1,80 @@
+/* Issue #253: compact Audit History service-state summaries and diffs. */
+
+.audit-history-card {
+  gap: 0.55rem;
+}
+
+.audit-event-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.audit-event {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+}
+
+.audit-event-header,
+.audit-state-line {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem;
+  line-height: 1.35;
+  margin: 0;
+  min-width: 0;
+}
+
+.audit-event-header {
+  font-size: 0.84rem;
+}
+
+.audit-state-line {
+  font-size: 0.82rem;
+}
+
+.audit-state-label {
+  flex: 0 0 auto;
+  min-width: 3.15rem;
+}
+
+.audit-state-field-group {
+  align-items: baseline;
+  display: inline-flex;
+  gap: 0.22rem;
+}
+
+.audit-separator {
+  color: var(--muted);
+}
+
+.audit-state-muted {
+  color: #98a2b3;
+}
+
+.audit-state-changed {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.audit-generic-state {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 720px) {
+  .audit-event {
+    padding: 0.4rem 0.45rem;
+  }
+
+  .audit-state-label {
+    min-width: 2.9rem;
+  }
+}
