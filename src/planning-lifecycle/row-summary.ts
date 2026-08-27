@@ -1,13 +1,23 @@
-import type { PlanningRow } from "./model";
-
-export function formatPlanningRowToken(row: PlanningRow): string {
-  const number = row.song?.number?.trim() ?? "";
-  const notePresent = typeof row.note === "string" && row.note.trim().length > 0;
+export function formatPlanningRowToken(value: unknown): string {
+  if (!isRecord(value)) return "—";
+  const song = isRecord(value.song) ? value.song : undefined;
+  const number = song ? stringValue(song.number) : "";
+  const notePresent = typeof value.note === "string" && value.note.trim().length > 0;
   if (!number && notePresent) return "t";
   return `${number || "—"}${notePresent ? "+t" : ""}`;
 }
 
-export function formatPlanningRowsSummary(rows: PlanningRow[]): string {
+export function formatPlanningRowsSummary(rows: readonly unknown[]): string {
   const tokens = rows.map(formatPlanningRowToken);
   return `rows: ${tokens.length > 0 ? tokens.join(", ") : "—"}`;
+}
+
+function stringValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
