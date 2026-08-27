@@ -303,3 +303,9 @@ button.workspace-action-pending {
 .planning-person-select option {
   color: var(--foreground);
 }
+
+
+/* Issue #249: empty-row validation outline and neutral remove-row icon. */
+.row-icon-remove {
+  color: var(--foreground);
+}
