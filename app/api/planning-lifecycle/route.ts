@@ -19,7 +19,7 @@ import { PostgresReferenceMelodyClassProvider } from "../../../src/application/r
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
 import { enrichCompletedConflictStates, enrichPlanningConflictStates, enrichRevisionRowIndexes, findCompletedPlanConflicts, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
 import { auditEventValues, humanAuditActor, listPlanningAuditEvents, systemAuditActor } from "../../../src/application/audit-history";
-import { attributePlanningLastEditors } from "../../../src/application/planning-change-attribution";
+import { attributePlanningLastEditors, shouldRecordPlanningAudit } from "../../../src/application/planning-change-attribution";
 import { DrizzleCatalogRepository, getEligiblePersonDefaultById } from "../../../src/application/catalog";
 import { getDraftPeopleDefaults } from "../../../src/planning-lifecycle/ui-session";
 import { getAppDbPool } from "../../../src/db/app-pool";
@@ -293,7 +293,7 @@ export async function POST(request: Request) {
         referenceMelodyClasses: melodyClasses,
       });
       const mutation = await service[action](input as never);
-      if (mutation.success) {
+      if (mutation.success && shouldRecordPlanningAudit(action, before ?? null, mutation.value ?? null)) {
         await tx.insert(schema.auditEvents).values(auditEventValues({
           actor: humanAuditActor(actor),
           action: planningAuditAction(action),
