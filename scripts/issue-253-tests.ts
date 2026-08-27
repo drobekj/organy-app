@@ -78,7 +78,7 @@ assert.equal(serviceField(changed.before, "dateTime").text, "2026-08-30 10:00");
 assert.equal(serviceField(changed.before, "antiphon").tone, "muted");
 assert.equal(serviceField(changed.before, "topic").tone, "normal");
 assert.equal(serviceField(changed.before, "note").tone, "normal");
-assert.equal(serviceField(changed.before, "rows").text, "rows 345, 21_t, 751");
+assert.equal(serviceField(changed.before, "rows").text, "rows 345, 21+t, 751");
 assert.equal(serviceField(changed.before, "lifecycle").text, "Working Plan");
 
 assert.equal(serviceField(changed.after, "dateTime").tone, "changed");
@@ -88,8 +88,8 @@ assert.equal(serviceField(changed.after, "organist").tone, "normal");
 assert.equal(serviceField(changed.after, "antiphon").tone, "normal", "empty → non-empty is represented by muted → normal, not red");
 assert.equal(serviceField(changed.after, "topic").tone, "changed", "non-empty → changed non-empty Topic is red in after");
 assert.equal(serviceField(changed.after, "note").tone, "changed", "non-empty → changed non-empty Note is red in after");
-assert.equal(serviceField(changed.after, "rows").text, "rows 345, 21_t, 751");
-assert.equal(serviceField(changed.after, "rows").tone, "changed", "row-note content change is red even when the visible _t token stays present");
+assert.equal(serviceField(changed.after, "rows").text, "rows 345, 21+t, 751");
+assert.equal(serviceField(changed.after, "rows").tone, "changed", "row-note content change is red even when the visible +t token stays present");
 assert.equal(serviceField(changed.after, "lifecycle").text, "Final Plan");
 assert.equal(serviceField(changed.after, "lifecycle").tone, "changed", "lifecycle transition is red in after");
 
