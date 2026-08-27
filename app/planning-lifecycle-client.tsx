@@ -1925,8 +1925,11 @@ Save the correction and mark those plans for revision?`);
                 && candidateAvailabilityCurrent
                 && selectedCandidateAvailability.byRow[row.id] === "error"
               );
+              const emptyRowValidationConflict = !isCompletedRecordOpen
+                && Boolean(validationResults[index]?.issues.some((issue) => issue.path === "row"));
+              const planningAlertConflict = candidateValidationConflict || emptyRowValidationConflict;
               return (
-                <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}${candidateValidationConflict ? " planning-alert-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
+                <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}${planningAlertConflict ? " planning-alert-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
                     <button type="button" className="row-icon-button" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
