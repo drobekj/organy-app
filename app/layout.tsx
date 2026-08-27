@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./service-context-minimal.css";
 import "./data-value-typography.css";
-import "./issue-238-workspace.css";\nimport "./issue-253-audit-history.css";
+import "./issue-238-workspace.css";
+import "./issue-253-audit-history.css";
 
 export const metadata: Metadata = {
   title: "Organ Planner",
