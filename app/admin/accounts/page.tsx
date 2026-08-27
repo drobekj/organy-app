@@ -34,7 +34,7 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
   const message = first(params.message);
   const error = first(params.error);
   return <main className="shell"><section className="card planning-form" aria-label="Protected Account administration">
-    <div className="app-header"><div><p className="eyebrow">Administration</p><h1>Protected Accounts</h1></div><a href="/">Back to planning</a></div>
+    <div className="app-header"><div><h1>Protected Accounts</h1></div><a href="/">Back to planning</a></div>
     <p className="field-help">Protected staff use username + password. Church-domain roles remain authoritative only in app_user_roles.</p>
     <section className="detail-panel" aria-label="Add staff account"><h2>Add priest / organist account</h2><ProtectedStaffOnboardingForm people={staffPeople} /></section>
     {message && <p className="saved-summary" role="status">{message}</p>}
