@@ -27,7 +27,7 @@ function event(
 }
 
 function serviceField(state: AuditStatePresentation, key: AuditServiceFieldKey) {
-  assert.equal(state.kind, "service", `${key} requires service state`);
+  if (state.kind !== "service") throw new Error(`${key} requires service state`);
   const field = state.fields.find((candidate) => candidate.key === key);
   assert.ok(field, `missing field ${key}`);
   return field;
