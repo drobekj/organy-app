@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { authPool } from "../../../src/auth/server";
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../../../src/application/active-role";
 import { canReadAuditHistory, listAuditEvents } from "../../../src/application/audit-history";
-import { presentAuditEvent, type AuditServiceField, type AuditStatePresentation } from "../../../src/application/audit-history-view";
+import { presentAuditEvent, type AuditServiceField, type AuditServiceFieldKey, type AuditStatePresentation } from "../../../src/application/audit-history-view";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 
 export default async function AuditHistoryPage() {
@@ -32,8 +32,8 @@ export default async function AuditHistoryPage() {
             <Separator />
             <span>{view.occurredAtLabel}</span>
           </p>
-          <AuditStateLine label="before" state={view.before} />
           <AuditStateLine label="after" state={view.after} />
+          <AuditStateLine label="before" state={view.before} />
         </article>;
       })}
     </div>
@@ -49,22 +49,39 @@ function AuditStateLine({ label, state }: { label: "before" | "after"; state: Au
 }
 
 function AuditServiceState({ fields }: { fields: AuditServiceField[] }) {
-  const primary = fields.filter((field) => field.key !== "rows" && field.key !== "lifecycle");
+  const primaryLeft = pickFields(fields, ["dateTime", "antiphon", "topic", "note", "language"]);
+  const primaryRight = pickFields(fields, ["priest", "organist"]);
   const rows = fields.find((field) => field.key === "rows");
   const lifecycle = fields.find((field) => field.key === "lifecycle");
 
   return <div className="audit-service-state">
     <div className="audit-service-primary">
-      {primary.map((field, index) => <span className="audit-state-field-group" key={field.key}>
-        {index > 0 && <Separator />}
-        <AuditField field={field} />
-      </span>)}
+      <div className="audit-service-primary-left">
+        <AuditFieldSequence fields={primaryLeft} />
+      </div>
+      <div className="audit-service-primary-right">
+        <AuditFieldSequence fields={primaryRight} />
+      </div>
     </div>
     <div className="audit-service-secondary">
-      {rows && <AuditField field={rows} />}
-      {lifecycle && <span className="audit-lifecycle-slot"><Separator /><AuditField field={lifecycle} /></span>}
+      <div>{rows && <AuditField field={rows} />}</div>
+      <div className="audit-lifecycle-slot">{lifecycle && <AuditField field={lifecycle} />}</div>
     </div>
   </div>;
+}
+
+function pickFields(fields: AuditServiceField[], keys: AuditServiceFieldKey[]) {
+  return keys.flatMap((key) => {
+    const field = fields.find((candidate) => candidate.key === key);
+    return field ? [field] : [];
+  });
+}
+
+function AuditFieldSequence({ fields }: { fields: AuditServiceField[] }) {
+  return <>{fields.map((field, index) => <span className="audit-state-field-group" key={field.key}>
+    {index > 0 && <Separator />}
+    <AuditField field={field} />
+  </span>)}</>;
 }
 
 function AuditField({ field }: { field: AuditServiceField }) {
