@@ -105,6 +105,9 @@ function serviceFields(snapshot: ServiceSnapshot, before: ServiceSnapshot | unde
       text: snapshot.dateTime,
       tone: changedTone(before, snapshot.dateTimeComparable, before?.dateTimeComparable),
     },
+    presenceField("antiphon", snapshot.antiphonPresent, snapshot.antiphonComparable, before?.antiphonPresent, before?.antiphonComparable),
+    presenceField("topic", snapshot.topicPresent, snapshot.topicComparable, before?.topicPresent, before?.topicComparable),
+    presenceField("note", snapshot.notePresent, snapshot.noteComparable, before?.notePresent, before?.noteComparable),
     {
       key: "language",
       text: snapshot.language,
@@ -120,9 +123,6 @@ function serviceFields(snapshot: ServiceSnapshot, before: ServiceSnapshot | unde
       text: `organist ${snapshot.organist || "—"}`,
       tone: changedTone(before, snapshot.organistComparable, before?.organistComparable),
     },
-    presenceField("antiphon", snapshot.antiphonPresent, snapshot.antiphonComparable, before?.antiphonPresent, before?.antiphonComparable),
-    presenceField("topic", snapshot.topicPresent, snapshot.topicComparable, before?.topicPresent, before?.topicComparable),
-    presenceField("note", snapshot.notePresent, snapshot.noteComparable, before?.notePresent, before?.noteComparable),
     {
       key: "rows",
       text: `rows ${snapshot.rowsText}`,
