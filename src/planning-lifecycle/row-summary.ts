@@ -7,9 +7,13 @@ export function formatPlanningRowToken(value: unknown): string {
   return `${number || "—"}${notePresent ? "+t" : ""}`;
 }
 
-export function formatPlanningRowsSummary(rows: readonly unknown[]): string {
+export function formatPlanningRowsText(rows: readonly unknown[]): string {
   const tokens = rows.map(formatPlanningRowToken);
-  return `rows: ${tokens.length > 0 ? tokens.join(", ") : "—"}`;
+  return tokens.length > 0 ? tokens.join(", ") : "—";
+}
+
+export function formatPlanningRowsSummary(rows: readonly unknown[]): string {
+  return `rows: ${formatPlanningRowsText(rows)}`;
 }
 
 function stringValue(value: unknown): string {
