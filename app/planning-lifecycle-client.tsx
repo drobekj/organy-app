@@ -1857,7 +1857,7 @@ Save the correction and mark those plans for revision?`);
             </label>
             <label>
               Priest
-              <select disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("priest"); else { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); } }}>
+              <select className="planning-person-select" disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("priest"); else { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); } }}>
                 <option value="">Anonymous</option>
                 {priestId && !priestResults.some((person) => person.id === priestId) && <option value={priestId} disabled aria-label={`Historical inactive priest ${priest}`}>{priest} (historical inactive)</option>}
                 {priestResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
@@ -1866,7 +1866,7 @@ Save the correction and mark those plans for revision?`);
             </label>
             <label>
               Organist
-              <select disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("organist"); else { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); } }}>
+              <select className="planning-person-select" disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("organist"); else { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); } }}>
                 <option value="">Anonymous</option>
                 {organistId && !organistResults.some((person) => person.id === organistId) && <option value={organistId} disabled aria-label={`Historical inactive organist ${organist}`}>{organist} (historical inactive)</option>}
                 {organistResults.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
@@ -1920,8 +1920,13 @@ Save the correction and mark those plans for revision?`);
                   })
                 : false;
               const revisionConflict = Boolean(planningRevisionConflict || (completedRecord && completedConflictRowIndexes.has(index)));
+              const candidateValidationConflict = rowCandidateUnavailable(row) || (
+                candidateAvailabilityApplies
+                && candidateAvailabilityCurrent
+                && selectedCandidateAvailability.byRow[row.id] === "error"
+              );
               return (
-                <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
+                <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}${candidateValidationConflict ? " planning-alert-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
                     <button type="button" className="row-icon-button" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
