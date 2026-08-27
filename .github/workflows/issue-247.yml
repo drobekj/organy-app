@@ -1,0 +1,32 @@
+name: Issue 247 Workspace menu and Planning alert acceptance
+
+on:
+  pull_request:
+    paths:
+      - app/protected-account-controls.tsx
+      - app/issue-238-workspace.css
+      - app/planning-lifecycle-client.tsx
+      - scripts/issue-238-tests.ts
+      - scripts/issue-247-tests.ts
+      - package.json
+      - .github/workflows/issue-247.yml
+  workflow_dispatch:
+
+jobs:
+  issue-247:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Issue 247 acceptance
+        run: npm run test:issue-247
+      - name: Issue 238 regression
+        run: npm run test:issue-238
+      - run: npm run typecheck
+      - run: npm test
+      - name: Production build
+        run: npm run build

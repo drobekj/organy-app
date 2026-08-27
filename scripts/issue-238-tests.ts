@@ -17,7 +17,7 @@ async function main() {
   assert.match(accountControls, /aria-describedby/, "workspace helper copy is not exposed as a description");
   assert.match(accountControls, /titleArea\.addEventListener\("click", titleTapHandler\)/, "workspace helper is not touch\/tap accessible");
 
-  assert.match(accountControls, /<details className="workspace-account-menu"/, "User menu is not a native keyboard\/touch details menu");
+  assert.match(accountControls, /<details[\s\S]*?className="workspace-account-menu"/, "User menu is not a native keyboard\/touch details menu");
   assert.match(accountControls, />Change Password<\/button>/, "User menu is missing Change Password");
   assert.match(accountControls, /"Signing Out…" : "Sign Out"/, "User menu is missing pending-aware Sign Out");
   assert.match(accountControls, /Role <strong>Admin<\/strong>/, "Admin role menu label is missing");

@@ -47,6 +47,23 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
   const [pendingAction, setPendingAction] = useState<PendingAccountAction>(null);
   const [activeRole, setActiveRole] = useState<PlanningRole>(initialActiveRole);
   const userMenuRef = useRef<HTMLDetailsElement>(null);
+  const roleMenuRef = useRef<HTMLDetailsElement>(null);
+
+  function resetPasswordEditor() {
+    setEditingPassword(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setFeedback(null);
+  }
+
+  function closeUserMenu() {
+    if (userMenuRef.current) userMenuRef.current.open = false;
+    resetPasswordEditor();
+  }
+
+  function closeRoleMenu() {
+    if (roleMenuRef.current) roleMenuRef.current.open = false;
+  }
 
   useEffect(() => {
     let frame = 0;
@@ -109,6 +126,39 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
     window.addEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleActiveRoleChange);
     return () => window.removeEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleActiveRoleChange);
   }, [roles]);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+
+      if (userMenuRef.current?.contains(target)) {
+        closeRoleMenu();
+        return;
+      }
+
+      if (roleMenuRef.current?.contains(target)) {
+        closeUserMenu();
+        return;
+      }
+
+      closeUserMenu();
+      closeRoleMenu();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      closeUserMenu();
+      closeRoleMenu();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   useEffect(() => {
     const originalFetch = window.fetch.bind(window) as typeof window.fetch;
@@ -235,7 +285,14 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
 
   return createPortal(
     <div className="workspace-account-panel" aria-label="Signed-in account">
-      <details className="workspace-account-menu" ref={userMenuRef}>
+      <details
+        className="workspace-account-menu"
+        ref={userMenuRef}
+        onToggle={(event) => {
+          if (event.currentTarget.open) closeRoleMenu();
+          else resetPasswordEditor();
+        }}
+      >
         <summary>
           <span>User <strong>{displayName}</strong></span>
           <span className="workspace-menu-dots" aria-hidden="true">⋯</span>
@@ -251,8 +308,8 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
               <PasswordVisibilityField id="current-account-password" label="Current password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
               <PasswordVisibilityField id="new-account-password" label="New password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} minLength={8} required />
               <div className="workspace-account-actions">
-                <button type="submit" disabled={pending} aria-busy={pendingAction === "changePassword"}>{pendingAction === "changePassword" ? "Saving…" : "Save Password"}</button>
-                <button type="button" disabled={pending} onClick={() => { setEditingPassword(false); setCurrentPassword(""); setNewPassword(""); setFeedback(null); }}>Cancel</button>
+                <button type="submit" disabled={pending} aria-busy={pendingAction === "changePassword"}>{pendingAction === "changePassword" ? "Saving…" : "Save"}</button>
+                <button type="button" disabled={pending} onClick={resetPasswordEditor}>Cancel</button>
               </div>
             </form>
           )}
@@ -261,7 +318,13 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
       </details>
 
       {activeAdmin ? (
-        <details className="workspace-account-menu workspace-role-menu">
+        <details
+          className="workspace-account-menu workspace-role-menu"
+          ref={roleMenuRef}
+          onToggle={(event) => {
+            if (event.currentTarget.open) closeUserMenu();
+          }}
+        >
           <summary>
             <span>Role <strong>Admin</strong></span>
             <span className="workspace-menu-dots" aria-hidden="true">⋯</span>

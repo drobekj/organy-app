@@ -158,9 +158,13 @@
 }
 
 .workspace-account-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 0.4rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.workspace-account-actions button {
+  text-align: center;
 }
 
 .workspace-account-feedback {
@@ -286,4 +290,16 @@ button.workspace-action-pending {
   .workspace-password-form {
     min-width: min(18rem, calc(100vw - 3rem));
   }
+}
+
+
+/* Issue #247: Production-acceptance follow-up for menu sequences and Planning alert presentation. */
+.planning-alert-row {
+  background: #fef3f2;
+  border: 3px solid var(--danger);
+}
+
+.planning-person-select,
+.planning-person-select option {
+  color: var(--foreground);
 }
