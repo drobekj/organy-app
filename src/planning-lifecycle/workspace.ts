@@ -1,5 +1,5 @@
 import type { CompletedServiceRecord, PersistedPlanningSet, PlanningSetId, CompletedServiceRecordId } from "../application/planning-lifecycle/ports";
-import type { PlanningRole } from "./model";
+import type { PlanningRole, PlanningRow } from "./model";
 
 export type Workspace = "planning" | "plans" | "history" | "catalog" | "development";
 export type ActiveRecordGroups = { working: PersistedPlanningSet[]; final: PersistedPlanningSet[] };
@@ -32,7 +32,7 @@ export function groupActivePlanningSets(sets: PersistedPlanningSet[]): ActiveRec
 export function formatPlanningSetSummary(set: PersistedPlanningSet): string {
   return [
     formatServiceContext(set.serviceContext),
-    `${set.rows.length} ${set.rows.length === 1 ? "row" : "rows"}`,
+    formatRowsSummary(set.rows),
     `changed by ${set.lastChangedBy ?? "—"}`,
   ].join(" · ");
 }
@@ -40,7 +40,7 @@ export function formatPlanningSetSummary(set: PersistedPlanningSet): string {
 export function formatCompletedRecordSummary(record: CompletedServiceRecord): string {
   return [
     formatServiceContext(record.serviceContext),
-    `${record.set.rows.length} ${record.set.rows.length === 1 ? "row" : "rows"}`,
+    formatRowsSummary(record.set.rows),
     `changed by ${record.lastChangedBy ?? "—"}`,
   ].join(" · ");
 }
@@ -67,4 +67,15 @@ export function getWorkspaceAfterOpenRecord(): Workspace { return "planning"; }
 
 function formatServiceContext(context: PersistedPlanningSet["serviceContext"]): string {
   return `${context.serviceDate} ${context.serviceTime || "time missing"} · ${context.language} · priest ${context.priest.displayName || "—"} · organist ${context.organist.displayName || "—"}`;
+}
+
+function formatRowsSummary(rows: PlanningRow[]): string {
+  return `rows: ${rows.map(formatRowToken).join(", ")}`;
+}
+
+function formatRowToken(row: PlanningRow): string {
+  const number = row.song?.number?.trim() ?? "";
+  const hasNote = Boolean(row.note?.trim());
+  if (!number && hasNote) return "t";
+  return `${number || "—"}${number && hasNote ? "+t" : ""}`;
 }
