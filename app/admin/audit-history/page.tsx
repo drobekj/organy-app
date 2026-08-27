@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { authPool } from "../../../src/auth/server";
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../../../src/application/active-role";
 import { canReadAuditHistory, listAuditEvents } from "../../../src/application/audit-history";
-import { presentAuditEvent, type AuditStatePresentation } from "../../../src/application/audit-history-view";
+import { presentAuditEvent, type AuditServiceField, type AuditStatePresentation } from "../../../src/application/audit-history-view";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 
 export default async function AuditHistoryPage() {
@@ -41,16 +41,36 @@ export default async function AuditHistoryPage() {
 }
 
 function AuditStateLine({ label, state }: { label: "before" | "after"; state: AuditStatePresentation }) {
-  return <p className="audit-state-line">
+  return <div className="audit-state-line">
     <strong className="audit-state-label">{label}:</strong>
-    {state.kind === "service" && state.fields.map((field, index) => <span className="audit-state-field-group" key={field.key}>
-      {index > 0 && <Separator />}
-      <span className={field.tone === "muted" ? "audit-state-muted" : field.tone === "changed" ? "audit-state-changed" : undefined}>
-        {field.text}
-      </span>
-    </span>)}
+    {state.kind === "service" && <AuditServiceState fields={state.fields} />}
     {state.kind === "generic" && <code className="audit-generic-state">{state.text}</code>}
-  </p>;
+  </div>;
+}
+
+function AuditServiceState({ fields }: { fields: AuditServiceField[] }) {
+  const primary = fields.filter((field) => field.key !== "rows" && field.key !== "lifecycle");
+  const rows = fields.find((field) => field.key === "rows");
+  const lifecycle = fields.find((field) => field.key === "lifecycle");
+
+  return <div className="audit-service-state">
+    <div className="audit-service-primary">
+      {primary.map((field, index) => <span className="audit-state-field-group" key={field.key}>
+        {index > 0 && <Separator />}
+        <AuditField field={field} />
+      </span>)}
+    </div>
+    <div className="audit-service-secondary">
+      {rows && <AuditField field={rows} />}
+      {lifecycle && <span className="audit-lifecycle-slot"><Separator /><AuditField field={lifecycle} /></span>}
+    </div>
+  </div>;
+}
+
+function AuditField({ field }: { field: AuditServiceField }) {
+  return <span className={field.tone === "muted" ? "audit-state-muted" : field.tone === "changed" ? "audit-state-changed" : undefined}>
+    {field.text}
+  </span>;
 }
 
 function Separator() {

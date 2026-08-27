@@ -215,7 +215,7 @@ function rowToken(value: unknown): string {
   const song = isRecord(value.song) ? value.song : undefined;
   const number = song ? stringValue(song.number) : "";
   const notePresent = typeof value.note === "string" && value.note.trim().length > 0;
-  return `${number || "—"}${notePresent ? "_t" : ""}`;
+  return `${number || "—"}${notePresent ? "+t" : ""}`;
 }
 
 function displayName(value: unknown): string {
