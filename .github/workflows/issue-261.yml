@@ -1,0 +1,27 @@
+name: Issue 261 Audit History record spacing acceptance
+
+on:
+  pull_request:
+    paths:
+      - app/issue-253-audit-history.css
+      - scripts/issue-261-tests.ts
+      - package.json
+      - .github/workflows/issue-261.yml
+  workflow_dispatch:
+
+jobs:
+  issue-261:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Issue 261 spacing acceptance
+        run: npm run test:issue-261
+      - run: npm run typecheck
+      - run: npm test
+      - name: Production build
+        run: npm run build
