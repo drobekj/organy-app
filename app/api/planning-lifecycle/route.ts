@@ -18,7 +18,8 @@ import { PostgresReferenceThematicSectionProvider } from "../../../src/applicati
 import { PostgresReferenceMelodyClassProvider } from "../../../src/application/reference-melody-class-provider";
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
 import { enrichCompletedConflictStates, enrichPlanningConflictStates, enrichRevisionRowIndexes, findCompletedPlanConflicts, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
-import { auditEventValues, humanAuditActor, systemAuditActor } from "../../../src/application/audit-history";
+import { auditEventValues, humanAuditActor, listPlanningAuditEvents, systemAuditActor } from "../../../src/application/audit-history";
+import { attributePlanningLastEditors } from "../../../src/application/planning-change-attribution";
 import { DrizzleCatalogRepository, getEligiblePersonDefaultById } from "../../../src/application/catalog";
 import { getDraftPeopleDefaults } from "../../../src/planning-lifecycle/ui-session";
 import { getAppDbPool } from "../../../src/db/app-pool";
@@ -103,14 +104,22 @@ export async function POST(request: Request) {
           completedRecords: await completedRepository.list(),
         };
       });
-      const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
+      const [melodyWindow, planningAuditEvents] = await Promise.all([
+        new PostgresNonRepetitionPeriodService(pool).get(actor),
+        listPlanningAuditEvents(pool),
+      ]);
       const conflictState = await enrichPlanningConflictStates({
         plans: snapshot.activeSets,
         completedRecords: snapshot.completedRecords,
         melodyClasses,
         months: melodyWindow.success ? melodyWindow.value.months : 2,
       });
-      const rawDefaults = getDraftPeopleDefaults(snapshot.completedRecords);
+      const attributed = attributePlanningLastEditors({
+        activeSets: conflictState.plans,
+        completedRecords: conflictState.completedRecords,
+        events: planningAuditEvents,
+      });
+      const rawDefaults = getDraftPeopleDefaults(attributed.completedRecords);
       const catalog = new DrizzleCatalogRepository(db);
       const [priest, organist] = await Promise.all([
         getEligiblePersonDefaultById(catalog, rawDefaults.priest.id, "priest"),
@@ -119,8 +128,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         value: {
-          activeSets: conflictState.plans,
-          completedRecords: conflictState.completedRecords,
+          activeSets: attributed.activeSets,
+          completedRecords: attributed.completedRecords,
           draftPeopleDefaults: {
             priest: priest ?? { displayName: "Anonymous" },
             organist: organist ?? { displayName: "Anonymous" },
@@ -169,7 +178,12 @@ export async function POST(request: Request) {
             melodyClasses,
             months,
           });
-          return NextResponse.json({ ...result, value });
+          const attributed = attributePlanningLastEditors({
+            activeSets: value,
+            completedRecords,
+            events: await listPlanningAuditEvents(pool),
+          });
+          return NextResponse.json({ ...result, value: attributed.activeSets });
         }
         const plans = await new DrizzlePlanningSetRepository(adapterDependencies).list();
         const value = await enrichCompletedConflictStates({
@@ -178,7 +192,12 @@ export async function POST(request: Request) {
           melodyClasses,
           months,
         });
-        return NextResponse.json({ ...result, value });
+        const attributed = attributePlanningLastEditors({
+          activeSets: plans,
+          completedRecords: value,
+          events: await listPlanningAuditEvents(pool),
+        });
+        return NextResponse.json({ ...result, value: attributed.completedRecords });
       }
       return NextResponse.json(result);
     }
