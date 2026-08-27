@@ -32,12 +32,18 @@ export default async function AuditHistoryPage() {
             <Separator />
             <span>{view.occurredAtLabel}</span>
           </p>
+          <AuditSectionRule />
           <AuditStateLine label="after" state={view.after} />
+          <AuditSectionRule />
           <AuditStateLine label="before" state={view.before} />
         </article>;
       })}
     </div>
   </section></main>;
+}
+
+function AuditSectionRule() {
+  return <div className="audit-section-rule" aria-hidden="true" />;
 }
 
 function AuditStateLine({ label, state }: { label: "before" | "after"; state: AuditStatePresentation }) {
