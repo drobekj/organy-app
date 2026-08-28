@@ -7,7 +7,7 @@ import { ProtectedActorError, resolveProtectedUser } from "../../../src/applicat
 import { ProvisionProtectedAccountForm } from "./provision-protected-account-form";
 import { ProtectedAccountEditor } from "./protected-account-editor";
 import { ProtectedStaffOnboardingForm } from "./protected-staff-onboarding-form";
-import { PersonDeleteButton } from "./person-delete-button";
+import { PersonAdminPanel } from "./person-admin-panel";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -34,14 +34,14 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
   const message = first(params.message);
   const error = first(params.error);
   return <main className="shell"><section className="card planning-form" aria-label="Protected Account administration">
-    <div className="app-header"><div><h1>Protected Accounts</h1></div><a href="/">Back to planning</a></div>
+    <div className="app-header"><div><h1>Manage Accounts</h1></div><a href="/">Back to planning</a></div>
     <p className="field-help">Protected staff use username + password. Church-domain roles remain authoritative only in app_user_roles.</p>
     <section className="detail-panel" aria-label="Add staff account"><h2>Add priest / organist account</h2><ProtectedStaffOnboardingForm people={staffPeople} /></section>
     {message && <p className="saved-summary" role="status">{message}</p>}
     {error && <p className="auth-error" role="alert">{error}</p>}
     <section className="detail-panel" aria-label="Provision protected Account"><h2>Provision future staff Account</h2><ProvisionProtectedAccountForm targets={snapshot.eligibleActors} /></section>
     <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} currentAppUserId={currentUser.id} canDeactivate={!(account.active && account.roles.includes("admin") && activeAdminCount === 1)} />)}</div></section>
-    <section className="detail-panel" aria-label="Person deletion"><h2>Persons</h2><p className="field-help">Permanent deletion is allowed only for a Person with no protected Account and no Working, Final, or Completed service reference. Otherwise deactivate the Person in Catalog.</p><div style={{ display: "grid", gap: "0.6rem" }}>{allPeople.map((person) => <div className="rows-header" key={person.id}><span>{person.displayName} · {person.active ? "active" : "inactive"} · {[person.priest ? "priest" : "", person.organist ? "organist" : ""].filter(Boolean).join(", ") || "no staff role"}</span><PersonDeleteButton personId={person.id} displayName={person.displayName} /></div>)}</div></section>
+    <PersonAdminPanel people={allPeople} />
   </section></main>;
 }
 
