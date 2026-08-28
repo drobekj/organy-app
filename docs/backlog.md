@@ -26,6 +26,15 @@ Backlog ordering should follow the accepted roadmap sequence:
 
 Items should remain traceable to accepted source documents and should not be decomposed into implementation work until the implementation-preparation phase begins.
 
+## Current implementation checkpoint — 2026-08-28
+
+The repository has progressed beyond the original implementation-preparation state: Phase 31.27–31.43 and the subsequent Production acceptance / UX-refinement series are merged, deployed, and accepted.
+
+- There is currently no accepted or defined **Phase 32** and no active product milestone should be inferred from old implementation-preparation wording.
+- Section 12 retains historical preparation items for traceability. Entries still marked `Proposed` there are not an ordered list of current next work; many were resolved by the implemented Phase 31 chain and its accepted production contracts.
+- Future feature work requires a new explicit product decision. Multi-congregation support remains intentionally deferred.
+- BL-001 remains the governing continuity rule: roadmap/backlog text must be reconciled when implementation makes older “future work” wording obsolete.
+
 ## 1. Documentation and Baseline Control
 
 ### BL-001 — Maintain accepted documentation baseline
@@ -339,10 +348,10 @@ Items should remain traceable to accepted source documents and should not be dec
 ### LD-001 — Assess legacy data against accepted domain concepts
 
 - **Type:** Epic
-- **Goal:** Understand existing legacy data in relation to accepted song identity, melody equivalence, repertoire, preferences, service sets, and history without inventing a migration strategy.
-- **Source / traceability:** Analysis Log Discovery 8; Domain Analysis constraints and open questions; Roadmap Phase 2; Legacy data boundary in architecture.
-- **Acceptance direction:** Legacy data is evaluated as an input and constraint, and findings can inform later decisions without committing to migration, transformation, replacement, synchronization, schema, or data-cleaning implementation.
-- **Status:** Proposed
+- **Goal:** Understand existing legacy data in relation to accepted song identity, melody equivalence, repertoire, preferences, service sets, and history without inventing a blanket migration strategy.
+- **Source / traceability:** Analysis Log Discovery 8; Domain Analysis constraints and open questions; Roadmap Phase 2; Legacy data boundary in architecture; Phase 31.43 definitive melody/repertoire handoff; Production legacy-history/person refinement beginning at #210.
+- **Acceptance direction:** Legacy data has been assessed and selectively transformed through explicit, validated handoffs rather than by copying the legacy runtime schema. Any additional legacy-data migration requires separate scope and acceptance.
+- **Status:** Accepted
 
 ## 12. Implementation Preparation
 
@@ -415,7 +424,7 @@ Items should remain traceable to accepted source documents and should not be dec
 - **Type:** Product backlog item
 - **Goal:** Provide the first real protected authentication/session layer for admin, priest, and organist without changing the accepted domain-role model.
 - **Source / traceability:** `docs/auth-account-role-model.md`; `docs/production-auth-decision.md`; Phase 31.27 Contract Gate #166; Phase 31.28 Contract Gate #170; Architecture Roles and Permissions module.
-- **Acceptance direction:** DB runtime uses username/password Better Auth sessions linked one-to-one to active `app_users` Actors, current `app_user_roles` remain authoritative, client user IDs cannot authorize protected operations, staff can change their own password/sign out, and memory-only `Change user` remains a development/test tool. Congregation nickname access and admin account-management UI remain separate later backlog work.
+- **Acceptance direction:** DB runtime uses username/password Better Auth sessions linked one-to-one to active `app_users` Actors, current `app_user_roles` remain authoritative, client user IDs cannot authorize protected operations, staff can change their own password/sign out, and memory-only `Change user` remains a development/test tool. The later Phase 31.29–31.31 chain subsequently implemented nickname-only congregation access, protected account administration, and credential reset/recovery.
 - **Status:** Accepted
 
 ### IP-010 — Design future account/person/actor schema
