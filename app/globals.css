@@ -1155,3 +1155,116 @@ textarea {
     width: 100%;
   }
 }
+
+
+/* Catalog redesign step 2: Planning-derived read-only Catalog context and candidates. */
+.catalog-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.catalog-context {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.catalog-context-cell {
+  align-content: start;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  position: relative;
+}
+
+.catalog-context-label {
+  font-weight: 600;
+}
+
+.catalog-availability-switch {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
+.catalog-availability-switch .active-workspace,
+.catalog-view-switch .active-workspace {
+  background: var(--foreground);
+  color: #fff;
+}
+
+.catalog-candidate-panel {
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.catalog-candidate-header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.catalog-view-switch {
+  flex-direction: row;
+}
+
+.catalog-candidate-scroll {
+  direction: rtl;
+  display: grid;
+  max-height: min(34rem, 68vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-left: 0.35rem;
+}
+
+.catalog-candidate-scroll > * {
+  direction: ltr;
+}
+
+.catalog-candidate-row {
+  min-width: 0;
+  padding: 0.25rem 0.35rem;
+}
+
+.catalog-candidate-summary {
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.catalog-candidate-summary > .candidate-content-text {
+  align-items: baseline;
+  display: flex;
+  gap: 0.55rem;
+  min-width: max-content;
+}
+
+.catalog-candidate-state {
+  color: var(--muted);
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+}
+
+.catalog-readonly-detail {
+  margin: 0;
+  max-height: min(24rem, 55vh);
+}
+
+@media (max-width: 720px) {
+  .catalog-context {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .catalog-candidate-header {
+    align-items: stretch;
+    display: grid;
+  }
+}
