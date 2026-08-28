@@ -2108,6 +2108,9 @@ Save the correction and mark those plans for revision?`);
             actor={activeActor}
             organists={organistResults}
             queryCandidates={(input) => interactionClient.queryCatalogCandidates(input)}
+            getOwnPreference={(referenceSongId) => interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceSongId })}
+            saveOwnPreference={(referenceSongId, score) => interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
+            getPreferenceAggregate={(referenceSongId) => interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
           />
         )}
         {workspace === "development" && (
