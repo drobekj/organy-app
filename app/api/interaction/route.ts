@@ -11,7 +11,7 @@ import { PgReferenceMelodyRepository, ReferenceMelodyService } from "../../../sr
 import { PgReferenceAntiphonRecommendationRepository, ReferenceAntiphonRecommendationService } from "../../../src/application/reference-antiphon-recommendation";
 import { ReferenceCandidateError, ReferenceCandidateService } from "../../../src/application/reference-candidate-service";
 import { PostgresNonRepetitionPeriodService } from "../../../src/application/postgres-non-repetition-period";
-import type { CandidateHydrationInput, CandidateQueryInput, CandidateUsage } from "../../../src/application/interaction-contracts";
+import type { CatalogCandidateQueryInput, CandidateHydrationInput, CandidateQueryInput, CandidateUsage } from "../../../src/application/interaction-contracts";
 import { appendAuditEvent, humanAuditActor } from "../../../src/application/audit-history";
 
 const pgCatalog = (pool: Pick<Pool, "query">) => ({ listSongs: async () => {
@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(actor, input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
       case "queryCandidates": return respond({ success: true, value: await referenceCandidates.queryCandidates(referenceCandidateQueryInput(body.input)) });
+      case "queryCatalogCandidates": return respond({ success: true, value: await referenceCandidates.queryCatalogCandidates(referenceCatalogCandidateQueryInput(body.input)) });
       case "hydrateCandidates": return respond({ success: true, value: await referenceCandidates.hydrateCandidates(referenceCandidateHydrationInput(body.input)) });
       default: return NextResponse.json({ error: { code: "invalidInput", message: `Unsupported interaction action '${body.action}'.` } }, { status: 400 });
     }
@@ -159,6 +160,27 @@ function respond<T>(result: { success: true; value: T } | { success: false; erro
 const REFERENCE_ANTIPHON_ID = /^(?:czech|polish):[1-9]\d*$/;
 const REFERENCE_TOPIC_ID = /^(?:czech|polish):[a-z0-9][a-z0-9:-]*$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function referenceCatalogCandidateQueryInput(value: unknown): CatalogCandidateQueryInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Catalog candidate query input is required.");
+  const input = value as Record<string, unknown>;
+  const allowed = new Set(["serviceLanguage", "organistPersonId", "referenceAntiphonId", "referenceTopicId", "queryText", "availabilityMode"]);
+  if (Object.keys(input).some((key) => !allowed.has(key))) throw new LocalActorError("invalidInput", "Catalog candidate query input contains unsupported fields.");
+  if (input.serviceLanguage !== "czech" && input.serviceLanguage !== "polish" && input.serviceLanguage !== "mixed") throw new LocalActorError("invalidInput", "A valid serviceLanguage is required.");
+  if (input.organistPersonId !== undefined && (typeof input.organistPersonId !== "string" || !input.organistPersonId.trim())) throw new LocalActorError("invalidInput", "organistPersonId must be a non-empty string when provided.");
+  if (input.referenceAntiphonId !== undefined && (typeof input.referenceAntiphonId !== "string" || !REFERENCE_ANTIPHON_ID.test(input.referenceAntiphonId))) throw new LocalActorError("invalidInput", "referenceAntiphonId is invalid.");
+  if (input.referenceTopicId !== undefined && (typeof input.referenceTopicId !== "string" || !REFERENCE_TOPIC_ID.test(input.referenceTopicId))) throw new LocalActorError("invalidInput", "referenceTopicId is invalid.");
+  if (input.queryText !== undefined && typeof input.queryText !== "string") throw new LocalActorError("invalidInput", "queryText must be a string when provided.");
+  if (input.availabilityMode !== "available" && input.availabilityMode !== "unavailable") throw new LocalActorError("invalidInput", "availabilityMode must be available or unavailable.");
+  return {
+    serviceLanguage: input.serviceLanguage,
+    ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}),
+    ...(input.referenceAntiphonId ? { referenceAntiphonId: input.referenceAntiphonId } : {}),
+    ...(input.referenceTopicId ? { referenceTopicId: input.referenceTopicId } : {}),
+    ...(input.queryText !== undefined ? { queryText: input.queryText } : {}),
+    availabilityMode: input.availabilityMode,
+  };
+}
 
 export function referenceCandidateQueryInput(value: unknown): CandidateQueryInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Candidate query input is required.");
