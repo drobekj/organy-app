@@ -22,7 +22,7 @@ for (const required of [
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",
-  "Catalog sections",
+  "<CatalogWorkspace",
   "<NonRepetitionPeriodPanel",
   "memoryPlanningSets={repositories.planningSets}",
   "interactionClient.saveOwnPreference",
