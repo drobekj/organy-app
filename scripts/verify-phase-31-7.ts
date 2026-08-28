@@ -127,7 +127,7 @@ async function main() {
       for (const pattern of [/members\.some\(\(member\) => member\.repertoire\)/, /availabilityMode === "available"/, /classHasRepertoire/]) assert.match(candidateService, pattern);
       assert.match(catalogUi, /actor\.role === "organist" \? \(actor\.personId \?\? ""\) : organistPersonId/);
       assert.match(catalogUi, /actor\.role === "admin" \? effectiveOrganistPersonId : undefined/);
-      assert.match(catalogUi, /freshMembers\.find\(\(member\) => member\.repertoire\)/);
+      assert.match(catalogUi, /freshAvailableClass[\s\S]*?find\(\(member\) => member\.repertoire\)/);
       for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/, /runtimeMode !== "db"/, /activeActor\.personId/]) assert.match(ui, pattern);
       const memoryClientSection = ui.slice(ui.indexOf("export class MemoryInteractionClient"), ui.indexOf("class DbCatalogClient")); assert.match(memoryClientSection, /getReferenceRepertoireMembership\(\).*permissionDenied/); assert.match(memoryClientSection, /setReferenceRepertoireMembership\(\).*permissionDenied/);
 
