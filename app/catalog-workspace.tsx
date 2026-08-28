@@ -183,15 +183,25 @@ export function CatalogWorkspace({
     setRepertoireError(undefined);
     setRepertoireSaving(true);
     try {
-      const fresh = await queryCandidates(candidateInput());
-      const freshClass = fresh.filter((item) => item.melodyClassId === candidate.melodyClassId);
-      const freshMembers = freshClass.flatMap((item) => item.melodyMembers ?? []);
-      const existingPivot = freshMembers.find((member) => member.repertoire);
+      const baseInput = candidateInput();
+      const freshAvailable = await queryCandidates({ ...baseInput, availabilityMode: "available" });
+      const freshAvailableClass = freshAvailable.filter((item) => item.melodyClassId === candidate.melodyClassId);
+      const existingPivot = freshAvailableClass
+        .flatMap((item) => item.melodyMembers ?? [])
+        .find((member) => member.repertoire);
 
-      if (adding && existingPivot) {
-        setRepertoireError("Repertoire changed before confirmation; this melody class already has a repertoire pivot.");
-        await reloadCandidates();
-        return;
+      if (adding) {
+        if (existingPivot || freshAvailableClass.length > 0) {
+          setRepertoireError("Repertoire changed before confirmation; this melody class already has a repertoire pivot.");
+          await reloadCandidates();
+          return;
+        }
+        const freshUnavailable = await queryCandidates({ ...baseInput, availabilityMode: "unavailable" });
+        if (!freshUnavailable.some((item) => item.songId === candidate.songId && item.melodyClassId === candidate.melodyClassId)) {
+          setRepertoireError("Catalog context changed before confirmation; the selected song is no longer unavailable.");
+          await reloadCandidates();
+          return;
+        }
       }
 
       const targetSongId = adding
@@ -229,7 +239,7 @@ export function CatalogWorkspace({
   return <section className="catalog-workspace" aria-label="Catalog">
     <div className="rows-header">
       <h2>Catalog</h2>
-      <span className="field-help">Read-only candidate workspace</span>
+      <span className="field-help">Candidate and repertoire workspace</span>
     </div>
 
     <fieldset className="field-group catalog-context">
