@@ -1240,10 +1240,9 @@ textarea {
   white-space: nowrap;
 }
 
-.catalog-candidate-summary > .candidate-content-text {
-  align-items: baseline;
-  display: flex;
-  gap: 0.55rem;
+.catalog-candidate-summary > .candidate-option-main {
+  align-items: center;
+  min-height: 2rem;
   min-width: max-content;
 }
 
@@ -1253,9 +1252,25 @@ textarea {
   padding: 0.65rem 0.75rem;
 }
 
-.catalog-readonly-detail {
-  margin: 0;
-  max-height: min(24rem, 55vh);
+.catalog-detail-stack {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.catalog-candidate-panel .melody-detail-candidate {
+  justify-self: stretch !important;
+  margin-top: 0 !important;
+  max-height: min(32rem, 70vh);
+  transform: none !important;
+  width: 100% !important;
+}
+
+.catalog-preference-detail {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.65rem;
 }
 
 @media (max-width: 720px) {
