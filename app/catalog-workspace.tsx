@@ -42,7 +42,7 @@ export function CatalogWorkspace({
   setRepertoireMembership,
 }: CatalogWorkspaceProps) {
   const [language, setLanguage] = useState<ServiceLanguage>("mixed");
-  const [organistPersonId, setOrganistPersonId] = useState("");
+  const [organistPersonId, setOrganistPersonId] = useState(actor.role === "organist" ? (actor.personId ?? "") : "");
   const [antiphon, setAntiphon] = useState<ServiceAntiphonReference>();
   const [topic, setTopic] = useState<ServiceTopicReference>();
   const [availabilityMode, setAvailabilityMode] = useState<CatalogCandidateAvailabilityMode>("available");
@@ -62,14 +62,21 @@ export function CatalogWorkspace({
   const request = useRef(0);
   const preferenceRequest = useRef(0);
 
-  const effectiveOrganistPersonId = actor.role === "organist" ? (actor.personId ?? "") : organistPersonId;
+  const effectiveOrganistPersonId = organistPersonId;
   const contextKey = `catalog:${language}:${effectiveOrganistPersonId}:${actor.role}`;
   const visibleCandidates = useMemo(() => candidatesForView(candidates, viewMode), [candidates, viewMode]);
   const selectedOrganist = organists.find((person) => person.id === effectiveOrganistPersonId);
   const canManageRepertoire = runtime === "db" && (
-    (actor.role === "organist" && Boolean(actor.personId))
+    (actor.role === "organist" && Boolean(actor.personId) && actor.personId === effectiveOrganistPersonId)
     || (actor.role === "admin" && Boolean(effectiveOrganistPersonId))
   );
+  const repertoireAction: "Add" | "Remove" | undefined = canManageRepertoire
+    ? viewMode === "melodies" && availabilityMode === "available"
+      ? "Remove"
+      : viewMode === "songs" && availabilityMode === "unavailable"
+        ? "Add"
+        : undefined
+    : undefined;
 
   function candidateInput(): CatalogCandidateQueryInput {
     return {
@@ -178,8 +185,8 @@ export function CatalogWorkspace({
   }
 
   async function mutateRepertoire(candidate: CandidateQueryResult) {
-    if (!canManageRepertoire || repertoireSaving) return;
-    const adding = availabilityMode === "unavailable";
+    if (!canManageRepertoire || !repertoireAction || repertoireSaving) return;
+    const adding = repertoireAction === "Add";
     setRepertoireError(undefined);
     setRepertoireSaving(true);
     try {
@@ -271,10 +278,9 @@ export function CatalogWorkspace({
         <select
           aria-label="Catalog organist"
           value={effectiveOrganistPersonId}
-          disabled={actor.role === "organist"}
           onChange={(event) => setOrganistPersonId(event.target.value)}
         >
-          {actor.role !== "organist" && <option value="">Anonymous</option>}
+          <option value="">Anonymous</option>
           {organists.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
         </select>
       </label>
@@ -305,11 +311,6 @@ export function CatalogWorkspace({
       >
         Unavailable
       </button>
-      <span className="field-help">
-        {effectiveOrganistPersonId
-          ? `${selectedOrganist?.displayName ?? "Selected organist"} · ${availabilityMode}`
-          : "Anonymous · all matching classes are available"}
-      </span>
     </div>
 
     <section className="catalog-candidate-panel" aria-label="Catalog candidates">
@@ -344,7 +345,7 @@ export function CatalogWorkspace({
         {visibleCandidates.map((candidate) => <CatalogCandidateRow
           key={candidate.songId}
           candidate={candidate}
-          repertoireAction={canManageRepertoire ? (availabilityMode === "available" ? "Remove" : "Add") : undefined}
+          repertoireAction={repertoireAction}
           repertoireSaving={repertoireSaving}
           onRepertoireAction={() => void mutateRepertoire(candidate)}
           onDetail={() => setSelectedDetail(candidate)}
@@ -367,24 +368,41 @@ function CatalogCandidateRow({
   onRepertoireAction: () => void;
   onDetail: () => void;
 }) {
-  const view = getCandidateLineViewModel(candidate);
-  return <div className={`candidate-option-row catalog-candidate-row ${view.backgroundClass}`} role="listitem" aria-label={view.accessibleMeaning}>
-    <div className="catalog-candidate-summary">
-      <span className={view.contentTextClass}>
-        <span className="candidate-number-options">
-          {view.numberOptions.map((item) => <span key={item.songId} className={item.primary ? "candidate-number-primary" : "candidate-number-equivalent"}>
-            {!item.primary && <span>equivalent </span>}
-            {item.primary ? <strong>{item.number}</strong> : item.repertoire ? <strong>{item.number}</strong> : <span>{item.number}</span>}
-            <span> · {item.language ?? "unknown"} · {item.repertoire ? "in repertoire" : "not in repertoire"}</span>
-          </span>)}
+  const viewModel = getCandidateLineViewModel(candidate);
+  return <div
+    className={`candidate-option-row catalog-candidate-row ${viewModel.backgroundClass}`}
+    role="listitem"
+    aria-label={viewModel.accessibleMeaning}
+    style={{ alignItems: "center", minHeight: "2.2rem", padding: "0.1rem 0.15rem" }}
+  >
+    <div className="candidate-option">
+      <div
+        className="candidate-option-content"
+        style={{ alignItems: "center", minHeight: "2rem", padding: "0 0.35rem" }}
+      >
+        <span className={`candidate-option-main ${viewModel.contentTextClass}`} style={{ alignItems: "center", minHeight: "2rem" }}>
+          <strong>{candidate.number}</strong><span>{candidate.title}</span>
         </span>
-        <span>{candidate.title} · {candidate.language} · {candidate.signal}</span>
-      </span>
+      </div>
     </div>
-    <div className="catalog-candidate-actions">
-      {repertoireAction && <button type="button" disabled={repertoireSaving} onClick={onRepertoireAction}>{repertoireAction}</button>}
-      <button type="button" className="candidate-detail-button" onClick={onDetail}>Detail</button>
-    </div>
+    {repertoireAction && <button type="button" disabled={repertoireSaving} onClick={onRepertoireAction}>{repertoireAction}</button>}
+    <button
+      type="button"
+      className="candidate-inline-detail"
+      style={{
+        alignItems: "center",
+        alignSelf: "center",
+        borderRadius: "0.65rem",
+        display: "inline-flex",
+        height: "2rem",
+        justifyContent: "center",
+        lineHeight: 1,
+        minWidth: "4.7rem",
+        padding: "0 0.65rem",
+      }}
+      onClick={onDetail}
+      aria-label={`Show melody detail for ${candidate.number} ${candidate.title}`}
+    >Detail</button>
   </div>;
 }
 
