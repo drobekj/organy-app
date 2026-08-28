@@ -423,7 +423,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
-  const [selectedCatalogTab, setSelectedCatalogTab] = useState<"songs" | "people" | "knowledge" | "reference">("songs");
+  const [selectedCatalogTab, setSelectedCatalogTab] = useState<"songs" | "reference">("songs");
   const [catalogSongLanguage, setCatalogSongLanguage] = useState<ServiceLanguage>("mixed");
   const [catalogSongSearch, setCatalogSongSearch] = useState("");
   const [catalogSongPage, setCatalogSongPage] = useState(0);
@@ -457,7 +457,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const referenceAggregateRequests = useRef(new ReferencePreferenceRequestTracker());
   const referenceRepertoireRequests = useRef(new ReferencePreferenceRequestTracker());
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
-  const [personForm, setPersonForm] = useState({ displayName: "", priest: true, organist: false, active: true });
   const [workspace, setWorkspace] = useState<Workspace>("planning");
   const memoryUsers = useMemo(() => interactionRepository.listUsers(), [interactionRepository]);
   const availableUsers = runtimeMode === "db" ? (authenticatedUser ? [authenticatedUser] : []) : memoryUsers;
@@ -602,6 +601,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const candidateAvailabilityKey = JSON.stringify({
     runtimeMode,
     serviceContextGeneration,
+    candidateRefreshGeneration,
     serviceDate,
     serviceLanguage,
     organistId: organistId ?? "",
@@ -956,10 +956,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setServiceError(null);
     await refreshCatalogAdmin();
     return true;
-  }
-
-  async function saveAdminPerson(person: Omit<CatalogPerson, "id"> & { id?: string }) {
-    return applyAdminCatalogResult(await catalogClient.savePerson({ role: selectedRole, actorUserId: activeActor.userId, person }));
   }
 
   async function toggleAdminSong(song: CatalogSong) {
@@ -1910,6 +1906,22 @@ Save the correction and mark those plans for revision?`);
             </div>
           </fieldset>
 
+          {selectedRole === "admin" && (
+            <NonRepetitionPeriodPanel
+              runtimeMode={runtimeMode}
+              actor={activeActor}
+              memoryInteractionRepository={interactionRepository}
+              memoryPlanningSets={repositories.planningSets}
+              onSaved={() => {
+                lookupTracker.invalidatePrefix("song:");
+                setCandidateResults({});
+                setCandidateLoading({});
+                setCandidateErrors({});
+                setCandidateRefreshGeneration((generation) => generation + 1);
+              }}
+            />
+          )}
+
           <div className="rows-header">
             <h2>Rows</h2>
             <button type="button" onClick={addRow} disabled={!canEditRows}>
@@ -2085,22 +2097,7 @@ Save the correction and mark those plans for revision?`);
             <div className="workspace-nav" role="tablist" aria-label="Catalog sections">
               <button type="button" className={selectedCatalogTab === "songs" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("songs")}>Songs</button>
               <button type="button" className={selectedCatalogTab === "reference" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("reference")}>Reference catalog</button>
-              <button type="button" className={selectedCatalogTab === "people" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("people")}>People</button>
-              <button type="button" className={selectedCatalogTab === "knowledge" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("knowledge")}>Knowledge</button>
             </div>
-            {selectedCatalogTab === "people" && (
-              <fieldset className="field-group">
-                <legend>People {selectedRole !== "admin" ? "(read-only)" : ""}</legend>
-                {selectedRole === "admin" && <>
-                  <label>Display name<input value={personForm.displayName} onChange={(event) => setPersonForm({ ...personForm, displayName: event.target.value })} /></label>
-                  <label><input type="checkbox" checked={personForm.priest} onChange={(event) => setPersonForm({ ...personForm, priest: event.target.checked })} /> Priest role</label>
-                  <label><input type="checkbox" checked={personForm.organist} onChange={(event) => setPersonForm({ ...personForm, organist: event.target.checked })} /> Organist role</label>
-                  <label><input type="checkbox" checked={personForm.active} onChange={(event) => setPersonForm({ ...personForm, active: event.target.checked })} /> Active</label>
-                  <button type="button" onClick={async () => { if (await saveAdminPerson(personForm)) setPersonForm({ displayName: "", priest: true, organist: false, active: true }); }}>Add person</button>
-                </>}
-                <ul className="saved-set-list">{peopleAdmin.map((person) => <li key={person.id}>{person.displayName} ({person.active ? "active" : "inactive"}; {person.priest ? "priest" : ""} {person.organist ? "organist" : ""}) {selectedRole === "admin" && <><button type="button" onClick={async () => { await saveAdminPerson({ ...person, active: !person.active }); }}>{person.active ? "Deactivate" : "Activate"}</button><button type="button" onClick={async () => { const displayName = window.prompt("Display name", person.displayName); if (displayName) await saveAdminPerson({ ...person, displayName }); }}>Rename</button><button type="button" onClick={async () => { await saveAdminPerson({ ...person, priest: !person.priest }); }}>Toggle priest</button><button type="button" onClick={async () => { await saveAdminPerson({ ...person, organist: !person.organist }); }}>Toggle organist</button></>}</li>)}</ul>
-              </fieldset>
-            )}
             {selectedCatalogTab === "songs" && (
               <fieldset className="field-group catalog-panel">
                 <legend>Songs {selectedRole !== "admin" ? "(active only, own preference/repertoire allowed)" : "(admin includes inactive)"}</legend>
@@ -2151,18 +2148,6 @@ Save the correction and mark those plans for revision?`);
                 {referencePageData?.total === 0 && !referenceLoading && <p className="field-help">No reference records match these filters.</p>}
                 <ul className="saved-set-list catalog-song-list">{referencePageData?.records.map((record) => <li key={record.id}><button type="button" onClick={() => setSelectedReferenceId(record.id)}>{record.displayNumber} · {record.title} ({record.language})</button></li>)}</ul>
                 {referencePageData && <div className="row-actions"><button type="button" disabled={referenceLoading || referencePageData.page === 0} onClick={() => setReferencePage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {referencePageData.page + 1} / {referencePageData.pageCount}</span><button type="button" disabled={referenceLoading || referencePageData.page >= referencePageData.pageCount - 1} onClick={() => setReferencePage((page) => Math.min(referencePageData.pageCount - 1, page + 1))}>Next</button></div>}
-              </fieldset>
-            )}
-            {selectedCatalogTab === "knowledge" && (
-              <fieldset className="field-group">
-                <legend>Knowledge {selectedRole !== "admin" ? "(read-only)" : ""}</legend>
-                <NonRepetitionPeriodPanel
-                  runtimeMode={runtimeMode}
-                  actor={activeActor}
-                  memoryInteractionRepository={interactionRepository}
-                  memoryPlanningSets={repositories.planningSets}
-                />
-                <ul className="saved-set-list">{interactionRepository.listKnowledge().melodyClasses.map((item) => <li key={item.id}>{item.label}: {item.songIds.join(", ")} ({item.synthetic ? "synthetic" : "production"})</li>)}</ul>
               </fieldset>
             )}
           </section>

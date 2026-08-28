@@ -8,7 +8,7 @@ Baseline: `main` at `c34419931e78f219c136456369fbc05535852216`.
 
 - The shared melody non-repetition period defaults to 2 calendar months and remains the period used by candidate hard filtering.
 - Any active role may read the current value; only admin may mutate it.
-- A mutation accepts only a finite non-negative integer number of calendar months.
+- A mutation accepts only an integer from 0 through 12 calendar months.
 - Before persistence, all saved non-completed Working and Final plans are evaluated under the proposed period.
 - Two distinct saved plans conflict when their service dates are within the proposed calendar-month window and they contain concrete Reference songs in the same authoritative Reference melody-equivalence class.
 - The relation is melody-based and therefore applies across Czech/Polish song identities when they share the class.
@@ -17,7 +17,7 @@ Baseline: `main` at `c34419931e78f219c136456369fbc05535852216`.
 - A conflict rejects the mutation, leaves the prior value unchanged, and reports deterministic blocking plan id/status/date plus melody class information.
 - No saved set is automatically altered or deleted. Removing one or more blockers and retrying is the only accepted unblock path.
 - A conflict-free update is persisted transactionally and subsequent candidate queries use the new value.
-- Knowledge administration displays the current runtime-authoritative value. Admin gets an explicit integer input/save action with visible success/error state; non-admin sees the value read-only.
+- The approved Catalog redesign relocates this control from Knowledge into Planning. Only admin sees the compact `Melody Protection` selector; values 0–12 autosave immediately, conflicts remain visible, and a successful change invalidates/refetches Planning candidates. No Knowledge panel remains.
 - Phase 31.15 current-service occupancy/collision behavior is separate and unchanged.
 
 ## Exclusions

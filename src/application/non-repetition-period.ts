@@ -44,7 +44,7 @@ export type NonRepetitionPlanLike = {
 };
 
 export function validateMelodyWindowMonths(months: unknown): months is number {
-  return typeof months === "number" && Number.isFinite(months) && Number.isInteger(months) && months >= 0;
+  return typeof months === "number" && Number.isFinite(months) && Number.isInteger(months) && months >= 0 && months <= 12;
 }
 
 export function buildNonRepetitionPlanMelodyUsages(

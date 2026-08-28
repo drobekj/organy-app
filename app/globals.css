@@ -1104,3 +1104,54 @@ textarea {
   border-color: var(--border);
   color: #98a2b3;
 }
+
+
+/* Catalog redesign step 1: compact admin-only Melody Protection beside Planning context. */
+.melody-protection-panel {
+  display: grid;
+  gap: 0.35rem;
+  justify-self: end;
+  padding: 0.55rem 0.7rem 0.7rem;
+  width: min(100%, 14rem);
+}
+
+.melody-protection-panel legend {
+  font-size: 0.9rem;
+}
+
+.melody-protection-control {
+  display: block;
+}
+
+.melody-protection-control select {
+  min-height: 2.55rem;
+}
+
+.person-admin-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.person-admin-create {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.sr-only {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (max-width: 720px) {
+  .melody-protection-panel {
+    justify-self: stretch;
+    width: 100%;
+  }
+}
