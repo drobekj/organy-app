@@ -67,5 +67,5 @@ export function getWorkspaceAfterDelete(deleted: PersistedRecordReference | null
 export function getWorkspaceAfterOpenRecord(): Workspace { return "planning"; }
 
 function formatServiceContext(context: PersistedPlanningSet["serviceContext"]): string {
-  return `${context.serviceDate} ${context.serviceTime || "time missing"} · ${context.language} · priest ${context.priest.displayName || "—"} · organist ${context.organist.displayName || "—"}`;
+  return `${context.serviceDate} ${context.serviceTime || "time missing"} · ${context.language} · ${context.priest.displayName || "—"} · ${context.organist.displayName || "—"}`;
 }
