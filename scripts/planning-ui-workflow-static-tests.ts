@@ -36,6 +36,19 @@ for (const required of [
 
 assert(!client.includes("Set demo 2-month window"), "Planning UI must not retain the legacy fixed demo melody-window control");
 
+assert.equal(
+  (client.match(/<RecordListSummary summary=\{formatPlanningSetSummary\(set\)\} \/>/g) ?? []).length,
+  2,
+  "Working and Final Plans must render the rows summary on the second line",
+);
+assert.equal(
+  (client.match(/<RecordListSummary summary=\{formatCompletedRecordSummary\(record\)\} \/>/g) ?? []).length,
+  1,
+  "Completed Services must render the rows summary on the second line",
+);
+assert.match(client, /const rowsMarker = " · rows:"/, "record-list summary split must start exactly before rows:");
+assert.match(css, /\.record-summary-rows\s*\{[\s\S]*?display:\s*block;/, "rows summary must render as its own line");
+
 for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current", ".row-icon-palette", ".compact-row-fields", ".candidate-selection-unavailable"]) {
   assert(css.includes(required), `Planning UI CSS is missing ${required}`);
 }
