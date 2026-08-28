@@ -420,6 +420,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const detailEligibilityRequest = useRef(0);
   const [selectedCandidateAvailability, setSelectedCandidateAvailability] = useState<SelectedCandidateAvailabilitySnapshot>({ key: "", byRow: {} });
   const selectedCandidateAvailabilityRequest = useRef(0);
+  const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
   const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
   const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
   const [selectedCatalogTab, setSelectedCatalogTab] = useState<"songs" | "reference">("songs");
@@ -933,10 +934,14 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     if (selectedRole !== "admin") return;
     if (runtimeMode === "db" && catalogClient instanceof DbCatalogClient) {
       const snapshot = await callCatalogApi("getAdminCatalogSnapshot", {}, activeActor);
-      if (snapshot.success) setSongsAdmin(snapshot.value.songs);
+      if (snapshot.success) {
+        setPeopleAdmin(snapshot.value.people);
+        setSongsAdmin(snapshot.value.songs);
+      }
       return;
     }
-    const songs = await catalogClient.listSongs();
+    const [people, songs] = await Promise.all([catalogClient.listPeople(), catalogClient.listSongs()]);
+    if (people.success) setPeopleAdmin(people.value);
     if (songs.success) setSongsAdmin(songs.value);
   }
 
