@@ -123,7 +123,7 @@ async function main() {
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
       const catalogUi = await readFile(new URL("../app/catalog-workspace.tsx", import.meta.url), "utf8");
       const candidateService = await readFile(new URL("../src/application/reference-candidate-service.ts", import.meta.url), "utf8");
-      for (const pattern of [/aria-label="Catalog organist"/, /effectiveOrganistPersonId/, /canManageRepertoire/, /availabilityMode/, /candidate\.repertoire/, /member\.repertoire/, />Add<\/button>/, />Remove<\/button>/, /window\.confirm/, /await reloadCandidates\(\)/]) assert.match(catalogUi, pattern);
+      for (const pattern of [/aria-label="Catalog organist"/, /effectiveOrganistPersonId/, /canManageRepertoire/, /availabilityMode/, /candidate\.repertoire/, /member\.repertoire/, /repertoireAction=.*"Remove".*"Add"/, /window\.confirm/, /await reloadCandidates\(\)/]) assert.match(catalogUi, pattern);
       for (const pattern of [/members\.some\(\(member\) => member\.repertoire\)/, /availabilityMode === "available"/, /classHasRepertoire/]) assert.match(candidateService, pattern);
       assert.match(catalogUi, /actor\.role === "organist" \? \(actor\.personId \?\? ""\) : organistPersonId/);
       assert.match(catalogUi, /actor\.role === "admin" \? effectiveOrganistPersonId : undefined/);
