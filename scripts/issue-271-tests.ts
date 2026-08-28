@@ -19,6 +19,7 @@ assert(client.includes('workspace === "planning"'), "Planning workspace must rem
 assert(client.includes('selectedRole === "admin" && (\n            <NonRepetitionPeriodPanel'), "Melody Protection must be admin-only in Planning");
 assert(client.includes('onSaved={() => {'), "Planning must react to successful Melody Protection saves");
 assert(client.includes('setCandidateRefreshGeneration((generation) => generation + 1)'), "Melody Protection save must refresh candidates");
+assert(client.includes("candidateRefreshGeneration,\n    serviceDate"), "selected candidate availability must share the Melody Protection refresh generation");
 assert(!client.includes('setSelectedCatalogTab("people")'), "Catalog People tab must be removed");
 assert(!client.includes('setSelectedCatalogTab("knowledge")'), "Catalog Knowledge tab must be removed");
 assert(!client.includes('selectedCatalogTab === "people"'), "Catalog People panel must be removed");
