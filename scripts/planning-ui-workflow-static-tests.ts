@@ -25,10 +25,9 @@ for (const required of [
   "<CatalogWorkspace",
   "<NonRepetitionPeriodPanel",
   "memoryPlanningSets={repositories.planningSets}",
-  "interactionClient.saveOwnPreference",
-  "interactionClient.setRepertoire",
   "const selectedRole = activeActor.role",
   "interactionClient.queryCandidates",
+  "interactionClient.queryCatalogCandidates",
   `this.transport("queryCandidates"`,
 ]) {
   assert(client.includes(required), `Planning UI is missing ${required}`);
