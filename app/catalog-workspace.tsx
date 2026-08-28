@@ -96,10 +96,7 @@ export function CatalogWorkspace({ runtime, actor, organists, queryCandidates }:
         <select
           aria-label="Catalog organist"
           value={organistPersonId}
-          onChange={(event) => {
-            setOrganistPersonId(event.target.value);
-            if (!event.target.value) setAvailabilityMode("available");
-          }}
+          onChange={(event) => setOrganistPersonId(event.target.value)}
         >
           <option value="">Anonymous</option>
           {organists.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
@@ -128,8 +125,6 @@ export function CatalogWorkspace({ runtime, actor, organists, queryCandidates }:
         type="button"
         aria-pressed={availabilityMode === "unavailable"}
         className={availabilityMode === "unavailable" ? "active-workspace" : undefined}
-        disabled={!organistPersonId}
-        title={!organistPersonId ? "Anonymous organist has no unavailable repertoire classes." : undefined}
         onClick={() => setAvailabilityMode("unavailable")}
       >
         Unavailable
