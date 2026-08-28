@@ -32,7 +32,7 @@ export class PostgresNonRepetitionPeriodService {
       return failure("permissionDenied", "Only admin can change the melody non-repetition period.");
     }
     if (!validateMelodyWindowMonths(months)) {
-      return failure("invalidInput", "Melody non-repetition period must be a finite non-negative integer number of calendar months.");
+      return failure("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
     }
 
     const client = await this.pool.connect();
