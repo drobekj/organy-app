@@ -9,7 +9,7 @@ assert.match(workspace, /viewMode === "songs" && availabilityMode === "unavailab
 assert.doesNotMatch(workspace, /disabled=\{actor\.role === "organist"\}/);
 assert.match(workspace, /actor\.role === "organist" && actor\.personId === organistPersonId/);
 assert.match(workspace, /<option value="">Anonymous<\/option>/);
-assert.doesNotMatch(workspace, /\$\{selectedOrganist\?\.displayName[\s\S]*?availabilityMode/);
+assert.ok(!workspace.includes("· ${availabilityMode}"), "Catalog must not render the organist/availability info string.");
 assert.match(workspace, /<strong>\{candidate\.number\}<\/strong><span>\{candidate\.title\}<\/span>/);
 assert.doesNotMatch(workspace, /candidate\.title} · \{candidate\.language} · \{candidate\.signal}/);
 assert.match(workspace, /<MelodyClassDetail/);
