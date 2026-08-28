@@ -24,7 +24,7 @@ assert(!client.includes('setSelectedCatalogTab("people")'), "Catalog People tab 
 assert(!client.includes('setSelectedCatalogTab("knowledge")'), "Catalog Knowledge tab must be removed");
 assert(!client.includes('selectedCatalogTab === "people"'), "Catalog People panel must be removed");
 assert(!client.includes('selectedCatalogTab === "knowledge"'), "Catalog Knowledge panel must be removed");
-assert(client.includes('useState<"songs" | "reference">("songs")'), "Step 1 must leave Songs and Reference tabs intact");
+assert(client.includes("<CatalogWorkspace"), "Later Catalog redesign must preserve the Step 1 relocation while replacing legacy tabs");
 
 assert(panel.includes('Array.from({ length: 13 }'), "Melody Protection selector must expose 0-12 months");
 assert(panel.includes('onChange={(event) => void save(Number(event.target.value))}'), "Melody Protection must autosave on selection");
