@@ -123,10 +123,11 @@ async function main() {
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
       const catalogUi = await readFile(new URL("../app/catalog-workspace.tsx", import.meta.url), "utf8");
       const candidateService = await readFile(new URL("../src/application/reference-candidate-service.ts", import.meta.url), "utf8");
-      for (const pattern of [/aria-label="Catalog organist"/, /effectiveOrganistPersonId/, /canManageRepertoire/, /availabilityMode/, /candidate\.repertoire/, /member\.repertoire/, /repertoireAction=.*"Remove".*"Add"/, /window\.confirm/, /await reloadCandidates\(\)/]) assert.match(catalogUi, pattern);
+      for (const pattern of [/aria-label="Catalog organist"/, /canManageRepertoire/, /viewMode === "melodies" && availabilityMode === "available"/, /viewMode === "songs" && availabilityMode === "unavailable"/, /candidate\.repertoire/, /member\.repertoire/, /window\.confirm/, /await reloadCandidates\(\)/, /<MelodyClassDetail/, /className="candidate-inline-detail"/]) assert.match(catalogUi, pattern);
       for (const pattern of [/members\.some\(\(member\) => member\.repertoire\)/, /availabilityMode === "available"/, /classHasRepertoire/]) assert.match(candidateService, pattern);
-      assert.match(catalogUi, /actor\.role === "organist" \? \(actor\.personId \?\? ""\) : organistPersonId/);
-      assert.match(catalogUi, /actor\.role === "admin" \? effectiveOrganistPersonId : undefined/);
+      assert.doesNotMatch(catalogUi, /disabled=\{actor\.role === "organist"\}/);
+      assert.match(catalogUi, /actor\.role === "organist" && actor\.personId === organistPersonId/);
+      assert.match(catalogUi, /actor\.role === "admin" \? organistPersonId : undefined/);
       assert.match(catalogUi, /freshAvailableClass[\s\S]*?find\(\(member\) => member\.repertoire\)/);
       for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/, /runtimeMode !== "db"/, /activeActor\.personId/]) assert.match(ui, pattern);
       const memoryClientSection = ui.slice(ui.indexOf("export class MemoryInteractionClient"), ui.indexOf("class DbCatalogClient")); assert.match(memoryClientSection, /getReferenceRepertoireMembership\(\).*permissionDenied/); assert.match(memoryClientSection, /setReferenceRepertoireMembership\(\).*permissionDenied/);
