@@ -170,7 +170,7 @@ Milestone outcomes:
 
 - Confirm that product, domain, decision, requirement, workflow, and architecture documents are accepted as the implementation baseline.
 - Audit/change-history product policy is resolved: successful state-changing business actions are recorded as append-only explanatory history, separate from Completed-service business history; implementation mechanics remain later work.
-- Production access direction is resolved in Phase 31.27, and Phase 31.28 implements the first protected staff mechanics: pinned Better Auth/Drizzle persistence, username/password DB sessions, auth-user → Actor linkage, server-side current-role authorization, sign-out, own-password change, and explicit staff bootstrap. Congregation nickname voting and admin account-management UI remain later work.
+- The implementation-preparation line has progressed through Phase 31.27–31.43 and subsequent Production acceptance: protected username/password staff authentication, nickname-only congregation voting, account administration and credential recovery, runtime/preflight and recovery boundaries, Vercel + Neon Production deployment, protected identity bootstrap, authoritative Reference data, melody equivalence, repertoire handoff, audit history, and the accepted Production UX refinements are implemented and deployed.
 - Decompose accepted roadmap phases into backlog items only after roadmap acceptance.
 - Develop technical design only after implementation scope is chosen.
 - Design database schema only after technical design begins and accepted domain concepts are stable.
@@ -182,24 +182,24 @@ Traceability:
 - Product and documentation boundaries.
 - Backlog and implementation work intentionally deferred until after roadmap acceptance.
 
-## Not Yet Ready to Implement
-The following areas are intentionally not ready for implementation from this roadmap alone:
+## Current Planning Boundary
+The roadmap phases above have already been taken through implementation and the accepted Production rollout. This document therefore no longer treats authentication, account administration, PostgreSQL persistence, deployment, audit history, candidate decision support, repertoire, melody equivalence, or the completed Production UX refinements as future implementation work.
 
-- Detailed engineering tickets or sprint-level tasks.
-- Database schema, migrations, import scripts, or persistence design.
-- UI components, screen layouts, interaction design, or visual styling.
-- Remaining authentication/account mechanics beyond the Phase 31.28 protected staff slice: congregation nickname-voter UI/persistence, admin future-account/role-management UI, password recovery/credential-delivery policy, production secrets/deployment/operations, and observability.
-- Legacy migration strategy or data-cleaning workflow.
-- Multi-congregation product generalization.
-- Audit/change-history implementation mechanics such as schema, storage, UI, and retention/privacy operations; the product policy is resolved in Phase 31.26.
-- Any application code, tests, tooling changes, or implementation tasks.
+No **Phase 32** is currently accepted or defined. A new product milestone must be explicitly accepted before new feature work is inferred from older implementation-preparation notes.
+
+The following boundaries remain intentionally outside the current accepted product plan:
+
+- multi-congregation product generalization;
+- additional legacy-data migration beyond the already accepted selective Production handoffs, unless separately scoped;
+- additional observability/security-telemetry or operational hardening beyond the accepted Production baseline, unless separately scoped.
 
 ## Open Roadmap Questions
-- What legacy migration strategy should be chosen after legacy data is assessed against the accepted domain model?
 - What future multi-congregation support may be needed, and what changes would be required before expanding beyond one local congregation?
-- Which application technologies, storage technologies, and deployment model should be selected after implementation preparation begins?
+- Should any additional legacy data be brought into the Production model beyond the completed selective handoffs?
+- Is a new post-Production product milestone needed? If so, it must be defined and accepted explicitly rather than inferred as a historical “Phase 32”.
 
 ## Change Log
+- 2026-08-28 — Reconciled the roadmap with the completed Phase 31.27–31.43 implementation and Production acceptance state; removed stale future-work claims and recorded that no Phase 32 is currently accepted.
 - 2026-07-07 — Replaced the roadmap template with a high-level phased roadmap derived from accepted product, domain, decision, requirement, workflow, and architecture documents.
 
 ## Phase 29 implementation note
