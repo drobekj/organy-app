@@ -136,6 +136,8 @@ async function assertRuntimePoolDiscipline() {
 
 async function assertClientRequestCompaction() {
   const client = await readFile("app/planning-lifecycle-client.tsx", "utf8");
+  const catalogWorkspace = await readFile("app/catalog-workspace.tsx", "utf8");
+  const interactionRoute = await readFile("app/api/interaction/route.ts", "utf8");
   const planningRoute = await readFile("app/api/planning-lifecycle/route.ts", "utf8");
   const catalogRoute = await readFile("app/api/catalog/route.ts", "utf8");
   const catalog = await readFile("src/application/catalog.ts", "utf8");
@@ -144,8 +146,11 @@ async function assertClientRequestCompaction() {
   assert.match(client, /planningLifecycleService\.getWorkspaceSnapshot\(\)/, "refreshDbSets must call the compact DB snapshot");
   assert.match(planningRoute, /action === "getWorkspaceSnapshot"/, "server must expose the compact snapshot action");
   assert.match(client, /getPlanningPeople\(\)/, "planning people bootstrap must be batched into one catalog request");
-  assert.match(client, /workspace === "catalog" && selectedRole === "admin"/, "heavy admin catalog bootstrap must be lazy");
-  assert.match(client, /getAdminCatalogSnapshot/, "admin people+song catalog must use one HTTP snapshot");
+  assert.doesNotMatch(client, /workspace === "catalog" && selectedRole === "admin"[^\n]*refreshCatalogAdmin/, "removed heavy admin catalog bootstrap must not run when Catalog opens");
+  assert.match(client, /<CatalogWorkspace/, "Catalog must render the scoped Catalog workspace instead of bootstrapping the legacy admin snapshot");
+  assert.match(catalogWorkspace, /queryCandidates\(\{/, "Catalog candidates must load on demand from the scoped workspace");
+  assert.match(client, /queryCatalogCandidates/, "Catalog must use its dedicated candidate transport");
+  assert.match(interactionRoute, /case "queryCatalogCandidates"/, "server must expose the scoped read-only Catalog candidate action");
   assert.match(client, /getSongs\(\{ songIds \}\)/, "record opening must batch current-song metadata lookup");
   assert.match(catalogRoute, /action === "getAdminCatalogSnapshot"/);
   assert.match(catalogRoute, /action === "getPlanningPeople"/);
