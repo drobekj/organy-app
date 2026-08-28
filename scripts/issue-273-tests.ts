@@ -99,6 +99,10 @@ for (const required of [
   "<ServiceContextReferenceTopicField",
 ]) assert(workspace.includes(required), `Catalog workspace is missing ${required}`);
 
+assert(workspace.includes('aria-label="Reference preference aggregate"'), "Catalog Detail must preserve aggregate preference for all DB roles");
+assert(workspace.includes('aria-label="My reference preference"'), "Catalog Detail must preserve own preference editing for non-admin roles");
+assert(workspace.includes(">Save preference</button>"), "Catalog Detail must preserve preference save control");
+assert(workspace.includes("await reloadCandidates(songId)"), "Preference save must refresh authoritative Catalog candidates");
 assert(!workspace.includes("Melody Protection"), "Catalog must not expose Melody Protection");
 assert(!workspace.includes("serviceDate"), "Catalog candidate UI must not depend on service date");
 assert(route.includes('case "queryCatalogCandidates"'), "Interaction API must expose the Catalog candidate query");
