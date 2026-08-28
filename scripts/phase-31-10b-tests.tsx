@@ -142,8 +142,8 @@ function renderCoverage() {
 
 async function integrationCoverage() {
   const planning = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
-  assert.equal((planning.match(/<ReferenceAntiphonRecommendationPanel\b/g) ?? []).length, 1);
-  assert.match(planning, /<ReferenceAntiphonRecommendationPanel runtime=\{runtimeMode\} actor=\{activeActor\} \/>/);
+  assert.equal((planning.match(/<ReferenceAntiphonRecommendationPanel\b/g) ?? []).length, 0, "Catalog step 2 must not remount the legacy recommendation mutation UI inside the read-only Catalog workspace");
+  assert.match(planning, /<CatalogWorkspace\b/, "Catalog step 2 must render the unified read-only Catalog workspace");
   assert.doesNotMatch(planning, /DbReferenceAntiphonRecommendationClient|ReferenceAntiphonRecommendationUiState/);
   const panel = await readFile(new URL("../app/reference-antiphon-recommendation-panel.tsx", import.meta.url), "utf8");
   for (const client of ["DbReferenceAntiphonClient", "DbReferenceCatalogClient", "DbReferenceAntiphonRecommendationClient"]) assert.ok(panel.includes(client));

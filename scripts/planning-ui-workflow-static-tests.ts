@@ -22,13 +22,12 @@ for (const required of [
   "Back to Planning row",
   "Historical inactive priest",
   "Historical inactive organist",
-  "Catalog sections",
+  "<CatalogWorkspace",
   "<NonRepetitionPeriodPanel",
   "memoryPlanningSets={repositories.planningSets}",
-  "interactionClient.saveOwnPreference",
-  "interactionClient.setRepertoire",
   "const selectedRole = activeActor.role",
   "interactionClient.queryCandidates",
+  "interactionClient.queryCatalogCandidates",
   `this.transport("queryCandidates"`,
 ]) {
   assert(client.includes(required), `Planning UI is missing ${required}`);

@@ -136,6 +136,8 @@ async function assertRuntimePoolDiscipline() {
 
 async function assertClientRequestCompaction() {
   const client = await readFile("app/planning-lifecycle-client.tsx", "utf8");
+  const catalogWorkspace = await readFile("app/catalog-workspace.tsx", "utf8");
+  const interactionRoute = await readFile("app/api/interaction/route.ts", "utf8");
   const planningRoute = await readFile("app/api/planning-lifecycle/route.ts", "utf8");
   const catalogRoute = await readFile("app/api/catalog/route.ts", "utf8");
   const catalog = await readFile("src/application/catalog.ts", "utf8");
@@ -144,8 +146,14 @@ async function assertClientRequestCompaction() {
   assert.match(client, /planningLifecycleService\.getWorkspaceSnapshot\(\)/, "refreshDbSets must call the compact DB snapshot");
   assert.match(planningRoute, /action === "getWorkspaceSnapshot"/, "server must expose the compact snapshot action");
   assert.match(client, /getPlanningPeople\(\)/, "planning people bootstrap must be batched into one catalog request");
-  assert.match(client, /workspace === "catalog" && selectedRole === "admin"/, "heavy admin catalog bootstrap must be lazy");
-  assert.match(client, /getAdminCatalogSnapshot/, "admin people+song catalog must use one HTTP snapshot");
+  assert.doesNotMatch(client, /workspace === "catalog" && selectedRole === "admin"[^\n]*refreshCatalogAdmin/, "removed heavy admin catalog bootstrap must not run when Catalog opens");
+  assert.match(client, /<CatalogWorkspace/, "Catalog must render the scoped Catalog workspace instead of bootstrapping the legacy admin snapshot");
+  const catalogReload = extractFunction(catalogWorkspace, "async function reloadCandidates", "useEffect(() => {");
+  assert.match(catalogReload, /queryCandidates\(candidateInput\(\)\)/, "Catalog candidates must load on demand through the scoped Catalog query input");
+  assert.doesNotMatch(catalogReload, /getAdminCatalogSnapshot|refreshCatalogAdmin/, "scoped Catalog candidate reload must not restore the removed heavy admin bootstrap");
+  assert.match(catalogWorkspace, /useEffect\(\(\) => \{\s*setSelectedDetail\(undefined\);\s*void reloadCandidates\(\);\s*\}, \[language, organistPersonId, antiphon\?\.id, topic\?\.id, availabilityMode, queryCandidates\]\);/, "Catalog context changes must trigger the scoped on-demand candidate reload");
+  assert.match(client, /queryCatalogCandidates/, "Catalog must use its dedicated candidate transport");
+  assert.match(interactionRoute, /case "queryCatalogCandidates"/, "server must expose the scoped read-only Catalog candidate action");
   assert.match(client, /getSongs\(\{ songIds \}\)/, "record opening must batch current-song metadata lookup");
   assert.match(catalogRoute, /action === "getAdminCatalogSnapshot"/);
   assert.match(catalogRoute, /action === "getPlanningPeople"/);

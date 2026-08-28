@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
 import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
 import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
-import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
+import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CatalogCandidateQueryInput, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
 import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
 import type { ReferenceMelodyClass } from "../src/application/reference-melody";
 import { ReferenceMelodyRequestStateController } from "../src/application/reference-melody-request-state";
@@ -35,6 +35,7 @@ import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recom
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 import { NonRepetitionPeriodPanel } from "./non-repetition-period-panel";
+import { CatalogWorkspace } from "./catalog-workspace";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
@@ -75,7 +76,7 @@ type CatalogClient = CatalogService | DbCatalogClient;
 type CandidateHydrationClientInput = { songs: NonNullable<PlanningRow["song"]>[]; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string };
 type MelodyResult = { success: true; value: ReferenceMelodyClass } | { success: false; error: PlanningServiceError };
 type RepertoireResult = { success: true; value: ReferenceRepertoireMembership } | { success: false; error: PlanningServiceError };
-type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }): Promise<MelodyResult>; mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }): Promise<MelodyResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
+type InteractionClient = { saveOwnPreference(input: { actor: ActorIdentity; songId: string; score: number }): Promise<unknown>; getReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; saveReferenceOwnPreference(input: { actor: ActorIdentity; referenceSongId: string; score: number }): Promise<{ success: true; value: ReferenceOwnPreference } | { success: false; error: PlanningServiceError }>; getReferencePreferenceAggregate(input: { actor: ActorIdentity; referenceSongId: string }): Promise<{ success: true; value: ReferencePreferenceAggregate } | { success: false; error: PlanningServiceError }>; getReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string }): Promise<RepertoireResult>; setReferenceRepertoireMembership(input: { actor: ActorIdentity; referenceSongId: string; organistPersonId?: string; active: boolean }): Promise<RepertoireResult>; getReferenceMelodyClass(input: { actor: ActorIdentity; referenceSongId: string }): Promise<MelodyResult>; mergeReferenceMelodyClasses(input: { actor: ActorIdentity; referenceSongId: string; mergeWithReferenceSongId: string }): Promise<MelodyResult>; setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }): Promise<unknown>; setMelodyWindow(input: { actor: ActorIdentity; months: number }): Promise<unknown>; queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }): Promise<CandidateQueryResult[]>; queryCatalogCandidates(input: CatalogCandidateQueryInput): Promise<CandidateQueryResult[]>; hydrateCandidates(input: CandidateHydrationClientInput): Promise<CandidateQueryResult[]>; };
 const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
 
 type PlanningRepositories = {
@@ -250,6 +251,7 @@ export class DbInteractionClient implements InteractionClient {
   async setRepertoire(input: { actor: ActorIdentity; organistPersonId: string; songId: string; active: boolean }) { return callInteractionApi("setRepertoire", input, input.actor); }
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return callInteractionApi("setMelodyWindow", input, input.actor); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }) { return unwrapCandidateResponse(await this.transport("queryCandidates", buildCandidateQueryInput(input))); }
+  async queryCatalogCandidates(input: CatalogCandidateQueryInput) { return unwrapCandidateResponse(await this.transport("queryCatalogCandidates", input)); }
   async hydrateCandidates(input: CandidateHydrationClientInput) { return unwrapCandidateResponse(await this.transport("hydrateCandidates", input)); }
 }
 
@@ -278,6 +280,19 @@ export class MemoryInteractionClient implements InteractionClient {
   async setMelodyWindow(input: { actor: ActorIdentity; months: number }) { return this.repo.setMelodyWindow(input.actor, { months: input.months }); }
   async queryCandidates(input: { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages: ReturnType<typeof buildCanonicalCandidateUsages>; historicalTruth?: boolean }) {
     const result = await this.service.queryCandidates(buildCandidateQueryInput(input));
+    return result.success ? applyMemoryTopicSignal(result.value, input.referenceTopicId) : [];
+  }
+  async queryCatalogCandidates(input: CatalogCandidateQueryInput) {
+    if (input.availabilityMode === "unavailable") return [];
+    const result = await this.service.queryCandidates({
+      serviceDate: "2000-01-01",
+      serviceLanguage: input.serviceLanguage,
+      ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}),
+      ...(input.referenceAntiphonId ? { referenceAntiphonId: input.referenceAntiphonId } : {}),
+      ...(input.referenceTopicId ? { referenceTopicId: input.referenceTopicId } : {}),
+      ...(input.queryText !== undefined ? { queryText: input.queryText } : {}),
+      candidateUsages: [],
+    });
     return result.success ? applyMemoryTopicSignal(result.value, input.referenceTopicId) : [];
   }
   async hydrateCandidates(input: CandidateHydrationClientInput) {
@@ -482,7 +497,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   }, [runtimeMode]);
 
   useEffect(() => {
-    if (workspace !== "planning") return;
+    if (workspace !== "planning" && workspace !== "catalog") return;
     if (runtimeMode === "db" && catalogClient instanceof DbCatalogClient) {
       void catalogClient.getPlanningPeople().then((result) => {
         if (!result.success) return;
@@ -499,10 +514,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       if (organists.success) setOrganistResults(organists.value);
     });
   }, [workspace, runtimeMode, catalogClient]);
-
-  useEffect(() => {
-    if (workspace === "catalog" && selectedRole === "admin") void refreshCatalogAdmin();
-  }, [workspace, selectedRole, runtimeMode, catalogClient]);
 
   useEffect(() => {
     if (!persistedSet && !completedRecord && saveState === "unsaved") {
@@ -2092,65 +2103,15 @@ Save the correction and mark those plans for revision?`);
         )}
 
         {workspace === "catalog" && (
-          <section className="db-workspace" aria-label="Catalog">
-            <div className="rows-header"><h2>Catalog</h2><button type="button" onClick={refreshCatalogAdmin}>Refresh catalog</button></div>
-            <div className="workspace-nav" role="tablist" aria-label="Catalog sections">
-              <button type="button" className={selectedCatalogTab === "songs" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("songs")}>Songs</button>
-              <button type="button" className={selectedCatalogTab === "reference" ? "active-workspace" : undefined} onClick={() => setSelectedCatalogTab("reference")}>Reference catalog</button>
-            </div>
-            {selectedCatalogTab === "songs" && (
-              <fieldset className="field-group catalog-panel">
-                <legend>Songs {selectedRole !== "admin" ? "(active only, own preference/repertoire allowed)" : "(admin includes inactive)"}</legend>
-                <label>Language<select value={catalogSongLanguage} onChange={(event) => { setCatalogSongLanguage(event.target.value as ServiceLanguage); setCatalogSongPage(0); }}><option value="mixed">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
-                <label>Search<input value={catalogSongSearch} onChange={(event) => { setCatalogSongSearch(event.target.value); setCatalogSongPage(0); }} placeholder="Search by number or title" /></label>
-                <p className="field-help">Showing {pagedCatalogSongs.length} of {visibleCatalogSongs.length} songs over demo + 1,600 synthetic scale records.</p>
-                {selectedCatalogSong && (
-                  <div className="detail-panel" aria-label="Catalog song detail">
-                    <div className="rows-header"><h2>{selectedCatalogSong.number} · {selectedCatalogSong.title}</h2>{catalogReturnRowId ? <button type="button" onClick={() => { setWorkspace("planning"); setCatalogReturnRowId(null); }}>Back to Planning row {catalogReturnRowId}</button> : null}</div>
-                    <p className="field-help">{selectedCatalogSong.language} · {selectedCatalogSong.songId} · {selectedCatalogSong.active ? "active" : "inactive"}</p>
-                    {selectedCatalogSong.sheetMusicUrl && <a href={selectedCatalogSong.sheetMusicUrl} target="_blank" rel="noopener noreferrer">Sheet music</a>}
-                    {selectedRole !== "admin" && <button type="button" onClick={() => interactionClient.saveOwnPreference({ actor: activeActor, songId: selectedCatalogSong.songId, score: selectedRole === "priest" ? 3 : selectedRole === "organist" ? 2 : 1 })}>Set own max preference</button>}
-                    {activeActor.personId && selectedRole === "organist" && <button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: activeActor.personId!, songId: selectedCatalogSong.songId, active: true })}>Mark in my repertoire</button>}
-                    {selectedRole === "admin" && <><button type="button" onClick={async () => { await toggleAdminSong(selectedCatalogSong); }}>Toggle active</button><button type="button" onClick={() => interactionClient.setRepertoire({ actor: activeActor, organistPersonId: "demo-organist", songId: selectedCatalogSong.songId, active: true })}>Add to demo organist repertoire</button></>}
-                  </div>
-                )}
-                <ul className="saved-set-list catalog-song-list">{pagedCatalogSongs.map((song) => <li key={song.songId}><button type="button" onClick={() => setSelectedCatalogSongId(song.songId)}>{formatSongLabel(song)} ({song.active ? "active" : "inactive"})</button></li>)}</ul>
-                <div className="row-actions"><button type="button" disabled={catalogSongPage === 0} onClick={() => setCatalogSongPage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {catalogSongPage + 1} / {catalogPageCount}</span><button type="button" disabled={catalogSongPage >= catalogPageCount - 1} onClick={() => setCatalogSongPage((page) => Math.min(catalogPageCount - 1, page + 1))}>Next</button></div>
-              </fieldset>
-            )}
-
-            {selectedCatalogTab === "reference" && (
-              <fieldset className="field-group catalog-panel">
-                <legend>Reference catalog</legend>
-                <ReferenceAntiphonRecommendationPanel runtime={runtimeMode} actor={activeActor} />
-                <p className="field-help">Authoritative frozen catalog metadata is read-only. In DB runtime, eligible users may persist preferences and separate repertoire membership.</p>
-                {referencePageData && <div className="row-actions" aria-label="Reference catalog counts"><strong>All {referencePageData.counts.all.toLocaleString()}</strong><strong>Czech {referencePageData.counts.czech.toLocaleString()}</strong><strong>Polish {referencePageData.counts.polish.toLocaleString()}</strong></div>}
-                <label>Language<select value={referenceLanguage} onChange={(event) => { setReferenceLanguage(event.target.value as ReferenceCatalogLanguageFilter); setReferencePage(0); setSelectedReferenceId(null); }}><option value="all">All</option><option value="czech">Czech</option><option value="polish">Polish</option></select></label>
-                <label>Search<input value={referenceSearch} onChange={(event) => { setReferenceSearch(event.target.value); setReferencePage(0); setSelectedReferenceId(null); }} placeholder="Search by title, number, encoded number, or slash notation" /></label>
-                {referenceLoading && <p className="field-help" role="status">Loading reference catalog…</p>}
-                {referenceError && <p className="field-help" role="alert">Reference catalog unavailable: {referenceError}</p>}
-                {referencePageData && !referenceLoading && <p className="field-help">Showing {referencePageData.records.length} of {referencePageData.total.toLocaleString()} reference records in numeric order.</p>}
-                {selectedReferenceRecord && (
-                  <div className="detail-panel" aria-label="Reference catalog record detail">
-                    <h2>{selectedReferenceRecord.displayNumber} · {selectedReferenceRecord.title}</h2>
-                    <p className="field-help">{selectedReferenceRecord.language} · canonical {selectedReferenceRecord.canonicalNumber} · {selectedReferenceRecord.id} · read-only</p>
-                    {selectedReferenceRecord.sourceUrl && <a href={selectedReferenceRecord.sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
-                    {runtimeMode === "db" && referenceMelody && <section aria-label="Same melody"><h3>Same melody</h3><ul>{referenceMelody.members.map((member) => <li key={member.referenceSongId}>{member.displayNumber} · {member.title} ({member.language})</li>)}</ul>{selectedRole === "admin" && <><label>Find merge target<input aria-label="Reference melody target search" value={referenceMelodySearch} onChange={(event) => { setReferenceMelodySearch(event.target.value); setReferenceMelodyTarget(""); referenceMelodyState.current.beginSearch(); }} /></label><select aria-label="Reference melody merge target" value={referenceMelodyTarget} onChange={(event) => { const selectedTarget = event.target.value; setReferenceMelodyTarget(selectedTarget); referenceMelodyState.current.selectTarget(selectedTarget); }}><option value="">Select a Reference song</option>{referenceMelodySearchResults.map((record) => <option key={record.id} value={record.id}>{record.displayNumber} · {record.title}{referenceMelody.members.some((member) => member.referenceSongId === record.id) ? " (already linked)" : ""}</option>)}</select><button type="button" disabled={!referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId || referenceMelody.members.some((member) => member.referenceSongId === referenceMelodyTarget)} onClick={() => void mergeReferenceMelody()}>Merge melody classes</button></>}</section>}
-                    {runtimeMode === "db" && referencePreferenceAggregate && <p className="field-help" aria-label="Reference preference aggregate">Aggregate preference: <strong>{referencePreferenceAggregate.aggregateScore}</strong></p>}
-                    {runtimeMode === "db" && selectedRole !== "admin" && referencePreference && <div aria-label="My reference preference"><p className="field-help">My current: <strong>{referencePreference.score === null ? "not set" : referencePreference.score}</strong> · Profile: {referencePreference.category} · Allowed range: 0–{referencePreference.limit}</p><label>Draft value<input aria-label="Reference preference draft value" type="number" min={0} max={referencePreference.limit} step={1} value={referencePreferenceDraft} disabled={referencePreferenceSaving} onChange={(event) => { setReferencePreferenceDraft(event.target.value); setReferencePreferenceFeedback("idle"); }} /></label><button type="button" disabled={referencePreferenceSaving || !Number.isInteger(Number(referencePreferenceDraft)) || referencePreferenceDraft.trim() === "" || Number(referencePreferenceDraft) < 0 || Number(referencePreferenceDraft) > referencePreference.limit} onClick={() => { void saveReferencePreference(Number(referencePreferenceDraft)); }}>Save preference</button>{referencePreferenceFeedback === "saving" && <span className="field-help" role="status">Saving…</span>}{referencePreferenceFeedback === "saved" && <span className="field-help" role="status">Saved.</span>}</div>}
-                    {runtimeMode === "db" && referencePreferenceError && <p className="field-help" role="alert">Own preference unavailable: {referencePreferenceError.message}</p>}
-                    {runtimeMode === "db" && selectedRole === "admin" && <label>Organist target<select aria-label="Authoritative repertoire organist target" value={referenceRepertoireTarget} onChange={(event) => setReferenceRepertoireTarget(event.target.value)}><option value="">Select an organist</option>{peopleAdmin.filter((person) => person.active && person.organist).map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>}
-                    {runtimeMode === "db" && selectedRole === "organist" && referenceRepertoire && <div aria-label="My authoritative reference repertoire"><p className="field-help">My repertoire: <strong>{referenceRepertoire.active ? "yes" : "no"}</strong></p><button type="button" disabled={referenceRepertoireSaving} onClick={() => void setAuthoritativeReferenceRepertoire(!referenceRepertoire.active)}>{referenceRepertoire.active ? "Remove from my repertoire" : "Add to my repertoire"}</button></div>}
-                    {runtimeMode === "db" && selectedRole === "admin" && referenceRepertoireTarget && referenceRepertoire && <div aria-label="Selected organist authoritative reference repertoire"><p className="field-help">Selected organist repertoire: <strong>{referenceRepertoire.active ? "yes" : "no"}</strong></p><button type="button" disabled={referenceRepertoireSaving} onClick={() => void setAuthoritativeReferenceRepertoire(!referenceRepertoire.active)}>{referenceRepertoire.active ? "Remove" : "Add"}</button></div>}
-                    {runtimeMode === "db" && referenceRepertoireError && <p className="field-help" role="alert">Reference repertoire unavailable: {referenceRepertoireError.message}</p>}
-                  </div>
-                )}
-                {referencePageData?.total === 0 && !referenceLoading && <p className="field-help">No reference records match these filters.</p>}
-                <ul className="saved-set-list catalog-song-list">{referencePageData?.records.map((record) => <li key={record.id}><button type="button" onClick={() => setSelectedReferenceId(record.id)}>{record.displayNumber} · {record.title} ({record.language})</button></li>)}</ul>
-                {referencePageData && <div className="row-actions"><button type="button" disabled={referenceLoading || referencePageData.page === 0} onClick={() => setReferencePage((page) => Math.max(0, page - 1))}>Previous</button><span className="field-help">Page {referencePageData.page + 1} / {referencePageData.pageCount}</span><button type="button" disabled={referenceLoading || referencePageData.page >= referencePageData.pageCount - 1} onClick={() => setReferencePage((page) => Math.min(referencePageData.pageCount - 1, page + 1))}>Next</button></div>}
-              </fieldset>
-            )}
-          </section>
+          <CatalogWorkspace
+            runtime={runtimeMode}
+            actor={activeActor}
+            organists={organistResults}
+            queryCandidates={(input) => interactionClient.queryCatalogCandidates(input)}
+            getOwnPreference={(referenceSongId) => interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceSongId })}
+            saveOwnPreference={(referenceSongId, score) => interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
+            getPreferenceAggregate={(referenceSongId) => interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
+          />
         )}
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
