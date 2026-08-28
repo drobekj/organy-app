@@ -601,6 +601,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const candidateAvailabilityKey = JSON.stringify({
     runtimeMode,
     serviceContextGeneration,
+    candidateRefreshGeneration,
     serviceDate,
     serviceLanguage,
     organistId: organistId ?? "",
