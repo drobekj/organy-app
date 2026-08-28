@@ -48,6 +48,8 @@ async function main() {
 function pureContractChecks() {
   assert.equal(validateMelodyWindowMonths(0), true);
   assert.equal(validateMelodyWindowMonths(2), true);
+  assert.equal(validateMelodyWindowMonths(12), true);
+  assert.equal(validateMelodyWindowMonths(13), false);
   assert.equal(validateMelodyWindowMonths(-1), false);
   assert.equal(validateMelodyWindowMonths(1.5), false);
   assert.equal(validateMelodyWindowMonths(Number.NaN), false);
@@ -148,7 +150,7 @@ async function databaseContractChecks() {
   assert.equal(denied.success, false);
   if (!denied.success) assert.equal(denied.error.code, "permissionDenied");
 
-  for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "2"]) {
+  for (const invalid of [-1, 1.5, 13, Number.NaN, Number.POSITIVE_INFINITY, "2"]) {
     const before = await readMonths();
     const result = await service.set(admin, invalid);
     assert.equal(result.success, false);
@@ -203,7 +205,7 @@ async function apiContractChecks() {
     assert.equal(read.body.success, true);
     assert.equal(read.body.value.months, 2);
 
-    for (const input of [{ months: "2" }, { months: 1.2 }, { months: -1 }, { months: null }, { months: 2, extra: true }]) {
+    for (const input of [{ months: "2" }, { months: 1.2 }, { months: -1 }, { months: 13 }, { months: null }, { months: 2, extra: true }]) {
       const response = await api("setMelodyWindow", input, adminUserId, "admin");
       assert.equal(response.status, 400, `Malformed input ${JSON.stringify(input)} must be rejected at the API boundary`);
       assert.equal(await readMonths(), 2);
