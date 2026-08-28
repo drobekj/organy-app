@@ -148,8 +148,8 @@ function validateMelodyWindowReadInput(value: unknown): void {
 function melodyWindowMutationInput(value: unknown): { months: number } {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Melody non-repetition input is required.");
   const input = value as Record<string, unknown>;
-  if (Object.keys(input).length !== 1 || !("months" in input) || typeof input.months !== "number" || !Number.isFinite(input.months) || !Number.isInteger(input.months) || input.months < 0) {
-    throw new LocalActorError("invalidInput", "Melody non-repetition period must be a finite non-negative integer number of calendar months.");
+  if (Object.keys(input).length !== 1 || !("months" in input) || typeof input.months !== "number" || !Number.isFinite(input.months) || !Number.isInteger(input.months) || input.months < 0 || input.months > 12) {
+    throw new LocalActorError("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
   }
   return { months: input.months };
 }
