@@ -6,6 +6,8 @@ import type {
   CatalogCandidateAvailabilityMode,
   CatalogCandidateQueryInput,
   CandidateQueryResult,
+  ReferenceOwnPreference,
+  ReferencePreferenceAggregate,
 } from "../src/application/interaction-contracts";
 import type { CatalogPerson } from "../src/application/catalog";
 import type { ServiceAntiphonReference, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
@@ -14,14 +16,29 @@ import { getCandidateLineViewModel } from "../src/planning-lifecycle/candidate-l
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 
+type PreferenceResult<T> =
+  | { success: true; value: T }
+  | { success: false; error: { message: string } };
+
 export type CatalogWorkspaceProps = {
   runtime: "memory" | "db";
   actor: ActorIdentity;
   organists: CatalogPerson[];
   queryCandidates: (input: CatalogCandidateQueryInput) => Promise<CandidateQueryResult[]>;
+  getOwnPreference: (referenceSongId: string) => Promise<PreferenceResult<ReferenceOwnPreference>>;
+  saveOwnPreference: (referenceSongId: string, score: number) => Promise<PreferenceResult<ReferenceOwnPreference>>;
+  getPreferenceAggregate: (referenceSongId: string) => Promise<PreferenceResult<ReferencePreferenceAggregate>>;
 };
 
-export function CatalogWorkspace({ runtime, actor, organists, queryCandidates }: CatalogWorkspaceProps) {
+export function CatalogWorkspace({
+  runtime,
+  actor,
+  organists,
+  queryCandidates,
+  getOwnPreference,
+  saveOwnPreference,
+  getPreferenceAggregate,
+}: CatalogWorkspaceProps) {
   const [language, setLanguage] = useState<ServiceLanguage>("mixed");
   const [organistPersonId, setOrganistPersonId] = useState("");
   const [antiphon, setAntiphon] = useState<ServiceAntiphonReference>();
@@ -32,34 +49,124 @@ export function CatalogWorkspace({ runtime, actor, organists, queryCandidates }:
   const [selectedDetail, setSelectedDetail] = useState<CandidateQueryResult>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [preferenceAggregate, setPreferenceAggregate] = useState<ReferencePreferenceAggregate>();
+  const [ownPreference, setOwnPreference] = useState<ReferenceOwnPreference>();
+  const [preferenceDraft, setPreferenceDraft] = useState("");
+  const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [preferenceFeedback, setPreferenceFeedback] = useState<"idle" | "saved" | "error">("idle");
+  const [preferenceError, setPreferenceError] = useState<string>();
   const request = useRef(0);
+  const preferenceRequest = useRef(0);
 
   const contextKey = `catalog:${language}:${organistPersonId}:${actor.role}`;
   const visibleCandidates = useMemo(() => candidatesForView(candidates, viewMode), [candidates, viewMode]);
   const selectedOrganist = organists.find((person) => person.id === organistPersonId);
 
-  useEffect(() => {
-    const token = ++request.current;
-    setLoading(true);
-    setError(undefined);
-    setSelectedDetail(undefined);
-    void queryCandidates({
+  function candidateInput(): CatalogCandidateQueryInput {
+    return {
       serviceLanguage: language,
       ...(organistPersonId ? { organistPersonId } : {}),
       ...(antiphon?.id ? { referenceAntiphonId: antiphon.id } : {}),
       ...(topic?.id ? { referenceTopicId: topic.id } : {}),
       availabilityMode,
-    }).then((result) => {
+    };
+  }
+
+  async function reloadCandidates(preserveDetailSongId?: string) {
+    const token = ++request.current;
+    setLoading(true);
+    setError(undefined);
+    try {
+      const result = await queryCandidates(candidateInput());
       if (request.current !== token) return;
       setCandidates(result);
-    }).catch((cause: unknown) => {
+      if (preserveDetailSongId) setSelectedDetail(result.find((candidate) => candidate.songId === preserveDetailSongId));
+    } catch (cause) {
       if (request.current !== token) return;
       setCandidates([]);
       setError(cause instanceof Error ? cause.message : "Catalog candidates could not be loaded.");
-    }).finally(() => {
+    } finally {
       if (request.current === token) setLoading(false);
-    });
+    }
+  }
+
+  useEffect(() => {
+    setSelectedDetail(undefined);
+    void reloadCandidates();
   }, [language, organistPersonId, antiphon?.id, topic?.id, availabilityMode, queryCandidates]);
+
+  useEffect(() => {
+    const token = ++preferenceRequest.current;
+    setPreferenceAggregate(undefined);
+    setOwnPreference(undefined);
+    setPreferenceDraft("");
+    setPreferenceFeedback("idle");
+    setPreferenceError(undefined);
+
+    if (runtime !== "db" || !selectedDetail) return;
+
+    void getPreferenceAggregate(selectedDetail.songId).then((result) => {
+      if (preferenceRequest.current !== token) return;
+      if (result.success) setPreferenceAggregate(result.value);
+      else setPreferenceError(result.error.message);
+    }).catch((cause: unknown) => {
+      if (preferenceRequest.current === token) setPreferenceError(cause instanceof Error ? cause.message : "Aggregate preference could not be loaded.");
+    });
+
+    if (actor.role !== "admin") {
+      void getOwnPreference(selectedDetail.songId).then((result) => {
+        if (preferenceRequest.current !== token) return;
+        if (result.success) {
+          setOwnPreference(result.value);
+          setPreferenceDraft(result.value.score === null ? "" : String(result.value.score));
+        } else {
+          setPreferenceError(result.error.message);
+        }
+      }).catch((cause: unknown) => {
+        if (preferenceRequest.current === token) setPreferenceError(cause instanceof Error ? cause.message : "Own preference could not be loaded.");
+      });
+    }
+
+    return () => {
+      if (preferenceRequest.current === token) preferenceRequest.current += 1;
+    };
+  }, [runtime, selectedDetail?.songId, actor.userId, actor.role, getOwnPreference, getPreferenceAggregate]);
+
+  async function savePreference() {
+    if (!selectedDetail || !ownPreference) return;
+    const score = Number(preferenceDraft);
+    if (!Number.isInteger(score) || score < 0 || score > ownPreference.limit) return;
+
+    const songId = selectedDetail.songId;
+    const token = ++preferenceRequest.current;
+    setPreferenceSaving(true);
+    setPreferenceFeedback("idle");
+    setPreferenceError(undefined);
+    try {
+      const saved = await saveOwnPreference(songId, score);
+      if (preferenceRequest.current !== token) return;
+      if (!saved.success) {
+        setPreferenceError(saved.error.message);
+        setPreferenceFeedback("error");
+        return;
+      }
+      setOwnPreference(saved.value);
+      setPreferenceDraft(String(saved.value.score));
+      const aggregate = await getPreferenceAggregate(songId);
+      if (preferenceRequest.current !== token) return;
+      if (aggregate.success) setPreferenceAggregate(aggregate.value);
+      else setPreferenceError(aggregate.error.message);
+      await reloadCandidates(songId);
+      if (preferenceRequest.current === token) setPreferenceFeedback("saved");
+    } catch (cause) {
+      if (preferenceRequest.current === token) {
+        setPreferenceError(cause instanceof Error ? cause.message : "Preference could not be saved.");
+        setPreferenceFeedback("error");
+      }
+    } finally {
+      if (preferenceRequest.current === token) setPreferenceSaving(false);
+    }
+  }
 
   return <section className="catalog-workspace" aria-label="Catalog">
     <div className="rows-header">
@@ -145,7 +252,20 @@ export function CatalogWorkspace({ runtime, actor, organists, queryCandidates }:
         </div>
       </div>
 
-      {selectedDetail && <CatalogCandidateDetail candidate={selectedDetail} onClose={() => setSelectedDetail(undefined)} />}
+      {selectedDetail && <CatalogCandidateDetail
+        candidate={selectedDetail}
+        runtime={runtime}
+        actor={actor}
+        aggregate={preferenceAggregate}
+        ownPreference={ownPreference}
+        preferenceDraft={preferenceDraft}
+        preferenceSaving={preferenceSaving}
+        preferenceFeedback={preferenceFeedback}
+        preferenceError={preferenceError}
+        onPreferenceDraftChange={(value) => { setPreferenceDraft(value); setPreferenceFeedback("idle"); }}
+        onSavePreference={() => void savePreference()}
+        onClose={() => setSelectedDetail(undefined)}
+      />}
       {loading && <p className="catalog-candidate-state" role="status">Loading candidates…</p>}
       {error && <p className="catalog-candidate-state inline-error" role="alert">{error}</p>}
       {!loading && !error && visibleCandidates.length === 0 && <p className="catalog-candidate-state">No candidates match this Catalog context.</p>}
@@ -180,8 +300,43 @@ function CatalogCandidateRow({ candidate, onDetail }: { candidate: CandidateQuer
   </div>;
 }
 
-function CatalogCandidateDetail({ candidate, onClose }: { candidate: CandidateQueryResult; onClose: () => void }) {
+type CatalogCandidateDetailProps = {
+  candidate: CandidateQueryResult;
+  runtime: "memory" | "db";
+  actor: ActorIdentity;
+  aggregate?: ReferencePreferenceAggregate;
+  ownPreference?: ReferenceOwnPreference;
+  preferenceDraft: string;
+  preferenceSaving: boolean;
+  preferenceFeedback: "idle" | "saved" | "error";
+  preferenceError?: string;
+  onPreferenceDraftChange: (value: string) => void;
+  onSavePreference: () => void;
+  onClose: () => void;
+};
+
+function CatalogCandidateDetail({
+  candidate,
+  runtime,
+  actor,
+  aggregate,
+  ownPreference,
+  preferenceDraft,
+  preferenceSaving,
+  preferenceFeedback,
+  preferenceError,
+  onPreferenceDraftChange,
+  onSavePreference,
+  onClose,
+}: CatalogCandidateDetailProps) {
   const members = candidate.melodyMembers ?? [];
+  const validDraft = ownPreference
+    ? Number.isInteger(Number(preferenceDraft))
+      && preferenceDraft.trim() !== ""
+      && Number(preferenceDraft) >= 0
+      && Number(preferenceDraft) <= ownPreference.limit
+    : false;
+
   return <section className="melody-detail catalog-readonly-detail" aria-label="Catalog candidate detail">
     <div className="melody-detail-header">
       <div>
@@ -190,8 +345,38 @@ function CatalogCandidateDetail({ candidate, onClose }: { candidate: CandidateQu
       </div>
       <button type="button" onClick={onClose}>Close</button>
     </div>
+
+    {runtime === "db" && <p className="field-help" aria-label="Reference preference aggregate">
+      Aggregate preference: <strong>{aggregate?.aggregateScore ?? candidate.aggregatePreferenceScore}</strong>
+    </p>}
+
+    {runtime === "db" && actor.role !== "admin" && ownPreference && <div aria-label="My reference preference">
+      <p className="field-help">
+        My current: <strong>{ownPreference.score === null ? "not set" : ownPreference.score}</strong>
+        {" "}· Profile: {ownPreference.category} · Allowed range: 0–{ownPreference.limit}
+      </p>
+      <label>
+        Draft value
+        <input
+          aria-label="Reference preference draft value"
+          type="number"
+          min={0}
+          max={ownPreference.limit}
+          step={1}
+          value={preferenceDraft}
+          disabled={preferenceSaving}
+          onChange={(event) => onPreferenceDraftChange(event.target.value)}
+        />
+      </label>
+      <button type="button" disabled={preferenceSaving || !validDraft} onClick={onSavePreference}>Save preference</button>
+      {preferenceSaving && <span className="field-help" role="status">Saving…</span>}
+      {preferenceFeedback === "saved" && <span className="field-help" role="status">Saved.</span>}
+    </div>}
+
+    {runtime === "db" && preferenceError && <p className="field-help" role="alert">Preference unavailable: {preferenceError}</p>}
+
     <p className="field-help">
-      Preference {candidate.aggregatePreferenceScore} · {candidate.repertoire ? "explicit repertoire pivot" : "not an explicit repertoire pivot"}
+      {candidate.repertoire ? "Explicit repertoire pivot" : "Not an explicit repertoire pivot"}
       {candidate.antiphonMatch ? " · antiphon reference" : ""}
       {candidate.seasonMatch ? " · topic match" : ""}
     </p>
