@@ -169,7 +169,7 @@ Prepare for implementation only after the accepted product, domain, workflow, re
 Milestone outcomes:
 
 - Confirm that product, domain, decision, requirement, workflow, and architecture documents are accepted as the implementation baseline.
-- Audit/change-history product policy is resolved: successful state-changing business actions are recorded as append-only explanatory history, separate from Completed-service business history; implementation mechanics remain later work.
+- Audit/change-history product policy is resolved and implemented: successful state-changing business actions are recorded as append-only explanatory history, separate from Completed-service business history, with the accepted admin read-only Audit History surface.
 - The implementation-preparation line has progressed through Phase 31.27–31.43 and subsequent Production acceptance: protected username/password staff authentication, nickname-only congregation voting, account administration and credential recovery, runtime/preflight and recovery boundaries, Vercel + Neon Production deployment, protected identity bootstrap, authoritative Reference data, melody equivalence, repertoire handoff, audit history, and the accepted Production UX refinements are implemented and deployed.
 - Decompose accepted roadmap phases into backlog items only after roadmap acceptance.
 - Develop technical design only after implementation scope is chosen.
