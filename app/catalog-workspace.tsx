@@ -28,6 +28,7 @@ export type CatalogWorkspaceProps = {
   getOwnPreference: (referenceSongId: string) => Promise<PreferenceResult<ReferenceOwnPreference>>;
   saveOwnPreference: (referenceSongId: string, score: number) => Promise<PreferenceResult<ReferenceOwnPreference>>;
   getPreferenceAggregate: (referenceSongId: string) => Promise<PreferenceResult<ReferencePreferenceAggregate>>;
+  setRepertoireMembership: (referenceSongId: string, organistPersonId: string | undefined, active: boolean) => Promise<PreferenceResult<unknown>>;
 };
 
 export function CatalogWorkspace({
@@ -38,6 +39,7 @@ export function CatalogWorkspace({
   getOwnPreference,
   saveOwnPreference,
   getPreferenceAggregate,
+  setRepertoireMembership,
 }: CatalogWorkspaceProps) {
   const [language, setLanguage] = useState<ServiceLanguage>("mixed");
   const [organistPersonId, setOrganistPersonId] = useState("");
@@ -55,17 +57,24 @@ export function CatalogWorkspace({
   const [preferenceSaving, setPreferenceSaving] = useState(false);
   const [preferenceFeedback, setPreferenceFeedback] = useState<"idle" | "saved" | "error">("idle");
   const [preferenceError, setPreferenceError] = useState<string>();
+  const [repertoireSaving, setRepertoireSaving] = useState(false);
+  const [repertoireError, setRepertoireError] = useState<string>();
   const request = useRef(0);
   const preferenceRequest = useRef(0);
 
-  const contextKey = `catalog:${language}:${organistPersonId}:${actor.role}`;
+  const effectiveOrganistPersonId = actor.role === "organist" ? (actor.personId ?? "") : organistPersonId;
+  const contextKey = `catalog:${language}:${effectiveOrganistPersonId}:${actor.role}`;
   const visibleCandidates = useMemo(() => candidatesForView(candidates, viewMode), [candidates, viewMode]);
-  const selectedOrganist = organists.find((person) => person.id === organistPersonId);
+  const selectedOrganist = organists.find((person) => person.id === effectiveOrganistPersonId);
+  const canManageRepertoire = runtime === "db" && (
+    (actor.role === "organist" && Boolean(actor.personId))
+    || (actor.role === "admin" && Boolean(effectiveOrganistPersonId))
+  );
 
   function candidateInput(): CatalogCandidateQueryInput {
     return {
       serviceLanguage: language,
-      ...(organistPersonId ? { organistPersonId } : {}),
+      ...(effectiveOrganistPersonId ? { organistPersonId: effectiveOrganistPersonId } : {}),
       ...(antiphon?.id ? { referenceAntiphonId: antiphon.id } : {}),
       ...(topic?.id ? { referenceTopicId: topic.id } : {}),
       availabilityMode,
@@ -93,7 +102,7 @@ export function CatalogWorkspace({
   useEffect(() => {
     setSelectedDetail(undefined);
     void reloadCandidates();
-  }, [language, organistPersonId, antiphon?.id, topic?.id, availabilityMode, queryCandidates]);
+  }, [language, effectiveOrganistPersonId, antiphon?.id, topic?.id, availabilityMode, queryCandidates, actor.role, actor.personId]);
 
   useEffect(() => {
     const token = ++preferenceRequest.current;
@@ -168,10 +177,69 @@ export function CatalogWorkspace({
     }
   }
 
+  async function mutateRepertoire(candidate: CandidateQueryResult) {
+    if (!canManageRepertoire || repertoireSaving) return;
+    const adding = availabilityMode === "unavailable";
+    setRepertoireError(undefined);
+    setRepertoireSaving(true);
+    try {
+      const baseInput = candidateInput();
+      const freshAvailable = await queryCandidates({ ...baseInput, availabilityMode: "available" });
+      const freshAvailableClass = freshAvailable.filter((item) => item.melodyClassId === candidate.melodyClassId);
+      const existingPivot = freshAvailableClass
+        .flatMap((item) => item.melodyMembers ?? [])
+        .find((member) => member.repertoire);
+
+      if (adding) {
+        if (existingPivot || freshAvailableClass.length > 0) {
+          setRepertoireError("Repertoire changed before confirmation; this melody class already has a repertoire pivot.");
+          await reloadCandidates();
+          return;
+        }
+        const freshUnavailable = await queryCandidates({ ...baseInput, availabilityMode: "unavailable" });
+        if (!freshUnavailable.some((item) => item.songId === candidate.songId && item.melodyClassId === candidate.melodyClassId)) {
+          setRepertoireError("Catalog context changed before confirmation; the selected song is no longer unavailable.");
+          await reloadCandidates();
+          return;
+        }
+      }
+
+      const targetSongId = adding
+        ? candidate.songId
+        : existingPivot?.songId ?? candidate.melodyMembers?.find((member) => member.repertoire)?.songId ?? (candidate.repertoire ? candidate.songId : undefined);
+
+      if (!targetSongId) {
+        setRepertoireError("Repertoire changed before confirmation; no removable pivot remains in this melody class.");
+        await reloadCandidates();
+        return;
+      }
+
+      const verb = adding ? "Add" : "Remove";
+      if (!window.confirm(`${verb} ${targetSongId} ${adding ? "to" : "from"} ${selectedOrganist?.displayName ?? "this organist"} repertoire?`)) return;
+
+      const result = await setRepertoireMembership(
+        targetSongId,
+        actor.role === "admin" ? effectiveOrganistPersonId : undefined,
+        adding,
+      );
+      if (!result.success) {
+        setRepertoireError(result.error.message);
+        return;
+      }
+
+      setSelectedDetail(undefined);
+      await reloadCandidates();
+    } catch (cause) {
+      setRepertoireError(cause instanceof Error ? cause.message : "Repertoire could not be updated.");
+    } finally {
+      setRepertoireSaving(false);
+    }
+  }
+
   return <section className="catalog-workspace" aria-label="Catalog">
     <div className="rows-header">
       <h2>Catalog</h2>
-      <span className="field-help">Read-only candidate workspace</span>
+      <span className="field-help">Candidate and repertoire workspace</span>
     </div>
 
     <fieldset className="field-group catalog-context">
@@ -202,10 +270,11 @@ export function CatalogWorkspace({
         <span>Organist</span>
         <select
           aria-label="Catalog organist"
-          value={organistPersonId}
+          value={effectiveOrganistPersonId}
+          disabled={actor.role === "organist"}
           onChange={(event) => setOrganistPersonId(event.target.value)}
         >
-          <option value="">Anonymous</option>
+          {actor.role !== "organist" && <option value="">Anonymous</option>}
           {organists.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
         </select>
       </label>
@@ -237,7 +306,7 @@ export function CatalogWorkspace({
         Unavailable
       </button>
       <span className="field-help">
-        {organistPersonId
+        {effectiveOrganistPersonId
           ? `${selectedOrganist?.displayName ?? "Selected organist"} · ${availabilityMode}`
           : "Anonymous · all matching classes are available"}
       </span>
@@ -268,12 +337,16 @@ export function CatalogWorkspace({
       />}
       {loading && <p className="catalog-candidate-state" role="status">Loading candidates…</p>}
       {error && <p className="catalog-candidate-state inline-error" role="alert">{error}</p>}
+      {repertoireError && <p className="catalog-candidate-state inline-error" role="alert">{repertoireError}</p>}
       {!loading && !error && visibleCandidates.length === 0 && <p className="catalog-candidate-state">No candidates match this Catalog context.</p>}
 
       {!loading && !error && visibleCandidates.length > 0 && <div className="catalog-candidate-scroll" role="list" aria-label={`${availabilityMode} ${viewMode}`}>
         {visibleCandidates.map((candidate) => <CatalogCandidateRow
           key={candidate.songId}
           candidate={candidate}
+          repertoireAction={canManageRepertoire ? (availabilityMode === "available" ? "Remove" : "Add") : undefined}
+          repertoireSaving={repertoireSaving}
+          onRepertoireAction={() => void mutateRepertoire(candidate)}
           onDetail={() => setSelectedDetail(candidate)}
         />)}
       </div>}
@@ -281,7 +354,19 @@ export function CatalogWorkspace({
   </section>;
 }
 
-function CatalogCandidateRow({ candidate, onDetail }: { candidate: CandidateQueryResult; onDetail: () => void }) {
+function CatalogCandidateRow({
+  candidate,
+  repertoireAction,
+  repertoireSaving,
+  onRepertoireAction,
+  onDetail,
+}: {
+  candidate: CandidateQueryResult;
+  repertoireAction?: "Add" | "Remove";
+  repertoireSaving: boolean;
+  onRepertoireAction: () => void;
+  onDetail: () => void;
+}) {
   const view = getCandidateLineViewModel(candidate);
   return <div className={`candidate-option-row catalog-candidate-row ${view.backgroundClass}`} role="listitem" aria-label={view.accessibleMeaning}>
     <div className="catalog-candidate-summary">
@@ -296,7 +381,10 @@ function CatalogCandidateRow({ candidate, onDetail }: { candidate: CandidateQuer
         <span>{candidate.title} · {candidate.language} · {candidate.signal}</span>
       </span>
     </div>
-    <button type="button" className="candidate-detail-button" onClick={onDetail}>Detail</button>
+    <div className="catalog-candidate-actions">
+      {repertoireAction && <button type="button" disabled={repertoireSaving} onClick={onRepertoireAction}>{repertoireAction}</button>}
+      <button type="button" className="candidate-detail-button" onClick={onDetail}>Detail</button>
+    </div>
   </div>;
 }
 

@@ -119,13 +119,15 @@ async function main() {
       await deferredStale("competing writes", (c) => c.setReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1", active: false }), (c) => c.setReferenceRepertoireMembership({ actor: organist as never, referenceSongId: "czech:1", active: true }), { referenceSongId: "czech:1", organistPersonId: "demo-organist", active: true });
       exact(await invoke(GET, { referenceSongId: "czech:1" }, organist), "czech:1", "demo-organist", true);
 
-      // Deterministic UI contract evidence after Catalog step 2: authoritative repertoire drives read-only Catalog availability and detail projection; mutations remain server-capable but are intentionally not exposed here yet.
+      // Deterministic UI contract evidence after Catalog step 3: authoritative repertoire drives Catalog availability and guarded role-aware mutations.
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
       const catalogUi = await readFile(new URL("../app/catalog-workspace.tsx", import.meta.url), "utf8");
       const candidateService = await readFile(new URL("../src/application/reference-candidate-service.ts", import.meta.url), "utf8");
-      for (const pattern of [/aria-label="Catalog organist"/, /availabilityMode/, /candidate\.repertoire/, /member\.repertoire/, /in repertoire/, /not in repertoire/]) assert.match(catalogUi, pattern);
+      for (const pattern of [/aria-label="Catalog organist"/, /effectiveOrganistPersonId/, /canManageRepertoire/, /availabilityMode/, /candidate\.repertoire/, /member\.repertoire/, /repertoireAction=.*"Remove".*"Add"/, /window\.confirm/, /await reloadCandidates\(\)/]) assert.match(catalogUi, pattern);
       for (const pattern of [/members\.some\(\(member\) => member\.repertoire\)/, /availabilityMode === "available"/, /classHasRepertoire/]) assert.match(candidateService, pattern);
-      assert.doesNotMatch(catalogUi, /Add to my repertoire|Remove from my repertoire|Organist target|setReferenceRepertoireMembership/);
+      assert.match(catalogUi, /actor\.role === "organist" \? \(actor\.personId \?\? ""\) : organistPersonId/);
+      assert.match(catalogUi, /actor\.role === "admin" \? effectiveOrganistPersonId : undefined/);
+      assert.match(catalogUi, /freshAvailableClass[\s\S]*?find\(\(member\) => member\.repertoire\)/);
       for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/, /runtimeMode !== "db"/, /activeActor\.personId/]) assert.match(ui, pattern);
       const memoryClientSection = ui.slice(ui.indexOf("export class MemoryInteractionClient"), ui.indexOf("class DbCatalogClient")); assert.match(memoryClientSection, /getReferenceRepertoireMembership\(\).*permissionDenied/); assert.match(memoryClientSection, /setReferenceRepertoireMembership\(\).*permissionDenied/);
 
