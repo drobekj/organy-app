@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type {
   CandidateAvailability,
+  CatalogCandidateQueryInput,
   CandidateHydrationInput,
   CandidateOccupyingRow,
   CandidateQueryInput,
@@ -86,6 +87,11 @@ export class ReferenceCandidateService {
     return queryReferenceCandidatesFromData(data, input);
   }
 
+  async queryCatalogCandidates(input: CatalogCandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
+    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId);
+    return queryReferenceCatalogCandidatesFromData(data, input);
+  }
+
   async hydrateCandidates(input: CandidateHydrationInput): Promise<CandidateQueryResult[]> {
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId);
     return hydrateReferenceCandidatesFromData(data, input);
@@ -167,6 +173,54 @@ export class ReferenceCandidateService {
       ...(topicLanguage ? { referenceTopic: { language: topicLanguage, ranges: topicRows.map((row) => ({ from: Number(row.from_number), to: Number(row.to_number) })) } } : {}),
     };
   }
+}
+
+export function queryReferenceCatalogCandidatesFromData(
+  data: ReferenceCandidateData,
+  input: CatalogCandidateQueryInput,
+): ReferenceCandidateQueryResult[] {
+  const languageSet = new Set(languagesForServiceShim(input.serviceLanguage));
+  const membersByClass = groupSongsByClass(data.songs);
+  const classHasRepertoire = new Map(
+    [...membersByClass].map(([classId, members]) => [classId, members.some((member) => member.repertoire)]),
+  );
+  const classIncluded = (classId: string) => {
+    if (!input.organistPersonId) return input.availabilityMode === "available";
+    const available = classHasRepertoire.get(classId) ?? false;
+    return input.availabilityMode === "available" ? available : !available;
+  };
+  const representativeByClass = input.organistPersonId && input.availabilityMode === "available"
+    ? buildSelectedOrganistRepresentativeMap(data.songs, input.serviceLanguage)
+    : buildAnonymousRepresentativeMap(data.songs, input.serviceLanguage);
+  const visibleClassIds = new Set(
+    data.songs
+      .filter((song) => classIncluded(song.classId) && languageSet.has(song.language))
+      .map((song) => song.classId),
+  );
+  const query = input.queryText?.trim() ?? "";
+  const candidates: ReferenceCandidateQueryResult[] = [];
+
+  for (const song of data.songs) {
+    if (!classIncluded(song.classId)) continue;
+    const allMembers = membersByClass.get(song.classId) ?? [song];
+    const songsEligible = languageSet.has(song.language);
+    const melodyRepresentative = representativeByClass.get(song.classId) === song.id
+      && visibleClassIds.has(song.classId);
+    if (!songsEligible && !melodyRepresentative) continue;
+    if (query && !matchesReferenceCandidateSearch(song, query)) continue;
+
+    candidates.push(toCandidate(
+      song,
+      allMembers,
+      song.id === data.recommendedReferenceSongId,
+      referenceTopicMatchesSong(data.referenceTopic, song),
+      { kind: "available" },
+      songsEligible,
+      melodyRepresentative,
+    ));
+  }
+
+  return candidates.sort(compareConcreteResults);
 }
 
 export function queryReferenceCandidatesFromData(
