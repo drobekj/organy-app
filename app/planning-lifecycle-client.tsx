@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
 import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
 import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
-import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
+import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CatalogCandidateQueryInput, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
 import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
 import type { ReferenceMelodyClass } from "../src/application/reference-melody";
 import { ReferenceMelodyRequestStateController } from "../src/application/reference-melody-request-state";
@@ -35,6 +35,7 @@ import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recom
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 import { NonRepetitionPeriodPanel } from "./non-repetition-period-panel";
+import { CatalogWorkspace } from "./catalog-workspace";
 import {
   formatDateInputValue,
   getDefaultServiceLanguage,
