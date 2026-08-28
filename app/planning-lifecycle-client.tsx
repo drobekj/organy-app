@@ -153,6 +153,17 @@ function formatConflictPreviewPlanLabel(
   return plan ? `${status} ${plan.serviceContext.serviceDate} ${plan.serviceContext.serviceTime}` : `${status} plan`;
 }
 
+function RecordListSummary({ summary }: { summary: string }) {
+  const rowsMarker = " · rows:";
+  const rowsIndex = summary.indexOf(rowsMarker);
+  if (rowsIndex < 0) return <>{summary}</>;
+
+  return <>
+    {summary.slice(0, rowsIndex)}
+    <span className="record-summary-rows">{summary.slice(rowsIndex + 3)}</span>
+  </>;
+}
+
 function isFuturePragueDate(serviceDate: string): boolean {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   return serviceDate > today;
@@ -1798,9 +1809,9 @@ Save the correction and mark those plans for revision?`);
           <section className="db-workspace" aria-label="Plans">
             {revisionPlanCount > 0 && <p className="error-summary" role="alert">{revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"} {revisionPlanCount === 1 ? "requires" : "require"} revision.</p>}
             <div className="rows-header"><h2>Working plans</h2><button type="button" onClick={startNewDbDraft}>Start new set</button></div>
-            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
+            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}><RecordListSummary summary={formatPlanningSetSummary(set)} /></button></li>)}</ul>}
             <h2>Final plans</h2>
-            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}>{formatPlanningSetSummary(set)}</button></li>)}</ul>}
+            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}><RecordListSummary summary={formatPlanningSetSummary(set)} /></button></li>)}</ul>}
           </section>
         )}
 
@@ -1808,7 +1819,7 @@ Save the correction and mark those plans for revision?`);
           <section className="db-workspace" aria-label="Completed history">
             <h2>Completed history</h2>
             {historyConflictCount > 0 && <p className="error-summary" role="alert">{historyConflictCount} completed service{historyConflictCount === 1 ? "" : "s"} conflict{historyConflictCount === 1 ? "s" : ""} with active plans.</p>}
-            {completedRecordsNewestFirst.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list history-scroll-list">{completedRecordsNewestFirst.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" className={record.conflictState ? "needs-revision-record" : undefined} onClick={() => loadCompletedRecord(record.id)}>{formatCompletedRecordSummary(record)}</button></li>)}</ul>}
+            {completedRecordsNewestFirst.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list history-scroll-list">{completedRecordsNewestFirst.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" className={record.conflictState ? "needs-revision-record" : undefined} onClick={() => loadCompletedRecord(record.id)}><RecordListSummary summary={formatCompletedRecordSummary(record)} /></button></li>)}</ul>}
           </section>
         )}
 
