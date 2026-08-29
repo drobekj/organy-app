@@ -97,6 +97,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={props.onKeyDown}
       />
+      {props.selected && props.editable && <button className="service-antiphon-clear" type="button" aria-label="Clear antiphon" title="Clear antiphon" onPointerDown={(event) => event.preventDefault()} onClick={props.onClear}>×</button>}
       {showDetailButton && <button
         type="button"
         className="candidate-inline-detail service-antiphon-detail-button"
@@ -105,7 +106,6 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => props.onToggleDetail?.()}
       >Detail</button>}
-      {props.selected && props.editable && <button className="service-antiphon-clear" type="button" aria-label="Clear antiphon" title="Clear antiphon" onPointerDown={(event) => event.preventDefault()} onClick={props.onClear}>×</button>}
     </div>
     {props.open && <div id="service-antiphon-listbox" className="service-antiphon-listbox" role="listbox" aria-label="Antiphon candidates">
       {props.snapshot.loading && <div className="service-antiphon-list-state" role="status">Loading…</div>}
