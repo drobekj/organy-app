@@ -16,8 +16,8 @@ const headerStart = candidatePanel.indexOf('className="catalog-candidate-header"
 const availabilityStart = candidatePanel.indexOf('className="catalog-availability-switch"');
 const viewStart = candidatePanel.indexOf('className="workspace-nav catalog-view-switch"');
 assert.ok(headerStart >= 0 && availabilityStart > headerStart && viewStart > availabilityStart);
-assert.match(candidatePanel, />Available<\/button>/);
-assert.match(candidatePanel, />Unavailable<\/button>/);
+assert.match(candidatePanel, />\s*Available\s*<\/button>/);
+assert.match(candidatePanel, />\s*Unavailable\s*<\/button>/);
 assert.match(candidatePanel, />Songs<\/button>/);
 assert.match(candidatePanel, />Melodies<\/button>/);
 assert.doesNotMatch(catalog.slice(0, candidateStart), /className="catalog-availability-switch"/);
