@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { DbReferenceAntiphonClient, MemoryReferenceAntiphonClient } from "../src/application/reference-antiphon-client";
 import type { ReferenceAntiphonProvider, ReferenceAntiphonRecord } from "../src/application/reference-antiphon-contract";
 import type { RecommendedReferenceSong } from "../src/application/reference-antiphon-recommendation";
@@ -14,6 +14,9 @@ export type ServiceContextReferenceAntiphonFieldProps = {
   serviceLanguage: ServiceLanguage;
   selected?: ServiceAntiphonReference;
   recommendedSong?: RecommendedReferenceSong | null;
+  recommendationLoading?: boolean;
+  recommendationError?: string;
+  referenceSongControl?: ReactNode;
   invalid?: boolean;
   onChange: (value: ServiceAntiphonReference | undefined) => void;
   clientFactory?: (runtime: "memory" | "db") => Pick<ReferenceAntiphonProvider, "list">;
@@ -23,8 +26,12 @@ type ViewProps = {
   editable: boolean;
   selected?: ServiceAntiphonReference;
   recommendedSong?: RecommendedReferenceSong | null;
+  recommendationLoading?: boolean;
+  recommendationError?: string;
+  referenceSongControl?: ReactNode;
   invalid?: boolean;
   open: boolean;
+  detailOpen: boolean;
   dirty: boolean;
   query: string;
   snapshot: ServiceContextAntiphonSearchSnapshot;
@@ -38,6 +45,8 @@ type ViewProps = {
   onSelect: (record: ReferenceAntiphonRecord) => void;
   onActiveIndexChange: (index: number) => void;
   onClear: () => void;
+  onToggleDetail: () => void;
+  onCloseDetail: () => void;
 };
 
 type AntiphonNavigationKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
@@ -68,6 +77,7 @@ export function mixedServiceCandidateStyle(serviceLanguage: ServiceLanguage | un
 export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
   const displayValue = props.open && props.dirty ? props.query : label(props.selected);
   const confirmedInvalid = Boolean(props.invalid && !(props.open && props.dirty));
+  const showDetailButton = Boolean(props.selected && !(props.open && props.dirty));
   return <>
     <div className={`service-antiphon-control${confirmedInvalid ? " service-antiphon-control-invalid" : ""}`}>
       <input
@@ -87,8 +97,14 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={props.onKeyDown}
       />
-      {props.selected && props.recommendedSong !== undefined && !(props.open && props.dirty) && <span className="service-antiphon-reference" aria-label="Antiphon Reference song">Catalog {props.recommendedSong ? `${props.recommendedSong.displayNumber} · ${props.recommendedSong.title}` : "none"}</span>}
-      {props.selected?.sourceUrl && !(props.open && props.dirty) && <a className="service-antiphon-source" href={props.selected.sourceUrl} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>Source</a>}
+      {showDetailButton && <button
+        type="button"
+        className="candidate-inline-detail service-antiphon-detail-button"
+        aria-expanded={props.detailOpen}
+        aria-label={`Show antiphon detail for ${props.selected!.displayNumber} ${props.selected!.title}`}
+        onPointerDown={(event) => event.preventDefault()}
+        onClick={props.onToggleDetail}
+      >Detail</button>}
       {props.selected && props.editable && <button className="service-antiphon-clear" type="button" aria-label="Clear antiphon" title="Clear antiphon" onPointerDown={(event) => event.preventDefault()} onClick={props.onClear}>×</button>}
     </div>
     {props.open && <div id="service-antiphon-listbox" className="service-antiphon-listbox" role="listbox" aria-label="Antiphon candidates">
@@ -110,6 +126,24 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         {record.sourceUrl && <a className="service-antiphon-source" href={record.sourceUrl} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>Source</a>}
       </div>)}
     </div>}
+    {props.detailOpen && props.selected && <section className="service-antiphon-detail" role="dialog" aria-label={`Antiphon detail for ${props.selected.displayNumber} ${props.selected.title}`}>
+      <div className="service-antiphon-detail-header">
+        <div className="service-antiphon-detail-title"><strong>{props.selected.displayNumber}</strong><span>{props.selected.title}</span></div>
+        <button type="button" aria-label="Close antiphon detail" onClick={props.onCloseDetail}>×</button>
+      </div>
+      {props.selected.sourceUrl && <div className="service-antiphon-detail-row">
+        <span>Source</span>
+        <a className="service-antiphon-source" href={props.selected.sourceUrl} target="_blank" rel="noreferrer">Source</a>
+      </div>}
+      <div className="service-antiphon-detail-row service-antiphon-detail-reference-row">
+        {props.referenceSongControl ? <>
+          <span className="service-antiphon-detail-label">Ref song</span>
+          <div className="service-antiphon-detail-reference-control">{props.referenceSongControl}</div>
+        </> : <span className="service-antiphon-detail-reference-readonly">
+          Ref song: {props.recommendationLoading ? "loading…" : props.recommendationError ? "unavailable" : props.recommendedSong ? `${props.recommendedSong.displayNumber} ${props.recommendedSong.title}` : "none"}
+        </span>}
+      </div>
+    </section>}
   </>;
 }
 
@@ -123,7 +157,7 @@ async function listAll(client: Pick<ReferenceAntiphonProvider, "list">, serviceL
   return [first, ...rest].flatMap((page) => page.records);
 }
 
-export function ServiceContextReferenceAntiphonField({ runtime, editable, contextKey, serviceLanguage, selected, recommendedSong, invalid, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceAntiphonFieldProps) {
+export function ServiceContextReferenceAntiphonField({ runtime, editable, contextKey, serviceLanguage, selected, recommendedSong, recommendationLoading, recommendationError, referenceSongControl, invalid, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceAntiphonFieldProps) {
   const identity = { runtimeMode: runtime, contextKey, editable, serviceLanguage } as const;
   const machineRef = useRef<ServiceContextReferenceAntiphonUiState | null>(null);
   if (!machineRef.current) machineRef.current = new ServiceContextReferenceAntiphonUiState(identity);
@@ -131,6 +165,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const inputWasOpenOnPointerDown = useRef(false);
   const [open, setOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -149,7 +184,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
 
   useEffect(() => {
     if (machine.changeIdentity(identity)) {
-      setOpen(false); setDirty(false); setQuery(""); setActiveIndex(0);
+      setOpen(false); setDetailOpen(false); setDirty(false); setQuery(""); setActiveIndex(0);
     }
     sync();
   }, [runtime, contextKey, editable, serviceLanguage]);
@@ -164,15 +199,25 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   }, [client, open, editable, serviceLanguage, dirty, query, contextKey]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !detailOpen) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node | null;
       if (target && wrapperRef.current?.contains(target)) return;
-      closeRestore();
+      if (open) closeRestore();
+      setDetailOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (open) closeRestore();
+      setDetailOpen(false);
     };
     document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [open]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, detailOpen]);
 
   useEffect(() => {
     if (!snapshot.records.length) { setActiveIndex(0); return; }
@@ -192,6 +237,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
 
   const openLookup = () => {
     if (!editable || open) return;
+    setDetailOpen(false);
     setOpen(true); setDirty(false); setQuery("");
     queueMicrotask(() => wrapperRef.current?.querySelector<HTMLInputElement>("input")?.select());
   };
@@ -205,6 +251,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   };
   const select = (record: ReferenceAntiphonRecord) => {
     onChange({ id: record.id, displayNumber: record.displayNumber, title: record.title, ...(record.sourceUrl ? { sourceUrl: record.sourceUrl } : {}) });
+    setDetailOpen(false);
     closeRestore();
   };
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -220,7 +267,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   return <div className="service-antiphon-lookup" ref={wrapperRef}>
     <style>{`.service-antiphon-topic-row { grid-column: 1 / -1; }`}</style>
     <ServiceContextReferenceAntiphonFieldView
-      editable={editable} selected={selected} recommendedSong={recommendedSong} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
+      editable={editable} selected={selected} recommendedSong={recommendedSong} recommendationLoading={recommendationLoading} recommendationError={recommendationError} referenceSongControl={referenceSongControl} invalid={invalid} open={open} detailOpen={detailOpen} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
       onOpen={openLookup}
       onInputPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
       onInputClick={handleInputClick}
@@ -228,7 +275,9 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
       onKeyDown={onKeyDown}
       onSelect={select}
       onActiveIndexChange={setActiveIndex}
-      onClear={() => { onChange(undefined); closeRestore(); }}
+      onClear={() => { onChange(undefined); setDetailOpen(false); closeRestore(); }}
+      onToggleDetail={() => { setOpen(false); setDirty(false); setQuery(""); setDetailOpen((value) => !value); }}
+      onCloseDetail={() => setDetailOpen(false)}
     />
   </div>;
 }
