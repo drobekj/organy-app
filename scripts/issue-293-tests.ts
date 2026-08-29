@@ -42,8 +42,8 @@ assert.match(lookup, /getOptionClassName\?: \(record: ReferenceCatalogRecord\) =
 assert.match(lookup, /getOptionClassName\?\.\(record\)/);
 assert.doesNotMatch(lookup, /disabled=\{[^}]*getOptionClassName/);
 
-assert.match(editor, /mode === "add" && <button[^>]*>Add<\/button>/);
-assert.match(editor, /mode === "remove" && <button[^>]*>Remove<\/button>/);
+assert.match(editor, /mode === "add"[\s\S]*?mutate\("add"\)[\s\S]*?>Add<\/button>/);
+assert.match(editor, /mode === "remove"[\s\S]*?mutate\("remove"\)[\s\S]*?>Remove<\/button>/);
 assert.match(editor, /mode === "incomplete" \|\| mode === "self" \|\| mode === "checking"/);
 assert.match(editor, /<button type="button" disabled>Add<\/button>/);
 assert.match(editor, /<button type="button" disabled>Remove<\/button>/);
