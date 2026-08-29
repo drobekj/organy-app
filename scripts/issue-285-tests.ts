@@ -8,44 +8,33 @@ const lookup = readFileSync("app/reference-song-lookup-field.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 
 assert.match(catalog, /useState<ServiceLanguage>\(\(\) => getDefaultServiceLanguage\(getNearestSunday\(new Date\(\)\)\)\)/);
-assert.match(catalog, /referenceSongControl=\{runtime === "db" && actor\.role === "admin" && antiphon && antiphonRecommendation \? \(/);
-assert.match(catalog, /<ReferenceSongLookupField[\s\S]*?onSelect=\{\(record\) => void setAntiphonReferenceSong\(record\)\}/);
-assert.match(catalog, /recommendationClient\.set\(antiphonId, record\?\.id \?\? null\)/);
-assert.match(catalog, /await reloadCandidates\(\)/);
-assert.match(catalog, /onAntiphonRecommendationChanged\?\.\(\)/);
-assert.doesNotMatch(catalog, /catalog-antiphon-reference-editor/);
+assert.match(catalog, /className="service-antiphon-topic-row catalog-antiphon-topic-row"/);
+assert.match(catalog, /recommendationClient=\{recommendationClient \?\? undefined\}/);
+assert.match(catalog, /canEditRecommendation=\{runtime === "db" && actor\.role === "admin"\}/);
 
-assert.match(antiphon, /className="candidate-inline-detail service-antiphon-detail-button"/);
-assert.match(antiphon, />Detail<\/button>/);
-assert.doesNotMatch(antiphon, /service-antiphon-reference/);
-const closedControl = antiphon.slice(antiphon.indexOf("<div className={\`service-antiphon-control"), antiphon.indexOf("{props.open && <div id=\"service-antiphon-listbox\""));
-assert.doesNotMatch(closedControl, /recommendedSong|service-antiphon-source/, "Closed selected Antiphon field must not expose Ref song or Source metadata.");
+const closedStart = antiphon.indexOf('<div className={\`service-antiphon-control');
+const listStart = antiphon.indexOf('{props.open && <div id="service-antiphon-listbox"');
+const closedControl = antiphon.slice(closedStart, listStart);
+assert.match(closedControl, />Detail<\/button>/);
+assert.doesNotMatch(closedControl, /service-antiphon-source|Clear antiphon/);
 
-assert.match(antiphon, /className="service-antiphon-detail"/);
-assert.match(antiphon, /<strong>\{props\.selected\.displayNumber\}<\/strong><span>\{props\.selected\.title\}<\/span>/);
-assert.match(antiphon, /props\.selected\.sourceUrl && <div className="service-antiphon-detail-row">/);
-assert.match(antiphon, /service-antiphon-detail-reference-row/);
-assert.match(antiphon, /Ref song: \{props\.recommendationLoading \?/);
-assert.match(antiphon, /props\.referenceSongControl \? <>/);
-assert.ok(
-  antiphon.indexOf("service-antiphon-detail-reference-row") > antiphon.indexOf("props.selected.sourceUrl"),
-  "Ref song must be the final Antiphon Detail information row.",
-);
+assert.match(antiphon, /id="service-antiphon-option-none"/);
+assert.match(antiphon, />None<\/span>/);
+assert.match(antiphon, /props\.onOpenDetail\(recordSnapshot\(record\), "list"\)/);
+assert.match(antiphon, /className="service-antiphon-detail-row service-antiphon-detail-main-row"/);
+assert.match(antiphon, /className="service-antiphon-detail-row service-antiphon-detail-reference-row"/);
+assert.match(antiphon, /href=\{props\.detail\.antiphon\.sourceUrl\}/);
+assert.doesNotMatch(antiphon, /Close antiphon detail|Ref song:/);
 assert.match(antiphon, /document\.addEventListener\("pointerdown", onPointerDown, true\)/);
-assert.match(antiphon, /document\.addEventListener\("keydown", onKeyDown\)/);
-assert.match(antiphon, /event\.key !== "Escape"/);
+assert.match(antiphon, /document\.addEventListener\("keydown", onKeyDown, true\)/);
 
-assert.match(planning, /recommendedSong=\{planningAntiphonRecommendation\?\.recommendedSong\}/);
-assert.match(planning, /recommendationLoading=\{planningAntiphonRecommendationLoading\}/);
-assert.match(planning, /recommendationError=\{planningAntiphonRecommendationError\}/);
-assert.doesNotMatch(planning, /referenceSongControl=\{/, "Planning Antiphon Detail must stay read-only even for admin.");
+assert.match(planning, /recommendationClient=\{planningAntiphonRecommendationClient \?\? undefined\}/);
+assert.doesNotMatch(planning, /canEditRecommendation=/);
 
 assert.match(lookup, /pageSize: 200/);
 assert.match(lookup, /<strong>none<\/strong>/);
-assert.match(lookup, /choose\(record\)/);
 
-assert.match(css, /\.service-antiphon-detail-button \{[\s\S]*?height: 2rem;[\s\S]*?min-width: 4\.7rem;/);
-assert.match(css, /\.service-antiphon-detail \{[\s\S]*?position: absolute;[\s\S]*?right: 0;[\s\S]*?width: min\(82vw, 46rem\);/);
-assert.match(css, /\.service-antiphon-detail-reference-control \{[\s\S]*?margin-left: auto;/);
+assert.match(css, /\.service-antiphon-detail \{[\s\S]*?left: 3\.25rem;[\s\S]*?right: calc\(-100% - 0\.75rem\);/);
+assert.match(css, /\.service-antiphon-topic-row \{[\s\S]*?grid-column: 1 \/ -1;/);
 
 console.log("Issue 285 corrective Antiphon Detail HUMAN checkpoint 4 coverage passed.");

@@ -34,8 +34,8 @@ type ViewProps = {
   onQueryChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   onSelect: (record: ReferenceThematicSection) => void;
+  onSelectNone: () => void;
   onActiveIndexChange: (index: number) => void;
-  onClear: () => void;
 };
 
 type TopicNavigationKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
@@ -51,6 +51,15 @@ export function moveTopicActiveIndex(currentIndex: number, recordCount: number, 
 export function ServiceContextReferenceTopicFieldView(props: ViewProps) {
   const displayValue = props.open && props.dirty ? props.query : props.selected?.title ?? "";
   const confirmedInvalid = Boolean(props.invalid && !(props.open && props.dirty));
+  const activeRecord = props.activeIndex > 0 ? props.snapshot.records[props.activeIndex - 1] : undefined;
+  const activeDescendant = props.open
+    ? props.activeIndex === 0
+      ? "service-topic-option-none"
+      : activeRecord
+        ? optionId(activeRecord.id)
+        : undefined
+    : undefined;
+
   return <>
     <div className={`service-antiphon-control${confirmedInvalid ? " service-antiphon-control-invalid" : ""}`}>
       <input
@@ -59,7 +68,7 @@ export function ServiceContextReferenceTopicFieldView(props: ViewProps) {
         aria-autocomplete="list"
         aria-expanded={props.open}
         aria-controls={props.open ? "service-topic-listbox" : undefined}
-        aria-activedescendant={props.open && props.snapshot.records[props.activeIndex] ? optionId(props.snapshot.records[props.activeIndex].id) : undefined}
+        aria-activedescendant={activeDescendant}
         aria-invalid={confirmedInvalid || undefined}
         readOnly={!props.editable}
         value={displayValue}
@@ -70,20 +79,29 @@ export function ServiceContextReferenceTopicFieldView(props: ViewProps) {
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={props.onKeyDown}
       />
-      {props.selected && props.editable && <button className="service-antiphon-clear" type="button" aria-label="Clear topic" title="Clear topic" onPointerDown={(event) => event.preventDefault()} onClick={props.onClear}>×</button>}
     </div>
     {props.open && <div id="service-topic-listbox" className="service-antiphon-listbox" role="listbox" aria-label="Topic candidates">
+      <div
+        id="service-topic-option-none"
+        className={`service-antiphon-option service-context-none-option${props.activeIndex === 0 ? " service-antiphon-option-active" : ""}`}
+        role="option"
+        aria-selected={!props.selected}
+        onPointerMove={() => props.onActiveIndexChange(0)}
+        onPointerDown={(event) => { event.preventDefault(); props.onSelectNone(); }}
+      >
+        <span>None</span>
+      </div>
       {props.snapshot.loading && <div className="service-antiphon-list-state" role="status">Loading…</div>}
       {props.snapshot.error && <div className="service-antiphon-list-state service-antiphon-list-error" role="alert">Topic lookup unavailable.</div>}
       {!props.snapshot.loading && !props.snapshot.error && props.snapshot.records.length === 0 && <div className="service-antiphon-list-state">No topics available.</div>}
       {props.snapshot.records.map((record, index) => <div
         id={optionId(record.id)}
         key={record.id}
-        className={`service-antiphon-option${index === props.activeIndex ? " service-antiphon-option-active" : ""}`}
+        className={`service-antiphon-option${index + 1 === props.activeIndex ? " service-antiphon-option-active" : ""}`}
         style={mixedServiceCandidateStyle(props.serviceLanguage, record.language)}
         role="option"
         aria-selected={props.selected?.id === record.id}
-        onPointerMove={() => props.onActiveIndexChange(index)}
+        onPointerMove={() => props.onActiveIndexChange(index + 1)}
         onPointerDown={(event) => { event.preventDefault(); props.onSelect(record); }}
       >
         <span>{record.title}</span>
@@ -152,17 +170,21 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
   }, [open]);
 
   useEffect(() => {
-    if (!snapshot.records.length) { setActiveIndex(0); return; }
+    const count = snapshot.records.length + 1;
     if (!dirty && selected) {
       const selectedIndex = snapshot.records.findIndex((record) => record.id === selected.id);
-      if (selectedIndex >= 0) { setActiveIndex(selectedIndex); return; }
+      if (selectedIndex >= 0) { setActiveIndex(selectedIndex + 1); return; }
     }
-    setActiveIndex((index) => Math.min(index, snapshot.records.length - 1));
+    setActiveIndex((index) => Math.min(index, Math.max(0, count - 1)));
   }, [snapshot.records, selected?.id, dirty]);
 
   useEffect(() => {
     if (!open) return;
-    const record = snapshot.records[activeIndex];
+    if (activeIndex === 0) {
+      document.getElementById("service-topic-option-none")?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    const record = snapshot.records[activeIndex - 1];
     if (!record) return;
     document.getElementById(optionId(record.id))?.scrollIntoView({ block: "nearest" });
   }, [open, activeIndex, snapshot.records]);
@@ -172,6 +194,7 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
     setOpen(true); setDirty(false); setQuery("");
     queueMicrotask(() => wrapperRef.current?.querySelector<HTMLInputElement>("input")?.select());
   };
+
   const handleInputClick = () => {
     if (!editable) return;
     if (serviceContextLookupInputClickAction(inputWasOpenOnPointerDown.current) === "close") {
@@ -180,31 +203,47 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
     }
     if (!open) openLookup();
   };
+
   const select = (record: ReferenceThematicSection) => { onChange({ id: record.id, title: record.title }); closeRestore(); };
+  const selectNone = () => { onChange(undefined); closeRestore(); };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") { if (open) { event.preventDefault(); closeRestore(); } return; }
     if (!open && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) { event.preventDefault(); openLookup(); return; }
     if (!open) return;
     if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
-      setActiveIndex((index) => moveTopicActiveIndex(index, snapshot.records.length, event.key as TopicNavigationKey));
+      setActiveIndex((index) => moveTopicActiveIndex(index, snapshot.records.length + 1, event.key as TopicNavigationKey));
     } else if (event.key === "Enter") {
-      const record = snapshot.records[activeIndex];
-      if (record) { event.preventDefault(); select(record); }
+      event.preventDefault();
+      if (activeIndex === 0) {
+        selectNone();
+        return;
+      }
+      const record = snapshot.records[activeIndex - 1];
+      if (record) select(record);
     }
   };
 
   return <div className="service-antiphon-lookup service-topic-lookup" ref={wrapperRef}>
     <ServiceContextReferenceTopicFieldView
-      editable={editable} selected={selected} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
+      editable={editable}
+      selected={selected}
+      invalid={invalid}
+      open={open}
+      dirty={dirty}
+      query={query}
+      snapshot={snapshot}
+      activeIndex={activeIndex}
+      serviceLanguage={serviceLanguage}
       onOpen={openLookup}
       onInputPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
       onInputClick={handleInputClick}
       onQueryChange={(value) => { if (!open) setOpen(true); setDirty(true); setQuery(value); setActiveIndex(0); }}
       onKeyDown={onKeyDown}
       onSelect={select}
+      onSelectNone={selectNone}
       onActiveIndexChange={setActiveIndex}
-      onClear={() => { onChange(undefined); closeRestore(); }}
     />
   </div>;
 }
