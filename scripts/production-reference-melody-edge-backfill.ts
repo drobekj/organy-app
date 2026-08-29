@@ -80,7 +80,8 @@ function authoritativeEdges(contract: DefinitiveContract, songIdByIdentity: Map<
 
 function sameEdges(actual: ReferenceMelodyEdge[], expected: ReferenceMelodyEdge[]): boolean {
   if (actual.length !== expected.length) return false;
-  return actual.every((edge, index) => edge.songAId === expected[index].songAId && edge.songBId === expected[index].songBId);
+  const keys = new Set(expected.map((edge) => `${edge.songAId}<->${edge.songBId}`));
+  return actual.every((edge) => keys.has(`${edge.songAId}<->${edge.songBId}`));
 }
 
 async function currentEdges(client: Pick<PoolClient, "query">): Promise<ReferenceMelodyEdge[]> {
