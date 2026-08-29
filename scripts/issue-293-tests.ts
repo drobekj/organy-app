@@ -77,4 +77,9 @@ assert.match(css, /\.catalog-melody-edge-row \{[\s\S]*?grid-template-columns: mi
 assert.match(journal, /"tag": "0020_reference_melody_edges"/);
 assert.doesNotMatch(journal, /0021_/);
 
+assert.doesNotMatch(planning, /syntheticScaleSongs|createSyntheticScaleSongs\(1600\)/);
+assert.doesNotMatch(planning, /selectedCatalogTab|selectedReferenceId|referenceMelodySearch/);
+assert.match(planning, /<CatalogWorkspace/);
+assert.match(planning, /onMelodyStructureChanged=\{\(\) => \{/);
+
 console.log("Issue 293 Stage 6 Catalog melody edge editor coverage passed.");
