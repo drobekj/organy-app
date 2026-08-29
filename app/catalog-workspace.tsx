@@ -19,6 +19,8 @@ import { DbReferenceAntiphonRecommendationClient } from "../src/application/refe
 import type { ReferenceAntiphonRecommendation } from "../src/application/reference-antiphon-recommendation";
 import { getDefaultServiceLanguage, getNearestSunday } from "../src/planning-lifecycle/service-context-defaults";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
+import { ReferenceMelodyEdgeEditor } from "./reference-melody-edge-editor";
+import type { ReferenceMelodyClass } from "../src/application/reference-melody";
 
 type PreferenceResult<T> =
   | { success: true; value: T }
@@ -33,7 +35,12 @@ export type CatalogWorkspaceProps = {
   saveOwnPreference: (referenceSongId: string, score: number) => Promise<PreferenceResult<ReferenceOwnPreference>>;
   getPreferenceAggregate: (referenceSongId: string) => Promise<PreferenceResult<ReferencePreferenceAggregate>>;
   setRepertoireMembership: (referenceSongId: string, organistPersonId: string | undefined, active: boolean) => Promise<PreferenceResult<unknown>>;
+  getMelodyClass: (referenceSongId: string) => Promise<PreferenceResult<ReferenceMelodyClass>>;
+  getMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<PreferenceResult<{ exists: boolean }>>;
+  addMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<PreferenceResult<ReferenceMelodyClass>>;
+  removeMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<PreferenceResult<ReferenceMelodyClass>>;
   onAntiphonRecommendationChanged?: () => void;
+  onMelodyStructureChanged?: () => void;
 };
 
 export function CatalogWorkspace({
@@ -44,7 +51,12 @@ export function CatalogWorkspace({
   getOwnPreference,
   saveOwnPreference,
   setRepertoireMembership,
+  getMelodyClass,
+  getMelodyEdge,
+  addMelodyEdge,
+  removeMelodyEdge,
   onAntiphonRecommendationChanged,
+  onMelodyStructureChanged,
 }: CatalogWorkspaceProps) {
   const [language, setLanguage] = useState<ServiceLanguage>(() => getDefaultServiceLanguage(getNearestSunday(new Date())));
   const [organistPersonId, setOrganistPersonId] = useState(() => actor.role === "organist" ? (actor.personId ?? "") : "");
@@ -343,6 +355,18 @@ export function CatalogWorkspace({
         </select>
       </label>
     </fieldset>
+
+    {runtime === "db" && actor.role === "admin" && <ReferenceMelodyEdgeEditor
+      getMelodyClass={getMelodyClass}
+      getMelodyEdge={getMelodyEdge}
+      addMelodyEdge={addMelodyEdge}
+      removeMelodyEdge={removeMelodyEdge}
+      onChanged={async () => {
+        setSelectedDetail(undefined);
+        await reloadCandidates();
+        onMelodyStructureChanged?.();
+      }}
+    />}
 
     <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
       <button
