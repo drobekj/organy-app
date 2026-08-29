@@ -169,9 +169,11 @@ function uiCoverage() {
   machine.complete(machine.begin(), [record]);
   const html = renderToStaticMarkup(<ServiceContextReferenceTopicFieldView
     editable selected={{ id: record.id, title: record.title }} open dirty={false} query="" snapshot={machine.snapshot()} activeIndex={0} serviceLanguage="mixed"
-    onOpen={() => undefined} onQueryChange={() => undefined} onKeyDown={() => undefined} onSelect={() => undefined} onActiveIndexChange={() => undefined} onClear={() => undefined}
+    onOpen={() => undefined} onQueryChange={() => undefined} onKeyDown={() => undefined} onSelect={() => undefined} onSelectNone={() => undefined} onActiveIndexChange={() => undefined}
   />);
+  assert.match(html, />None</);
   assert.match(html, /Adwent/);
+  assert.doesNotMatch(html, /Clear topic/);
   assert.match(html, /linear-gradient\(90deg, #ffffff 0%, #eef0f3 100%\)/, "Mixed Topic row exposes the Polish left-to-right language cue");
   assert.doesNotMatch(html, /href=|Source|source/i, "Topic UI must never expose a source URL");
 }
@@ -196,7 +198,7 @@ async function staticCoverage() {
   assert.match(component, /\["polish", "czech"\]/);
   assert.doesNotMatch(component, /sourceUrl|href=|Source/);
   assert.match(component, /mixedServiceCandidateStyle\(props\.serviceLanguage, record\.language\)/);
-  assert.match(antiphonComponent, /service-antiphon-topic-row \{ grid-column: 1 \/ -1; \}/, "Antiphon + Topic row spans the complete two-column Service Context grid");
+  assert.match(css, /\.service-antiphon-topic-row \{[\s\S]*?grid-column: 1 \/ -1;/, "Antiphon + Topic row spans the complete two-column Service Context grid");
   assert.match(antiphonComponent, /mixedServiceCandidateStyle\(props\.serviceLanguage, record\.language\)/);
   assert.match(candidate, /referenceTopicMatchesSong/);
   assert.match(candidate, /candidates\.sort\(compareConcreteResults\)/);
