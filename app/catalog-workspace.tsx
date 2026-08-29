@@ -19,6 +19,7 @@ import { DbReferenceAntiphonRecommendationClient } from "../src/application/refe
 import type { ReferenceAntiphonRecommendation } from "../src/application/reference-antiphon-recommendation";
 import type { ReferenceCatalogRecord } from "../src/application/reference-catalog-contract";
 import { ReferenceSongLookupField } from "./reference-song-lookup-field";
+import { getDefaultServiceLanguage, getNearestSunday } from "../src/planning-lifecycle/service-context-defaults";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 
 type PreferenceResult<T> =
@@ -47,7 +48,7 @@ export function CatalogWorkspace({
   setRepertoireMembership,
   onAntiphonRecommendationChanged,
 }: CatalogWorkspaceProps) {
-  const [language, setLanguage] = useState<ServiceLanguage>("mixed");
+  const [language, setLanguage] = useState<ServiceLanguage>(() => getDefaultServiceLanguage(getNearestSunday(new Date())));
   const [organistPersonId, setOrganistPersonId] = useState(() => actor.role === "organist" ? (actor.personId ?? "") : "");
   const [antiphon, setAntiphon] = useState<ServiceAntiphonReference>();
   const [topic, setTopic] = useState<ServiceTopicReference>();
@@ -319,20 +320,18 @@ export function CatalogWorkspace({
           serviceLanguage={language}
           selected={antiphon}
           recommendedSong={antiphonRecommendation?.recommendedSong}
+          recommendationLoading={antiphonRecommendationLoading}
+          recommendationError={antiphonRecommendationError}
+          referenceSongControl={runtime === "db" && actor.role === "admin" && antiphon && antiphonRecommendation ? (
+            <ReferenceSongLookupField
+              language={antiphonLanguage}
+              selected={antiphonRecommendation.recommendedSong}
+              disabled={antiphonRecommendationSaving}
+              onSelect={(record) => void setAntiphonReferenceSong(record)}
+            />
+          ) : undefined}
           onChange={(value) => setAntiphon(value ? { ...value } : undefined)}
         />
-        {runtime === "db" && actor.role === "admin" && antiphon && <div className="catalog-antiphon-reference-editor">
-          <span className="catalog-context-label">Ref song</span>
-          {antiphonRecommendationLoading && <span className="field-help" role="status">Loading…</span>}
-          {!antiphonRecommendationLoading && antiphonRecommendation && <ReferenceSongLookupField
-            language={antiphonLanguage}
-            selected={antiphonRecommendation.recommendedSong}
-            disabled={antiphonRecommendationSaving}
-            onSelect={(record) => void setAntiphonReferenceSong(record)}
-          />}
-          {antiphonRecommendationSaving && <span className="field-help" role="status">Saving…</span>}
-          {antiphonRecommendationError && <span className="field-help inline-error" role="alert">{antiphonRecommendationError}</span>}
-        </div>}
       </div>
       <div className="catalog-context-cell">
         <span className="catalog-context-label">Topic</span>
