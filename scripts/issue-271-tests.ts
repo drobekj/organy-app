@@ -36,7 +36,7 @@ for (const required of ['action: "savePerson"', "Display name", "Priest", "Organ
   assert(personAdmin.includes(required), `Person administration is missing ${required}`);
 }
 assert(css.includes(".melody-protection-panel"), "Melody Protection compact layout is missing");
-assert.match(css, /\.planning-melody-protection-slot \{[\s\S]*?justify-self: end;/, "Melody Protection reserved slot must align to the right");
+assert.match(css, /\.planning-melody-protection-slot \{[\s\S]*?justify-self: stretch;[\s\S]*?width: 100%;/, "Melody Protection reserved slot must fill the right-aligned protection track");
 assert.match(css, /\.melody-protection-panel \{[\s\S]*?border-radius: 1rem;/, "Melody Protection must keep the rounded contour");
 
 console.log("Issue 271 relocation acceptance passed.");
