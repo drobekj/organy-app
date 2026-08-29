@@ -922,7 +922,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 0.65rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   min-width: 0;
 }
 
@@ -943,14 +943,6 @@ textarea {
   opacity: 1;
 }
 
-.service-antiphon-reference {
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 700;
-  padding: 0.45rem 0.55rem;
-  white-space: nowrap;
-}
-
 .service-antiphon-source {
   color: #175cd3;
   font-size: 0.85rem;
@@ -966,6 +958,110 @@ textarea {
   line-height: 1;
   margin-right: 0.25rem;
   padding: 0.35rem 0.45rem;
+}
+
+.service-antiphon-detail-button {
+  align-items: center;
+  border-radius: 0.65rem;
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  line-height: 1;
+  min-width: 4.7rem;
+  padding: 0 0.65rem;
+}
+
+.service-antiphon-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.75rem 1.5rem rgb(31 41 51 / 12%);
+  display: grid;
+  gap: 0.65rem;
+  max-height: min(32rem, 70vh);
+  overflow: visible;
+  padding: 0.75rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  width: min(82vw, 46rem);
+  z-index: 65;
+}
+
+.service-antiphon-detail-header,
+.service-antiphon-detail-title,
+.service-antiphon-detail-row {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.service-antiphon-detail-header {
+  justify-content: space-between;
+}
+
+.service-antiphon-detail-header button {
+  border-radius: 0.35rem;
+  line-height: 1;
+  min-width: 2rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.service-antiphon-detail-title {
+  min-width: 0;
+}
+
+.service-antiphon-detail-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-antiphon-detail-row {
+  border-top: 1px solid var(--border);
+  min-height: 2.4rem;
+  padding-top: 0.55rem;
+}
+
+.service-antiphon-detail-reference-row {
+  justify-content: space-between;
+}
+
+.service-antiphon-detail-label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.service-antiphon-detail-reference-control {
+  margin-left: auto;
+  min-width: 0;
+  width: min(100%, 22rem);
+}
+
+.service-antiphon-detail-reference-readonly {
+  font-weight: 600;
+}
+
+.service-antiphon-detail .reference-song-lookup {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .service-antiphon-detail {
+    max-width: calc(100vw - 2rem);
+    width: 100%;
+  }
+
+  .service-antiphon-detail-reference-row {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .service-antiphon-detail-reference-control {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 .service-antiphon-listbox {
@@ -1186,13 +1282,6 @@ textarea {
 
 .catalog-context-label {
   font-weight: 600;
-}
-
-.catalog-antiphon-reference-editor {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 0.45rem;
-  min-width: 0;
 }
 
 .reference-song-lookup {
