@@ -17,8 +17,6 @@ import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import { DbReferenceAntiphonRecommendationClient } from "../src/application/reference-antiphon-recommendation-client";
 import type { ReferenceAntiphonRecommendation } from "../src/application/reference-antiphon-recommendation";
-import type { ReferenceCatalogRecord } from "../src/application/reference-catalog-contract";
-import { ReferenceSongLookupField } from "./reference-song-lookup-field";
 import { getDefaultServiceLanguage, getNearestSunday } from "../src/planning-lifecycle/service-context-defaults";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 
@@ -65,7 +63,6 @@ export function CatalogWorkspace({
   const [repertoireError, setRepertoireError] = useState<string>();
   const [antiphonRecommendation, setAntiphonRecommendation] = useState<ReferenceAntiphonRecommendation>();
   const [antiphonRecommendationLoading, setAntiphonRecommendationLoading] = useState(false);
-  const [antiphonRecommendationSaving, setAntiphonRecommendationSaving] = useState(false);
   const [antiphonRecommendationError, setAntiphonRecommendationError] = useState<string>();
   const request = useRef(0);
   const preferenceRequest = useRef(0);
@@ -78,7 +75,6 @@ export function CatalogWorkspace({
     () => runtime === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: actor.userId, role: actor.role }) : null,
     [runtime, actor.userId, actor.role],
   );
-  const antiphonLanguage = antiphon?.id.startsWith("polish:") ? "polish" : "czech";
   const canManageRepertoire = runtime === "db" && Boolean(organistPersonId) && (
     actor.role === "admin"
     || (actor.role === "organist" && actor.personId === organistPersonId)
@@ -221,29 +217,6 @@ export function CatalogWorkspace({
     if (candidate && preference) void persistPreferenceOnDetailExit(candidate, preference, draft);
   }
 
-  async function setAntiphonReferenceSong(record: ReferenceCatalogRecord | null) {
-    if (!recommendationClient || !antiphon || actor.role !== "admin" || antiphonRecommendationSaving) return;
-    const antiphonId = antiphon.id;
-    const token = ++recommendationRequest.current;
-    setAntiphonRecommendationSaving(true);
-    setAntiphonRecommendationError(undefined);
-    try {
-      const result = await recommendationClient.set(antiphonId, record?.id ?? null);
-      if (recommendationRequest.current !== token) return;
-      if (!result.success) {
-        setAntiphonRecommendationError(result.error.message);
-        return;
-      }
-      setAntiphonRecommendation(result.value);
-      await reloadCandidates();
-      onAntiphonRecommendationChanged?.();
-    } catch (cause) {
-      if (recommendationRequest.current === token) setAntiphonRecommendationError(cause instanceof Error ? cause.message : "Antiphon Reference song could not be saved.");
-    } finally {
-      if (recommendationRequest.current === token) setAntiphonRecommendationSaving(false);
-    }
-  }
-
   async function mutateRepertoire(candidate: CandidateQueryResult, action: "Add" | "Remove") {
     if (!canManageRepertoire || repertoireSaving) return;
     const adding = action === "Add";
@@ -311,38 +284,44 @@ export function CatalogWorkspace({
 
     <fieldset className="field-group catalog-context">
       <legend>Catalog context</legend>
-      <div className="catalog-context-cell">
-        <span className="catalog-context-label">Antiphon</span>
-        <ServiceContextReferenceAntiphonField
-          runtime={runtime}
-          editable
-          contextKey={contextKey}
-          serviceLanguage={language}
-          selected={antiphon}
-          recommendedSong={antiphonRecommendation?.recommendedSong}
-          recommendationLoading={antiphonRecommendationLoading}
-          recommendationError={antiphonRecommendationError}
-          referenceSongControl={runtime === "db" && actor.role === "admin" && antiphon && antiphonRecommendation ? (
-            <ReferenceSongLookupField
-              language={antiphonLanguage}
-              selected={antiphonRecommendation.recommendedSong}
-              disabled={antiphonRecommendationSaving}
-              onSelect={(record) => void setAntiphonReferenceSong(record)}
-            />
-          ) : undefined}
-          onChange={(value) => setAntiphon(value ? { ...value } : undefined)}
-        />
-      </div>
-      <div className="catalog-context-cell">
-        <span className="catalog-context-label">Topic</span>
-        <ServiceContextReferenceTopicField
-          runtime={runtime}
-          editable
-          contextKey={contextKey}
-          serviceLanguage={language}
-          selected={topic}
-          onChange={(value) => setTopic(value ? { ...value } : undefined)}
-        />
+      <div className="service-antiphon-topic-row catalog-antiphon-topic-row">
+        <div className="catalog-context-cell">
+          <span className="catalog-context-label">Antiphon</span>
+          <ServiceContextReferenceAntiphonField
+            runtime={runtime}
+            editable
+            contextKey={contextKey}
+            serviceLanguage={language}
+            selected={antiphon}
+            recommendedSong={antiphonRecommendation?.recommendedSong}
+            recommendationLoading={antiphonRecommendationLoading}
+            recommendationError={antiphonRecommendationError}
+            recommendationClient={recommendationClient ?? undefined}
+            canEditRecommendation={runtime === "db" && actor.role === "admin"}
+            onRecommendationChanged={async (value) => {
+              if (antiphon?.id === value.antiphonId) {
+                recommendationRequest.current += 1;
+                setAntiphonRecommendation(value);
+                setAntiphonRecommendationLoading(false);
+                setAntiphonRecommendationError(undefined);
+                await reloadCandidates();
+              }
+              onAntiphonRecommendationChanged?.();
+            }}
+            onChange={(value) => setAntiphon(value ? { ...value } : undefined)}
+          />
+        </div>
+        <div className="catalog-context-cell">
+          <span className="catalog-context-label">Topic</span>
+          <ServiceContextReferenceTopicField
+            runtime={runtime}
+            editable
+            contextKey={contextKey}
+            serviceLanguage={language}
+            selected={topic}
+            onChange={(value) => setTopic(value ? { ...value } : undefined)}
+          />
+        </div>
       </div>
       <label className="catalog-context-cell">
         <span>Organist</span>
