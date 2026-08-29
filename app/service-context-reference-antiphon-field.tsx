@@ -204,6 +204,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         {props.detail.antiphon.sourceUrl && <a className="service-antiphon-source" href={props.detail.antiphon.sourceUrl} target="_blank" rel="noreferrer">Source</a>}
       </div>
       <div className="service-antiphon-detail-row service-antiphon-detail-reference-row">
+        <strong className="service-antiphon-detail-reference-label">Ref song</strong>
         {props.detail.loading ? <span className="field-help">Loading…</span> : props.detail.editableRecommendation && props.detail.recommendation ? (
           <ReferenceSongLookupField
             language={detailLanguage(props.detail.antiphon)}
