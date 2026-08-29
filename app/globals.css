@@ -150,6 +150,15 @@ h2 {
   color: var(--danger);
 }
 
+/* Shared visual contract for true application alerts. */
+[role="alert"] {
+  background: #fef3f2;
+  border: 1px solid var(--danger);
+  border-radius: 0.65rem;
+  color: var(--danger);
+  padding: 0.65rem 0.75rem;
+}
+
 .planning-form,
 .rows-list {
   display: grid;
@@ -1188,17 +1197,54 @@ textarea {
 }
 
 
-/* Catalog redesign step 1: compact admin-only Melody Protection beside Planning context. */
-.melody-protection-panel {
+/* Planning header: stable status area plus right-aligned Melody Protection slot. */
+.planning-context-header {
+  --planning-protection-height: 6.5rem;
+  --planning-protection-width: calc(33.333333% + 0.067rem);
+  align-items: start;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) var(--planning-protection-width);
+  min-height: var(--planning-protection-height);
+}
+
+.planning-context-info {
+  align-content: start;
   display: grid;
   gap: 0.35rem;
+  height: var(--planning-protection-height);
+  min-width: 0;
+  overflow: auto;
+  padding-top: 0.35rem;
+}
+
+.planning-context-info .saved-summary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.planning-melody-protection-slot {
+  height: var(--planning-protection-height);
   justify-self: end;
+  min-width: 0;
+  width: var(--planning-protection-width);
+}
+
+.melody-protection-panel {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  height: 100%;
+  overflow: auto;
   padding: 0.55rem 0.7rem 0.7rem;
-  width: min(100%, 14rem);
+  width: 100%;
 }
 
 .melody-protection-panel legend {
+  color: var(--muted);
   font-size: 0.9rem;
+  font-weight: 700;
 }
 
 .melody-protection-control {
@@ -1207,6 +1253,7 @@ textarea {
 
 .melody-protection-control select {
   min-height: 2.55rem;
+  width: 100%;
 }
 
 .person-admin-list {
@@ -1232,9 +1279,18 @@ textarea {
 }
 
 @media (max-width: 720px) {
-  .melody-protection-panel {
-    justify-self: stretch;
+  .planning-context-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .planning-context-info,
+  .planning-melody-protection-slot {
+    height: var(--planning-protection-height);
     width: 100%;
+  }
+
+  .planning-melody-protection-slot {
+    justify-self: stretch;
   }
 }
 
@@ -1270,6 +1326,7 @@ textarea {
 }
 
 .catalog-context-label {
+  color: var(--muted);
   font-weight: 600;
 }
 

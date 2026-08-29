@@ -1639,14 +1639,14 @@ Save the correction and mark those plans for revision?`);
           <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
         </nav>
 
-        <div className={`status status-${saveState}`} role="status">
+        {workspace !== "planning" && <div className={`status status-${saveState}`} role="status">
           {saveState === "unsaved" && "Unsaved"}
           {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
           {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
           {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
           {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
           {saveState === "errors" && "Service error"}
-        </div>
+        </div>}
 
         {workspace === "plans" && (
           <section className="db-workspace" aria-label="Plans">
@@ -1668,7 +1668,45 @@ Save the correction and mark those plans for revision?`);
 
         {workspace === "planning" && (
         <form className="planning-form" onSubmit={(event) => event.preventDefault()}>
-          <fieldset className="field-group">
+          <div className="planning-context-header">
+            <div className="planning-context-info" aria-label="Planning status and opened record">
+              <div className={`status status-${saveState}`} role="status">
+                {saveState === "unsaved" && "Unsaved"}
+                {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
+                {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
+                {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
+                {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
+                {saveState === "errors" && "Service error"}
+              </div>
+              {persistedSet && <p className="saved-summary">Opened {formatPlanningSetSummary(persistedSet)}.</p>}
+              {completedRecord && <p className="saved-summary">Opened {formatCompletedRecordSummary(completedRecord)}.</p>}
+              {savedWorkingSet && saveState === "saved" && (
+                <p className="saved-summary">
+                  Saved {savedWorkingSet.rows.length} row{savedWorkingSet.rows.length === 1 ? "" : "s"} for{" "}
+                  {savedWorkingSet.serviceDate || "an unscheduled service"}.
+                </p>
+              )}
+            </div>
+            <div className="planning-melody-protection-slot" aria-label="Melody Protection reserved area">
+              {selectedRole === "admin" && (
+                <NonRepetitionPeriodPanel
+                  runtimeMode={runtimeMode}
+                  actor={activeActor}
+                  memoryInteractionRepository={interactionRepository}
+                  memoryPlanningSets={repositories.planningSets}
+                  onSaved={() => {
+                    lookupTracker.invalidatePrefix("song:");
+                    setCandidateResults({});
+                    setCandidateLoading({});
+                    setCandidateErrors({});
+                    setCandidateRefreshGeneration((generation) => generation + 1);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
+          <fieldset className="field-group planning-service-context">
             <legend>Service context</legend>
             <label>
               Service date
@@ -1756,22 +1794,6 @@ Save the correction and mark those plans for revision?`);
               />
             </div>
           </fieldset>
-
-          {selectedRole === "admin" && (
-            <NonRepetitionPeriodPanel
-              runtimeMode={runtimeMode}
-              actor={activeActor}
-              memoryInteractionRepository={interactionRepository}
-              memoryPlanningSets={repositories.planningSets}
-              onSaved={() => {
-                lookupTracker.invalidatePrefix("song:");
-                setCandidateResults({});
-                setCandidateLoading({});
-                setCandidateErrors({});
-                setCandidateRefreshGeneration((generation) => generation + 1);
-              }}
-            />
-          )}
 
           <div className="rows-header">
             <h2>Rows</h2>
@@ -1976,25 +1998,25 @@ Save the correction and mark those plans for revision?`);
         )}
 
         {serviceError && (
-          <p className="error-summary">
+          <p className="error-summary" role="alert">
             {serviceError.message}
             {serviceError.issues?.length ? ` ${serviceError.issues.map((issue) => issue.message).join(" ")}` : ""}
           </p>
         )}
 
-        {persistedSet && (
+        {workspace !== "planning" && persistedSet && (
           <p className="saved-summary">
             Opened {formatPlanningSetSummary(persistedSet)}.
           </p>
         )}
 
-        {completedRecord && (
+        {workspace !== "planning" && completedRecord && (
           <p className="saved-summary">
             Opened {formatCompletedRecordSummary(completedRecord)}.
           </p>
         )}
 
-        {savedWorkingSet && saveState === "saved" && (
+        {workspace !== "planning" && savedWorkingSet && saveState === "saved" && (
           <p className="saved-summary">
             Saved {savedWorkingSet.rows.length} row{savedWorkingSet.rows.length === 1 ? "" : "s"} for{" "}
             {savedWorkingSet.serviceDate || "an unscheduled service"}.

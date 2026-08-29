@@ -212,7 +212,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
             disabled={props.detail.saving}
             onSelect={props.onSaveRecommendation}
           />
-        ) : props.detail.error ? <span className="field-help inline-error">{props.detail.error}</span> : props.detail.recommendation?.recommendedSong ? <>
+        ) : props.detail.error ? <span className="field-help inline-error" role="alert">{props.detail.error}</span> : props.detail.recommendation?.recommendedSong ? <>
           <strong>{props.detail.recommendation.recommendedSong.displayNumber}</strong>
           <span>{props.detail.recommendation.recommendedSong.title}</span>
         </> : <span className="field-help">none</span>}
