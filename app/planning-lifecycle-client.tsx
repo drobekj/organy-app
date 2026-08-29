@@ -474,6 +474,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const referencePreferenceRequests = useRef(new ReferencePreferenceRequestTracker());
   const referenceAggregateRequests = useRef(new ReferencePreferenceRequestTracker());
   const referenceRepertoireRequests = useRef(new ReferencePreferenceRequestTracker());
+  const planningAntiphonRecommendationRequest = useRef(0);
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<Workspace>("planning");
   const memoryUsers = useMemo(() => interactionRepository.listUsers(), [interactionRepository]);
