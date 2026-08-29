@@ -7,7 +7,7 @@ const css = readFileSync("app/issue-238-workspace.css", "utf8");
 
 const signRoleIndex = account.indexOf("<span>Sign Role</span>");
 const changePasswordIndex = account.indexOf(">Change Password</button>");
-const signOutIndex = account.indexOf(">Sign Out</button>");
+const signOutIndex = account.indexOf('"Signing Out…" : "Sign Out"');
 assert.ok(signRoleIndex >= 0, "User menu must contain Sign Role");
 assert.ok(signRoleIndex < changePasswordIndex && changePasswordIndex < signOutIndex, "User menu order must be Sign Role, Change Password, Sign Out");
 
