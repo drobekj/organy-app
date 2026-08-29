@@ -2158,12 +2158,26 @@ Save the correction and mark those plans for revision?`);
             saveOwnPreference={(referenceSongId, score) => interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
             getPreferenceAggregate={(referenceSongId) => interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
             setRepertoireMembership={(referenceSongId, organistPersonId, active) => interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId, ...(organistPersonId ? { organistPersonId } : {}), active })}
+            getMelodyClass={(referenceSongId) => interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId })}
+            getMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.getReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            addMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.addReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            removeMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.removeReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
             onAntiphonRecommendationChanged={() => {
               setAntiphonRecommendationGeneration((generation) => generation + 1);
               lookupTracker.invalidatePrefix("song:");
               setCandidateResults({});
               setCandidateLoading({});
               setCandidateErrors({});
+              setCandidateRefreshGeneration((generation) => generation + 1);
+            }}
+            onMelodyStructureChanged={() => {
+              lookupTracker.invalidatePrefix("song:");
+              setCandidateResults({});
+              setCandidateLoading({});
+              setCandidateErrors({});
+              setSelectedCandidateAvailability({ key: "", byRow: {} });
+              resetDetailEligibility();
+              setPlanningExpansion(null);
               setCandidateRefreshGeneration((generation) => generation + 1);
             }}
           />
