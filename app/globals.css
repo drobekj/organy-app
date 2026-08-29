@@ -1006,12 +1006,16 @@ textarea {
 }
 
 .service-antiphon-detail-reference-row {
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+
+.service-antiphon-detail-reference-label {
+  white-space: nowrap;
 }
 
 .service-antiphon-detail-reference-row > .reference-song-lookup,
 .service-antiphon-detail-reference-row > .field-help {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
 }
 
 .service-antiphon-detail .reference-song-lookup {
