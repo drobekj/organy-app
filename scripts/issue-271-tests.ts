@@ -16,7 +16,7 @@ assert.equal(validateMelodyWindowMonths(1.5), false);
 
 assert.equal((client.match(/<NonRepetitionPeriodPanel/g) ?? []).length, 1, "Melody Protection must render once");
 assert(client.includes('workspace === "planning"'), "Planning workspace must remain present");
-assert(client.includes('selectedRole === "admin" && (\n            <NonRepetitionPeriodPanel'), "Melody Protection must be admin-only in Planning");
+assert.match(client, /className="planning-melody-protection-slot"[\s\S]*?selectedRole === "admin" && \([\s\S]*?<NonRepetitionPeriodPanel/, "Melody Protection must remain admin-only inside the reserved Planning slot");
 assert(client.includes('onSaved={() => {'), "Planning must react to successful Melody Protection saves");
 assert(client.includes('setCandidateRefreshGeneration((generation) => generation + 1)'), "Melody Protection save must refresh candidates");
 assert(client.includes("candidateRefreshGeneration,\n    serviceDate"), "selected candidate availability must share the Melody Protection refresh generation");
@@ -36,6 +36,7 @@ for (const required of ['action: "savePerson"', "Display name", "Priest", "Organ
   assert(personAdmin.includes(required), `Person administration is missing ${required}`);
 }
 assert(css.includes(".melody-protection-panel"), "Melody Protection compact layout is missing");
-assert(css.includes("justify-self: end"), "Melody Protection must align to the right");
+assert.match(css, /\.planning-melody-protection-slot \{[\s\S]*?justify-self: end;/, "Melody Protection reserved slot must align to the right");
+assert.match(css, /\.melody-protection-panel \{[\s\S]*?border-radius: 1rem;/, "Melody Protection must keep the rounded contour");
 
 console.log("Issue 271 relocation acceptance passed.");
