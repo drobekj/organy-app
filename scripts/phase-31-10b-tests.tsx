@@ -144,7 +144,8 @@ async function integrationCoverage() {
   const planning = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
   assert.equal((planning.match(/<ReferenceAntiphonRecommendationPanel\b/g) ?? []).length, 0, "Catalog step 2 must not remount the legacy recommendation mutation UI inside the read-only Catalog workspace");
   assert.match(planning, /<CatalogWorkspace\b/, "Catalog step 2 must render the unified read-only Catalog workspace");
-  assert.doesNotMatch(planning, /DbReferenceAntiphonRecommendationClient|ReferenceAntiphonRecommendationUiState/);
+  assert.match(planning, /DbReferenceAntiphonRecommendationClient/, "Stage 4 must load the current Antiphon Reference song for the shared Planning lookup.");
+  assert.doesNotMatch(planning, /ReferenceAntiphonRecommendationUiState/, "Planning must not remount the legacy recommendation state machine.");
   const panel = await readFile(new URL("../app/reference-antiphon-recommendation-panel.tsx", import.meta.url), "utf8");
   for (const client of ["DbReferenceAntiphonClient", "DbReferenceCatalogClient", "DbReferenceAntiphonRecommendationClient"]) assert.ok(panel.includes(client));
   assert.match(panel, /if \(changed\) setSongSearch\(""\)/, "actor/runtime context did not clear target query");

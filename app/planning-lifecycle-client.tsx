@@ -31,7 +31,8 @@ import { ACTIVE_ROLE_CHANGED_EVENT, serializeActiveRoleCookie } from "../src/app
 import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
 import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";
 import { MemoryReferenceThematicSectionProvider } from "../src/application/reference-thematic-section";
-import { ReferenceAntiphonRecommendationPanel } from "./reference-antiphon-recommendation-panel";
+import { DbReferenceAntiphonRecommendationClient } from "../src/application/reference-antiphon-recommendation-client";
+import type { ReferenceAntiphonRecommendation } from "../src/application/reference-antiphon-recommendation";
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 import { NonRepetitionPeriodPanel } from "./non-repetition-period-panel";
@@ -403,6 +404,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
   const [serviceNote, setServiceNote] = useState("");
   const [referenceAntiphon, setReferenceAntiphon] = useState<ServiceAntiphonReference | undefined>();
+  const [planningAntiphonRecommendation, setPlanningAntiphonRecommendation] = useState<ReferenceAntiphonRecommendation>();
+  const [antiphonRecommendationGeneration, setAntiphonRecommendationGeneration] = useState(0);
   const [referenceTopic, setReferenceTopic] = useState<ServiceTopicReference | undefined>();
   const [serviceContextGeneration, setServiceContextGeneration] = useState(0);
   const [candidateAntiphonKey, setCandidateAntiphonKey] = useState("");
@@ -471,6 +474,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const referencePreferenceRequests = useRef(new ReferencePreferenceRequestTracker());
   const referenceAggregateRequests = useRef(new ReferencePreferenceRequestTracker());
   const referenceRepertoireRequests = useRef(new ReferencePreferenceRequestTracker());
+  const planningAntiphonRecommendationRequest = useRef(0);
   const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<Workspace>("planning");
   const memoryUsers = useMemo(() => interactionRepository.listUsers(), [interactionRepository]);
@@ -484,6 +488,11 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const selectedRole = activeActor.role;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
 
+  const planningAntiphonRecommendationClient = useMemo(
+    () => runtimeMode === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: activeActor.userId, role: activeActor.role }) : null,
+    [runtimeMode, activeActor.userId, activeActor.role],
+  );
+
   function selectAssignedRole(role: PlanningRole) {
     setSelectedAssignedRole(role);
     if (runtimeMode === "db") {
@@ -495,6 +504,21 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   useEffect(() => {
     void refreshDbSets();
   }, [runtimeMode]);
+
+  useEffect(() => {
+    const token = ++planningAntiphonRecommendationRequest.current;
+    setPlanningAntiphonRecommendation(undefined);
+    if (!planningAntiphonRecommendationClient || !referenceAntiphon) return;
+
+    void planningAntiphonRecommendationClient.get(referenceAntiphon.id).then((result) => {
+      if (planningAntiphonRecommendationRequest.current !== token) return;
+      if (result.success) setPlanningAntiphonRecommendation(result.value);
+    }).catch(() => undefined);
+
+    return () => {
+      if (planningAntiphonRecommendationRequest.current === token) planningAntiphonRecommendationRequest.current += 1;
+    };
+  }, [planningAntiphonRecommendationClient, referenceAntiphon?.id, antiphonRecommendationGeneration]);
 
   useEffect(() => {
     if (workspace !== "planning" && workspace !== "catalog") return;
@@ -1902,6 +1926,7 @@ Save the correction and mark those plans for revision?`);
                 contextKey={serviceContextRecordKey}
                 serviceLanguage={serviceLanguage}
                 selected={referenceAntiphon}
+                recommendedSong={planningAntiphonRecommendation?.recommendedSong}
                 invalid={hasAntiphonLanguageMismatch}
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined)); }}
               />
@@ -2112,6 +2137,14 @@ Save the correction and mark those plans for revision?`);
             saveOwnPreference={(referenceSongId, score) => interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
             getPreferenceAggregate={(referenceSongId) => interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
             setRepertoireMembership={(referenceSongId, organistPersonId, active) => interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId, ...(organistPersonId ? { organistPersonId } : {}), active })}
+            onAntiphonRecommendationChanged={() => {
+              setAntiphonRecommendationGeneration((generation) => generation + 1);
+              lookupTracker.invalidatePrefix("song:");
+              setCandidateResults({});
+              setCandidateLoading({});
+              setCandidateErrors({});
+              setCandidateRefreshGeneration((generation) => generation + 1);
+            }}
           />
         )}
         {workspace === "development" && (

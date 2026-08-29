@@ -922,7 +922,7 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 0.65rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   min-width: 0;
 }
 
@@ -941,6 +941,14 @@ textarea {
 .service-antiphon-control-invalid input {
   color: var(--muted);
   opacity: 1;
+}
+
+.service-antiphon-reference {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.45rem 0.55rem;
+  white-space: nowrap;
 }
 
 .service-antiphon-source {
@@ -1178,6 +1186,93 @@ textarea {
 
 .catalog-context-label {
   font-weight: 600;
+}
+
+.catalog-antiphon-reference-editor {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  min-width: 0;
+}
+
+.reference-song-lookup {
+  min-width: 0;
+  position: relative;
+}
+
+.reference-song-control {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  display: grid;
+  min-width: 0;
+}
+
+.reference-song-control:focus-within {
+  outline: 2px solid #84adff;
+  outline-offset: 1px;
+}
+
+.reference-song-control input {
+  border: 0;
+  min-width: 0;
+  outline: 0;
+}
+
+.reference-song-listbox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 0.75rem 1.5rem rgb(31 41 51 / 12%);
+  direction: rtl;
+  left: 0;
+  margin-top: 0.35rem;
+  max-height: min(32rem, 70vh);
+  overflow-y: auto;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 70;
+}
+
+.reference-song-listbox > * {
+  direction: ltr;
+}
+
+.reference-song-option {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 2.5rem;
+  padding: 0.35rem 0.45rem;
+  scroll-margin-block: 0.35rem;
+}
+
+.reference-song-option:last-child {
+  border-bottom: 0;
+}
+
+.reference-song-option-active {
+  border-radius: 0.55rem;
+  outline: 3px solid #84adff;
+  outline-offset: -3px;
+}
+
+.reference-song-option[aria-selected="true"] {
+  background: #eff6ff;
+}
+
+.reference-song-list-state {
+  color: var(--muted);
+  padding: 0.65rem 0.75rem;
+}
+
+.reference-song-list-error {
+  color: var(--danger);
 }
 
 .catalog-availability-switch {
