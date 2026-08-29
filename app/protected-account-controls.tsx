@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { PlanningRole } from "../src/planning-lifecycle";
-import { ACTIVE_ROLE_CHANGED_EVENT, isPlanningRole } from "../src/application/active-role";
+import { ACTIVE_ROLE_CHANGED_EVENT, isPlanningRole, serializeActiveRoleCookie } from "../src/application/active-role";
 import { authClient } from "../src/auth/client";
 import { PasswordVisibilityField } from "./password-visibility-field";
 
@@ -47,6 +47,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
   const [pendingAction, setPendingAction] = useState<PendingAccountAction>(null);
   const [activeRole, setActiveRole] = useState<PlanningRole>(initialActiveRole);
   const userMenuRef = useRef<HTMLDetailsElement>(null);
+  const signRoleMenuRef = useRef<HTMLDetailsElement>(null);
   const roleMenuRef = useRef<HTMLDetailsElement>(null);
 
   function resetPasswordEditor() {
@@ -58,6 +59,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
 
   function closeUserMenu() {
     if (userMenuRef.current) userMenuRef.current.open = false;
+    if (signRoleMenuRef.current) signRoleMenuRef.current.open = false;
     resetPasswordEditor();
   }
 
@@ -244,6 +246,14 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
     };
   }, []);
 
+  function selectSignedInRole(role: PlanningRole) {
+    if (!roles.includes(role)) return;
+    document.cookie = serializeActiveRoleCookie(role);
+    setActiveRole(role);
+    window.dispatchEvent(new CustomEvent(ACTIVE_ROLE_CHANGED_EVENT, { detail: role }));
+    closeUserMenu();
+  }
+
   async function signOut() {
     if (pendingAction) return;
     setFeedback(null);
@@ -278,6 +288,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
     }
   }
 
+  const assignedRoles = roles.filter(isPlanningRole);
   const activeAdmin = activeRole === "admin" && roles.includes("admin");
   const pending = pendingAction !== null;
 
@@ -300,6 +311,24 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
         <div className="workspace-account-popover">
           {!editingPassword ? (
             <>
+              <details className="workspace-sign-role-menu" ref={signRoleMenuRef}>
+                <summary>
+                  <span>Sign Role</span>
+                  <span className="workspace-sign-role-arrow" aria-hidden="true">▸</span>
+                </summary>
+                <div className="workspace-sign-role-options" aria-label="Assigned roles">
+                  {assignedRoles.map((role) => (
+                    <button
+                      type="button"
+                      key={role}
+                      aria-current={role === activeRole ? "true" : undefined}
+                      onClick={() => selectSignedInRole(role)}
+                    >
+                      {formatRole(role)}
+                    </button>
+                  ))}
+                </div>
+              </details>
               <button type="button" onClick={() => { setEditingPassword(true); setFeedback(null); }} disabled={pending}>Change Password</button>
               <button type="button" onClick={signOut} disabled={pending} aria-busy={pendingAction === "signOut"}>{pendingAction === "signOut" ? "Signing Out…" : "Sign Out"}</button>
             </>

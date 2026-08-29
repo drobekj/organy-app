@@ -24,7 +24,7 @@ import { buildCandidateQueryInput, buildCanonicalCandidateUsages, candidateToSel
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
 import { apiFailure } from "../src/application/api-error";
 import type { CompletedPlanInvalidationPreview } from "../src/application/completed-plan-conflict-preview";
-import { ACTIVE_ROLE_CHANGED_EVENT, serializeActiveRoleCookie } from "../src/application/active-role";
+import { ACTIVE_ROLE_CHANGED_EVENT, isPlanningRole, serializeActiveRoleCookie } from "../src/application/active-role";
 import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";
 import { MemoryReferenceThematicSectionProvider } from "../src/application/reference-thematic-section";
 import { DbReferenceAntiphonRecommendationClient } from "../src/application/reference-antiphon-recommendation-client";
@@ -466,6 +466,16 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       window.dispatchEvent(new CustomEvent(ACTIVE_ROLE_CHANGED_EVENT, { detail: role }));
     }
   }
+
+  useEffect(() => {
+    if (runtimeMode !== "db") return;
+    function handleSignedInRoleChange(event: Event) {
+      const role = (event as CustomEvent<unknown>).detail;
+      if (isPlanningRole(role) && storedUser.roles.includes(role)) setSelectedAssignedRole(role);
+    }
+    window.addEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleSignedInRoleChange);
+    return () => window.removeEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleSignedInRoleChange);
+  }, [runtimeMode, storedUser.roles]);
 
   useEffect(() => {
     void refreshDbSets();
@@ -1992,7 +2002,7 @@ Save the correction and mark those plans for revision?`);
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
-            {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong>{storedUser.roles.length > 1 && <label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>}<p>DB runtime identity comes from the protected server session. No user switch is available.</p></div>}
+            {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong><p>DB runtime identity comes from the protected server session. Role switching is available from the User menu.</p></div>}
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
         )}
