@@ -32,8 +32,10 @@ const noops = {
   onQueryChange: (_: string) => undefined,
   onKeyDown: () => undefined,
   onSelect: (_: ReferenceAntiphonRecord) => undefined,
+  onSelectNone: () => undefined,
+  onOpenDetail: () => undefined,
   onActiveIndexChange: (_: number) => undefined,
-  onClear: () => undefined,
+  onSaveRecommendation: () => undefined,
 };
 
 function staleResponseCoverage() {
@@ -93,9 +95,11 @@ function renderCoverage() {
     <ServiceContextReferenceAntiphonFieldView editable selected={undefined} open dirty query="80" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
   );
   assert.match(results, /role="listbox"/);
+  assert.match(results, />None</);
   assert.match(results, />800</);
   assert.match(results, /Antiphon 800/);
-  assert.match(results, /href="https:\/\/www\.evangelickykancional\.cz/);
+  assert.match(results, />Detail<\/button>/);
+  assert.doesNotMatch(results, /href="https:\/\/www\.evangelickykancional\.cz/, "Antiphon list rows expose Detail instead of Source.");
 
   const selected = renderToStaticMarkup(
     <ServiceContextReferenceAntiphonFieldView editable selected={snapshot(800)} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
@@ -103,14 +107,25 @@ function renderCoverage() {
   assert.match(selected, /value="800 · Antiphon 800"/);
   assert.match(selected, />Detail<\/button>/);
   assert.doesNotMatch(selected, /href="https:\/\/www\.evangelickykancional\.cz/, "Selected Antiphon control keeps Source inside Detail.");
-  assert.match(selected, /Clear antiphon/);
+  assert.doesNotMatch(selected, /Clear antiphon/);
 
   const selectedDetail = renderToStaticMarkup(
-    <ServiceContextReferenceAntiphonFieldView editable selected={snapshot(800)} open={false} detailOpen dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+    <ServiceContextReferenceAntiphonFieldView
+      editable
+      selected={snapshot(800)}
+      open={false}
+      detail={{ antiphon: snapshot(800), origin: "selected", recommendation: { antiphonId: "czech:800", recommendedSong: null }, loading: false, saving: false, editableRecommendation: false }}
+      dirty={false}
+      query=""
+      snapshot={state.snapshot()}
+      activeIndex={0}
+      {...noops}
+    />,
   );
   assert.match(selectedDetail, /Antiphon detail for 800 Antiphon 800/);
   assert.match(selectedDetail, /href="https:\/\/www\.evangelickykancional\.cz/);
-  assert.match(selectedDetail, /Ref song: none/);
+  assert.match(selectedDetail, />none<\/span>/);
+  assert.doesNotMatch(selectedDetail, /Close antiphon detail/);
 
   const readOnly = renderToStaticMarkup(
     <ServiceContextReferenceAntiphonFieldView editable={false} selected={snapshot(800)} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
