@@ -289,13 +289,29 @@ export function CatalogWorkspace({
   }
 
   return <section className="catalog-workspace" aria-label="Catalog">
-    <div className="rows-header">
-      <h2>Catalog</h2>
-      <span className="field-help">Candidate and repertoire workspace</span>
-    </div>
-
     <fieldset className="field-group catalog-context">
       <legend>Catalog context</legend>
+      <div className="catalog-organist-language-row">
+        <label className="catalog-context-cell">
+          <span>Organist</span>
+          <select
+            aria-label="Catalog organist"
+            value={organistPersonId}
+            onChange={(event) => setOrganistPersonId(event.target.value)}
+          >
+            <option value="">Anonymous</option>
+            {organists.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
+          </select>
+        </label>
+        <label className="catalog-context-cell">
+          <span>Language</span>
+          <select aria-label="Catalog language" value={language} onChange={(event) => setLanguage(event.target.value as ServiceLanguage)}>
+            <option value="mixed">Mixed</option>
+            <option value="czech">Czech</option>
+            <option value="polish">Polish</option>
+          </select>
+        </label>
+      </div>
       <div className="service-antiphon-topic-row catalog-antiphon-topic-row">
         <div className="catalog-context-cell">
           <span className="catalog-context-label">Antiphon</span>
@@ -335,38 +351,7 @@ export function CatalogWorkspace({
           />
         </div>
       </div>
-      <label className="catalog-context-cell">
-        <span>Organist</span>
-        <select
-          aria-label="Catalog organist"
-          value={organistPersonId}
-          onChange={(event) => setOrganistPersonId(event.target.value)}
-        >
-          <option value="">Anonymous</option>
-          {organists.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
-        </select>
-      </label>
-      <label className="catalog-context-cell">
-        <span>Language</span>
-        <select aria-label="Catalog language" value={language} onChange={(event) => setLanguage(event.target.value as ServiceLanguage)}>
-          <option value="mixed">Mixed</option>
-          <option value="czech">Czech</option>
-          <option value="polish">Polish</option>
-        </select>
-      </label>
     </fieldset>
-
-    {runtime === "db" && actor.role === "admin" && <ReferenceMelodyEdgeEditor
-      getMelodyClass={getMelodyClass}
-      getMelodyEdge={getMelodyEdge}
-      addMelodyEdge={addMelodyEdge}
-      removeMelodyEdge={removeMelodyEdge}
-      onChanged={async () => {
-        setSelectedDetail(undefined);
-        await reloadCandidates();
-        onMelodyStructureChanged?.();
-      }}
-    />}
 
     <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
       <button
@@ -435,6 +420,19 @@ export function CatalogWorkspace({
         />)}
       </div>}
     </section>
+
+    {runtime === "db" && actor.role === "admin" && <ReferenceMelodyEdgeEditor
+      getMelodyClass={getMelodyClass}
+      getMelodyEdge={getMelodyEdge}
+      addMelodyEdge={addMelodyEdge}
+      removeMelodyEdge={removeMelodyEdge}
+      onChanged={async () => {
+        setSelectedDetail(undefined);
+        await reloadCandidates();
+        onMelodyStructureChanged?.();
+      }}
+    />}
+
   </section>;
 }
 
