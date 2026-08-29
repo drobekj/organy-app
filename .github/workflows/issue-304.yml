@@ -1,0 +1,30 @@
+name: Issue 304 User menu Sign Role
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: User-menu role relocation acceptance
+        run: npm run test:issue-304
+      - name: Prior compact workspace acceptance
+        run: npm run test:issue-238
+      - name: Prior account/menu acceptance
+        run: npm run test:issue-247
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
