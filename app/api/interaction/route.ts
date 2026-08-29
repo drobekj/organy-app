@@ -62,6 +62,9 @@ export async function POST(request: Request) {
       case "setReferenceRepertoireMembership": { const input = referenceRepertoireInput(body.input, true); validateRepertoireActor(body.actor); return respond(await auditedInteractionMutation(pool, actor, "repertoire.reference.set", "referenceRepertoire", `${input.organistPersonId ?? actor.personId ?? actor.userId}:${input.referenceSongId}`, body.input, (client) => new ReferenceRepertoireService(new PgReferenceRepertoireRepository(client)).set(actor, input.referenceSongId, input.organistPersonId, input.active!))); }
       case "getReferenceMelodyClass": { const input = referenceMelodyInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceMelody.get(actor, input.referenceSongId)); }
       case "mergeReferenceMelodyClasses": { const input = referenceMelodyInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceMelody.merge(actor, input.referenceSongId, input.mergeWithReferenceSongId!)); }
+      case "getReferenceMelodyEdge": { const input = referenceMelodyEdgeInput(body.input); validateRepertoireActor(body.actor); return respond(await referenceMelody.hasEdge(actor, input.referenceSongId, input.otherReferenceSongId)); }
+      case "addReferenceMelodyEdge": { const input = referenceMelodyEdgeInput(body.input); validateRepertoireActor(body.actor); return respond(await referenceMelody.addEdge(actor, input.referenceSongId, input.otherReferenceSongId)); }
+      case "removeReferenceMelodyEdge": { const input = referenceMelodyEdgeInput(body.input); validateRepertoireActor(body.actor); return respond(await referenceMelody.removeEdge(actor, input.referenceSongId, input.otherReferenceSongId)); }
       case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(actor, input.antiphonId)); }
       case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(actor, input.antiphonId, input.referenceSongId!)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await auditedInteractionMutation(pool, actor, "repertoire.local.set", "repertoire", `${String(input.organistPersonId)}:${String(input.songId)}`, body.input, (client) => new InteractionService(new PgInteractionRepository(client), pgCatalog(client)).setRepertoire(actor, String(input.organistPersonId), String(input.songId), Boolean(input.active)))); }
@@ -135,6 +138,14 @@ function referenceMelodyInput(value: unknown, merge: boolean): { referenceSongId
   if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key))) throw new LocalActorError("invalidInput", "Reference melody input is malformed.");
   for (const key of allowed) if (typeof input[key] !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input[key] as string)) throw new LocalActorError("invalidInput", `A valid ${key} is required.`);
   return { referenceSongId: input.referenceSongId as string, ...(merge ? { mergeWithReferenceSongId: input.mergeWithReferenceSongId as string } : {}) };
+}
+function referenceMelodyEdgeInput(value: unknown): { referenceSongId: string; otherReferenceSongId: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Reference melody edge input is required.");
+  const input = value as Record<string, unknown>;
+  const allowed = ["referenceSongId", "otherReferenceSongId"];
+  if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key))) throw new LocalActorError("invalidInput", "Reference melody edge input is malformed.");
+  for (const key of allowed) if (typeof input[key] !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input[key] as string)) throw new LocalActorError("invalidInput", `A valid ${key} is required.`);
+  return { referenceSongId: input.referenceSongId as string, otherReferenceSongId: input.otherReferenceSongId as string };
 }
 function referenceAntiphonRecommendationInput(value: unknown, mutation: boolean): { antiphonId: string; referenceSongId?: string | null } {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is required.");
