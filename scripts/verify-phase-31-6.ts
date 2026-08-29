@@ -79,17 +79,19 @@ async function main() {
       }
       const tracker = new ReferencePreferenceRequestTracker(); const applied: number[] = []; const stale = tracker.begin(); const current = tracker.begin(); if (tracker.isCurrent(stale)) applied.push(6); if (tracker.isCurrent(current)) applied.push(3); assert.deepEqual(applied, [3]);
       const catalogUi = await readFile(new URL("../app/catalog-workspace.tsx", import.meta.url), "utf8");
+      const melodyUi = await readFile(new URL("../src/planning-lifecycle/melody-detail.tsx", import.meta.url), "utf8");
       const shellUi = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
-      assert.match(catalogUi, /aria-label="Reference preference aggregate"/);
-      assert.match(catalogUi, /actor\.role !== "admin" && ownPreference/);
-      assert.match(catalogUi, />Save preference<\/button>/);
-      assert.match(catalogUi, /getPreferenceAggregate\(selectedDetail\.songId\)/);
-      assert.match(catalogUi, /saveOwnPreference\(songId, score\)/);
-      assert.match(catalogUi, /await reloadCandidates\(songId\)/);
+      assert.match(melodyUi, /Aggregate preference \{member\.aggregatePreferenceScore\}/);
+      assert.match(melodyUi, /<span>Personal preference<\/span>/);
+      assert.match(catalogUi, /actor\.role !== "organist" && actor\.role !== "priest"/);
+      assert.doesNotMatch(catalogUi, />Save preference<\/button>/);
+      assert.match(catalogUi, /persistPreferenceOnDetailExit/);
+      assert.match(catalogUi, /saveOwnPreference\(candidate\.songId, score\)/);
+      assert.match(catalogUi, /await reloadCandidates\(\)/);
       assert.match(shellUi, /getOwnPreference=\{\(referenceSongId\) => interactionClient\.getReferenceOwnPreference/);
       assert.match(shellUi, /saveOwnPreference=\{\(referenceSongId, score\) => interactionClient\.saveReferenceOwnPreference/);
       assert.match(shellUi, /getPreferenceAggregate=\{\(referenceSongId\) => interactionClient\.getReferencePreferenceAggregate/);
-      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, authoritative candidate aggregate projection without candidate-set or candidate-order mutation, and UI projection passed.");
+      console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, authoritative candidate aggregate projection without candidate-set or candidate-order mutation, and compact in-row UI projection with exit autosave passed.");
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); });
     process.env.DATABASE_URL = guardUrl; assert.equal(await fingerprint(guardUrl), before); assert.equal((await control.query("select 1 from pg_database where datname=$1", [name])).rows.length, 0);
     console.log("Phase 31.6 cleanup evidence: guard database fingerprint unchanged and temporary database removed.");

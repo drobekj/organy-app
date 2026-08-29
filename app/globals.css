@@ -1232,6 +1232,7 @@ textarea {
 .catalog-candidate-row {
   min-width: 0;
   padding: 0.25rem 0.35rem;
+  position: relative;
 }
 
 .catalog-candidate-summary {
@@ -1252,25 +1253,40 @@ textarea {
   padding: 0.65rem 0.75rem;
 }
 
-.catalog-detail-stack {
-  display: grid;
-  gap: 0.65rem;
-  min-width: 0;
-}
-
-.catalog-candidate-panel .melody-detail-candidate {
-  justify-self: stretch !important;
+.catalog-candidate-row > .melody-detail-candidate {
+  justify-self: end !important;
   margin-top: 0 !important;
   max-height: min(32rem, 70vh);
+  overflow-y: auto;
+  position: absolute !important;
+  right: 0;
+  top: 0;
   transform: none !important;
-  width: 100% !important;
+  width: min(82%, 46rem) !important;
+  z-index: 50 !important;
 }
 
-.catalog-preference-detail {
-  border-top: 1px solid var(--border);
+.melody-personal-preference {
+  align-items: center;
   display: grid;
-  gap: 0.55rem;
-  padding-top: 0.65rem;
+  gap: 0.4rem;
+  grid-template-columns: minmax(0, 1fr) 3.25rem;
+  margin-left: auto;
+  width: 13rem;
+}
+
+.melody-personal-preference > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.melody-personal-preference > select {
+  height: 2rem;
+  min-width: 3.25rem;
+  padding: 0.2rem 0.35rem;
+  width: 3.25rem;
 }
 
 @media (max-width: 720px) {

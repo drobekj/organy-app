@@ -25,5 +25,5 @@ for (const token of [
 }
 assert.ok(workspace.includes("Show melody detail for ${candidate.number} ${candidate.title}"));
 assert.ok(planning.includes("Show melody detail for ${candidate.number} ${candidate.title}"));
-assert.match(workspace, /<CatalogPreferencePanel/);
+assert.doesNotMatch(workspace, /<CatalogPreferencePanel/, "Catalog must not render a standalone preference panel.");
 console.log("Issue 277 corrective Catalog HUMAN refinement coverage passed.");
