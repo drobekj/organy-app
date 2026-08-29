@@ -83,6 +83,7 @@ const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 const workspace = readFileSync("app/catalog-workspace.tsx", "utf8");
 const route = readFileSync("app/api/interaction/route.ts", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
+const melodyDetail = readFileSync("src/planning-lifecycle/melody-detail.tsx", "utf8");
 
 assert(client.includes("<CatalogWorkspace"), "Catalog must render the new CatalogWorkspace");
 assert(!client.includes('aria-label="Catalog sections"'), "Catalog sub-tab navigation must be removed");
@@ -99,10 +100,10 @@ for (const required of [
   "<ServiceContextReferenceTopicField",
 ]) assert(workspace.includes(required), `Catalog workspace is missing ${required}`);
 
-assert(workspace.includes('aria-label="Reference preference aggregate"'), "Catalog Detail must preserve aggregate preference for all DB roles");
-assert(workspace.includes('aria-label="My reference preference"'), "Catalog Detail must preserve own preference editing for non-admin roles");
-assert(workspace.includes(">Save preference</button>"), "Catalog Detail must preserve preference save control");
-assert(workspace.includes("await reloadCandidates(songId)"), "Preference save must refresh authoritative Catalog candidates");
+assert(melodyDetail.includes("Aggregate preference {member.aggregatePreferenceScore}"), "Catalog Detail must preserve aggregate preference inside the shared song detail row");
+assert(melodyDetail.includes("<span>Personal preference</span>"), "Catalog Detail must expose compact personal preference in the shared song row");
+assert(!workspace.includes(">Save preference</button>"), "Catalog Detail must autosave preference on exit instead of exposing a save button");
+assert(workspace.includes("persistPreferenceOnDetailExit"), "Catalog Detail must persist changed personal preference on exit");
 assert(!workspace.includes("Melody Protection"), "Catalog must not expose Melody Protection");
 assert(!workspace.includes("serviceDate"), "Catalog candidate UI must not depend on service date");
 assert(route.includes('case "queryCatalogCandidates"'), "Interaction API must expose the Catalog candidate query");
