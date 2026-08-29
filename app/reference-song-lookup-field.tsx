@@ -14,6 +14,7 @@ export type ReferenceSongLookupFieldProps = {
   ariaLabel?: string;
   listboxId?: string;
   getOptionClassName?: (record: ReferenceCatalogRecord) => string | undefined;
+  selectedValueClassName?: string;
   onSelect: (record: ReferenceCatalogRecord | null) => void;
   clientFactory?: () => ReferenceSongLookupClient;
 };
@@ -39,6 +40,7 @@ export function ReferenceSongLookupField({
   ariaLabel = "Ref song",
   listboxId = "reference-song-listbox",
   getOptionClassName,
+  selectedValueClassName,
   onSelect,
   clientFactory = defaultClientFactory,
 }: ReferenceSongLookupFieldProps) {
@@ -159,6 +161,7 @@ export function ReferenceSongLookupField({
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
         disabled={disabled}
+        className={selected && !(open && dirty) ? selectedValueClassName : undefined}
         value={displayValue}
         onPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
         onFocus={openLookup}

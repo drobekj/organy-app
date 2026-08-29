@@ -353,28 +353,27 @@ export function CatalogWorkspace({
       </div>
     </fieldset>
 
-    <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
-      <button
-        type="button"
-        aria-pressed={availabilityMode === "available"}
-        className={availabilityMode === "available" ? "active-workspace" : undefined}
-        onClick={() => setAvailabilityMode("available")}
-      >
-        Available
-      </button>
-      <button
-        type="button"
-        aria-pressed={availabilityMode === "unavailable"}
-        className={availabilityMode === "unavailable" ? "active-workspace" : undefined}
-        onClick={() => setAvailabilityMode("unavailable")}
-      >
-        Unavailable
-      </button>
-    </div>
-
-    <section className="catalog-candidate-panel" aria-label="Catalog candidates">
+    <fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates">
+      <legend>Candidates</legend>
       <div className="catalog-candidate-header">
-        <strong>Candidates</strong>
+        <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
+          <button
+            type="button"
+            aria-pressed={availabilityMode === "available"}
+            className={availabilityMode === "available" ? "active-workspace" : undefined}
+            onClick={() => setAvailabilityMode("available")}
+          >
+            Available
+          </button>
+          <button
+            type="button"
+            aria-pressed={availabilityMode === "unavailable"}
+            className={availabilityMode === "unavailable" ? "active-workspace" : undefined}
+            onClick={() => setAvailabilityMode("unavailable")}
+          >
+            Unavailable
+          </button>
+        </div>
         <div className="workspace-nav catalog-view-switch" role="group" aria-label="Catalog candidate view">
           <button type="button" className={viewMode === "songs" ? "active-workspace" : undefined} aria-pressed={viewMode === "songs"} onClick={() => setViewMode("songs")}>Songs</button>
           <button type="button" className={viewMode === "melodies" ? "active-workspace" : undefined} aria-pressed={viewMode === "melodies"} onClick={() => setViewMode("melodies")}>Melodies</button>
@@ -419,7 +418,7 @@ export function CatalogWorkspace({
           ) : undefined}
         />)}
       </div>}
-    </section>
+    </fieldset>
 
     {runtime === "db" && actor.role === "admin" && <ReferenceMelodyEdgeEditor
       getMelodyClass={getMelodyClass}

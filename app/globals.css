@@ -1368,10 +1368,8 @@ textarea {
 }
 
 .catalog-candidate-panel {
-  border: 1px solid var(--border);
-  border-radius: 0.85rem;
-  display: grid;
   gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   padding: 0.75rem;
   width: 100%;
@@ -1478,6 +1476,7 @@ textarea {
 }
 
 .catalog-melody-edge-language-row > select {
+  font-weight: 700;
   justify-self: start;
   max-width: 100%;
   min-width: 7rem;
@@ -1486,6 +1485,10 @@ textarea {
 
 .catalog-melody-edge-song-row > * {
   min-width: 0;
+}
+
+.melody-edge-selected-value {
+  font-weight: 700;
 }
 
 .catalog-melody-edge-actions {

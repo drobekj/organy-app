@@ -28,10 +28,10 @@ assert.doesNotMatch(catalog, /Candidate and repertoire workspace/);
 
 // Stable vertical Catalog order.
 const contextIndex = catalog.indexOf('<fieldset className="field-group catalog-context">');
-const availabilityIndex = catalog.indexOf('className="catalog-availability-switch"');
-const candidateIndex = catalog.indexOf('className="catalog-candidate-panel"');
+const candidateIndex = catalog.indexOf('<fieldset className="field-group catalog-candidate-panel"');
+const availabilityIndex = catalog.indexOf('className="catalog-availability-switch"', candidateIndex);
 const melodyIndex = catalog.indexOf('<ReferenceMelodyEdgeEditor');
-assert.ok(contextIndex >= 0 && contextIndex < availabilityIndex && availabilityIndex < candidateIndex && candidateIndex < melodyIndex);
+assert.ok(contextIndex >= 0 && contextIndex < candidateIndex && candidateIndex < availabilityIndex && availabilityIndex < melodyIndex);
 
 // Candidate viewport is intentionally compact: approximately seven rows.
 assert.match(css, /\.catalog-candidate-scroll \{[\s\S]*?max-height: 18rem;/);

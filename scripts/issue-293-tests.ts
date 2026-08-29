@@ -27,8 +27,7 @@ const route = readFileSync("app/api/interaction/route.ts", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 const journal = readFileSync("drizzle/meta/_journal.json", "utf8");
 
-assert.match(editor, /useState<SongLanguage>\("czech"\)/);
-assert.match(editor, /useState<SongLanguage>\("polish"\)/);
+assert.equal((editor.match(/useState<SongLanguage>\("czech"\)/g) ?? []).length, 2, "Both Melody Edges languages default to Czech.");
 assert.match(editor, /side="first"/);
 assert.match(editor, /side="second"/);
 assert.match(editor, /melody-edge-\$\{side\}-song-listbox/);
@@ -36,10 +35,14 @@ assert.match(editor, /setFirstLanguage\(event\.target\.value as SongLanguage\);\
 assert.match(editor, /setSecondLanguage\(event\.target\.value as SongLanguage\);\s*setSecondSong\(null\)/);
 
 assert.match(editor, /getMelodyClass\(firstSong\.id\)/);
+assert.match(editor, /getMelodyClass\(secondSong\.id\)/);
 assert.match(editor, /isOutsideReferenceMelodyClass\(record\.id, firstSong\?\.id, firstClassMemberIds\)/);
+assert.match(editor, /isOutsideReferenceMelodyClass\(record\.id, secondSong\?\.id, secondClassMemberIds\)/);
 assert.match(editor, /reference-song-option-outside-melody/);
 assert.match(lookup, /getOptionClassName\?: \(record: ReferenceCatalogRecord\) => string \| undefined/);
+assert.match(lookup, /selectedValueClassName\?: string/);
 assert.match(lookup, /getOptionClassName\?\.\(record\)/);
+assert.match(editor, /selectedValueClassName="melody-edge-selected-value"/);
 assert.doesNotMatch(lookup, /disabled=\{[^}]*getOptionClassName/);
 
 assert.match(editor, /disabled=\{saving \|\| edgeLoading \|\| mode !== "add"\}[\s\S]*?mutate\("add"\)[\s\S]*?>Add<\/button>/);
