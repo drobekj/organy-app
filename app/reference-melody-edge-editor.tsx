@@ -151,87 +151,93 @@ export function ReferenceMelodyEdgeEditor({
     }
   }
 
-  return <section className="catalog-melody-edge-editor" aria-label="Melody edge editor">
-    <div className="catalog-melody-edge-header">
-      <strong>Melody edges</strong>
-      <span className="field-help">Admin</span>
+  return <fieldset className="field-group catalog-melody-edge-editor" aria-label="Melody edge editor">
+    <legend>Melody edges</legend>
+
+    <div className="catalog-melody-edge-language-row">
+      <select
+        aria-label="First song language"
+        value={firstLanguage}
+        onChange={(event) => {
+          setFirstLanguage(event.target.value as SongLanguage);
+          setFirstSong(null);
+        }}
+      >
+        <option value="czech">Czech</option>
+        <option value="polish">Polish</option>
+      </select>
+      <select
+        aria-label="Second song language"
+        value={secondLanguage}
+        onChange={(event) => {
+          setSecondLanguage(event.target.value as SongLanguage);
+          setSecondSong(null);
+        }}
+      >
+        <option value="czech">Czech</option>
+        <option value="polish">Polish</option>
+      </select>
     </div>
-    <div className="catalog-melody-edge-row">
-      <MelodyEdgeSongSelector
+
+    <div className="catalog-melody-edge-song-row">
+      <MelodyEdgeSongLookup
         side="first"
         language={firstLanguage}
         selected={firstSong}
-        onLanguageChange={(language) => {
-          setFirstLanguage(language);
-          setFirstSong(null);
-        }}
         onSelect={setFirstSong}
       />
-      <MelodyEdgeSongSelector
+      <MelodyEdgeSongLookup
         side="second"
         language={secondLanguage}
         selected={secondSong}
         optionClassName={(record) => isOutsideReferenceMelodyClass(record.id, firstSong?.id, firstClassMemberIds)
           ? "reference-song-option-outside-melody"
           : undefined}
-        onLanguageChange={(language) => {
-          setSecondLanguage(language);
-          setSecondSong(null);
-        }}
         onSelect={setSecondSong}
       />
-      <div className="catalog-melody-edge-actions" aria-label="Melody edge actions">
-        {mode === "add" && <button type="button" disabled={saving || edgeLoading} onClick={() => void mutate("add")}>Add</button>}
-        {mode === "remove" && <button type="button" disabled={saving || edgeLoading} onClick={() => void mutate("remove")}>Remove</button>}
-        {(mode === "incomplete" || mode === "self" || mode === "checking") && <>
-          <button type="button" disabled>Add</button>
-          <button type="button" disabled>Remove</button>
-        </>}
-      </div>
     </div>
+
+    <div className="catalog-melody-edge-actions" aria-label="Melody edge actions">
+      <button
+        type="button"
+        disabled={saving || edgeLoading || mode !== "add"}
+        onClick={() => void mutate("add")}
+      >Add</button>
+      <button
+        type="button"
+        disabled={saving || edgeLoading || mode !== "remove"}
+        onClick={() => void mutate("remove")}
+      >Remove</button>
+    </div>
+
     {mode === "self" && <p className="catalog-candidate-state inline-error" role="alert">A melody edge cannot connect a song to itself.</p>}
     {(classLoading || edgeLoading) && <p className="catalog-candidate-state" role="status">Checking melody structure…</p>}
     {classError && <p className="catalog-candidate-state inline-error" role="alert">{classError}</p>}
     {edgeError && <p className="catalog-candidate-state inline-error" role="alert">{edgeError}</p>}
     {mutationError && <p className="catalog-candidate-state inline-error" role="alert">{mutationError}</p>}
-  </section>;
+  </fieldset>;
 }
 
-function MelodyEdgeSongSelector({
+function MelodyEdgeSongLookup({
   side,
   language,
   selected,
   optionClassName,
-  onLanguageChange,
   onSelect,
 }: {
   side: "first" | "second";
   language: SongLanguage;
   selected: ReferenceCatalogRecord | null;
   optionClassName?: (record: ReferenceCatalogRecord) => string | undefined;
-  onLanguageChange: (language: SongLanguage) => void;
   onSelect: (record: ReferenceCatalogRecord | null) => void;
 }) {
   const label = side === "first" ? "First song" : "Second song";
-  return <div className="catalog-melody-edge-selector">
-    <label>
-      <span>Language</span>
-      <select
-        aria-label={`${label} language`}
-        value={language}
-        onChange={(event) => onLanguageChange(event.target.value as SongLanguage)}
-      >
-        <option value="czech">Czech</option>
-        <option value="polish">Polish</option>
-      </select>
-    </label>
-    <ReferenceSongLookupField
-      language={language}
-      selected={lookupSelection(selected)}
-      ariaLabel={label}
-      listboxId={`melody-edge-${side}-song-listbox`}
-      getOptionClassName={optionClassName}
-      onSelect={onSelect}
-    />
-  </div>;
+  return <ReferenceSongLookupField
+    language={language}
+    selected={lookupSelection(selected)}
+    ariaLabel={label}
+    listboxId={`melody-edge-${side}-song-listbox`}
+    getOptionClassName={optionClassName}
+    onSelect={onSelect}
+  />;
 }

@@ -32,8 +32,8 @@ assert.match(editor, /useState<SongLanguage>\("polish"\)/);
 assert.match(editor, /side="first"/);
 assert.match(editor, /side="second"/);
 assert.match(editor, /melody-edge-\$\{side\}-song-listbox/);
-assert.match(editor, /setFirstLanguage\(language\);\s*setFirstSong\(null\)/);
-assert.match(editor, /setSecondLanguage\(language\);\s*setSecondSong\(null\)/);
+assert.match(editor, /setFirstLanguage\(event\.target\.value as SongLanguage\);\s*setFirstSong\(null\)/);
+assert.match(editor, /setSecondLanguage\(event\.target\.value as SongLanguage\);\s*setSecondSong\(null\)/);
 
 assert.match(editor, /getMelodyClass\(firstSong\.id\)/);
 assert.match(editor, /isOutsideReferenceMelodyClass\(record\.id, firstSong\?\.id, firstClassMemberIds\)/);
@@ -42,11 +42,10 @@ assert.match(lookup, /getOptionClassName\?: \(record: ReferenceCatalogRecord\) =
 assert.match(lookup, /getOptionClassName\?\.\(record\)/);
 assert.doesNotMatch(lookup, /disabled=\{[^}]*getOptionClassName/);
 
-assert.match(editor, /mode === "add"[\s\S]*?mutate\("add"\)[\s\S]*?>Add<\/button>/);
-assert.match(editor, /mode === "remove"[\s\S]*?mutate\("remove"\)[\s\S]*?>Remove<\/button>/);
-assert.match(editor, /mode === "incomplete" \|\| mode === "self" \|\| mode === "checking"/);
-assert.match(editor, /<button type="button" disabled>Add<\/button>/);
-assert.match(editor, /<button type="button" disabled>Remove<\/button>/);
+assert.match(editor, /disabled=\{saving \|\| edgeLoading \|\| mode !== "add"\}[\s\S]*?mutate\("add"\)[\s\S]*?>Add<\/button>/);
+assert.match(editor, /disabled=\{saving \|\| edgeLoading \|\| mode !== "remove"\}[\s\S]*?mutate\("remove"\)[\s\S]*?>Remove<\/button>/);
+assert.equal((editor.match(/>Add<\/button>/g) ?? []).length, 1, "Add must have one stable rendered position.");
+assert.equal((editor.match(/>Remove<\/button>/g) ?? []).length, 1, "Remove must have one stable rendered position.");
 assert.match(editor, /cannot connect a song to itself/);
 
 assert.match(editor, /await Promise\.all\(\[refreshEditorState\(\), onChanged\(\)\]\)/);
@@ -72,7 +71,8 @@ assert.match(route, /case "addReferenceMelodyEdge"/);
 assert.match(route, /case "removeReferenceMelodyEdge"/);
 
 assert.match(css, /\.reference-song-option-outside-melody \{[\s\S]*?color: var\(--muted\);/);
-assert.match(css, /\.catalog-melody-edge-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\) auto;/);
+assert.match(css, /\.catalog-melody-edge-language-row,[\s\S]*?\.catalog-melody-edge-song-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/);
+assert.match(css, /\.catalog-melody-edge-actions \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?justify-content: flex-start;/);
 
 assert.match(journal, /"tag": "0020_reference_melody_edges"/);
 assert.doesNotMatch(journal, /0021_/);

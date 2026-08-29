@@ -1250,6 +1250,17 @@ textarea {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
+.catalog-organist-language-row {
+  display: grid;
+  gap: 0.75rem;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.catalog-organist-language-row > * {
+  min-width: 0;
+}
+
 .catalog-context-cell {
   align-content: start;
   display: grid;
@@ -1381,7 +1392,7 @@ textarea {
 .catalog-candidate-scroll {
   direction: rtl;
   display: grid;
-  max-height: min(34rem, 68vh);
+  max-height: 18rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-left: 0.35rem;
@@ -1451,45 +1462,41 @@ textarea {
   width: 3.25rem;
 }
 
-/* Stage 6: admin Reference melody-edge editor. */
+/* Stage 6 refinement: fixed three-row admin Reference melody-edge editor. */
 .catalog-melody-edge-editor {
-  border: 1px solid var(--border);
-  border-radius: 0.85rem;
-  display: grid;
   gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   padding: 0.75rem;
 }
 
-.catalog-melody-edge-header {
-  align-items: center;
-  display: flex;
-  gap: 0.75rem;
-  justify-content: space-between;
-}
-
-.catalog-melody-edge-row {
-  align-items: end;
+.catalog-melody-edge-language-row,
+.catalog-melody-edge-song-row {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.catalog-melody-edge-selector {
-  display: grid;
-  gap: 0.4rem;
+.catalog-melody-edge-language-row > select {
+  justify-self: start;
+  max-width: 100%;
+  min-width: 7rem;
+  width: calc(100% - 4.5rem);
+}
+
+.catalog-melody-edge-song-row > * {
   min-width: 0;
-}
-
-.catalog-melody-edge-selector > label {
-  align-items: center;
-  display: grid;
-  gap: 0.35rem;
-  grid-template-columns: auto minmax(7rem, 1fr);
 }
 
 .catalog-melody-edge-actions {
   display: flex;
   gap: 0.4rem;
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+}
+
+.catalog-melody-edge-editor > .catalog-candidate-state {
+  grid-column: 1 / -1;
 }
 
 .reference-song-option-outside-melody {
@@ -1507,12 +1514,8 @@ textarea {
     display: grid;
   }
 
-  .catalog-melody-edge-row {
-    align-items: stretch;
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .catalog-melody-edge-actions {
-    justify-content: flex-end;
+  .catalog-melody-edge-language-row > select {
+    min-width: 0;
+    width: calc(100% - 2rem);
   }
 }
