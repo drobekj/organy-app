@@ -171,14 +171,18 @@ Each workflow uses:
 - **Preconditions:** The actor has the admin role.
 - **Steps:**
   1. Admin manages the base song catalog using concrete song identity `(language, number)`.
-  2. Admin manages melody equivalence between songs.
-  3. Admin manages antiphon mappings from `(language, antiphon number)` to concrete songs.
-  4. Admin manages liturgical-season mappings from `(language, liturgical season)` to songs.
-  5. Admin manages the melody non-repetition period subject to conflict validation.
+  2. Admin manages melody equivalence through persistent direct song-to-song melody edges. The editor uses two independent song lookups, each with its own Czech/Polish language filter.
+  3. When the first song is selected, the second lookup visually mutes songs outside the first song's current melody-equivalence class without preventing their selection.
+  4. For a complete non-self pair, the editor offers Add when the direct edge is absent and Remove when the direct edge exists; incomplete or self pairs cannot mutate.
+  5. A successful edge change recomputes the complete melody-equivalence partition transactionally and immediately invalidates Catalog and Planning candidate/detail state so subsequent reads use the new structure.
+  6. Admin manages antiphon mappings from `(language, antiphon number)` to concrete songs.
+  7. Admin manages liturgical-season mappings from `(language, liturgical season)` to songs.
+  8. Admin manages the melody non-repetition period subject to conflict validation.
 - **Exceptions:**
   - Priest, organist, and congregation member roles do not manage shared knowledge.
   - Antiphon and liturgical-season mappings provide highlighting, not hard filtering.
-- **Outputs:** Updated shared knowledge available to planning, highlighting, candidate display, and non-repetition checks.
+  - Melody-edge editing changes shared melody knowledge only; it does not change explicit organist repertoire or concrete-song preferences.
+- **Outputs:** Updated shared knowledge available immediately to planning, highlighting, candidate display, repertoire-class evaluation, and non-repetition checks.
 - **Related requirements:** REQ-001, REQ-002, REQ-006, REQ-011, REQ-012
 
 ### WF-010 — Change the melody non-repetition period
