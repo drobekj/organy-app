@@ -42,6 +42,7 @@ type DetailState = {
 
 type DetailViewState = {
   antiphon: ServiceAntiphonReference;
+  origin: "selected" | "list";
   recommendation?: ReferenceAntiphonRecommendation;
   loading: boolean;
   saving: boolean;
@@ -486,6 +487,7 @@ export function ServiceContextReferenceAntiphonField({
       open={open}
       detail={detail ? {
         antiphon: detail.antiphon,
+        origin: detail.origin,
         recommendation: detailRecommendation,
         loading: detailRecommendationLoading,
         saving: detailRecommendationSaving,
