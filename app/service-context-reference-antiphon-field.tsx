@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DbReferenceAntiphonClient, MemoryReferenceAntiphonClient } from "../src/application/reference-antiphon-client";
 import type { ReferenceAntiphonProvider, ReferenceAntiphonRecord } from "../src/application/reference-antiphon-contract";
+import type { RecommendedReferenceSong } from "../src/application/reference-antiphon-recommendation";
 import { ServiceContextReferenceAntiphonUiState, type ServiceContextAntiphonSearchSnapshot } from "../src/application/service-context-reference-antiphon-ui-state";
 import type { ServiceAntiphonReference, ServiceLanguage } from "../src/planning-lifecycle";
 
@@ -12,6 +13,7 @@ export type ServiceContextReferenceAntiphonFieldProps = {
   contextKey: string;
   serviceLanguage: ServiceLanguage;
   selected?: ServiceAntiphonReference;
+  recommendedSong?: RecommendedReferenceSong | null;
   invalid?: boolean;
   onChange: (value: ServiceAntiphonReference | undefined) => void;
   clientFactory?: (runtime: "memory" | "db") => Pick<ReferenceAntiphonProvider, "list">;
@@ -20,6 +22,7 @@ export type ServiceContextReferenceAntiphonFieldProps = {
 type ViewProps = {
   editable: boolean;
   selected?: ServiceAntiphonReference;
+  recommendedSong?: RecommendedReferenceSong | null;
   invalid?: boolean;
   open: boolean;
   dirty: boolean;
@@ -84,6 +87,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         onChange={(event) => props.onQueryChange(event.target.value)}
         onKeyDown={props.onKeyDown}
       />
+      {props.selected && props.recommendedSong !== undefined && !(props.open && props.dirty) && <span className="service-antiphon-reference" aria-label="Antiphon Reference song">Catalog {props.recommendedSong ? `${props.recommendedSong.displayNumber} · ${props.recommendedSong.title}` : "none"}</span>}
       {props.selected?.sourceUrl && !(props.open && props.dirty) && <a className="service-antiphon-source" href={props.selected.sourceUrl} target="_blank" rel="noreferrer" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>Source</a>}
       {props.selected && props.editable && <button className="service-antiphon-clear" type="button" aria-label="Clear antiphon" title="Clear antiphon" onPointerDown={(event) => event.preventDefault()} onClick={props.onClear}>×</button>}
     </div>
@@ -119,7 +123,7 @@ async function listAll(client: Pick<ReferenceAntiphonProvider, "list">, serviceL
   return [first, ...rest].flatMap((page) => page.records);
 }
 
-export function ServiceContextReferenceAntiphonField({ runtime, editable, contextKey, serviceLanguage, selected, invalid, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceAntiphonFieldProps) {
+export function ServiceContextReferenceAntiphonField({ runtime, editable, contextKey, serviceLanguage, selected, recommendedSong, invalid, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceAntiphonFieldProps) {
   const identity = { runtimeMode: runtime, contextKey, editable, serviceLanguage } as const;
   const machineRef = useRef<ServiceContextReferenceAntiphonUiState | null>(null);
   if (!machineRef.current) machineRef.current = new ServiceContextReferenceAntiphonUiState(identity);
@@ -216,7 +220,7 @@ export function ServiceContextReferenceAntiphonField({ runtime, editable, contex
   return <div className="service-antiphon-lookup" ref={wrapperRef}>
     <style>{`.service-antiphon-topic-row { grid-column: 1 / -1; }`}</style>
     <ServiceContextReferenceAntiphonFieldView
-      editable={editable} selected={selected} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
+      editable={editable} selected={selected} recommendedSong={recommendedSong} invalid={invalid} open={open} dirty={dirty} query={query} snapshot={snapshot} activeIndex={activeIndex} serviceLanguage={serviceLanguage}
       onOpen={openLookup}
       onInputPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
       onInputClick={handleInputClick}
