@@ -1200,7 +1200,7 @@ textarea {
 /* Planning header: stable status area plus right-aligned Melody Protection slot. */
 .planning-context-header {
   --planning-protection-height: 6.5rem;
-  --planning-protection-width: calc((100% - 4rem) / 3 + 1.4rem);
+  --planning-protection-width: calc(33.333333% + 0.067rem);
   align-items: start;
   display: grid;
   gap: 1rem;
