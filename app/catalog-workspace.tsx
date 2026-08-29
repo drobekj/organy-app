@@ -15,6 +15,10 @@ import { candidatesForView, type CandidateViewMode } from "../src/planning-lifec
 import { getCandidateLineViewModel } from "../src/planning-lifecycle/candidate-line";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
+import { DbReferenceAntiphonRecommendationClient } from "../src/application/reference-antiphon-recommendation-client";
+import type { ReferenceAntiphonRecommendation } from "../src/application/reference-antiphon-recommendation";
+import type { ReferenceCatalogRecord } from "../src/application/reference-catalog-contract";
+import { ReferenceSongLookupField } from "./reference-song-lookup-field";
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 
 type PreferenceResult<T> =
@@ -30,6 +34,7 @@ export type CatalogWorkspaceProps = {
   saveOwnPreference: (referenceSongId: string, score: number) => Promise<PreferenceResult<ReferenceOwnPreference>>;
   getPreferenceAggregate: (referenceSongId: string) => Promise<PreferenceResult<ReferencePreferenceAggregate>>;
   setRepertoireMembership: (referenceSongId: string, organistPersonId: string | undefined, active: boolean) => Promise<PreferenceResult<unknown>>;
+  onAntiphonRecommendationChanged?: () => void;
 };
 
 export function CatalogWorkspace({
@@ -40,6 +45,7 @@ export function CatalogWorkspace({
   getOwnPreference,
   saveOwnPreference,
   setRepertoireMembership,
+  onAntiphonRecommendationChanged,
 }: CatalogWorkspaceProps) {
   const [language, setLanguage] = useState<ServiceLanguage>("mixed");
   const [organistPersonId, setOrganistPersonId] = useState(() => actor.role === "organist" ? (actor.personId ?? "") : "");
@@ -56,12 +62,22 @@ export function CatalogWorkspace({
   const [preferenceError, setPreferenceError] = useState<string>();
   const [repertoireSaving, setRepertoireSaving] = useState(false);
   const [repertoireError, setRepertoireError] = useState<string>();
+  const [antiphonRecommendation, setAntiphonRecommendation] = useState<ReferenceAntiphonRecommendation>();
+  const [antiphonRecommendationLoading, setAntiphonRecommendationLoading] = useState(false);
+  const [antiphonRecommendationSaving, setAntiphonRecommendationSaving] = useState(false);
+  const [antiphonRecommendationError, setAntiphonRecommendationError] = useState<string>();
   const request = useRef(0);
   const preferenceRequest = useRef(0);
+  const recommendationRequest = useRef(0);
 
   const contextKey = `catalog:${language}:${organistPersonId}:${actor.role}`;
   const visibleCandidates = useMemo(() => candidatesForView(candidates, viewMode), [candidates, viewMode]);
   const selectedOrganist = organists.find((person) => person.id === organistPersonId);
+  const recommendationClient = useMemo(
+    () => runtime === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: actor.userId, role: actor.role }) : null,
+    [runtime, actor.userId, actor.role],
+  );
+  const antiphonLanguage = antiphon?.id.startsWith("polish:") ? "polish" : "czech";
   const canManageRepertoire = runtime === "db" && Boolean(organistPersonId) && (
     actor.role === "admin"
     || (actor.role === "organist" && actor.personId === organistPersonId)
@@ -106,6 +122,29 @@ export function CatalogWorkspace({
     setSelectedDetail(undefined);
     void reloadCandidates();
   }, [language, organistPersonId, antiphon?.id, topic?.id, availabilityMode, queryCandidates]);
+
+  useEffect(() => {
+    const token = ++recommendationRequest.current;
+    setAntiphonRecommendation(undefined);
+    setAntiphonRecommendationError(undefined);
+    setAntiphonRecommendationLoading(false);
+    if (!recommendationClient || !antiphon) return;
+
+    setAntiphonRecommendationLoading(true);
+    void recommendationClient.get(antiphon.id).then((result) => {
+      if (recommendationRequest.current !== token) return;
+      if (result.success) setAntiphonRecommendation(result.value);
+      else setAntiphonRecommendationError(result.error.message);
+    }).catch((cause: unknown) => {
+      if (recommendationRequest.current === token) setAntiphonRecommendationError(cause instanceof Error ? cause.message : "Antiphon Reference song could not be loaded.");
+    }).finally(() => {
+      if (recommendationRequest.current === token) setAntiphonRecommendationLoading(false);
+    });
+
+    return () => {
+      if (recommendationRequest.current === token) recommendationRequest.current += 1;
+    };
+  }, [recommendationClient, antiphon?.id]);
 
   useEffect(() => {
     const token = ++preferenceRequest.current;
@@ -179,6 +218,29 @@ export function CatalogWorkspace({
     setOwnPreference(undefined);
     setPreferenceDraft("");
     if (candidate && preference) void persistPreferenceOnDetailExit(candidate, preference, draft);
+  }
+
+  async function setAntiphonReferenceSong(record: ReferenceCatalogRecord | null) {
+    if (!recommendationClient || !antiphon || actor.role !== "admin" || antiphonRecommendationSaving) return;
+    const antiphonId = antiphon.id;
+    const token = ++recommendationRequest.current;
+    setAntiphonRecommendationSaving(true);
+    setAntiphonRecommendationError(undefined);
+    try {
+      const result = await recommendationClient.set(antiphonId, record?.id ?? null);
+      if (recommendationRequest.current !== token) return;
+      if (!result.success) {
+        setAntiphonRecommendationError(result.error.message);
+        return;
+      }
+      setAntiphonRecommendation(result.value);
+      await reloadCandidates();
+      onAntiphonRecommendationChanged?.();
+    } catch (cause) {
+      if (recommendationRequest.current === token) setAntiphonRecommendationError(cause instanceof Error ? cause.message : "Antiphon Reference song could not be saved.");
+    } finally {
+      if (recommendationRequest.current === token) setAntiphonRecommendationSaving(false);
+    }
   }
 
   async function mutateRepertoire(candidate: CandidateQueryResult, action: "Add" | "Remove") {
@@ -256,8 +318,21 @@ export function CatalogWorkspace({
           contextKey={contextKey}
           serviceLanguage={language}
           selected={antiphon}
+          recommendedSong={antiphonRecommendation?.recommendedSong}
           onChange={(value) => setAntiphon(value ? { ...value } : undefined)}
         />
+        {runtime === "db" && actor.role === "admin" && antiphon && <div className="catalog-antiphon-reference-editor">
+          <span className="catalog-context-label">Ref song</span>
+          {antiphonRecommendationLoading && <span className="field-help" role="status">Loading…</span>}
+          {!antiphonRecommendationLoading && antiphonRecommendation && <ReferenceSongLookupField
+            language={antiphonLanguage}
+            selected={antiphonRecommendation.recommendedSong}
+            disabled={antiphonRecommendationSaving}
+            onSelect={(record) => void setAntiphonReferenceSong(record)}
+          />}
+          {antiphonRecommendationSaving && <span className="field-help" role="status">Saving…</span>}
+          {antiphonRecommendationError && <span className="field-help inline-error" role="alert">{antiphonRecommendationError}</span>}
+        </div>}
       </div>
       <div className="catalog-context-cell">
         <span className="catalog-context-label">Topic</span>
