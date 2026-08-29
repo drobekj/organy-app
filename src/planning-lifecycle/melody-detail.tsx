@@ -22,6 +22,13 @@ export type MelodyClassDetailProps = {
   onEscape?: () => void;
   onActivateMember?: (songId: string) => void;
   onReturnToCandidates?: (songId: string) => void;
+  dismissOnOutsidePointer?: boolean;
+  personalPreference?: {
+    value: string;
+    options: number[];
+    disabled?: boolean;
+    onChange: (value: string) => void;
+  };
 };
 
 let selectedDetailDismissPointerTarget: EventTarget | null = null;
@@ -120,7 +127,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   }, [props.candidate.songId]);
 
   useEffect(() => {
-    if (props.mode !== "selected") return;
+    if (props.mode !== "selected" && !props.dismissOnOutsidePointer) return;
     function dismissSelectedDetailOnOutsidePointer(event: PointerEvent) {
       const target = event.target;
       if (!(target instanceof Node) || regionRef.current?.contains(target)) return;
@@ -137,7 +144,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
     }
     document.addEventListener("pointerdown", dismissSelectedDetailOnOutsidePointer, true);
     return () => document.removeEventListener("pointerdown", dismissSelectedDetailOnOutsidePointer, true);
-  }, [props.mode, props.onClose]);
+  }, [props.mode, props.onClose, props.dismissOnOutsidePointer]);
 
   useEffect(() => {
     const openedIndex = members.findIndex((member, index) => member.songId === openedSongId && activatable[index]);
@@ -312,6 +319,21 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                   )}
                 </div>
                 <div className="melody-member-actions" onClick={stopRowActivation}>
+                  {member.songId === props.candidate.songId && props.personalPreference && (
+                    <label className="melody-personal-preference" onClick={stopRowActivation}>
+                      <span>Personal preference</span>
+                      <select
+                        aria-label={`Personal preference for ${member.number} ${member.title}`}
+                        value={props.personalPreference.value}
+                        disabled={props.personalPreference.disabled}
+                        onChange={(event) => props.personalPreference?.onChange(event.target.value)}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        {props.personalPreference.value === "" && <option value="">—</option>}
+                        {props.personalPreference.options.map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
+                    </label>
+                  )}
                   {!isOpened && (
                     <button
                       type="button"
@@ -338,7 +360,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
 }
 
 function isNestedControl(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest("button, a"));
+  return target instanceof HTMLElement && Boolean(target.closest("button, a, input, select, textarea"));
 }
 
 function languageRank(language: CandidateMelodyMember["language"]): number {
