@@ -31,7 +31,7 @@ type ViewProps = {
   referenceSongControl?: ReactNode;
   invalid?: boolean;
   open: boolean;
-  detailOpen: boolean;
+  detailOpen?: boolean;
   dirty: boolean;
   query: string;
   snapshot: ServiceContextAntiphonSearchSnapshot;
@@ -45,8 +45,8 @@ type ViewProps = {
   onSelect: (record: ReferenceAntiphonRecord) => void;
   onActiveIndexChange: (index: number) => void;
   onClear: () => void;
-  onToggleDetail: () => void;
-  onCloseDetail: () => void;
+  onToggleDetail?: () => void;
+  onCloseDetail?: () => void;
 };
 
 type AntiphonNavigationKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
@@ -103,7 +103,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
         aria-expanded={props.detailOpen}
         aria-label={`Show antiphon detail for ${props.selected!.displayNumber} ${props.selected!.title}`}
         onPointerDown={(event) => event.preventDefault()}
-        onClick={props.onToggleDetail}
+        onClick={() => props.onToggleDetail?.()}
       >Detail</button>}
       {props.selected && props.editable && <button className="service-antiphon-clear" type="button" aria-label="Clear antiphon" title="Clear antiphon" onPointerDown={(event) => event.preventDefault()} onClick={props.onClear}>×</button>}
     </div>
@@ -129,7 +129,7 @@ export function ServiceContextReferenceAntiphonFieldView(props: ViewProps) {
     {props.detailOpen && props.selected && <section className="service-antiphon-detail" role="dialog" aria-label={`Antiphon detail for ${props.selected.displayNumber} ${props.selected.title}`}>
       <div className="service-antiphon-detail-header">
         <div className="service-antiphon-detail-title"><strong>{props.selected.displayNumber}</strong><span>{props.selected.title}</span></div>
-        <button type="button" aria-label="Close antiphon detail" onClick={props.onCloseDetail}>×</button>
+        <button type="button" aria-label="Close antiphon detail" onClick={() => props.onCloseDetail?.()}>×</button>
       </div>
       {props.selected.sourceUrl && <div className="service-antiphon-detail-row">
         <span>Source</span>
