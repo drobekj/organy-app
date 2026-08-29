@@ -11,6 +11,9 @@ export type ReferenceSongLookupFieldProps = {
   language: "czech" | "polish";
   selected: RecommendedReferenceSong | null;
   disabled?: boolean;
+  ariaLabel?: string;
+  listboxId?: string;
+  getOptionClassName?: (record: ReferenceCatalogRecord) => string | undefined;
   onSelect: (record: ReferenceCatalogRecord | null) => void;
   clientFactory?: () => ReferenceSongLookupClient;
 };
@@ -33,6 +36,9 @@ export function ReferenceSongLookupField({
   language,
   selected,
   disabled = false,
+  ariaLabel = "Ref song",
+  listboxId = "reference-song-listbox",
+  getOptionClassName,
   onSelect,
   clientFactory = defaultClientFactory,
 }: ReferenceSongLookupFieldProps) {
@@ -147,11 +153,11 @@ export function ReferenceSongLookupField({
   return <div className="reference-song-lookup" ref={wrapperRef}>
     <div className="reference-song-control">
       <input
-        aria-label="Ref song"
+        aria-label={ariaLabel}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}
-        aria-controls={open ? "reference-song-listbox" : undefined}
+        aria-controls={open ? listboxId : undefined}
         disabled={disabled}
         value={displayValue}
         onPointerDown={() => { inputWasOpenOnPointerDown.current = open; }}
@@ -170,7 +176,7 @@ export function ReferenceSongLookupField({
         onKeyDown={onKeyDown}
       />
     </div>
-    {open && <div id="reference-song-listbox" className="reference-song-listbox" role="listbox" aria-label="Reference song candidates">
+    {open && <div id={listboxId} className="reference-song-listbox" role="listbox" aria-label={`${ariaLabel} candidates`}>
       <div
         className={`reference-song-option${activeIndex === 0 ? " reference-song-option-active" : ""}`}
         role="option"
@@ -185,7 +191,7 @@ export function ReferenceSongLookupField({
       {!loading && !error && records.length === 0 && <div className="reference-song-list-state">No songs match this lookup.</div>}
       {records.map((record, index) => <div
         key={record.id}
-        className={`reference-song-option${activeIndex === index + 1 ? " reference-song-option-active" : ""}`}
+        className={`reference-song-option${activeIndex === index + 1 ? " reference-song-option-active" : ""}${getOptionClassName?.(record) ? ` ${getOptionClassName(record)}` : ""}`}
         role="option"
         aria-selected={selected?.referenceSongId === record.id}
         onPointerMove={() => setActiveIndex(index + 1)}

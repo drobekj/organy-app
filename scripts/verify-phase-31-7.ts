@@ -129,7 +129,8 @@ async function main() {
       assert.match(catalogUi, /actor\.role === "organist" && actor\.personId === organistPersonId/);
       assert.match(catalogUi, /actor\.role === "admin" \? organistPersonId : undefined/);
       assert.match(catalogUi, /freshAvailableClass[\s\S]*?find\(\(member\) => member\.repertoire\)/);
-      for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/, /runtimeMode !== "db"/, /activeActor\.personId/]) assert.match(ui, pattern);
+      for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/, /runtimeMode !== "db"/]) assert.match(ui, pattern);
+      assert.match(catalogUi, /canManageRepertoire[\s\S]*?actor\.role === "organist"[\s\S]*?actor\.personId === organistPersonId/);
       const memoryClientSection = ui.slice(ui.indexOf("export class MemoryInteractionClient"), ui.indexOf("class DbCatalogClient")); assert.match(memoryClientSection, /getReferenceRepertoireMembership\(\).*permissionDenied/); assert.match(memoryClientSection, /setReferenceRepertoireMembership\(\).*permissionDenied/);
 
       assert.deepEqual(await invoke("queryCandidates", { serviceDate: "2026-07-28", serviceLanguage: "czech", candidateUsages: [] }, priest), beforeCandidates); assert.deepEqual(await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, admin), beforePreference);

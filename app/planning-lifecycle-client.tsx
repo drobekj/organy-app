@@ -2,12 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CatalogService, InMemoryCatalogRepository, type CatalogPerson, type CatalogSong, type PersonRole } from "../src/application/catalog";
-import type { ReferenceCatalogLanguageFilter, ReferenceCatalogPage, ReferenceCatalogRecord } from "../src/application/reference-catalog";
-import { DbReferenceCatalogClient, MemoryReferenceCatalogClient, type ReferenceCatalogClient } from "../src/application/reference-catalog-client";
 import { InMemoryInteractionRepository, canAddOrPersistRows, canLeaveWorkspace, type ActorIdentity, type AppUser, type CatalogCandidateQueryInput, type CandidateQueryResult, type ReferenceOwnPreference, type ReferencePreferenceAggregate } from "../src/application/interaction-contracts";
 import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
 import type { ReferenceMelodyClass } from "../src/application/reference-melody";
-import { ReferenceMelodyRequestStateController } from "../src/application/reference-melody-request-state";
 import {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
@@ -28,7 +25,6 @@ import { InteractionService, InMemoryInteractionServiceRepository } from "../src
 import { apiFailure } from "../src/application/api-error";
 import type { CompletedPlanInvalidationPreview } from "../src/application/completed-plan-conflict-preview";
 import { ACTIVE_ROLE_CHANGED_EVENT, serializeActiveRoleCookie } from "../src/application/active-role";
-import { ReferencePreferenceRequestTracker } from "../src/application/reference-preference-request-tracker";
 import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";
 import { MemoryReferenceThematicSectionProvider } from "../src/application/reference-thematic-section";
 import { DbReferenceAntiphonRecommendationClient } from "../src/application/reference-antiphon-recommendation-client";
@@ -394,7 +390,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
   const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
-  const referenceClient = useMemo<ReferenceCatalogClient>(() => runtimeMode === "db" ? new DbReferenceCatalogClient() : new MemoryReferenceCatalogClient(), [runtimeMode]);
   const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
@@ -446,44 +441,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const detailEligibilityRequest = useRef(0);
   const [selectedCandidateAvailability, setSelectedCandidateAvailability] = useState<SelectedCandidateAvailabilitySnapshot>({ key: "", byRow: {} });
   const selectedCandidateAvailabilityRequest = useRef(0);
-  const [peopleAdmin, setPeopleAdmin] = useState<CatalogPerson[]>([]);
-  const [songsAdmin, setSongsAdmin] = useState<CatalogSong[]>([]);
-  const [candidateDetails, setCandidateDetails] = useState<CandidateQueryResult | null>(null);
-  const [selectedCatalogTab, setSelectedCatalogTab] = useState<"songs" | "reference">("songs");
-  const [catalogSongLanguage, setCatalogSongLanguage] = useState<ServiceLanguage>("mixed");
-  const [catalogSongSearch, setCatalogSongSearch] = useState("");
-  const [catalogSongPage, setCatalogSongPage] = useState(0);
-  const [selectedCatalogSongId, setSelectedCatalogSongId] = useState<string | null>(null);
-  const [referenceLanguage, setReferenceLanguage] = useState<ReferenceCatalogLanguageFilter>("all");
-  const [referenceSearch, setReferenceSearch] = useState("");
-  const [referencePage, setReferencePage] = useState(0);
-  const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(null);
-  const [referencePageData, setReferencePageData] = useState<ReferenceCatalogPage | null>(null);
-  const [selectedReferenceRecord, setSelectedReferenceRecord] = useState<ReferenceCatalogRecord | undefined>();
-  const [referenceLoading, setReferenceLoading] = useState(false);
-  const [referenceError, setReferenceError] = useState<string | null>(null);
-  const [referencePreference, setReferencePreference] = useState<ReferenceOwnPreference | null>(null);
-  const [referencePreferenceAggregate, setReferencePreferenceAggregate] = useState<ReferencePreferenceAggregate | null>(null);
-  const [referencePreferenceError, setReferencePreferenceError] = useState<PlanningServiceError | null>(null);
-  const [referencePreferenceSaving, setReferencePreferenceSaving] = useState(false);
-  const [referencePreferenceDraft, setReferencePreferenceDraft] = useState("");
-  const [referencePreferenceFeedback, setReferencePreferenceFeedback] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [referenceRepertoire, setReferenceRepertoire] = useState<ReferenceRepertoireMembership | null>(null);
-  const [referenceRepertoireTarget, setReferenceRepertoireTarget] = useState("");
-  const [referenceRepertoireError, setReferenceRepertoireError] = useState<PlanningServiceError | null>(null);
-  const [referenceRepertoireSaving, setReferenceRepertoireSaving] = useState(false);
-  const [referenceMelody, setReferenceMelody] = useState<ReferenceMelodyClass | null>(null);
-  const [referenceMelodyTarget, setReferenceMelodyTarget] = useState("");
-  const [referenceMelodySearch, setReferenceMelodySearch] = useState("");
-  const [referenceMelodySearchResults, setReferenceMelodySearchResults] = useState<ReferenceCatalogRecord[]>([]);
-  const referenceMelodyState = useRef(new ReferenceMelodyRequestStateController());
-  const referenceListRequest = useRef(0);
-  const referenceDetailRequest = useRef(0);
-  const referencePreferenceRequests = useRef(new ReferencePreferenceRequestTracker());
-  const referenceAggregateRequests = useRef(new ReferencePreferenceRequestTracker());
-  const referenceRepertoireRequests = useRef(new ReferencePreferenceRequestTracker());
   const planningAntiphonRecommendationRequest = useRef(0);
-  const [catalogReturnRowId, setCatalogReturnRowId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<Workspace>("planning");
   const memoryUsers = useMemo(() => interactionRepository.listUsers(), [interactionRepository]);
   const availableUsers = runtimeMode === "db" ? (authenticatedUser ? [authenticatedUser] : []) : memoryUsers;
@@ -813,131 +771,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       if (selectedCandidateAvailabilityRequest.current === request) selectedCandidateAvailabilityRequest.current += 1;
     };
   }, [candidateAvailabilityKey, interactionClient, candidateAvailabilityApplies]);
-  const syntheticScaleSongs = useMemo(() => interactionRepository.createSyntheticScaleSongs(1600), [interactionRepository]);
-  const catalogSongPool = useMemo(() => [...songsAdmin, ...syntheticScaleSongs], [songsAdmin, syntheticScaleSongs]);
-  const visibleCatalogSongs = useMemo(() => {
-    const q = catalogSongSearch.trim().toLowerCase();
-    const allowedLanguages = new Set(catalogSongLanguage === "mixed" ? ["czech", "polish"] : [catalogSongLanguage]);
-    return catalogSongPool.filter((song) => allowedLanguages.has(song.language) && (selectedRole === "admin" || song.active) && (!q || song.number.toLowerCase().includes(q) || song.title.toLowerCase().includes(q)));
-  }, [catalogSongPool, catalogSongLanguage, catalogSongSearch, selectedRole]);
-  const catalogPageSize = 40;
-  const catalogPageCount = Math.max(1, Math.ceil(visibleCatalogSongs.length / catalogPageSize));
-  const pagedCatalogSongs = visibleCatalogSongs.slice(catalogSongPage * catalogPageSize, (catalogSongPage + 1) * catalogPageSize);
-  const selectedCatalogSong = selectedCatalogSongId ? catalogSongPool.find((song) => song.songId === selectedCatalogSongId) : undefined;
-  useEffect(() => {
-    if (selectedCatalogTab !== "reference") return;
-    const request = ++referenceListRequest.current;
-    setReferenceLoading(true); setReferenceError(null);
-    void referenceClient.list({ language: referenceLanguage, search: referenceSearch, page: referencePage, pageSize: 50 })
-      .then((data) => { if (request === referenceListRequest.current) { setReferencePageData(data); if (data.page !== referencePage) setReferencePage(data.page); } })
-      .catch((error: unknown) => { if (request === referenceListRequest.current) { setReferencePageData(null); setReferenceError(error instanceof Error ? error.message : "Reference catalog request failed."); } })
-      .finally(() => { if (request === referenceListRequest.current) setReferenceLoading(false); });
-  }, [selectedCatalogTab, referenceLanguage, referenceSearch, referencePage, referenceClient]);
-
-  useEffect(() => {
-    const request = ++referenceDetailRequest.current;
-    setSelectedReferenceRecord(undefined);
-    if (!selectedReferenceId) return;
-    void referenceClient.getById(selectedReferenceId)
-      .then((record) => { if (request === referenceDetailRequest.current) setSelectedReferenceRecord(record); })
-      .catch((error: unknown) => { if (request === referenceDetailRequest.current) setReferenceError(error instanceof Error ? error.message : "Reference record request failed."); });
-  }, [selectedReferenceId, referenceClient]);
-
-  useEffect(() => {
-    setReferencePreferenceAggregate(null);
-    referenceAggregateRequests.current.invalidate();
-    if (runtimeMode !== "db" || !selectedReferenceId) return;
-    void refreshReferenceAggregate(selectedReferenceId, activeActor);
-    return () => referenceAggregateRequests.current.invalidate();
-  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, interactionClient]);
-
-  async function refreshReferenceAggregate(referenceSongId: string, actor: ActorIdentity) {
-    const request = referenceAggregateRequests.current.begin();
-    try {
-      const result = await interactionClient.getReferencePreferenceAggregate({ actor, referenceSongId });
-      if (referenceAggregateRequests.current.isCurrent(request) && result.success) setReferencePreferenceAggregate(result.value);
-    } catch { /* The own-preference error remains independent from aggregate availability. */ }
-  }
-
-  useEffect(() => {
-    setReferencePreference(null); setReferencePreferenceError(null); setReferencePreferenceDraft(""); setReferencePreferenceFeedback("idle"); setReferencePreferenceSaving(false);
-    if (runtimeMode !== "db" || !selectedReferenceId || selectedRole === "admin") return;
-    const request = referencePreferenceRequests.current.begin();
-    void interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceSongId: selectedReferenceId }).then((result) => {
-      if (!referencePreferenceRequests.current.isCurrent(request)) return;
-      if (result.success) { setReferencePreference(result.value); setReferencePreferenceDraft(result.value.score === null ? "" : String(result.value.score)); } else { setReferencePreferenceError(result.error); setReferencePreferenceFeedback("error"); }
-    }).catch((error: unknown) => { if (referencePreferenceRequests.current.isCurrent(request)) { setReferencePreferenceError({ code: "invalidInput", message: error instanceof Error ? error.message : "Preference load failed." }); setReferencePreferenceFeedback("error"); } });
-    return () => referencePreferenceRequests.current.invalidate();
-  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, selectedRole, interactionClient]);
-
-  async function saveReferencePreference(score: number) {
-    if (!selectedReferenceId) return; const request = referencePreferenceRequests.current.begin(); setReferencePreferenceSaving(true); setReferencePreferenceError(null); setReferencePreferenceFeedback("saving");
-    try { const result = await interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId: selectedReferenceId, score });
-      if (!referencePreferenceRequests.current.isCurrent(request)) return;
-      if (result.success) { setReferencePreference(result.value); setReferencePreferenceDraft(String(result.value.score)); setReferencePreferenceFeedback("saved"); await refreshReferenceAggregate(selectedReferenceId, activeActor); } else { setReferencePreferenceError(result.error); setReferencePreferenceFeedback("error"); }
-    } catch (error) { if (referencePreferenceRequests.current.isCurrent(request)) { setReferencePreferenceError({ code: "invalidInput", message: error instanceof Error ? error.message : "Preference save failed." }); setReferencePreferenceFeedback("error"); } }
-    finally { if (referencePreferenceRequests.current.isCurrent(request)) setReferencePreferenceSaving(false); }
-  }
-
-  useEffect(() => {
-    setReferenceMelody(null); setReferenceMelodyTarget(""); referenceMelodyState.current.contextChanged();
-    if (runtimeMode !== "db" || !selectedReferenceId) return;
-    const request = referenceMelodyState.current.beginRead();
-    void interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId: selectedReferenceId }).then((result) => {
-      if (result.success && referenceMelodyState.current.complete(request, { melody: result.value })) setReferenceMelody(result.value);
-    });
-    return () => referenceMelodyState.current.invalidateRead();
-  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, interactionClient]);
-
-  async function mergeReferenceMelody() {
-    if (!selectedReferenceId || !referenceMelodyTarget || referenceMelodyTarget === selectedReferenceId) return;
-    const request = referenceMelodyState.current.beginMerge();
-    const result = await interactionClient.mergeReferenceMelodyClasses({ actor: activeActor, referenceSongId: selectedReferenceId, mergeWithReferenceSongId: referenceMelodyTarget });
-    if (result.success && referenceMelodyState.current.complete(request, { melody: result.value, mergeResult: result.value })) setReferenceMelody(result.value);
-  }
-
-  useEffect(() => {
-    setReferenceMelodySearchResults([]); setReferenceMelodyTarget("");
-    const query = referenceMelodySearch.trim();
-    const request = referenceMelodyState.current.beginSearch();
-    if (runtimeMode !== "db" || selectedRole !== "admin" || !selectedReferenceId || !query) return;
-    void referenceClient.list({ language: "all", search: query, page: 0, pageSize: 50 }).then((page) => {
-      const results = page.records.filter((record) => record.id !== selectedReferenceId); if (referenceMelodyState.current.complete(request, { searchResults: results, selectedTarget: "" })) setReferenceMelodySearchResults(results);
-    }).catch(() => { if (referenceMelodyState.current.complete(request, { searchResults: [] })) setReferenceMelodySearchResults([]); });
-    return () => referenceMelodyState.current.invalidateSearch();
-  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, selectedRole, referenceMelodySearch, referenceClient]);
-
-  useEffect(() => {
-    setReferenceRepertoireTarget("");
-    referenceRepertoireRequests.current.invalidate();
-  }, [runtimeMode, activeActor.userId, activeActor.role, activeActor.personId]);
-
-  useEffect(() => {
-    setReferenceRepertoire(null); setReferenceRepertoireError(null); setReferenceRepertoireSaving(false);
-    referenceRepertoireRequests.current.invalidate();
-    const target = selectedRole === "admin" ? referenceRepertoireTarget || undefined : undefined;
-    if (runtimeMode !== "db" || !selectedReferenceId || (selectedRole !== "organist" && selectedRole !== "admin") || (selectedRole === "admin" && !target)) return;
-    const request = referenceRepertoireRequests.current.begin();
-    void interactionClient.getReferenceRepertoireMembership({ actor: activeActor, referenceSongId: selectedReferenceId, ...(target ? { organistPersonId: target } : {}) }).then((result) => {
-      if (!referenceRepertoireRequests.current.isCurrent(request)) return;
-      if (result.success) setReferenceRepertoire(result.value); else setReferenceRepertoireError(result.error);
-    }).catch((error: unknown) => { if (referenceRepertoireRequests.current.isCurrent(request)) setReferenceRepertoireError({ code: "invalidInput", message: error instanceof Error ? error.message : "Repertoire load failed." }); });
-    return () => referenceRepertoireRequests.current.invalidate();
-  }, [runtimeMode, selectedReferenceId, activeActor.userId, activeActor.role, activeActor.personId, selectedRole, referenceRepertoireTarget, interactionClient]);
-
-  async function setAuthoritativeReferenceRepertoire(active: boolean) {
-    if (!selectedReferenceId) return;
-    const target = selectedRole === "admin" ? referenceRepertoireTarget || undefined : undefined;
-    if (selectedRole === "admin" && !target) return;
-    const request = referenceRepertoireRequests.current.begin(); setReferenceRepertoireSaving(true); setReferenceRepertoireError(null);
-    try {
-      const result = await interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId: selectedReferenceId, ...(target ? { organistPersonId: target } : {}), active });
-      if (!referenceRepertoireRequests.current.isCurrent(request)) return;
-      if (result.success) setReferenceRepertoire(result.value); else setReferenceRepertoireError(result.error);
-    } catch (error) { if (referenceRepertoireRequests.current.isCurrent(request)) setReferenceRepertoireError({ code: "invalidInput", message: error instanceof Error ? error.message : "Repertoire update failed." }); }
-    finally { if (referenceRepertoireRequests.current.isCurrent(request)) setReferenceRepertoireSaving(false); }
-  }
-
   useEffect(() => {
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
   }, [selectedRole]);
@@ -983,37 +816,6 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     return { activeSets, completedRecords: completed, draftPeopleDefaults: defaults };
   }
 
-
-  async function refreshCatalogAdmin() {
-    if (selectedRole !== "admin") return;
-    if (runtimeMode === "db" && catalogClient instanceof DbCatalogClient) {
-      const snapshot = await callCatalogApi("getAdminCatalogSnapshot", {}, activeActor);
-      if (snapshot.success) {
-        setPeopleAdmin(snapshot.value.people);
-        setSongsAdmin(snapshot.value.songs);
-      }
-      return;
-    }
-    const [people, songs] = await Promise.all([catalogClient.listPeople(), catalogClient.listSongs()]);
-    if (people.success) setPeopleAdmin(people.value);
-    if (songs.success) setSongsAdmin(songs.value);
-  }
-
-
-  async function applyAdminCatalogResult<T>(result: { success: true; value: T } | { success: false; error: PlanningServiceError }) {
-    if (!result.success) {
-      setServiceError(result.error);
-      setSaveState("errors");
-      return false;
-    }
-    setServiceError(null);
-    await refreshCatalogAdmin();
-    return true;
-  }
-
-  async function toggleAdminSong(song: CatalogSong) {
-    return applyAdminCatalogResult(await catalogClient.setSongActive({ role: selectedRole, actorUserId: activeActor.userId, songId: song.songId, active: !song.active }));
-  }
 
   async function enrichEditableRowsWithCurrentSheetMusic(rowsToEnrich: EditableRow[]): Promise<EditableRow[]> {
     const songIds = [...new Set(rowsToEnrich.flatMap((row) => row.selectedSong?.songId ? [row.selectedSong.songId] : []))];
@@ -1818,14 +1620,6 @@ Save the correction and mark those plans for revision?`);
     setWorkspace(nextWorkspace);
   }
 
-  function openCatalogSongDetail(songId: string, rowId?: number) {
-    setSelectedCatalogTab("songs");
-    setSelectedCatalogSongId(songId);
-    setCatalogReturnRowId(rowId ?? null);
-    setCandidateDetails(null);
-    navigateWorkspace("catalog");
-  }
-
   return (
     <main className="shell">
       <section className="card planning-card" aria-labelledby="page-title">
@@ -2139,15 +1933,6 @@ Save the correction and mark those plans for revision?`);
         )}
 
 
-        {candidateDetails && (
-          <section className="detail-panel" aria-label="Song detail">
-            <div className="rows-header"><h2>Song detail</h2><button type="button" onClick={() => setCandidateDetails(null)}>Back to Planning row</button></div>
-            <div className="selected-song-card"><strong>{candidateDetails.number} · {candidateDetails.title}</strong><span>{candidateDetails.language} · {candidateDetails.songId}</span></div>
-            <p className="field-help">Signal: {candidateDetails.signal}; preference: {candidateDetails.preferenceShade} ({candidateDetails.aggregatePreferenceScore}); repertoire: {candidateDetails.repertoire ? "yes" : "no"}; melody window: {candidateDetails.suppressedByMelodyWindow ? "recent equivalent found" : "clear"}.</p>
-            {candidateDetails.equivalentNumbers.length > 0 && <p className="field-help">Equivalent numbers: {candidateDetails.equivalentNumbers.map((item) => `${item.number}${item.repertoire ? " repertoire" : ""}`).join(", ")}</p>}
-          </section>
-        )}
-
         {workspace === "catalog" && (
           <CatalogWorkspace
             runtime={runtimeMode}
@@ -2158,12 +1943,26 @@ Save the correction and mark those plans for revision?`);
             saveOwnPreference={(referenceSongId, score) => interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
             getPreferenceAggregate={(referenceSongId) => interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
             setRepertoireMembership={(referenceSongId, organistPersonId, active) => interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId, ...(organistPersonId ? { organistPersonId } : {}), active })}
+            getMelodyClass={(referenceSongId) => interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId })}
+            getMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.getReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            addMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.addReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            removeMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.removeReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
             onAntiphonRecommendationChanged={() => {
               setAntiphonRecommendationGeneration((generation) => generation + 1);
               lookupTracker.invalidatePrefix("song:");
               setCandidateResults({});
               setCandidateLoading({});
               setCandidateErrors({});
+              setCandidateRefreshGeneration((generation) => generation + 1);
+            }}
+            onMelodyStructureChanged={() => {
+              lookupTracker.invalidatePrefix("song:");
+              setCandidateResults({});
+              setCandidateLoading({});
+              setCandidateErrors({});
+              setSelectedCandidateAvailability({ key: "", byRow: {} });
+              resetDetailEligibility();
+              setPlanningExpansion(null);
               setCandidateRefreshGeneration((generation) => generation + 1);
             }}
           />

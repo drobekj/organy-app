@@ -1,0 +1,237 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { ReferenceCatalogRecord } from "../src/application/reference-catalog-contract";
+import type { ReferenceMelodyClass } from "../src/application/reference-melody";
+import {
+  isOutsideReferenceMelodyClass,
+  resolveReferenceMelodyEdgeEditorMode,
+} from "../src/application/reference-melody-edge-editor";
+import type { RecommendedReferenceSong } from "../src/application/reference-antiphon-recommendation";
+import { ReferenceSongLookupField } from "./reference-song-lookup-field";
+
+type EditorResult<T> =
+  | { success: true; value: T }
+  | { success: false; error: { message: string } };
+
+type EdgeResult = EditorResult<{ exists: boolean }>;
+type MelodyResult = EditorResult<ReferenceMelodyClass>;
+
+export type ReferenceMelodyEdgeEditorProps = {
+  getMelodyClass: (referenceSongId: string) => Promise<MelodyResult>;
+  getMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<EdgeResult>;
+  addMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<MelodyResult>;
+  removeMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<MelodyResult>;
+  onChanged: () => void | Promise<void>;
+};
+
+type SongLanguage = "czech" | "polish";
+
+function lookupSelection(record: ReferenceCatalogRecord | null): RecommendedReferenceSong | null {
+  return record ? {
+    referenceSongId: record.id,
+    language: record.language,
+    canonicalNumber: record.canonicalNumber,
+    displayNumber: record.displayNumber,
+    title: record.title,
+  } : null;
+}
+
+export function ReferenceMelodyEdgeEditor({
+  getMelodyClass,
+  getMelodyEdge,
+  addMelodyEdge,
+  removeMelodyEdge,
+  onChanged,
+}: ReferenceMelodyEdgeEditorProps) {
+  const [firstLanguage, setFirstLanguage] = useState<SongLanguage>("czech");
+  const [secondLanguage, setSecondLanguage] = useState<SongLanguage>("polish");
+  const [firstSong, setFirstSong] = useState<ReferenceCatalogRecord | null>(null);
+  const [secondSong, setSecondSong] = useState<ReferenceCatalogRecord | null>(null);
+  const [firstClass, setFirstClass] = useState<ReferenceMelodyClass>();
+  const [edgeExists, setEdgeExists] = useState<boolean>();
+  const [classLoading, setClassLoading] = useState(false);
+  const [edgeLoading, setEdgeLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [classError, setClassError] = useState<string>();
+  const [edgeError, setEdgeError] = useState<string>();
+  const [mutationError, setMutationError] = useState<string>();
+  const classRequest = useRef(0);
+  const edgeRequest = useRef(0);
+
+  const firstClassMemberIds = useMemo(
+    () => firstClass ? new Set(firstClass.members.map((member) => member.referenceSongId)) : undefined,
+    [firstClass],
+  );
+
+  useEffect(() => {
+    const token = ++classRequest.current;
+    setFirstClass(undefined);
+    setClassError(undefined);
+    setClassLoading(false);
+    if (!firstSong) return;
+
+    setClassLoading(true);
+    void getMelodyClass(firstSong.id).then((result) => {
+      if (classRequest.current !== token) return;
+      if (result.success) setFirstClass(result.value);
+      else setClassError(result.error.message);
+    }).catch((cause: unknown) => {
+      if (classRequest.current === token) {
+        setClassError(cause instanceof Error ? cause.message : "Melody class could not be loaded.");
+      }
+    }).finally(() => {
+      if (classRequest.current === token) setClassLoading(false);
+    });
+  }, [firstSong?.id]);
+
+  useEffect(() => {
+    const token = ++edgeRequest.current;
+    setEdgeExists(undefined);
+    setEdgeError(undefined);
+    setMutationError(undefined);
+    setEdgeLoading(false);
+
+    if (!firstSong || !secondSong || firstSong.id === secondSong.id) return;
+
+    setEdgeLoading(true);
+    void getMelodyEdge(firstSong.id, secondSong.id).then((result) => {
+      if (edgeRequest.current !== token) return;
+      if (result.success) setEdgeExists(result.value.exists);
+      else setEdgeError(result.error.message);
+    }).catch((cause: unknown) => {
+      if (edgeRequest.current === token) {
+        setEdgeError(cause instanceof Error ? cause.message : "Melody edge state could not be loaded.");
+      }
+    }).finally(() => {
+      if (edgeRequest.current === token) setEdgeLoading(false);
+    });
+  }, [firstSong?.id, secondSong?.id]);
+
+  const mode = resolveReferenceMelodyEdgeEditorMode(firstSong?.id, secondSong?.id, edgeExists);
+
+  async function refreshEditorState() {
+    if (!firstSong || !secondSong || firstSong.id === secondSong.id) return;
+    const [nextClass, nextEdge] = await Promise.all([
+      getMelodyClass(firstSong.id),
+      getMelodyEdge(firstSong.id, secondSong.id),
+    ]);
+    if (nextClass.success) {
+      setFirstClass(nextClass.value);
+      setClassError(undefined);
+    } else {
+      setClassError(nextClass.error.message);
+    }
+    if (nextEdge.success) {
+      setEdgeExists(nextEdge.value.exists);
+      setEdgeError(undefined);
+    } else {
+      setEdgeExists(undefined);
+      setEdgeError(nextEdge.error.message);
+    }
+  }
+
+  async function mutate(action: "add" | "remove") {
+    if (!firstSong || !secondSong || saving || mode !== action) return;
+    setSaving(true);
+    setMutationError(undefined);
+    try {
+      const result = action === "add"
+        ? await addMelodyEdge(firstSong.id, secondSong.id)
+        : await removeMelodyEdge(firstSong.id, secondSong.id);
+      if (!result.success) {
+        setMutationError(result.error.message);
+        return;
+      }
+      await Promise.all([refreshEditorState(), onChanged()]);
+    } catch (cause) {
+      setMutationError(cause instanceof Error ? cause.message : "Melody edge could not be changed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <section className="catalog-melody-edge-editor" aria-label="Melody edge editor">
+    <div className="catalog-melody-edge-header">
+      <strong>Melody edges</strong>
+      <span className="field-help">Admin</span>
+    </div>
+    <div className="catalog-melody-edge-row">
+      <MelodyEdgeSongSelector
+        side="first"
+        language={firstLanguage}
+        selected={firstSong}
+        onLanguageChange={(language) => {
+          setFirstLanguage(language);
+          setFirstSong(null);
+        }}
+        onSelect={setFirstSong}
+      />
+      <MelodyEdgeSongSelector
+        side="second"
+        language={secondLanguage}
+        selected={secondSong}
+        optionClassName={(record) => isOutsideReferenceMelodyClass(record.id, firstSong?.id, firstClassMemberIds)
+          ? "reference-song-option-outside-melody"
+          : undefined}
+        onLanguageChange={(language) => {
+          setSecondLanguage(language);
+          setSecondSong(null);
+        }}
+        onSelect={setSecondSong}
+      />
+      <div className="catalog-melody-edge-actions" aria-label="Melody edge actions">
+        {mode === "add" && <button type="button" disabled={saving || edgeLoading} onClick={() => void mutate("add")}>Add</button>}
+        {mode === "remove" && <button type="button" disabled={saving || edgeLoading} onClick={() => void mutate("remove")}>Remove</button>}
+        {(mode === "incomplete" || mode === "self" || mode === "checking") && <>
+          <button type="button" disabled>Add</button>
+          <button type="button" disabled>Remove</button>
+        </>}
+      </div>
+    </div>
+    {mode === "self" && <p className="catalog-candidate-state inline-error" role="alert">A melody edge cannot connect a song to itself.</p>}
+    {(classLoading || edgeLoading) && <p className="catalog-candidate-state" role="status">Checking melody structure…</p>}
+    {classError && <p className="catalog-candidate-state inline-error" role="alert">{classError}</p>}
+    {edgeError && <p className="catalog-candidate-state inline-error" role="alert">{edgeError}</p>}
+    {mutationError && <p className="catalog-candidate-state inline-error" role="alert">{mutationError}</p>}
+  </section>;
+}
+
+function MelodyEdgeSongSelector({
+  side,
+  language,
+  selected,
+  optionClassName,
+  onLanguageChange,
+  onSelect,
+}: {
+  side: "first" | "second";
+  language: SongLanguage;
+  selected: ReferenceCatalogRecord | null;
+  optionClassName?: (record: ReferenceCatalogRecord) => string | undefined;
+  onLanguageChange: (language: SongLanguage) => void;
+  onSelect: (record: ReferenceCatalogRecord | null) => void;
+}) {
+  const label = side === "first" ? "First song" : "Second song";
+  return <div className="catalog-melody-edge-selector">
+    <label>
+      <span>Language</span>
+      <select
+        aria-label={`${label} language`}
+        value={language}
+        onChange={(event) => onLanguageChange(event.target.value as SongLanguage)}
+      >
+        <option value="czech">Czech</option>
+        <option value="polish">Polish</option>
+      </select>
+    </label>
+    <ReferenceSongLookupField
+      language={language}
+      selected={lookupSelection(selected)}
+      ariaLabel={label}
+      listboxId={`melody-edge-${side}-song-listbox`}
+      getOptionClassName={optionClassName}
+      onSelect={onSelect}
+    />
+  </div>;
+}
