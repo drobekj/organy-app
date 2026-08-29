@@ -49,8 +49,12 @@ async function classCount(): Promise<number> {
   return count("reference_melody_classes");
 }
 
+function stableMapJson(map: Map<string, string>): string {
+  return JSON.stringify([...map.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
+}
+
 async function classMapJson(): Promise<string> {
-  return JSON.stringify([...await readCurrentReferenceMelodyClassMap(pool)]);
+  return stableMapJson(await readCurrentReferenceMelodyClassMap(pool));
 }
 
 async function repertoireJson(): Promise<string> {
@@ -110,7 +114,7 @@ async function main(): Promise<void> {
 
   const refs = await referenceSongs();
   const resolved = resolveContractIdentities(contract, refs);
-  assert.equal(await classMapJson(), JSON.stringify([...resolved.expectedClassBySongId]));
+  assert.equal(await classMapJson(), stableMapJson(resolved.expectedClassBySongId));
 
   const beforeClassMap = await classMapJson();
   const beforeRepertoire = await repertoireJson();
