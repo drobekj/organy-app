@@ -1200,12 +1200,20 @@ textarea {
 /* Planning header: stable status area plus right-aligned Melody Protection slot. */
 .planning-context-header {
   --planning-protection-height: 6.5rem;
-  --planning-protection-width: calc(33.333333% + 0.067rem);
+  /* Language = one third of the Service Context inner row; add the protection
+     panel's own horizontal padding/border so its inner select matches Language. */
+  --planning-protection-width: calc(33.333333% + 0.066667rem + 1.333333px);
   align-items: start;
   display: grid;
   gap: 1rem;
   grid-template-columns: minmax(0, 1fr) var(--planning-protection-width);
   min-height: var(--planning-protection-height);
+  width: 100%;
+}
+
+.planning-service-context {
+  min-width: 0;
+  width: 100%;
 }
 
 .planning-context-info {
@@ -1225,9 +1233,9 @@ textarea {
 
 .planning-melody-protection-slot {
   height: var(--planning-protection-height);
-  justify-self: end;
+  justify-self: stretch;
   min-width: 0;
-  width: var(--planning-protection-width);
+  width: 100%;
 }
 
 .melody-protection-panel {
@@ -1245,6 +1253,7 @@ textarea {
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .melody-protection-control {
