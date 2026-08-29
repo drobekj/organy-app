@@ -1,0 +1,30 @@
+name: Issue 293 Stage 6 melody edge editor acceptance
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout implementation
+        uses: actions/checkout@v4
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Stage 6 focused acceptance
+        run: npm run test:issue-293
+      - name: Songs-derived Melodies invariant
+        run: npm run test:issue-242
+      - name: Melodies representative invariant
+        run: npm run test:issue-240
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Complete tests
+        run: npm test
+      - name: Production build
+        run: npm run build
