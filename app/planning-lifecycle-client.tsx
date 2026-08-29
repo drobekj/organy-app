@@ -405,6 +405,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [serviceNote, setServiceNote] = useState("");
   const [referenceAntiphon, setReferenceAntiphon] = useState<ServiceAntiphonReference | undefined>();
   const [planningAntiphonRecommendation, setPlanningAntiphonRecommendation] = useState<ReferenceAntiphonRecommendation>();
+  const [planningAntiphonRecommendationLoading, setPlanningAntiphonRecommendationLoading] = useState(false);
+  const [planningAntiphonRecommendationError, setPlanningAntiphonRecommendationError] = useState<string>();
   const [antiphonRecommendationGeneration, setAntiphonRecommendationGeneration] = useState(0);
   const [referenceTopic, setReferenceTopic] = useState<ServiceTopicReference | undefined>();
   const [serviceContextGeneration, setServiceContextGeneration] = useState(0);
@@ -508,12 +510,22 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   useEffect(() => {
     const token = ++planningAntiphonRecommendationRequest.current;
     setPlanningAntiphonRecommendation(undefined);
+    setPlanningAntiphonRecommendationError(undefined);
+    setPlanningAntiphonRecommendationLoading(false);
     if (!planningAntiphonRecommendationClient || !referenceAntiphon) return;
 
+    setPlanningAntiphonRecommendationLoading(true);
     void planningAntiphonRecommendationClient.get(referenceAntiphon.id).then((result) => {
       if (planningAntiphonRecommendationRequest.current !== token) return;
       if (result.success) setPlanningAntiphonRecommendation(result.value);
-    }).catch(() => undefined);
+      else setPlanningAntiphonRecommendationError(result.error.message);
+    }).catch((cause: unknown) => {
+      if (planningAntiphonRecommendationRequest.current === token) {
+        setPlanningAntiphonRecommendationError(cause instanceof Error ? cause.message : "Antiphon Reference song could not be loaded.");
+      }
+    }).finally(() => {
+      if (planningAntiphonRecommendationRequest.current === token) setPlanningAntiphonRecommendationLoading(false);
+    });
 
     return () => {
       if (planningAntiphonRecommendationRequest.current === token) planningAntiphonRecommendationRequest.current += 1;
@@ -1927,6 +1939,8 @@ Save the correction and mark those plans for revision?`);
                 serviceLanguage={serviceLanguage}
                 selected={referenceAntiphon}
                 recommendedSong={planningAntiphonRecommendation?.recommendedSong}
+                recommendationLoading={planningAntiphonRecommendationLoading}
+                recommendationError={planningAntiphonRecommendationError}
                 invalid={hasAntiphonLanguageMismatch}
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined)); }}
               />
