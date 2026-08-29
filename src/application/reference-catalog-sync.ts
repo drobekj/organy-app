@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Pool, PoolClient } from "pg";
+import { recomputeReferenceMelodyPartition } from "./reference-melody-edge";
 
 type InputRecord = { source_id?: unknown; language: unknown; number: unknown; title: unknown; source_url: unknown };
 export type PersistedReferenceCatalogRecord = { id: string; language: "czech" | "polish"; canonicalNumber: number; sourceId: string; title: string; sourceUrl: string | null };
@@ -67,6 +68,7 @@ export async function synchronizeReferenceCatalog(pool: Pool, options: Reference
     await client.query("INSERT INTO reference_song_melody_memberships(reference_song_id,class_id) SELECT i.id,'reference-melody:'||i.id FROM incoming_reference_catalog i LEFT JOIN reference_song_melody_memberships m ON m.reference_song_id=i.id WHERE m.reference_song_id IS NULL ON CONFLICT DO NOTHING");
     await client.query("DELETE FROM reference_catalog_songs s WHERE NOT EXISTS (SELECT 1 FROM incoming_reference_catalog i WHERE i.id=s.id)");
     await client.query("DELETE FROM reference_melody_classes c WHERE NOT EXISTS (SELECT 1 FROM reference_song_melody_memberships m WHERE m.class_id=c.id)");
+    await recomputeReferenceMelodyPartition(client);
     if (options.failBeforeCommit) throw new Error("Injected reference catalog synchronization failure.");
     const counts = await databaseReferenceCatalogCounts(client);
     const expected = options.expectedCounts ?? { czech: 808, polish: 990, total: 1798 };
