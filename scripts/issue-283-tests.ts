@@ -8,8 +8,7 @@ const lookup = readFileSync("app/reference-song-lookup-field.tsx", "utf8");
 const route = readFileSync("app/api/interaction/route.ts", "utf8");
 
 for (const required of [
-  'actor.role === "admin" && antiphon',
-  '<span className="catalog-context-label">Ref song</span>',
+  'referenceSongControl={runtime === "db" && actor.role === "admin" && antiphon && antiphonRecommendation ? (',
   '<ReferenceSongLookupField',
   'recommendationClient.set(antiphonId, record?.id ?? null)',
   'await reloadCandidates()',
@@ -25,11 +24,12 @@ assert.match(lookup, /pageSize: 200/);
 assert.doesNotMatch(lookup, />Songs<|>Melodies</, "Ref song lookup must not expose Songs/Melodies modes.");
 assert.match(lookup, /onPointerDown=\{\(event\) => \{ event\.preventDefault\(\); choose\(null\); \}\}/);
 
-const referenceIndex = antiphonField.indexOf('className="service-antiphon-reference"');
-const sourceIndex = antiphonField.indexOf('className="service-antiphon-source"');
-assert.ok(referenceIndex >= 0 && sourceIndex > referenceIndex, "Catalog Reference song must render before Source.");
-assert.ok(antiphonField.includes('Catalog {props.recommendedSong ?'), "Shared Antiphon lookup must render the Catalog reference.");
-assert.ok(antiphonField.includes(': "none"'), "Shared Antiphon lookup must visibly represent no reference.");
+const sourceIndex = antiphonField.indexOf('className="service-antiphon-detail-row"');
+const referenceIndex = antiphonField.indexOf('service-antiphon-detail-reference-row');
+assert.ok(sourceIndex >= 0 && referenceIndex > sourceIndex, "Antiphon Detail must keep Ref song as the final information row after Source.");
+assert.ok(antiphonField.includes('Ref song: {props.recommendationLoading ?'), "Shared Antiphon Detail must render read-only Ref song information.");
+assert.ok(antiphonField.includes(': "none"'), "Shared Antiphon Detail must visibly represent no reference.");
+assert.doesNotMatch(antiphonField, /Catalog \{props\.recommendedSong/, "Antiphon fields must use Ref song rather than Catalog.");
 
 assert.match(planning, /planningAntiphonRecommendationClient\.get\(referenceAntiphon\.id\)/);
 assert.match(planning, /recommendedSong=\{planningAntiphonRecommendation\?\.recommendedSong\}/);
