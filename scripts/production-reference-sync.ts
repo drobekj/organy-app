@@ -38,6 +38,7 @@ const EXPECTED_PUBLIC_TABLES = [
   "reference_antiphons",
   "reference_catalog_songs",
   "reference_melody_classes",
+  "reference_melody_edges",
   "reference_organist_repertoire",
   "reference_song_melody_memberships",
   "reference_song_preferences",
@@ -185,6 +186,7 @@ async function assertExactFinalSnapshot(pool: Pool): Promise<void> {
   const melody = (await pool.query(`
     select
       (select count(*)::int from reference_melody_classes) as classes,
+      (select count(*)::int from reference_melody_edges) as edges,
       (select count(*)::int from reference_song_melody_memberships) as memberships,
       (select count(*)::int
          from reference_catalog_songs s
@@ -224,6 +226,7 @@ async function assertExactFinalSnapshot(pool: Pool): Promise<void> {
     && Number(catalog.czech) === 808
     && Number(catalog.polish) === 990
     && Number(melody.classes) === 1798
+    && Number(melody.edges) === 0
     && Number(melody.memberships) === 1798
     && Number(melody.missing_memberships) === 0
     && Number(melody.non_singleton_memberships) === 0

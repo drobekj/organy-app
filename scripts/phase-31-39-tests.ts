@@ -31,6 +31,7 @@ const EXPECTED_PUBLIC_TABLES = [
   "reference_antiphons",
   "reference_catalog_songs",
   "reference_melody_classes",
+  "reference_melody_edges",
   "reference_organist_repertoire",
   "reference_song_melody_memberships",
   "reference_song_preferences",
@@ -108,6 +109,7 @@ async function exactSnapshot(pool: Pool) {
     count(*) filter(where language='polish')::int polish from reference_catalog_songs`)).rows[0];
   const melody = (await pool.query(`select
     (select count(*)::int from reference_melody_classes) classes,
+    (select count(*)::int from reference_melody_edges) edges,
     (select count(*)::int from reference_song_melody_memberships) memberships,
     (select count(*)::int from reference_song_melody_memberships m join reference_catalog_songs s on s.id=m.reference_song_id where m.class_id <> 'reference-melody:'||s.id) non_singleton`)).rows[0];
   const antiphons = (await pool.query(`select count(*)::int total,
@@ -121,7 +123,7 @@ async function exactSnapshot(pool: Pool) {
     (select count(*)::int from reference_thematic_ranges) ranges`)).rows[0];
   return {
     catalog: { total: Number(catalog.total), czech: Number(catalog.czech), polish: Number(catalog.polish) },
-    melody: { classes: Number(melody.classes), memberships: Number(melody.memberships), nonSingleton: Number(melody.non_singleton) },
+    melody: { classes: Number(melody.classes), edges: Number(melody.edges), memberships: Number(melody.memberships), nonSingleton: Number(melody.non_singleton) },
     antiphons: { total: Number(antiphons.total), czech: Number(antiphons.czech), polish: Number(antiphons.polish) },
     thematic: {
       parents: Number(thematic.parents), sections: Number(thematic.sections),
@@ -167,7 +169,7 @@ async function main(): Promise<void> {
 
     const migration = run(MIGRATION_SCRIPT, ["--apply"], LOCAL_DIRECT_URL);
     assert.equal(migration.status, 0, `Phase 31.38 schema setup must pass: ${redactedOutput(migration, LOCAL_DIRECT_URL)}`);
-    assert.deepEqual(await publicTables(pool), EXPECTED_PUBLIC_TABLES, "Phase 31.39 must start from the exact reviewed 33-table schema including audit_events");
+    assert.deepEqual(await publicTables(pool), EXPECTED_PUBLIC_TABLES, "Phase 31.39 must start from the exact reviewed 34-table schema including audit_events and reference_melody_edges");
     assert.deepEqual(await nonEmptyPublicTables(pool), [CONFIG_TABLE]);
 
     const preflight = run(SCRIPT, [], LOCAL_DIRECT_URL);
@@ -193,7 +195,7 @@ async function main(): Promise<void> {
 
     const expectedSnapshot = {
       catalog: { total: 1798, czech: 808, polish: 990 },
-      melody: { classes: 1798, memberships: 1798, nonSingleton: 0 },
+      melody: { classes: 1798, edges: 0, memberships: 1798, nonSingleton: 0 },
       antiphons: { total: 232, czech: 116, polish: 116 },
       thematic: { parents: 6, sections: 71, czechSections: 35, polishSections: 36, ranges: 71 },
     };
