@@ -45,45 +45,76 @@ export function ReferenceMelodyEdgeEditor({
   onChanged,
 }: ReferenceMelodyEdgeEditorProps) {
   const [firstLanguage, setFirstLanguage] = useState<SongLanguage>("czech");
-  const [secondLanguage, setSecondLanguage] = useState<SongLanguage>("polish");
+  const [secondLanguage, setSecondLanguage] = useState<SongLanguage>("czech");
   const [firstSong, setFirstSong] = useState<ReferenceCatalogRecord | null>(null);
   const [secondSong, setSecondSong] = useState<ReferenceCatalogRecord | null>(null);
   const [firstClass, setFirstClass] = useState<ReferenceMelodyClass>();
+  const [secondClass, setSecondClass] = useState<ReferenceMelodyClass>();
   const [edgeExists, setEdgeExists] = useState<boolean>();
-  const [classLoading, setClassLoading] = useState(false);
+  const [firstClassLoading, setFirstClassLoading] = useState(false);
+  const [secondClassLoading, setSecondClassLoading] = useState(false);
   const [edgeLoading, setEdgeLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [classError, setClassError] = useState<string>();
+  const [firstClassError, setFirstClassError] = useState<string>();
+  const [secondClassError, setSecondClassError] = useState<string>();
   const [edgeError, setEdgeError] = useState<string>();
   const [mutationError, setMutationError] = useState<string>();
-  const classRequest = useRef(0);
+  const firstClassRequest = useRef(0);
+  const secondClassRequest = useRef(0);
   const edgeRequest = useRef(0);
 
   const firstClassMemberIds = useMemo(
     () => firstClass ? new Set(firstClass.members.map((member) => member.referenceSongId)) : undefined,
     [firstClass],
   );
+  const secondClassMemberIds = useMemo(
+    () => secondClass ? new Set(secondClass.members.map((member) => member.referenceSongId)) : undefined,
+    [secondClass],
+  );
+  const classLoading = firstClassLoading || secondClassLoading;
+  const classError = firstClassError ?? secondClassError;
 
   useEffect(() => {
-    const token = ++classRequest.current;
+    const token = ++firstClassRequest.current;
     setFirstClass(undefined);
-    setClassError(undefined);
-    setClassLoading(false);
+    setFirstClassError(undefined);
+    setFirstClassLoading(false);
     if (!firstSong) return;
 
-    setClassLoading(true);
+    setFirstClassLoading(true);
     void getMelodyClass(firstSong.id).then((result) => {
-      if (classRequest.current !== token) return;
+      if (firstClassRequest.current !== token) return;
       if (result.success) setFirstClass(result.value);
-      else setClassError(result.error.message);
+      else setFirstClassError(result.error.message);
     }).catch((cause: unknown) => {
-      if (classRequest.current === token) {
-        setClassError(cause instanceof Error ? cause.message : "Melody class could not be loaded.");
+      if (firstClassRequest.current === token) {
+        setFirstClassError(cause instanceof Error ? cause.message : "Melody class could not be loaded.");
       }
     }).finally(() => {
-      if (classRequest.current === token) setClassLoading(false);
+      if (firstClassRequest.current === token) setFirstClassLoading(false);
     });
   }, [firstSong?.id]);
+
+  useEffect(() => {
+    const token = ++secondClassRequest.current;
+    setSecondClass(undefined);
+    setSecondClassError(undefined);
+    setSecondClassLoading(false);
+    if (!secondSong) return;
+
+    setSecondClassLoading(true);
+    void getMelodyClass(secondSong.id).then((result) => {
+      if (secondClassRequest.current !== token) return;
+      if (result.success) setSecondClass(result.value);
+      else setSecondClassError(result.error.message);
+    }).catch((cause: unknown) => {
+      if (secondClassRequest.current === token) {
+        setSecondClassError(cause instanceof Error ? cause.message : "Melody class could not be loaded.");
+      }
+    }).finally(() => {
+      if (secondClassRequest.current === token) setSecondClassLoading(false);
+    });
+  }, [secondSong?.id]);
 
   useEffect(() => {
     const token = ++edgeRequest.current;
@@ -112,15 +143,22 @@ export function ReferenceMelodyEdgeEditor({
 
   async function refreshEditorState() {
     if (!firstSong || !secondSong || firstSong.id === secondSong.id) return;
-    const [nextClass, nextEdge] = await Promise.all([
+    const [nextFirstClass, nextSecondClass, nextEdge] = await Promise.all([
       getMelodyClass(firstSong.id),
+      getMelodyClass(secondSong.id),
       getMelodyEdge(firstSong.id, secondSong.id),
     ]);
-    if (nextClass.success) {
-      setFirstClass(nextClass.value);
-      setClassError(undefined);
+    if (nextFirstClass.success) {
+      setFirstClass(nextFirstClass.value);
+      setFirstClassError(undefined);
     } else {
-      setClassError(nextClass.error.message);
+      setFirstClassError(nextFirstClass.error.message);
+    }
+    if (nextSecondClass.success) {
+      setSecondClass(nextSecondClass.value);
+      setSecondClassError(undefined);
+    } else {
+      setSecondClassError(nextSecondClass.error.message);
     }
     if (nextEdge.success) {
       setEdgeExists(nextEdge.value.exists);
@@ -184,6 +222,9 @@ export function ReferenceMelodyEdgeEditor({
         side="first"
         language={firstLanguage}
         selected={firstSong}
+        optionClassName={(record) => isOutsideReferenceMelodyClass(record.id, secondSong?.id, secondClassMemberIds)
+          ? "reference-song-option-outside-melody"
+          : undefined}
         onSelect={setFirstSong}
       />
       <MelodyEdgeSongLookup
@@ -238,6 +279,7 @@ function MelodyEdgeSongLookup({
     ariaLabel={label}
     listboxId={`melody-edge-${side}-song-listbox`}
     getOptionClassName={optionClassName}
+    selectedValueClassName="melody-edge-selected-value"
     onSelect={onSelect}
   />;
 }
