@@ -36,7 +36,8 @@ assert.match(detailMarkup, /service-antiphon-detail-title/);
 assert.match(detailMarkup, /href=\{props\.detail\.antiphon\.sourceUrl\}[\s\S]*?>Source<\/a>/);
 assert.match(detailMarkup, /service-antiphon-detail-reference-row/);
 assert.equal((detailMarkup.match(/className="service-antiphon-detail-row/g) ?? []).length, 2);
-assert.doesNotMatch(detailMarkup, /Close antiphon detail|Ref song:/);
+assert.doesNotMatch(detailMarkup, /Close antiphon detail/);
+assert.match(detailMarkup, /className="service-antiphon-detail-reference-label">Ref song<\/strong>/);
 
 // Read-only details load authoritative recommendation; Catalog admin alone can mutate it.
 assert.match(antiphon, /recommendationClient\.get\(detail\.antiphon\.id\)/);
