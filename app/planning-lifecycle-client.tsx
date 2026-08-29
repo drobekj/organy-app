@@ -1941,6 +1941,7 @@ Save the correction and mark those plans for revision?`);
                 recommendedSong={planningAntiphonRecommendation?.recommendedSong}
                 recommendationLoading={planningAntiphonRecommendationLoading}
                 recommendationError={planningAntiphonRecommendationError}
+                recommendationClient={planningAntiphonRecommendationClient ?? undefined}
                 invalid={hasAntiphonLanguageMismatch}
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined)); }}
               />
