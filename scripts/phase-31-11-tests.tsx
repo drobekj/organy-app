@@ -101,14 +101,23 @@ function renderCoverage() {
     <ServiceContextReferenceAntiphonFieldView editable selected={snapshot(800)} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
   );
   assert.match(selected, /value="800 · Antiphon 800"/);
-  assert.match(selected, /href="https:\/\/www\.evangelickykancional\.cz/);
+  assert.match(selected, />Detail<\/button>/);
+  assert.doesNotMatch(selected, /href="https:\/\/www\.evangelickykancional\.cz/, "Selected Antiphon control keeps Source inside Detail.");
   assert.match(selected, /Clear antiphon/);
+
+  const selectedDetail = renderToStaticMarkup(
+    <ServiceContextReferenceAntiphonFieldView editable selected={snapshot(800)} open={false} detailOpen dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
+  );
+  assert.match(selectedDetail, /Antiphon detail for 800 Antiphon 800/);
+  assert.match(selectedDetail, /href="https:\/\/www\.evangelickykancional\.cz/);
+  assert.match(selectedDetail, /Ref song: none/);
 
   const readOnly = renderToStaticMarkup(
     <ServiceContextReferenceAntiphonFieldView editable={false} selected={snapshot(800)} open={false} dirty={false} query="" snapshot={state.snapshot()} activeIndex={0} {...noops} />,
   );
   assert.match(readOnly, /value="800 · Antiphon 800"/);
   assert.match(readOnly, /readOnly=""/);
+  assert.match(readOnly, />Detail<\/button>/);
   assert.doesNotMatch(readOnly, /Clear antiphon/);
 
   const invalid = renderToStaticMarkup(
