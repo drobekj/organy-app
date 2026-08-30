@@ -112,6 +112,35 @@ Remove-Item .organy-backups\human-phase-31-33.dump.sha256 -Force
 
 Do not run any command that drops `organy_app`.
 
+## Verify DB offline workspace
+
+The Admin **Role Admin → Verify DB** action is the guided operator entry point for routine offline database inspection. The hosted browser cannot launch programs or write files on the operator's Windows machine, so the dialog deliberately hands off one local command:
+
+```powershell
+npm run db:verify:offline
+```
+
+That command is the only routine operator step after opening PowerShell in the local `organy-app` repository. It performs the following sequence automatically:
+
+1. Starts Docker Desktop when the Docker engine is not already running and the standard Windows installation is available.
+2. Uses the authenticated Vercel CLI context for the fixed `organy-app` project to pull the **Production** environment into a temporary file. It never runs `vercel link`.
+3. Reads Production `DATABASE_URL`, rejects loopback/local source URLs, and uses a transient `postgres:16-alpine` container to create a complete custom-format `pg_dump`.
+4. Deletes temporary Production credential files immediately after the dump step.
+5. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
+6. Resets only `docker-compose.offline-db.yml`, which owns the disposable `organy_offline_postgres_data` volume. The normal `organy-app-postgres` container and `organy_app_postgres_data` volume are not part of this Compose project and are never reset by this command.
+7. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs `postgres-recovery-check.ts`.
+8. Starts Adminer and opens `http://127.0.0.1:8080` automatically. Adminer is configured to auto-login only to the Docker-local `organy_offline` database.
+
+The local database is additionally exposed on `127.0.0.1:5433` for optional local tools. Both database and Adminer ports bind to loopback only.
+
+The safety direction is intentionally one-way:
+
+```text
+Production → backup archive + SHA-256 → disposable local PostgreSQL → Adminer
+```
+
+There is no command in this workflow that restores, synchronizes, or writes the local copy back to Production. Re-running Verify DB destroys and recreates only the disposable offline database, while timestamped backup archives remain available under the Git-ignored backup directory.
+
 ## Logging and secret boundaries
 
 Application-owned backup/recovery scripts report only PASS/FAIL, artifact paths, counts, and actionable safety reasons. They intentionally do not print database URLs, database passwords, session tokens, password hashes, or backup contents. Child PostgreSQL stderr is not relayed because provider/client errors can contain connection details.
