@@ -3,5 +3,11 @@
   "regions": ["fra1"],
   "git": {
     "deploymentEnabled": false
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/maintenance/audit-retention",
+      "schedule": "0 3 1 * *"
+    }
+  ]
 }
