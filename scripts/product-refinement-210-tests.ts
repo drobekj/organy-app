@@ -73,7 +73,7 @@ assert.ok(!importSource.includes("buildLegacySongCorrections"), "Manually correc
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 assert.ok(client.includes('>Anonymous</option>'), "Planning selectors must expose Anonymous.");
-assert.ok(client.includes("Reopen for editing"), "Admin Final UI must expose Reopen for editing.");
+assert.ok(client.includes("Edit Final Plan"), "Admin Final UI must expose the approved Edit Final Plan action.");
 assert.ok(client.includes("repertoire filter is not applied"), "Anonymous organist help must explain repertoire behavior.");
 assert.ok(!client.includes("Select active priest</option>"), "Old empty priest placeholder must be removed.");
 assert.ok(!client.includes("Select active organist</option>"), "Old empty organist placeholder must be removed.");
