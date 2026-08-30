@@ -10,7 +10,8 @@ const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Reco
 const runbook = readFileSync("docs/postgres-backup-restore-runbook.md", "utf8");
 
 assert.match(account, /activeAdmin[\s\S]*?Verify DB/, "Verify DB must be exposed only from the active Admin role menu");
-assert.match(account, /role="dialog"[\s\S]*?Verify DB[\s\S]*?npm run db:verify:offline/, "Verify DB must open an operator handoff dialog with the one-command workflow");
+assert.match(account, /role="dialog"[\s\S]*?<h2 id="verify-db-dialog-title">Verify DB<\/h2>/, "Verify DB must open an operator handoff dialog");
+assert.match(account, /const VERIFY_DB_COMMAND = "npm run db:verify:offline";[\s\S]*?<code className="verify-db-command">\{VERIFY_DB_COMMAND\}<\/code>/, "Dialog must render the one-command workflow");
 assert.match(account, /navigator\.clipboard\.writeText\(VERIFY_DB_COMMAND\)/, "Verify DB must provide a one-click command copy action");
 assert.match(account, /Production → backup → local offline database/, "Dialog must state the one-way safety boundary");
 
