@@ -7,7 +7,8 @@ const globals = readFileSync("app/globals.css", "utf8");
 
 assert.match(account, /className="workspace-sign-role-arrow"[^>]*\/>/, "Sign Role must use a CSS chevron indicator rather than a text glyph");
 assert.match(workspaceCss, /\.workspace-sign-role-arrow \{[\s\S]*?border-bottom: 2px solid currentColor;[\s\S]*?border-right: 2px solid currentColor;[\s\S]*?transform: rotate\(45deg\);/, "Sign Role closed indicator must be a down chevron");
-assert.match(workspaceCss, /\.workspace-sign-role-options button \{[\s\S]*?text-align: right;/, "Sign Role role items must be right-aligned");
+assert.match(workspaceCss, /\.workspace-sign-role-options \{[\s\S]*?direction: rtl;[\s\S]*?scrollbar-gutter: stable;/, "Sign Role scroll gutter must stay on the left so option buttons align to the right edge");
+assert.match(workspaceCss, /\.workspace-sign-role-options button \{[\s\S]*?direction: ltr;[\s\S]*?text-align: left;/, "Sign Role role labels must remain left-aligned");
 assert.match(workspaceCss, /\.workspace-sign-role-options \{[\s\S]*?max-height: 9rem;[\s\S]*?overflow-y: auto;/, "Sign Role role list must remain scrollable");
 
 assert.match(globals, /\.planning-context-header \{[\s\S]*?--planning-protection-height: 4\.75rem;/, "Melody Protection reserved height must be compact");

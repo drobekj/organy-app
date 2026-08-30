@@ -195,6 +195,7 @@
 }
 
 .workspace-sign-role-options {
+  direction: rtl;
   display: grid;
   gap: 0.25rem;
   max-height: 9rem;
@@ -204,7 +205,8 @@
 }
 
 .workspace-sign-role-options button {
-  text-align: right;
+  direction: ltr;
+  text-align: left;
 }
 
 .workspace-sign-role-options button[aria-current="true"] {
