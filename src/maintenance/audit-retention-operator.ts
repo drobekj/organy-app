@@ -70,7 +70,7 @@ export async function applyAuditRetentionMaintenance(db: Pool): Promise<AuditRet
                 from audit_events success
                where success.action = $3
                  and (success.occurred_at, success.id) > (failure.occurred_at, failure.id)
-            )) returning failure.id`,
+            ) returning failure.id`,
         [dryRun.cutoffServiceDate, AUDIT_RETENTION_FAILURE_ACTION, AUDIT_RETENTION_SUCCESS_ACTION],
       );
       deletedResolvedFailureEvents = failureDelete.rows.length;
