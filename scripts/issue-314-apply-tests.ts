@@ -53,8 +53,8 @@ async function main() {
     await insertAudit(pool, "2079-12-01T08:00:00Z", "planning.completed.update", "completedService", `${marker}-old-deletable-1`);
     await insertAudit(pool, "2079-12-02T08:00:00Z", "planning.working.save", "planningSet", activeSetId);
     await insertAudit(pool, "2080-01-01T08:00:00Z", "planning.completed.update", "completedService", `${marker}-cutoff-day-preserved`);
-    await insertAudit(pool, "2079-11-01T08:00:00Z", AUDIT_RETENTION_FAILURE_ACTION, "auditRetentionMaintenance", `${marker}-resolved-failure`);
-    await insertAudit(pool, "2079-11-02T08:00:00Z", AUDIT_RETENTION_SUCCESS_ACTION, "auditRetentionMaintenance", `${marker}-protected-success`);
+    await insertAudit(pool, "2020-01-01T08:00:00Z", AUDIT_RETENTION_FAILURE_ACTION, "auditRetentionMaintenance", `${marker}-resolved-failure`);
+    await insertAudit(pool, "2021-01-01T08:00:00Z", AUDIT_RETENTION_SUCCESS_ACTION, "auditRetentionMaintenance", `${marker}-protected-success`);
 
     const first = await applyAuditRetentionMaintenance(pool);
     createdRunRefs.add(first.runRef);
