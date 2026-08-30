@@ -56,10 +56,10 @@ export async function applyAuditRetentionMaintenance(db: Pool): Promise<AuditRet
                  where active_set.id::text = e.object_ref
                    and active_set.status in ('working', 'final')
               )
-            )`,
+            )) returning e.id`,
         [dryRun.cutoffServiceDate],
       );
-      deletedPlanningAuditEvents = planningDelete.rowCount ?? 0;
+      deletedPlanningAuditEvents = planningDelete.rows.length;
 
       const failureDelete = await client.query(
         `delete from audit_events failure
@@ -70,10 +70,10 @@ export async function applyAuditRetentionMaintenance(db: Pool): Promise<AuditRet
                 from audit_events success
                where success.action = $3
                  and (success.occurred_at, success.id) > (failure.occurred_at, failure.id)
-            )`,
+            )) returning failure.id`,
         [dryRun.cutoffServiceDate, AUDIT_RETENTION_FAILURE_ACTION, AUDIT_RETENTION_SUCCESS_ACTION],
       );
-      deletedResolvedFailureEvents = failureDelete.rowCount ?? 0;
+      deletedResolvedFailureEvents = failureDelete.rows.length;
     }
 
     const report: AuditRetentionApplyReport = {
