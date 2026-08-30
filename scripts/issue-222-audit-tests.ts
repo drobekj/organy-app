@@ -153,11 +153,17 @@ async function main() {
     );
     assert.equal(repeatedSystemEvents.rows[0].count, 1, "repeat reconciliation is audit-idempotent");
 
+    const retentionOperatorPath = "src/maintenance/audit-retention-operator.ts";
     const sourceFiles = await sourceFilesUnder(["app", "src"]);
     for (const file of sourceFiles) {
+      if (file === retentionOperatorPath) continue;
       const source = await readFile(file, "utf8");
       assert.doesNotMatch(source, /\bdelete\s+from\s+audit_events\b|\bupdate\s+audit_events\b|\.delete\(\s*schema\.auditEvents\s*\)|\.update\(\s*schema\.auditEvents\s*\)/i, `normal application code must not update/delete audit rows: ${file}`);
     }
+    const retentionOperator = await readFile(retentionOperatorPath, "utf8");
+    assert.match(retentionOperator, /delete\s+from\s+audit_events/i, "the approved maintenance operator is the single explicit audit-deletion exception");
+    assert.match(retentionOperator, /pg_try_advisory_xact_lock/, "the destructive maintenance exception must retain its concurrency guard");
+    assert.match(retentionOperator, /begin isolation level repeatable read/i, "the destructive maintenance exception must run in a stable transaction");
 
     console.log("Issue #222 audit history acceptance passed.");
   } finally {
