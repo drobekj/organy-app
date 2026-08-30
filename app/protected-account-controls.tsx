@@ -9,6 +9,8 @@ import { PasswordVisibilityField } from "./password-visibility-field";
 
 type PendingAccountAction = "signOut" | "changePassword" | null;
 
+const VERIFY_DB_COMMAND = "npm run db:verify:offline";
+
 type TrackedButtonState = {
   button: HTMLButtonElement;
   originalDisabled: boolean;
@@ -47,6 +49,8 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
   const [newPassword, setNewPassword] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAccountAction>(null);
+  const [verifyDbOpen, setVerifyDbOpen] = useState(false);
+  const [verifyDbCopied, setVerifyDbCopied] = useState(false);
   const [activeRole, setActiveRole] = useState<PlanningRole>(initialActiveRole);
   const userMenuRef = useRef<HTMLDetailsElement>(null);
   const signRoleMenuRef = useRef<HTMLDetailsElement>(null);
@@ -152,6 +156,8 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
+      setVerifyDbOpen(false);
+      setVerifyDbCopied(false);
       closeUserMenu();
       closeRoleMenu();
     }
@@ -252,8 +258,19 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
     if (!roles.includes(role)) return;
     document.cookie = serializeActiveRoleCookie(role);
     setActiveRole(role);
+    setVerifyDbOpen(false);
+    setVerifyDbCopied(false);
     window.dispatchEvent(new CustomEvent(ACTIVE_ROLE_CHANGED_EVENT, { detail: role }));
     closeUserMenu();
+  }
+
+  async function copyVerifyDbCommand() {
+    try {
+      await navigator.clipboard.writeText(VERIFY_DB_COMMAND);
+      setVerifyDbCopied(true);
+    } catch {
+      setVerifyDbCopied(false);
+    }
   }
 
   async function signOut() {
@@ -363,10 +380,41 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
           <div className="workspace-account-popover">
             <a href="/admin/accounts">Manage Accounts</a>
             <a href="/admin/audit-history">Audit History</a>
+            <button
+              type="button"
+              onClick={() => {
+                setVerifyDbCopied(false);
+                setVerifyDbOpen(true);
+                closeRoleMenu();
+              }}
+            >
+              Verify DB
+            </button>
           </div>
         </details>
       ) : (
         <span className="workspace-role-label">Role <strong>{formatRole(activeRole)}</strong></span>
+      )}
+
+      {activeAdmin && verifyDbOpen && (
+        <div className="verify-db-dialog-backdrop" role="presentation">
+          <section className="verify-db-dialog" role="dialog" aria-modal="true" aria-labelledby="verify-db-dialog-title">
+            <h2 id="verify-db-dialog-title">Verify DB</h2>
+            <p>Create a fresh complete copy of the current Production database for local SQL verification.</p>
+            <p><strong>Safety:</strong> Production → backup → local offline database. Nothing is restored or synchronized back to Production.</p>
+            <ol>
+              <li>Open PowerShell in your local <code>organy-app</code> repository folder.</li>
+              <li>Run the single command below. Docker Desktop is started automatically when possible.</li>
+              <li>When recovery checks pass, the local Adminer SQL editor opens automatically with the disposable database.</li>
+            </ol>
+            <code className="verify-db-command">{VERIFY_DB_COMMAND}</code>
+            <div className="verify-db-dialog-actions">
+              <button type="button" onClick={copyVerifyDbCommand}>{verifyDbCopied ? "Copied" : "Copy command"}</button>
+              <button type="button" onClick={() => { setVerifyDbOpen(false); setVerifyDbCopied(false); }}>Close</button>
+            </div>
+            <p className="verify-db-dialog-note">Each run replaces only the dedicated offline database. Timestamped backup artifacts remain under the Git-ignored <code>.organy-backups</code> folder.</p>
+          </section>
+        </div>
       )}
     </div>,
     portalTarget,

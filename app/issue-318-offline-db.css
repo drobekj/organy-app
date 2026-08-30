@@ -1,0 +1,62 @@
+.verify-db-dialog-backdrop {
+  align-items: center;
+  background: rgb(31 41 51 / 34%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 130;
+}
+
+.verify-db-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 3rem rgb(31 41 51 / 20%);
+  display: grid;
+  gap: 0.9rem;
+  max-width: 34rem;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.verify-db-dialog h2,
+.verify-db-dialog p {
+  margin: 0;
+}
+
+.verify-db-dialog p,
+.verify-db-dialog li {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.verify-db-dialog ol {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.4rem;
+}
+
+.verify-db-command {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.88rem;
+  overflow-x: auto;
+  padding: 0.75rem;
+  white-space: nowrap;
+}
+
+.verify-db-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.verify-db-dialog-note {
+  font-size: 0.82rem;
+}
