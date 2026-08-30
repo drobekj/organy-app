@@ -115,7 +115,9 @@
     "test:issue-304": "tsx scripts/issue-304-tests.ts",
     "test:issue-306": "tsx scripts/issue-306-tests.ts",
     "test:issue-308": "tsx scripts/issue-308-tests.ts",
-    "test:issue-310": "tsx scripts/issue-310-tests.ts"
+    "test:issue-310": "tsx scripts/issue-310-tests.ts",
+    "test:issue-312": "tsx scripts/issue-312-tests.ts",
+    "audit:retention:dry-run": "tsx scripts/audit-retention-maintenance.ts --dry-run"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.6.25",
@@ -138,4 +140,4 @@
   "engines": {
     "node": "22.x"
   }
-}
+}\n
