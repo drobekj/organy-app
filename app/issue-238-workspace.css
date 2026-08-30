@@ -180,13 +180,18 @@
 }
 
 .workspace-sign-role-arrow {
-  line-height: 1;
+  border-bottom: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  flex: 0 0 auto;
+  height: 0.45rem;
   margin-left: 1rem;
+  transform: rotate(45deg);
   transition: transform 120ms ease;
+  width: 0.45rem;
 }
 
 .workspace-sign-role-menu[open] > summary .workspace-sign-role-arrow {
-  transform: rotate(90deg);
+  transform: rotate(225deg);
 }
 
 .workspace-sign-role-options {
@@ -196,6 +201,10 @@
   overflow-y: auto;
   padding-top: 0.3rem;
   scrollbar-gutter: stable;
+}
+
+.workspace-sign-role-options button {
+  text-align: right;
 }
 
 .workspace-sign-role-options button[aria-current="true"] {

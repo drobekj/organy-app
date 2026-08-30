@@ -1199,7 +1199,7 @@ textarea {
 
 /* Planning header: stable status area plus right-aligned Melody Protection slot. */
 .planning-context-header {
-  --planning-protection-height: 6.5rem;
+  --planning-protection-height: 4.75rem;
   /* Language = one third of the Service Context inner row; add the protection
      panel's own horizontal padding/border so its inner select matches Language. */
   --planning-protection-width: calc(33.333333% + 0.066667rem + 1.333333px);
@@ -1242,10 +1242,10 @@ textarea {
   border: 1px solid var(--border);
   border-radius: 1rem;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.25rem;
   height: 100%;
   overflow: auto;
-  padding: 0.55rem 0.7rem 0.7rem;
+  padding: 0.45rem 0.7rem;
   width: 100%;
 }
 

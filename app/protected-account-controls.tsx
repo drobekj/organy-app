@@ -314,7 +314,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
               <details className="workspace-sign-role-menu" ref={signRoleMenuRef}>
                 <summary>
                   <span>Sign Role</span>
-                  <span className="workspace-sign-role-arrow" aria-hidden="true">▸</span>
+                  <span className="workspace-sign-role-arrow" aria-hidden="true" />
                 </summary>
                 <div className="workspace-sign-role-options" aria-label="Assigned roles">
                   {assignedRoles.map((role) => (

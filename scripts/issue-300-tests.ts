@@ -34,7 +34,7 @@ assert.match(planning, /workspace !== "planning" && persistedSet/);
 assert.match(planning, /workspace !== "planning" && completedRecord/);
 
 // Fixed geometry: stable height, fixed right width, aligned right edge.
-assert.match(globals, /\.planning-context-header \{[\s\S]*?--planning-protection-height: 6\.5rem;[\s\S]*?--planning-protection-width: calc\(33\.333333% \+ 0\.066667rem \+ 1\.333333px\);[\s\S]*?grid-template-columns: minmax\(0, 1fr\) var\(--planning-protection-width\);[\s\S]*?width: 100%;/);
+assert.match(globals, /\.planning-context-header \{[\s\S]*?--planning-protection-height: 4\.75rem;[\s\S]*?--planning-protection-width: calc\(33\.333333% \+ 0\.066667rem \+ 1\.333333px\);[\s\S]*?grid-template-columns: minmax\(0, 1fr\) var\(--planning-protection-width\);[\s\S]*?width: 100%;/);
 assert.match(globals, /\.planning-context-info \{[\s\S]*?height: var\(--planning-protection-height\);/);
 assert.match(globals, /\.planning-melody-protection-slot \{[\s\S]*?height: var\(--planning-protection-height\);[\s\S]*?justify-self: stretch;[\s\S]*?width: 100%;/);
 assert.match(globals, /\.planning-service-context \{[\s\S]*?width: 100%;/);
