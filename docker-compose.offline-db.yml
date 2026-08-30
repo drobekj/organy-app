@@ -1,0 +1,35 @@
+name: organy-offline-db
+
+services:
+  offline-postgres:
+    image: postgres:16-alpine
+    container_name: organy-offline-postgres
+    environment:
+      POSTGRES_DB: organy_offline
+      POSTGRES_USER: organy_offline
+      POSTGRES_PASSWORD: organy_offline
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - organy_offline_postgres_data:/var/lib/postgresql/data
+      - ./.organy-backups:/backups:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U organy_offline -d organy_offline"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  adminer:
+    image: dockette/adminer:full
+    container_name: organy-offline-adminer
+    depends_on:
+      offline-postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_PLUGIN_AUTOLOGIN: "1"
+      ADMINER_AUTOLOGIN_SERVER: "pgsql://organy_offline:organy_offline@offline-postgres:5432/organy_offline"
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  organy_offline_postgres_data:
