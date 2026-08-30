@@ -4,6 +4,7 @@ import PlanningLifecycleClient, { type RuntimeMode } from "./planning-lifecycle-
 import { ProtectedAccountControls } from "./protected-account-controls";
 import { ProtectedActorError, resolveProtectedUser } from "../src/application/protected-actor";
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../src/application/active-role";
+import { getUnresolvedAuditRetentionIncident } from "../src/application/audit-retention-maintenance";
 import { authPool } from "../src/auth/server";
 
 export default async function Home() {
@@ -13,9 +14,19 @@ export default async function Home() {
   try {
     const authenticatedUser = await resolveProtectedUser(await headers(), authPool);
     const activeRole = resolveOwnedActiveRole(authenticatedUser.roles, (await cookies()).get(ACTIVE_ROLE_COOKIE_NAME)?.value);
+    const maintenanceIncident = authenticatedUser.roles.includes("admin")
+      ? await getUnresolvedAuditRetentionIncident(authPool)
+      : null;
     return (
       <>
         <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} initialActiveRole={activeRole} />
+        {maintenanceIncident && (
+          <aside className="maintenance-incident-alert" role="alert">
+            <strong>Audit maintenance requires attention.</strong>
+            <span>The latest retention maintenance attempt did not complete successfully. Review Audit History before treating retention as healthy.</span>
+            <a href="/admin/audit-history">Open Audit History</a>
+          </aside>
+        )}
         <PlanningLifecycleClient runtimeMode="db" authenticatedUser={authenticatedUser} initialActiveRole={activeRole} />
       </>
     );

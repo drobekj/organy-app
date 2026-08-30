@@ -1,0 +1,18 @@
+.maintenance-incident-alert {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin: 1rem auto 0;
+  max-width: min(calc(100% - 2rem), 78rem);
+  width: 100%;
+}
+
+.maintenance-incident-alert span {
+  flex: 1 1 28rem;
+}
+
+.maintenance-incident-alert a {
+  color: inherit;
+  font-weight: 700;
+}
