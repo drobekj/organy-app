@@ -1,4 +1,7 @@
-import { auditRetentionDryRun } from "../../../../src/application/audit-retention-maintenance";
+import {
+  AuditRetentionMaintenanceConflictError,
+  applyAuditRetentionMaintenance,
+} from "../../../../src/maintenance/audit-retention-operator";
 import { authPool } from "../../../../src/auth/server";
 
 export const runtime = "nodejs";
@@ -15,11 +18,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    const report = await auditRetentionDryRun(authPool);
-    console.log("Audit retention scheduled dry-run: PASS", report);
-    return Response.json({ ok: true, mode: "dry-run", report });
+    const report = await applyAuditRetentionMaintenance(authPool);
+    console.log("Audit retention scheduled maintenance: PASS", report);
+    return Response.json({ ok: true, mode: "apply", report });
   } catch (error) {
-    console.error("Audit retention scheduled dry-run: FAIL", error instanceof Error ? error.message : "Unknown error");
-    return Response.json({ ok: false, mode: "dry-run", error: "Audit retention dry-run failed." }, { status: 500 });
+    const conflict = error instanceof AuditRetentionMaintenanceConflictError;
+    console.error(
+      conflict ? "Audit retention scheduled maintenance: CONFLICT" : "Audit retention scheduled maintenance: FAIL",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+    return Response.json(
+      { ok: false, mode: "apply", error: conflict ? "Maintenance run already active." : "Audit retention maintenance failed." },
+      { status: conflict ? 409 : 500 },
+    );
   }
 }
