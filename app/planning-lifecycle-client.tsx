@@ -40,6 +40,7 @@ import {
 } from "../src/planning-lifecycle/service-context-defaults";
 import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, getWorkspaceAfterStartNewSet, getWorkspaceLabel, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
+import { buildFinalPlanWhatsAppUrl } from "../src/planning-lifecycle/whatsapp-finalization";
 
 type EditableRow = {
   id: number;
@@ -418,6 +419,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
   const [persistedSet, setPersistedSet] = useState<PersistedPlanningSet | null>(null);
+  const [postFinalizePlan, setPostFinalizePlan] = useState<PersistedPlanningSet | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [completedInvalidationPreview, setCompletedInvalidationPreview] = useState<CompletedPlanInvalidationPreview | null>(null);
   const completedInvalidationPreviewRequest = useRef(0);
@@ -1466,6 +1468,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setServiceError(null);
     setLastSavedRecord({ kind: "active", id: result.value.id });
     setSaveState("finalized");
+    setPostFinalizePlan(result.value);
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
     setWorkspace(getWorkspaceAfterFinalize());
@@ -1933,21 +1936,24 @@ Save the correction and mark those plans for revision?`);
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
                     <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
-                      Save working set
+                      Save working plan
                     </button>
                     <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
-                      Finalize set
+                      Finalize plan
+                    </button>
+                    <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                      Delete saved plan
                     </button>
                   </>
                 )}
-                {!isCompletedRecordOpen && (
+                {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
-                    {isFinalSetOpen && selectedRole === "admin" && <button type="button" onClick={reopenFinalSet}>Reopen for editing</button>}
-                    <button type="button" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet || persistedSet.status !== "final"} title={completeDateReason || undefined}>
-                      Complete service
+                    {selectedRole === "admin" && <button type="button" onClick={reopenFinalSet}>Edit Final Plan</button>}
+                    <button type="button" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet} title={completeDateReason || undefined}>
+                      Store Service
                     </button>
                     <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
-                      Delete saved set
+                      Delete Saved Plan
                     </button>
                   </>
                 )}
@@ -1964,6 +1970,25 @@ Save the correction and mark those plans for revision?`);
         </form>
         )}
 
+        {postFinalizePlan && (
+          <div className="post-finalize-dialog-backdrop" role="presentation">
+            <section className="post-finalize-dialog" role="dialog" aria-modal="true" aria-labelledby="post-finalize-dialog-title">
+              <h2 id="post-finalize-dialog-title">Plan finalized</h2>
+              <p>Inform about the finalized plan via WhatsApp?</p>
+              <div className="post-finalize-dialog-actions">
+                <a
+                  href={buildFinalPlanWhatsAppUrl(postFinalizePlan)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setPostFinalizePlan(null)}
+                >
+                  Open WhatsApp
+                </a>
+                <button type="button" onClick={() => setPostFinalizePlan(null)}>Close</button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {workspace === "catalog" && (
           <CatalogWorkspace

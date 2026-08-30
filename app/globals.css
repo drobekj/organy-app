@@ -1588,3 +1588,49 @@ textarea {
     width: calc(100% - 2rem);
   }
 }
+
+
+/* Issue #310: optional WhatsApp handoff only after successful plan finalization. */
+.post-finalize-dialog-backdrop {
+  align-items: center;
+  background: rgb(31 41 51 / 34%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 120;
+}
+
+.post-finalize-dialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 3rem rgb(31 41 51 / 20%);
+  display: grid;
+  gap: 0.85rem;
+  max-width: 26rem;
+  padding: 1.25rem;
+  width: 100%;
+}
+
+.post-finalize-dialog p {
+  color: var(--muted);
+  margin: 0;
+}
+
+.post-finalize-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.post-finalize-dialog-actions a {
+  background: var(--foreground);
+  border: 1px solid var(--foreground);
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 700;
+  padding: 0.6rem 0.9rem;
+  text-decoration: none;
+}

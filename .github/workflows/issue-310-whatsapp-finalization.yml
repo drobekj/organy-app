@@ -1,0 +1,26 @@
+name: Issue 310 WhatsApp finalization handoff
+
+on:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Plan terminology and WhatsApp handoff acceptance
+        run: npm run test:issue-310
+      - name: Prior Sign Role alignment acceptance
+        run: npm run test:issue-308
+      - name: Prior visual polish acceptance
+        run: npm run test:issue-306
+      - name: Prior Sign Role behavior acceptance
+        run: npm run test:issue-304
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

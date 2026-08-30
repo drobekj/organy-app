@@ -24,6 +24,8 @@ function processingLabel(label: string): string {
   if (normalized.startsWith("complete")) return "Completing…";
   if (normalized.startsWith("delete")) return "Deleting…";
   if (normalized.startsWith("reopen")) return "Reopening…";
+  if (normalized.startsWith("edit")) return "Opening…";
+  if (normalized.startsWith("store")) return "Storing…";
   if (normalized.startsWith("refresh")) return "Refreshing…";
   if (normalized.startsWith("merge")) return "Merging…";
   if (normalized.startsWith("add")) return "Adding…";
