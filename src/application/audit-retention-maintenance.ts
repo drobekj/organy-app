@@ -27,7 +27,7 @@ export async function auditRetentionDryRun(db: Queryable): Promise<AuditRetentio
     select sc.service_date::text as service_date
       from completed_services cs
       join service_contexts sc on sc.id = cs.service_context_id
-     order by sc.service_date desc, coalesce(sc.service_time, '') desc, cs.id desc
+     order by sc.service_date desc, coalesce(sc.service_time, time '00:00') desc, cs.id desc
      limit 5
   `);
 
