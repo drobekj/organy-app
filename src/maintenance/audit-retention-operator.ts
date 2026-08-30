@@ -56,7 +56,7 @@ export async function applyAuditRetentionMaintenance(db: Pool): Promise<AuditRet
                  where active_set.id::text = e.object_ref
                    and active_set.status in ('working', 'final')
               )
-            )) returning e.id`,
+            ) returning e.id`,
         [dryRun.cutoffServiceDate],
       );
       deletedPlanningAuditEvents = planningDelete.rows.length;
