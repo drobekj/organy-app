@@ -67,9 +67,12 @@ export function presentAuditEvent(event: AuditEventRecord): AuditEventPresentati
     beforeSnapshot = { ...afterSnapshot, lifecycle: "Final Plan" };
   }
 
+  const maintenanceRetention = event.objectKind === "maintenance" && event.objectRef === "auditRetention";
   return {
-    objectLabel: `Object ${event.objectRef}:`,
-    action: event.action,
+    objectLabel: maintenanceRetention ? "Audit retention:" : `Object ${event.objectRef}:`,
+    action: maintenanceRetention
+      ? event.action.endsWith(".success") ? "Maintenance succeeded" : event.action.endsWith(".problem") ? "Maintenance problem" : event.action
+      : event.action,
     actorLabel: event.actorKind === "system"
       ? "System"
       : event.actorDisplayName?.trim() || event.actorUserId?.trim() || "Unknown",
