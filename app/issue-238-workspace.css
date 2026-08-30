@@ -372,3 +372,26 @@ button.workspace-action-pending {
 .row-icon-remove {
   color: var(--foreground);
 }
+
+
+/* Issue #312: immediate admin-only alert when the latest audit retention maintenance attempt is problematic. */
+.workspace-maintenance-alert {
+  align-items: center;
+  background: #fef3f2;
+  border: 1px solid var(--danger);
+  border-radius: 0.65rem;
+  color: var(--danger);
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  gap: 0.55rem;
+  justify-content: space-between;
+  line-height: 1.3;
+  padding: 0.45rem 0.65rem;
+}
+
+.workspace-maintenance-alert a {
+  color: inherit;
+  font-weight: 700;
+}
