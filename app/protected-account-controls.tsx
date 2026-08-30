@@ -40,7 +40,17 @@ function formatRole(role: PlanningRole): string {
   return `${role.slice(0, 1).toUpperCase()}${role.slice(1)}`;
 }
 
-export function ProtectedAccountControls({ displayName, roles, initialActiveRole }: { displayName: string; roles: string[]; initialActiveRole: PlanningRole }) {
+export function ProtectedAccountControls({
+  displayName,
+  roles,
+  initialActiveRole,
+  maintenanceIncident,
+}: {
+  displayName: string;
+  roles: string[];
+  initialActiveRole: PlanningRole;
+  maintenanceIncident?: { eventId: number; occurredAt: string; message: string } | null;
+}) {
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [editingPassword, setEditingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -298,6 +308,12 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
 
   return createPortal(
     <div className="workspace-account-panel" aria-label="Signed-in account">
+      {activeAdmin && maintenanceIncident && (
+        <div className="workspace-maintenance-alert" role="alert">
+          <span><strong>Audit maintenance requires attention.</strong> {maintenanceIncident.message}</span>
+          <a href="/admin/audit-history">Open Audit History</a>
+        </div>
+      )}
       <details
         className="workspace-account-menu"
         ref={userMenuRef}
