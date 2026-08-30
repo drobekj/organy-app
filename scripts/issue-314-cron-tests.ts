@@ -49,8 +49,9 @@ async function main() {
     assert.equal(success.rows.length, 1);
     assert.equal(success.rows[0].actor_kind, "system");
     assert.equal(success.rows[0].object_kind, "auditRetentionMaintenance");
-    assert.equal(success.rows[0].after_state?.status, "success");
-    assert.equal(success.rows[0].after_state?.mode, "apply");
+    const successAfterState = success.rows[0].after_state as { status?: string; mode?: string } | undefined;
+    assert.equal(successAfterState?.status, "success");
+    assert.equal(successAfterState?.mode, "apply");
 
     const vercel = JSON.parse(await readFile("vercel.json", "utf8")) as { crons?: Array<{ path: string; schedule: string }> };
     assert.deepEqual(vercel.crons, [{ path: "/api/maintenance/audit-retention", schedule: "0 3 1 * *" }]);
