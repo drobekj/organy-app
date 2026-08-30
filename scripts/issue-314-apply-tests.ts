@@ -118,7 +118,8 @@ async function main() {
     const conflictFailureRef = conflictIncident!.objectRef;
     createdRunRefs.add(conflictFailureRef);
     const conflictState = await pool.query("select after_state from audit_events where object_ref = $1 and action = $2", [conflictFailureRef, AUDIT_RETENTION_FAILURE_ACTION]);
-    assert.equal(conflictState.rows[0]?.after_state?.conflict, true);
+    const conflictAfterState = conflictState.rows[0]?.after_state as { conflict?: boolean } | undefined;
+    assert.equal(conflictAfterState?.conflict, true);
 
     const postConflict = await applyAuditRetentionMaintenance(pool);
     createdRunRefs.add(postConflict.runRef);
@@ -162,8 +163,9 @@ async function assertSuccessAudit(pool: Pool, objectRef: string): Promise<void> 
   assert.equal(result.rows[0].actor_kind, "system");
   assert.equal(result.rows[0].action, AUDIT_RETENTION_SUCCESS_ACTION);
   assert.equal(result.rows[0].object_kind, "auditRetentionMaintenance");
-  assert.equal(result.rows[0].after_state?.status, "success");
-  assert.equal(result.rows[0].after_state?.mode, "apply");
+  const afterState = result.rows[0].after_state as { status?: string; mode?: string } | undefined;
+  assert.equal(afterState?.status, "success");
+  assert.equal(afterState?.mode, "apply");
 }
 
 async function insertAudit(pool: Pool, occurredAt: string, action: string, objectKind: string, objectRef: string) {
