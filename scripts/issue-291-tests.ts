@@ -50,6 +50,7 @@ const melody = readFileSync("src/application/reference-melody.ts", "utf8");
 const backfill = readFileSync("scripts/production-reference-melody-edge-backfill.ts", "utf8");
 const route = readFileSync("app/api/interaction/route.ts", "utf8");
 const planning = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
+const runtimeClients = readFileSync("app/planning-runtime-clients.ts", "utf8");
 
 assert.match(migration, /CREATE TABLE "reference_melody_edges"/);
 assert.match(migration, /CHECK \("song_a_id" < "song_b_id"\)/);
@@ -71,9 +72,9 @@ assert.doesNotMatch(backfill, /insert into reference_organist_repertoire/i);
 assert.match(route, /case "getReferenceMelodyEdge"/);
 assert.match(route, /case "addReferenceMelodyEdge"/);
 assert.match(route, /case "removeReferenceMelodyEdge"/);
-assert.match(planning, /async getReferenceMelodyEdge/);
-assert.match(planning, /async addReferenceMelodyEdge/);
-assert.match(planning, /async removeReferenceMelodyEdge/);
+assert.match(runtimeClients, /async getReferenceMelodyEdge/);
+assert.match(runtimeClients, /async addReferenceMelodyEdge/);
+assert.match(runtimeClients, /async removeReferenceMelodyEdge/);
 assert.doesNotMatch(planning, />Add melody edge<|>Remove melody edge</);
 
 console.log("Issue 291 Stage 5 persistent Reference melody-edge core coverage passed.");
