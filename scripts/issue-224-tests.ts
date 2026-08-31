@@ -23,13 +23,15 @@ async function main() {
   assert.match(serializeActiveRoleCookie("admin"), /^organy-active-role=admin;/);
 
   const clientSource = await readFile("app/planning-lifecycle-client.tsx", "utf8");
+  const recordListsSource = await readFile("app/plan-history-record-lists.tsx", "utf8");
   const cssSource = await readFile("app/globals.css", "utf8");
   assert.match(clientSource, /previewCompletedRecordInvalidation/, "Completed editor must request invalidation preview before Save");
   assert.match(clientSource, /completed-invalidation-warning/, "immediate Completed conflict warning must be rendered");
   assert.match(clientSource, /conflictingRevisionRowIndexes\.has\(index\)/, "row styling must use exact conflicting row indexes");
   assert.match(clientSource, /needs-revision-row/, "conflicting rows must receive dedicated styling class");
   assert.match(clientSource, /completedRecordsNewestFirst/, "History must use newest-first ordering");
-  assert.match(clientSource, /history-scroll-list/, "History must render in a bounded scroll container");
+  assert.match(clientSource, /<HistoryRecordWorkspace/, "History workspace must mount the extracted record list");
+  assert.match(recordListsSource, /history-scroll-list/, "History must render in a bounded scroll container");
   assert.match(clientSource, /serializeActiveRoleCookie\(role\)/, "active role switch must persist to a cookie");
   assert.match(cssSource, /\.needs-revision-row\s*\{[\s\S]*?border:\s*3px solid var\(--danger\)/);
   assert.match(cssSource, /\.history-scroll-list\s*\{[\s\S]*?overflow-y:\s*auto/);
@@ -41,7 +43,8 @@ async function main() {
   assert.match(clientSource, /Historical correction conflicts with/, "Completed conflict warning must use terse copy");
   assert.doesNotMatch(clientSource, /Open a red-outlined plan/, "Plans alert must not contain verbose navigation copy");
   assert.doesNotMatch(clientSource, /needs-revision-message/, "per-plan revision explanation must be removed");
-  assert.match(clientSource, /className=\{set\.needsRevision \? "needs-revision-record" : undefined\}/, "revision styling must be applied to the existing plan button");
+  assert.match(clientSource, /<PlansRecordWorkspace/, "Plans workspace must mount the extracted record list");
+  assert.match(recordListsSource, /className=\{plan\.needsRevision \? "needs-revision-record" : undefined\}/, "revision styling must be applied to the existing plan button");
   assert.match(cssSource, /\.saved-set-list button\.needs-revision-record\s*\{[\s\S]*?border:\s*3px solid var\(--danger\)/, "conflicting plan must replace the normal gray button border with one 3px red border");
   const rowInputRule = cssSource.match(/\.needs-revision-row \.candidate-combobox > input\s*\{([\s\S]*?)\}/)?.[1] ?? "";
   assert.match(rowInputRule, /border-color:\s*var\(--border\)/, "inner conflicting-song control must keep the normal gray border");

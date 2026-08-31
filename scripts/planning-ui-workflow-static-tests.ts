@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 const runtimeClients = readFileSync("app/planning-runtime-clients.ts", "utf8");
+const recordLists = readFileSync("app/plan-history-record-lists.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 const candidateList = readFileSync("src/planning-lifecycle/candidate-list.tsx", "utf8");
 
@@ -26,6 +27,8 @@ for (const required of [
   "Historical inactive organist",
   "<CatalogWorkspace",
   "<NonRepetitionPeriodPanel",
+  "<PlansRecordWorkspace",
+  "<HistoryRecordWorkspace",
   "memoryPlanningSets={repositories.planningSets}",
   "const selectedRole = activeActor.role",
   "interactionClient.queryCandidates",
@@ -39,16 +42,16 @@ assert(runtimeClients.includes(`this.transport("queryCandidates"`), "DB candidat
 assert(!client.includes("Set demo 2-month window"), "Planning UI must not retain the legacy fixed demo melody-window control");
 
 assert.equal(
-  (client.match(/<RecordListSummary summary=\{formatPlanningSetSummary\(set\)\} \/>/g) ?? []).length,
+  (recordLists.match(/<RecordListSummary summary=\{formatPlanningSetSummary\(plan\)\} \/>/g) ?? []).length,
   2,
   "Working and Final Plans must render the rows summary on the second line",
 );
 assert.equal(
-  (client.match(/<RecordListSummary summary=\{formatCompletedRecordSummary\(record\)\} \/>/g) ?? []).length,
+  (recordLists.match(/<RecordListSummary summary=\{formatCompletedRecordSummary\(record\)\} \/>/g) ?? []).length,
   1,
   "Completed Services must render the rows summary on the second line",
 );
-assert.match(client, /const rowsMarker = " · rows:"/, "record-list summary split must start exactly before rows:");
+assert.match(recordLists, /const rowsMarker = " · rows:"/, "record-list summary split must start exactly before rows:");
 assert.match(css, /\.record-summary-rows\s*\{[\s\S]*?display:\s*block;/, "rows summary must render as its own line");
 
 for (const required of ["position: sticky", ".candidate-popup", ".candidate-detail-button", "@media (max-width: 899px)", ".candidate-option-current", ".row-icon-palette", ".compact-row-fields", ".candidate-selection-unavailable"]) {

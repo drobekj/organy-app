@@ -279,7 +279,7 @@ The conceptual modules above are currently realized through a pragmatic layered 
 - `app/planning-lifecycle-client.tsx` is the main mounted React controller for Planning/Plans/History interactions. It remains a refactoring target for further semantic UI decomposition.
 - `app/planning-runtime-clients.ts` owns the DB/memory runtime client contracts, API transports, and persistence-facing client adapters previously embedded in the mounted controller.
 - `app/planning-editor-view-model.ts` owns pure planning-editor row/snapshot/expansion view-model types and transformations that do not require React state or runtime transport.
-- focused `app/*.tsx` components own extracted UI areas such as Catalog, service-context fields, non-repetition configuration, and protected account controls.
+- focused `app/*.tsx` components own extracted UI areas such as Catalog, Plans/History record lists, service-context fields, non-repetition configuration, and protected account controls.
 - `src/application/` contains application services, authorization-aware interaction contracts, reference-data services, and persistence-facing orchestration.
 - `src/planning-lifecycle/` contains planning-domain and planning-UI support logic that can be exercised independently of the mounted page controller.
 - `src/db/schema/index.ts` plus committed `drizzle/` migrations define the PostgreSQL persistence implementation.
