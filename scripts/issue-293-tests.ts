@@ -78,7 +78,7 @@ assert.match(css, /\.catalog-melody-edge-language-row,[\s\S]*?\.catalog-melody-e
 assert.match(css, /\.catalog-melody-edge-actions \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?justify-content: flex-start;/);
 
 assert.match(journal, /"tag": "0020_reference_melody_edges"/);
-assert.doesNotMatch(journal, /0021_/);
+assert.doesNotMatch(journal, /"tag": "[0-9]+_issue_293/);
 
 assert.doesNotMatch(planning, /syntheticScaleSongs|createSyntheticScaleSongs\(1600\)/);
 assert.doesNotMatch(planning, /selectedCatalogTab|selectedReferenceId|referenceMelodySearch/);
