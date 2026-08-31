@@ -1,4 +1,4 @@
-name: Issue 237 Songs Melodies acceptance
+name: Songs and melodies acceptance
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ on:
       - scripts/issue-237-tests.ts
       - scripts/phase-31-14-tests.ts
       - scripts/phase-31-15-tests.tsx
-      - .github/workflows/issue-237.yml
+      - .github/workflows/songs-melodies.yml
   workflow_dispatch:
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run db:migrate
-      - name: Issue 237 Songs / Melodies acceptance
+      - name: Songs and melodies acceptance
         run: npx tsx scripts/issue-237-tests.ts
       - name: Reference candidate regression
         run: npx tsx scripts/phase-31-14-tests.ts

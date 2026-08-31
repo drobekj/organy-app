@@ -1,4 +1,4 @@
-name: Issue 233 live Working conflict acceptance
+name: Live Working conflict acceptance
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ on:
       - scripts/issue-224-tests.ts
       - scripts/issue-230-tests.ts
       - scripts/issue-233-tests.ts
-      - .github/workflows/issue-233.yml
+      - .github/workflows/live-working-conflict.yml
   workflow_dispatch:
 
 jobs:
@@ -42,11 +42,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run db:migrate
-      - name: Issue 224 regression
+      - name: Release pre-deploy regression
         run: npx tsx scripts/issue-224-tests.ts
-      - name: Issue 230 regression
+      - name: Planning conflict persistence regression
         run: npx tsx scripts/issue-230-tests.ts
-      - name: Issue 233/235 UI state acceptance
+      - name: Live Working conflict UI state acceptance
         run: npx tsx scripts/issue-233-tests.ts
       - run: npm run typecheck
       - run: npm test
