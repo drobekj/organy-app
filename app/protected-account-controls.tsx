@@ -405,7 +405,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
             <ol>
               <li>Open PowerShell.</li>
               <li>Copy the complete block below, paste it into PowerShell, and press Enter.</li>
-              <li>When recovery checks pass, the local Adminer SQL editor opens automatically with the disposable database.</li>
+              <li>When recovery checks pass, the local Pgweb SQL editor opens automatically on the disposable database.</li>
             </ol>
             <pre className="verify-db-command"><code>{VERIFY_DB_COMMAND}</code></pre>
             <div className="verify-db-dialog-actions">
