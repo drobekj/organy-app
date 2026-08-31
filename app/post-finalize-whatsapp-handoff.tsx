@@ -17,7 +17,7 @@ export function PostFinalizeWhatsAppHandoff({ plan, runtimeMode, onClose }: Prop
   const [loadingPhone, setLoadingPhone] = useState(runtimeMode === "db");
   const [phonePromptOpen, setPhonePromptOpen] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
-  const [rememberPhone, setRememberPhone] = useState(true);
+  const [rememberPhone, setRememberPhone] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [savingPhone, setSavingPhone] = useState(false);
 
@@ -55,7 +55,7 @@ export function PostFinalizeWhatsAppHandoff({ plan, runtimeMode, onClose }: Prop
 
   function openPhonePrompt() {
     setPhoneInput(phone ?? "");
-    setRememberPhone(true);
+    setRememberPhone(false);
     setPhoneError(null);
     setPhonePromptOpen(true);
   }
