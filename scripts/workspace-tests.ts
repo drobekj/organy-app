@@ -9,13 +9,15 @@ const final: PersistedPlanningSet = { id: "set-2", status: "final", language: "p
 const completed: CompletedServiceRecord = { id: "completed-1", sourceFinalSetId: "set-2", serviceContext: baseContext, set: { status: "final", language: "czech", rows: [{ note: "Done" }] }, completedAt: new Date("2026-07-20T10:00:00.000Z"), lastChangedBy: "Editor Three" };
 
 assert.deepEqual(groupActivePlanningSets([working, final]), { working: [working], final: [final] });
-assert.deepEqual(getAvailableWorkspaces("priest"), ["planning", "plans", "history", "development"]);
-assert.deepEqual(getAvailableWorkspaces("admin"), ["planning", "plans", "history", "catalog", "development"]);
+assert.deepEqual(getAvailableWorkspaces("priest"), ["about", "planning", "plans", "history", "development", "guide"]);
+assert.deepEqual(getAvailableWorkspaces("admin"), ["about", "planning", "plans", "history", "catalog", "development", "guide"]);
+assert.equal(getWorkspaceLabel("about"), "About");
 assert.equal(getWorkspaceLabel("planning"), "Planning");
 assert.equal(getWorkspaceLabel("plans"), "Plans");
 assert.equal(getWorkspaceLabel("history"), "History");
 assert.equal(getWorkspaceLabel("catalog"), "Catalog");
 assert.equal(getWorkspaceLabel("development"), "Development");
+assert.equal(getWorkspaceLabel("guide"), "Guide");
 assert.equal(getWorkspaceAfterOpenRecord(), "planning");
 assert.equal(getWorkspaceAfterStartNewSet(), "planning");
 assert.equal(getWorkspaceAfterSaveWorking(), "plans");
@@ -27,6 +29,8 @@ assert.equal(getWorkspaceAfterDelete({ kind: "active", id: "set-1" }, groupActiv
 assert.equal(getWorkspaceAfterDelete({ kind: "completed", id: "completed-1" }, groupActivePlanningSets([]), [completed]), "history");
 assert.equal(recordListClassName(true, true), "selected-record");
 assert.equal(recordListClassName(false, true), "last-saved-record");
+assert.equal(getAvailableWorkspaces("congregationMember").includes("about"), true);
+assert.equal(getAvailableWorkspaces("congregationMember").includes("guide"), true);
 assert.equal(getAvailableWorkspaces("congregationMember").includes("development"), true);
 assert.equal(getAvailableWorkspaces("congregationMember").includes("catalog"), false);
 const summary = formatPlanningSetSummary(final);

@@ -372,3 +372,102 @@ button.workspace-action-pending {
 .row-icon-remove {
   color: var(--foreground);
 }
+
+
+/* Issue #371: stable informational navigation and lightweight About/Guide surfaces. */
+.workspace-nav-section {
+  display: contents;
+}
+
+.workspace-copyright {
+  color: var(--muted);
+  flex: 0 0 100%;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  padding: 0.15rem 0.2rem 0;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.information-workspace {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  max-width: 48rem;
+  padding: 1rem;
+}
+
+.information-copy {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.information-copy h2,
+.information-copy p {
+  margin: 0;
+}
+
+.information-copy p {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.information-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.information-links a {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  color: var(--foreground);
+  font-weight: 700;
+  padding: 0.55rem 0.75rem;
+  text-decoration: none;
+}
+
+.information-links a:hover,
+.information-links a:focus-visible {
+  background: #f8fafc;
+}
+
+@media (min-width: 900px) {
+  .workspace-nav-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .workspace-nav-section button {
+    text-align: left;
+    width: 100%;
+  }
+
+  .workspace-nav-about {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.65rem;
+  }
+
+  .workspace-nav-main {
+    padding-top: 0.15rem;
+  }
+
+  .workspace-nav-footer {
+    border-top: 1px solid var(--border);
+    margin-top: 0.4rem;
+    padding-top: 0.65rem;
+  }
+
+  .workspace-copyright {
+    padding-top: 0.2rem;
+    text-align: center;
+  }
+}
+
+@media (max-width: 899px) {
+  .workspace-copyright {
+    text-align: start;
+  }
+}

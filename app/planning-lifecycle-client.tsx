@@ -60,6 +60,7 @@ import {
   type WorkingSetSnapshot,
 } from "./planning-editor-view-model";
 import { HistoryRecordWorkspace, PlansRecordWorkspace } from "./plan-history-record-lists";
+import { AboutWorkspace, GuideWorkspaceEntry } from "./information-workspaces";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -1358,14 +1359,26 @@ Save the correction and mark those plans for revision?`);
           <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
-          <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
-          <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
-          <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
-          <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
-          <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
+          <div className="workspace-nav-section workspace-nav-about">
+            <button type="button" className={workspace === "about" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("about")}>About</button>
+          </div>
+          <div className="workspace-nav-section workspace-nav-main">
+            <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
+            <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
+            <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
+            <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
+            <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
+          </div>
+          <div className="workspace-nav-section workspace-nav-footer">
+            <button type="button" className={workspace === "guide" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("guide")}>Guide</button>
+            <span className="workspace-copyright">© {new Date().getFullYear()} DrSoft</span>
+          </div>
         </nav>
 
-        {workspace !== "planning" && <div className={`status status-${saveState}`} role="status">
+        {workspace === "about" && <AboutWorkspace />}
+        {workspace === "guide" && <GuideWorkspaceEntry />}
+
+        {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveState === "unsaved" && "Unsaved"}
           {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
           {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
