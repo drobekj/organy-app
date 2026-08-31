@@ -22,6 +22,7 @@ export type {
 export {
   InMemoryCompletedServiceRecordRepository,
   InMemoryPlanningSetRepository,
+  InMemoryPlanningSetRepository as InMemoryPlanningPlanRepository,
 } from "./in-memory-repositories";
 export type {
   PlanningLifecycleDrizzleAdapterDependencies,
@@ -32,6 +33,7 @@ export {
   DrizzleCompletedServiceRecordRepository,
   DrizzleFinalSetCompletionRepository,
   DrizzlePlanningSetRepository,
+  DrizzlePlanningSetRepository as DrizzlePlanningPlanRepository,
 } from "./drizzle-repository-adapters";
 export {
   PlanningLifecycleService,
