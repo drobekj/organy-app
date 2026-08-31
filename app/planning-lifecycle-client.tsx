@@ -8,11 +8,11 @@ import {
   InMemoryPlanningSetRepository,
   PlanningLifecycleService,
   type CompletedServiceRecord,
-  type PersistedPlanningSet,
-  type PlanningSetId,
+  type PersistedPlanningPlan,
+  type PlanningPlanId,
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
-import type { PlanningRole, PlanningRow, PlanningSet, ServiceAntiphonReference, ServiceContext, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
+import type { PlanningRole, PlanningRow, PlanningPlan, ServiceAntiphonReference, ServiceContext, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, serviceAntiphonMatchesLanguage, serviceTopicMatchesLanguage, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
@@ -131,14 +131,14 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [nextRowId, setNextRowId] = useState(2);
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
-  const [persistedSet, setPersistedSet] = useState<PersistedPlanningSet | null>(null);
-  const [postFinalizePlan, setPostFinalizePlan] = useState<PersistedPlanningSet | null>(null);
+  const [persistedSet, setPersistedSet] = useState<PersistedPlanningPlan | null>(null);
+  const [postFinalizePlan, setPostFinalizePlan] = useState<PersistedPlanningPlan | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [completedInvalidationPreview, setCompletedInvalidationPreview] = useState<CompletedPlanInvalidationPreview | null>(null);
   const completedInvalidationPreviewRequest = useRef(0);
   const [planningDraftConflictPreview, setPlanningDraftConflictPreview] = useState<PlanningDraftConflictPreviewState | null>(null);
   const planningDraftConflictPreviewRequest = useRef(0);
-  const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningSet[]>([]);
+  const [savedDbSets, setSavedDbSets] = useState<PersistedPlanningPlan[]>([]);
   const [completedRecords, setCompletedRecords] = useState<CompletedServiceRecord[]>([]);
   const [serviceError, setServiceError] = useState<PlanningServiceError | null>(null);
   const [lastSavedRecord, setLastSavedRecord] = useState<PersistedRecordReference | null>(null);
@@ -574,7 +574,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     }
   }
 
-  async function openPersistedSet(set: PersistedPlanningSet) {
+  async function openPersistedSet(set: PersistedPlanningPlan) {
     setPersistedSet(set);
     setCompletedRecord(null);
     setServiceDate(set.serviceContext.serviceDate);
@@ -633,7 +633,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setSaveState("errors");
   }
 
-  async function loadDbSet(setId: PlanningSetId) {
+  async function loadDbSet(setId: PlanningPlanId) {
     const result = await planningLifecycleService.loadPlanningSet(setId);
     if (result.success) {
       await openPersistedSet(result.value);
@@ -1304,7 +1304,7 @@ Save the correction and mark those plans for revision?`);
       return;
     }
 
-    const deletedSetId: PlanningSetId = persistedSet.id;
+    const deletedSetId: PlanningPlanId = persistedSet.id;
     const result = await planningLifecycleService.deletePlanningSet({
       role: selectedRole,
       ...({ localActorUserId: activeActor.userId } as Record<string, string>),
