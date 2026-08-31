@@ -34,7 +34,7 @@ import {
   getDefaultServiceLanguage,
   getNearestSunday,
 } from "../src/planning-lifecycle/service-context-defaults";
-import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, recordListClassName, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
+import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, getWorkspaceAfterStartNewSet, getWorkspaceLabel, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
 import { buildFinalPlanWhatsAppUrl } from "../src/planning-lifecycle/whatsapp-finalization";
 import {
@@ -59,6 +59,7 @@ import {
   type SelectedCandidateAvailabilitySnapshot,
   type WorkingSetSnapshot,
 } from "./planning-editor-view-model";
+import { HistoryRecordWorkspace, PlansRecordWorkspace } from "./plan-history-record-lists";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -72,17 +73,6 @@ type PlanningRepositories = {
 const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const defaultServiceTime = "10:00";
 
-
-function RecordListSummary({ summary }: { summary: string }) {
-  const rowsMarker = " · rows:";
-  const rowsIndex = summary.indexOf(rowsMarker);
-  if (rowsIndex < 0) return <>{summary}</>;
-
-  return <>
-    {summary.slice(0, rowsIndex)}
-    <span className="record-summary-rows">{summary.slice(rowsIndex + 3)}</span>
-  </>;
-}
 
 export type RuntimeMode = "memory" | "db";
 
@@ -1385,21 +1375,25 @@ Save the correction and mark those plans for revision?`);
         </div>}
 
         {workspace === "plans" && (
-          <section className="db-workspace" aria-label="Plans">
-            {revisionPlanCount > 0 && <p className="error-summary" role="alert">{revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"} {revisionPlanCount === 1 ? "requires" : "require"} revision.</p>}
-            <div className="rows-header"><h2>Working plans</h2><button type="button" onClick={startNewDbDraft}>Start new set</button></div>
-            {activeRecordGroups.working.length === 0 ? <p className="field-help">No working plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.working.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}><RecordListSummary summary={formatPlanningSetSummary(set)} /></button></li>)}</ul>}
-            <h2>Final plans</h2>
-            {activeRecordGroups.final.length === 0 ? <p className="field-help">No final plans saved yet.</p> : <ul className="saved-set-list">{activeRecordGroups.final.map((set) => <li key={set.id} className={recordListClassName(persistedSet?.id === set.id, lastSavedRecord?.kind === "active" && lastSavedRecord.id === set.id)}><button type="button" className={set.needsRevision ? "needs-revision-record" : undefined} onClick={() => loadDbSet(set.id)}><RecordListSummary summary={formatPlanningSetSummary(set)} /></button></li>)}</ul>}
-          </section>
+          <PlansRecordWorkspace
+            revisionPlanCount={revisionPlanCount}
+            workingPlans={activeRecordGroups.working}
+            finalPlans={activeRecordGroups.final}
+            openedPlanId={persistedSet?.id}
+            lastSavedRecord={lastSavedRecord}
+            onStartNew={startNewDbDraft}
+            onLoadPlan={loadDbSet}
+          />
         )}
 
         {workspace === "history" && (
-          <section className="db-workspace" aria-label="Completed history">
-            <h2>Completed history</h2>
-            {historyConflictCount > 0 && <p className="error-summary" role="alert">{historyConflictCount} completed service{historyConflictCount === 1 ? "" : "s"} conflict{historyConflictCount === 1 ? "s" : ""} with active plans.</p>}
-            {completedRecordsNewestFirst.length === 0 ? <p className="field-help">No completed service records saved yet.</p> : <ul className="saved-set-list history-scroll-list">{completedRecordsNewestFirst.map((record) => <li key={record.id} className={recordListClassName(completedRecord?.id === record.id, lastSavedRecord?.kind === "completed" && lastSavedRecord.id === record.id)}><button type="button" className={record.conflictState ? "needs-revision-record" : undefined} onClick={() => loadCompletedRecord(record.id)}><RecordListSummary summary={formatCompletedRecordSummary(record)} /></button></li>)}</ul>}
-          </section>
+          <HistoryRecordWorkspace
+            historyConflictCount={historyConflictCount}
+            records={completedRecordsNewestFirst}
+            openedRecordId={completedRecord?.id}
+            lastSavedRecord={lastSavedRecord}
+            onLoadRecord={loadCompletedRecord}
+          />
         )}
 
         {workspace === "planning" && (
