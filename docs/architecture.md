@@ -279,16 +279,17 @@ The conceptual modules above are currently realized through a pragmatic layered 
 - `app/planning-lifecycle-client.tsx` is the main mounted React controller for Planning/Plans/History interactions. It remains a refactoring target for further semantic UI decomposition.
 - `app/planning-runtime-clients.ts` owns the DB/memory runtime client contracts, API transports, and persistence-facing client adapters previously embedded in the mounted controller.
 - `app/planning-editor-view-model.ts` owns pure planning-editor row/snapshot/expansion view-model types and transformations that do not require React state or runtime transport.
+- application/domain planning code uses canonical `PlanningPlan*` type names; historical `ServiceSet*` / `PlanningSet*` identifiers remain only where intentionally retained for compatibility, API/persistence stability, or provenance.
 - focused `app/*.tsx` components own extracted UI areas such as Catalog, Plans/History record lists, service-context fields, non-repetition configuration, and protected account controls.
 - `src/application/` contains application services, authorization-aware interaction contracts, reference-data services, and persistence-facing orchestration.
 - `src/planning-lifecycle/` contains planning-domain and planning-UI support logic that can be exercised independently of the mounted page controller.
 - `src/db/schema/index.ts` plus committed `drizzle/` migrations define the PostgreSQL persistence implementation.
 - `src/auth/` contains the Better Auth client/server integration used by the protected DB runtime.
 - `scripts/` contains database operations, production/recovery tooling, and accumulated acceptance/regression verification.
-- `.github/workflows/` contains the authoritative CI workflow plus historical phase/issue-specific workflows; consolidation of duplicated historical gates is technical-debt work and must preserve equivalent regression coverage.
+- `.github/workflows/` contains the authoritative CI workflow, semantic focused regression/operations workflows, and retained historical `phase-*` gates; any further consolidation must preserve demonstrably equivalent regression coverage.
 - `docs/production-runtime-runbook.md` and `docs/postgres-backup-restore-runbook.md` are the primary runtime/operations references.
 
-The large mounted client and accumulated phase/issue verification infrastructure are implementation debt, not intended architectural boundaries. Refactoring should move toward smaller semantic modules while preserving the accepted domain/application boundaries and existing behavior.
+The large mounted client and accumulated historical phase verification infrastructure remain implementation debt, not intended architectural boundaries. Further consolidation should proceed only in small behavior-preserving slices with equivalent regression coverage.
 
 ## Cross-Cutting Concerns
 
