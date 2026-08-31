@@ -127,12 +127,16 @@ function Ensure-DockerEngine {
 function Read-DotEnvValue {
   param(
     [Parameter(Mandatory = $true)][string]$Path,
-    [Parameter(Mandatory = $true)][string]$Name
+    [Parameter(Mandatory = $true)][string]$Name,
+    [switch]$AllowMissing
   )
 
   $prefix = "$Name="
   $line = Get-Content -LiteralPath $Path | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) } | Select-Object -Last 1
   if (-not $line) {
+    if ($AllowMissing) {
+      return $null
+    }
     throw "$Name was not found in the pulled Production environment."
   }
 
@@ -143,13 +147,16 @@ function Read-DotEnvValue {
   }
 
   if (-not $value) {
+    if ($AllowMissing) {
+      return $null
+    }
     throw "$Name is empty in the pulled Production environment."
   }
 
   return $value
 }
 
-function Assert-RemoteProductionDatabase {
+function Get-PostgresUrlMatch {
   param([Parameter(Mandatory = $true)][string]$Value)
 
   $match = [regex]::Match(
@@ -158,17 +165,59 @@ function Assert-RemoteProductionDatabase {
   )
 
   if (-not $match.Success) {
-    throw "Production DATABASE_URL_UNPOOLED is not a valid PostgreSQL URL."
+    throw "Production database source is not a valid PostgreSQL URL."
   }
 
+  return $match
+}
+
+function Assert-RemoteProductionDatabase {
+  param([Parameter(Mandatory = $true)][string]$Value)
+
+  $match = Get-PostgresUrlMatch -Value $Value
   $hostName = $match.Groups["host"].Value.Trim('[', ']').ToLowerInvariant()
   if (-not $hostName) {
-    throw "Production DATABASE_URL_UNPOOLED does not contain a database host."
+    throw "Production database source does not contain a database host."
   }
 
   if ($hostName -in @("localhost", "127.0.0.1", "::1")) {
-    throw "Production DATABASE_URL_UNPOOLED unexpectedly points to a local database; refusing to continue."
+    throw "Production database source unexpectedly points to a local database; refusing to continue."
   }
+}
+
+function Resolve-ProductionBackupDatabaseUrl {
+  param([Parameter(Mandatory = $true)][string]$Path)
+
+  $directUrl = Read-DotEnvValue -Path $Path -Name "DATABASE_URL_UNPOOLED" -AllowMissing
+  if ($directUrl) {
+    Assert-RemoteProductionDatabase -Value $directUrl
+    return $directUrl
+  }
+
+  $runtimeUrl = Read-DotEnvValue -Path $Path -Name "DATABASE_URL"
+  Assert-RemoteProductionDatabase -Value $runtimeUrl
+
+  $match = Get-PostgresUrlMatch -Value $runtimeUrl
+  $hostGroup = $match.Groups["host"]
+  $rawHost = $hostGroup.Value
+  $hostName = $rawHost.Trim('[', ']')
+  $normalizedHost = $hostName.ToLowerInvariant()
+
+  if ($normalizedHost.Contains("-pooler")) {
+    if (-not $normalizedHost.EndsWith(".neon.tech")) {
+      throw "Production DATABASE_URL appears pooled, but its host is not a Neon endpoint; refusing to derive a direct backup URL."
+    }
+
+    $directHost = [regex]::Replace($rawHost, '-pooler(?=\.)', '', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($directHost -eq $rawHost) {
+      throw "Production Neon pooled endpoint could not be converted to a direct endpoint."
+    }
+
+    $runtimeUrl = $runtimeUrl.Substring(0, $hostGroup.Index) + $directHost + $runtimeUrl.Substring($hostGroup.Index + $hostGroup.Length)
+  }
+
+  Assert-RemoteProductionDatabase -Value $runtimeUrl
+  return $runtimeUrl
 }
 
 function Wait-ForOfflinePostgres {
@@ -206,8 +255,7 @@ try {
   $env:VERCEL_ORG_ID = $VercelOrgId
   $env:VERCEL_PROJECT_ID = $VercelProjectId
   Invoke-Native -FilePath "npx.cmd" -Arguments @("--yes", "vercel@$VercelVersion", "env", "pull", $TempVercelEnv, "--environment=production", "--yes") -Quiet
-  $databaseUrl = Read-DotEnvValue -Path $TempVercelEnv -Name "DATABASE_URL_UNPOOLED"
-  Assert-RemoteProductionDatabase -Value $databaseUrl
+  $databaseUrl = Resolve-ProductionBackupDatabaseUrl -Path $TempVercelEnv
   [IO.File]::WriteAllText($TempDatabaseEnv, "DATABASE_URL=$databaseUrl" + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 
   $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
