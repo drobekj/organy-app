@@ -1,0 +1,43 @@
+name: Protected Account WhatsApp phone acceptance
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phone:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: organy_whatsapp_phone
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d organy_whatsapp_phone"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/organy_whatsapp_phone
+      ORGANY_RUNTIME: db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - name: Protected Account WhatsApp phone DB acceptance
+        run: npx tsx scripts/protected-whatsapp-phone-db-tests.ts
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
