@@ -80,7 +80,8 @@ export function PostFinalizeWhatsAppHandoff({ plan, runtimeMode, onClose }: Prop
       return;
     }
 
-    const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+    const popup = window.open("about:blank", "_blank");
+    if (popup) popup.opener = null;
     setSavingPhone(true);
     try {
       const response = await fetch("/api/account/whatsapp-phone", {
