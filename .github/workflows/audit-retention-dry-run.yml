@@ -1,4 +1,4 @@
-name: Issue 314 audit retention dry-run
+name: Audit retention dry-run acceptance
 
 on:
   pull_request:
@@ -31,7 +31,7 @@ jobs:
       - run: npm ci --no-audit --no-fund --loglevel=error
       - name: Apply committed schema
         run: npm run db:migrate
-      - name: Issue 314 dry-run and admin incident acceptance
+      - name: Audit retention dry-run and admin incident acceptance
         run: npx tsx scripts/issue-314-tests.ts
       - name: Existing append-only application audit contract
         run: npm run verify:issue-222

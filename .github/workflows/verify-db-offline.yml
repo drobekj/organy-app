@@ -1,4 +1,4 @@
-name: Issue 318 offline DB verification
+name: Verify DB offline acceptance
 
 on:
   pull_request:
@@ -35,7 +35,7 @@ jobs:
             $errors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
-      - name: Issue 318 acceptance
+      - name: Verify DB acceptance
         run: npm run test:issue-318
       - name: Typecheck
         run: npm run typecheck

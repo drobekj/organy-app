@@ -1,4 +1,4 @@
-name: Issue 314 monthly retention apply
+name: Monthly audit retention acceptance
 
 on:
   pull_request:
