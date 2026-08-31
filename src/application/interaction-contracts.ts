@@ -3,7 +3,7 @@ import type { ConcreteSongLanguage, PlanningRole, ServiceLanguage } from "../pla
 import { languagesForService } from "./catalog";
 
 export type PreferenceProfileCategory = "priest" | "organist" | "congregationMember";
-export type AppUser = { id: string; displayName: string; personId?: string; roles: PlanningRole[]; active: boolean };
+export type AppUser = { id: string; displayName: string; personId?: string; roles: PlanningRole[]; active: boolean; whatsappPhone?: string };
 export type ActorIdentity = { userId: string; displayName: string; role: PlanningRole; personId?: string };
 export type PreferenceProfile = { id: string; userId: string; category: PreferenceProfileCategory };
 export type SongPreference = { profileId: string; songId: string; score: number };
