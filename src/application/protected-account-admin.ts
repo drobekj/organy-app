@@ -166,7 +166,7 @@ export class PostgresProtectedAccountAdminService {
     try {
       await client.query("begin");
       await serializeAdminMutation(client);
-      const target = await requireLinkedTarget(client, appUserId);
+      await requireLinkedTarget(client, appUserId);
       const current = await client.query(
         "select whatsapp_phone_e164 from protected_account_actor_links where app_user_id = $1 for update",
         [appUserId],
