@@ -1,7 +1,7 @@
 import { PasswordVisibilityField } from "../../password-visibility-field";
 import { ConfirmSubmitButton } from "./confirm-submit-button";
 
-type Account = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: string[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
+type Account = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: string[]; whatsappPhone?: string; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
 
 export function ProtectedAccountEditor({ account, currentAppUserId, canDeactivate }: { account: Account; currentAppUserId: string; canDeactivate: boolean }) {
   const eligibility = account.personId ? [account.personPriest ? "priest" : "", account.personOrganist ? "organist" : ""].filter(Boolean).join(", ") || "none" : undefined;
@@ -29,6 +29,15 @@ export function ProtectedAccountEditor({ account, currentAppUserId, canDeactivat
       </div></fieldset>
       <button type="submit">Save roles</button>
     </form>
+    <div className="planning-form">
+      <p className="field-help">WhatsApp phone: <strong>{account.whatsappPhone ?? "Not set"}</strong></p>
+      {account.whatsappPhone && <form action="/api/protected-accounts" method="post">
+        <input type="hidden" name="action" value="removeWhatsappPhone" />
+        <input type="hidden" name="appUserId" value={account.appUserId} />
+        <ConfirmSubmitButton message={`Forget WhatsApp phone for ${account.displayName}? The account owner will need to enter and confirm a number again.`}>Forget WhatsApp Phone</ConfirmSubmitButton>
+      </form>}
+      <p className="field-help">Only the account owner can add or change this phone.</p>
+    </div>
     {canResetPassword && <form action="/api/protected-accounts" method="post">
       <input type="hidden" name="action" value="deleteAccount" />
       <input type="hidden" name="appUserId" value={account.appUserId} />
