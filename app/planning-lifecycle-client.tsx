@@ -12,13 +12,13 @@ import {
   type PlanningSetId,
   type PlanningServiceError,
 } from "../src/application/planning-lifecycle";
-import type { ConcreteSongLanguage, PlanningRole, PlanningRow, PlanningSet, ServiceAntiphonReference, ServiceContext, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
+import type { PlanningRole, PlanningRow, PlanningSet, ServiceAntiphonReference, ServiceContext, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
 import { canPerformPlanningAction, findMelodyCollisions, isValidServiceTime, melodyCollisionSummary, normalizeServiceTime, serviceAntiphonMatchesLanguage, serviceTopicMatchesLanguage, validatePlanningRow } from "../src/planning-lifecycle";
 import { CatalogLookupRequestTracker, clearSongLookupResultsOnServiceLanguageChange, confirmLanguageDeviationSave, enrichRowsWithCurrentSheetMusic, getPersonLookupScope, getSongLookupScope, preserveRowsOnServiceLanguageChange } from "../src/planning-lifecycle/catalog-ui";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
 import { resolvePlanningDraftConflictRow, type PlanningDraftConflictPreviewState } from "../src/planning-lifecycle/conflict-ui";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
-import { buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, getPlanningCandidateRowLookupState, rehydrateCandidateFromSelectedSong, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
+import { buildCanonicalCandidateUsages, candidateToSelectedSong, formatPlanningSongField, formatSongLabel, getPlanningCandidateRowLookupState, openSingleCandidateRow, planningCandidateRowReducer, restoreRowsExceptActive } from "../src/planning-lifecycle/candidate-flow";
 import type { CompletedPlanInvalidationPreview } from "../src/application/completed-plan-conflict-preview";
 import { ACTIVE_ROLE_CHANGED_EVENT, isPlanningRole, serializeActiveRoleCookie } from "../src/application/active-role";
 import { MemoryReferenceAntiphonProvider } from "../src/application/reference-antiphon";
@@ -45,36 +45,22 @@ import {
   type CatalogClient,
   type InteractionClient,
 } from "./planning-runtime-clients";
+import {
+  candidateFromSelectedSong,
+  createEmptyRow,
+  formatConflictPreviewPlanLabel,
+  fromPlanningRow,
+  isFuturePragueDate,
+  toPlanningRow,
+  type EditableRow,
+  type PlanningExpansion,
+  type SaveState,
+  type SelectedCandidateAvailability,
+  type SelectedCandidateAvailabilitySnapshot,
+  type WorkingSetSnapshot,
+} from "./planning-editor-view-model";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
-
-type EditableRow = {
-  id: number;
-  songSearch: string;
-  selectedSong?: CatalogSong | { songId?: string; language: ConcreteSongLanguage; number: string; title?: string };
-  selectedCandidate?: CandidateQueryResult;
-  note: string;
-  lookupOpen?: boolean;
-};
-
-type SaveState = "unsaved" | "saved" | "finalized" | "completed" | "deleted" | "errors";
-type SelectedCandidateAvailability = "available" | "unavailable" | "error";
-type SelectedCandidateAvailabilitySnapshot = { key: string; byRow: Record<number, SelectedCandidateAvailability> };
-
-type WorkingSetSnapshot = {
-  serviceDate: string;
-  serviceTime: string;
-  serviceLanguage: ServiceLanguage;
-  priest: string;
-  organist: string;
-  rows: PlanningRow[];
-};
-
-type PlanningExpansion =
-  | { kind: "candidateList"; rowId: number; focusSongId?: string }
-  | { kind: "candidateDetail"; rowId: number; songId: string; candidate: CandidateQueryResult; returnQuery: string }
-  | { kind: "selectedSongDetail"; rowId: number; songId: string; candidate: CandidateQueryResult }
-  | null;
 
 const PHASE_30_1_PREFERENCE_THRESHOLD = 0;
 
@@ -87,72 +73,6 @@ const serviceLanguageOptions: ServiceLanguage[] = ["czech", "polish", "mixed"];
 const defaultServiceTime = "10:00";
 
 
-function createEmptyRow(id: number, _serviceLanguage: ServiceLanguage): EditableRow {
-  return {
-    id,
-    songSearch: "",
-    note: "",
-  };
-}
-
-
-function fromPlanningRow(row: PlanningRow, id: number): EditableRow {
-  return {
-    id,
-    songSearch: row.song ? formatPlanningSongField(row.song) : "",
-    selectedSong: row.song ? { ...row.song } : undefined,
-    selectedCandidate: row.song ? rehydrateCandidateFromSelectedSong(row.song, row.note ?? "") : undefined,
-    note: row.note ?? "",
-  };
-}
-
-function toPlanningRow(row: EditableRow): PlanningRow {
-  const note = row.note.trim();
-  return {
-    ...(row.selectedSong
-      ? {
-          song: {
-            ...(row.selectedSong.songId ? { songId: row.selectedSong.songId } : {}),
-            language: row.selectedSong.language,
-            number: row.selectedSong.number,
-            ...(row.selectedSong.title ? { title: row.selectedSong.title } : {}),
-          },
-        }
-      : {}),
-    ...(note ? { note } : {}),
-  };
-}
-
-function candidateFromSelectedSong(song: { songId?: string; language: ConcreteSongLanguage; number: string; title?: string }): CandidateQueryResult {
-  return {
-    songId: song.songId ?? `historical:${song.language}:${song.number}`,
-    language: song.language,
-    number: song.number,
-    title: song.title ?? "Untitled snapshot",
-    equivalentNumbers: [],
-    aggregatePreferenceScore: 0,
-    antiphonMatch: false,
-    seasonMatch: false,
-    signal: "none",
-    preferenceShade: "none",
-    repertoire: false,
-    availability: { kind: "available" },
-    suppressedByMelodyWindow: false,
-    orderKey: `${song.language}:${song.number}`,
-  };
-}
-
-
-
-function formatConflictPreviewPlanLabel(
-  impact: CompletedPlanInvalidationPreview["newlyImpactedPlans"][number],
-  plans: PersistedPlanningSet[],
-): string {
-  const plan = plans.find((candidate) => candidate.id === impact.planId);
-  const status = impact.planStatus === "final" ? "Final" : "Working";
-  return plan ? `${status} ${plan.serviceContext.serviceDate} ${plan.serviceContext.serviceTime}` : `${status} plan`;
-}
-
 function RecordListSummary({ summary }: { summary: string }) {
   const rowsMarker = " · rows:";
   const rowsIndex = summary.indexOf(rowsMarker);
@@ -162,11 +82,6 @@ function RecordListSummary({ summary }: { summary: string }) {
     {summary.slice(0, rowsIndex)}
     <span className="record-summary-rows">{summary.slice(rowsIndex + 3)}</span>
   </>;
-}
-
-function isFuturePragueDate(serviceDate: string): boolean {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Prague", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  return serviceDate > today;
 }
 
 export type RuntimeMode = "memory" | "db";
