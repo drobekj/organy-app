@@ -2,7 +2,10 @@ export type ServiceLanguage = "czech" | "polish" | "mixed";
 
 export type ConcreteSongLanguage = "czech" | "polish";
 
-export type ServiceSetStatus = "working" | "final";
+export type PlanningPlanStatus = "working" | "final";
+
+/** Compatibility alias retained while historical Set terminology is migrated call-site by call-site. */
+export type ServiceSetStatus = PlanningPlanStatus;
 
 export type PlanningRole = "priest" | "organist" | "admin" | "congregationMember";
 
@@ -55,8 +58,11 @@ export type ServiceContext = {
   liturgicalSeasonKey?: string;
 };
 
-export type PlanningSet = {
-  status: ServiceSetStatus;
+export type PlanningPlan = {
+  status: PlanningPlanStatus;
   language: ServiceLanguage;
   rows: PlanningRow[];
 };
+
+/** Compatibility alias retained while historical Set terminology is migrated call-site by call-site. */
+export type PlanningSet = PlanningPlan;

@@ -1,5 +1,7 @@
 export type {
   ConcreteSongLanguage,
+  PlanningPlan,
+  PlanningPlanStatus,
   PlanningRole,
   PlanningRow,
   PlanningSet,
