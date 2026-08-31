@@ -123,13 +123,15 @@ npm run db:verify:offline
 That command is the only routine operator step after opening PowerShell in the local `organy-app` repository. It performs the following sequence automatically:
 
 1. Starts Docker Desktop when the Docker engine is not already running and the standard Windows installation is available.
-2. Uses the authenticated Vercel CLI context for the fixed `organy-app` project to pull the **Production** environment into a temporary file. It never runs `vercel link`.
-3. Reads Production `DATABASE_URL`, rejects loopback/local source URLs, and uses a transient `postgres:16-alpine` container to create a complete custom-format `pg_dump`.
-4. Deletes temporary Production credential files immediately after the dump step.
-5. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
-6. Resets only `docker-compose.offline-db.yml`, which owns the disposable `organy_offline_postgres_data` volume. The normal `organy-app-postgres` container and `organy_app_postgres_data` volume are not part of this Compose project and are never reset by this command.
-7. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs `postgres-recovery-check.ts`.
-8. Starts Adminer and opens `http://127.0.0.1:8080` automatically. Adminer is configured to auto-login only to the Docker-local `organy_offline` database.
+2. When run from the dedicated `%LOCALAPPDATA%\Organy\verify-db` checkout, first fetches `origin/main` and self-restarts once on the current main revision. It never modifies the normal development worktree.
+3. Uses the authenticated Vercel CLI context for the fixed `organy-app` project to pull the **Production** environment into a temporary file. It never runs `vercel link`.
+4. Reads Production `DATABASE_URL_UNPOOLED` as the authoritative direct Neon operator connection, rejects missing/non-PostgreSQL and loopback/local source URLs, and uses a transient `postgres:16-alpine` container to create a complete custom-format `pg_dump`. The pooled runtime `DATABASE_URL` is deliberately not used for backup.
+
+5. Deletes temporary Production credential files immediately after the dump step.
+6. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
+7. Resets only `docker-compose.offline-db.yml`, which owns the disposable `organy_offline_postgres_data` volume. The normal `organy-app-postgres` container and `organy_app_postgres_data` volume are not part of this Compose project and are never reset by this command.
+8. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs `postgres-recovery-check.ts`.
+9. Starts Adminer and opens `http://127.0.0.1:8080` automatically. Adminer is configured to auto-login only to the Docker-local `organy_offline` database.
 
 The local database is additionally exposed on `127.0.0.1:5433` for optional local tools. Both database and Adminer ports bind to loopback only.
 
