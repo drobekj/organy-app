@@ -1,4 +1,4 @@
-name: Issue 291 Reference melody edge acceptance
+name: Reference melody edge acceptance
 
 on:
   pull_request:
@@ -52,7 +52,7 @@ jobs:
         run: npm run db:migrate
       - name: Establish exact Reference baseline
         run: npx tsx scripts/production-reference-sync.ts --apply
-      - name: Stage 5 persistent edge acceptance
+      - name: Persistent melody-edge acceptance
         run: npm run test:issue-291:db
       - name: Typecheck
         run: npm run typecheck

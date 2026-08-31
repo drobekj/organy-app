@@ -1,4 +1,4 @@
-name: Issue 225 DB-backed latency acceptance
+name: DB-backed latency acceptance
 
 on:
   pull_request:
@@ -36,7 +36,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run db:migrate
-      - name: Issue 225 latency acceptance
+      - name: DB-backed latency acceptance
         run: npx tsx scripts/issue-225-tests.ts
       - run: npm run typecheck
       - run: npm test

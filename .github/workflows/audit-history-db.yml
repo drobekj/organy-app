@@ -1,4 +1,4 @@
-name: Issue 222 audit history acceptance
+name: Audit history DB acceptance
 
 on:
   pull_request:
@@ -35,7 +35,7 @@ jobs:
       - run: npm ci --no-audit --no-fund --loglevel=error
       - name: Database migration
         run: npm run db:migrate
-      - name: Issue 222 audit history acceptance
+      - name: Audit history acceptance
         run: npm run verify:issue-222
       - name: Typecheck
         run: npm run typecheck
