@@ -55,7 +55,7 @@ assert.equal(
 );
 
 const page = readFileSync("app/admin/audit-history/page.tsx", "utf8");
-const css = readFileSync("app/issue-253-audit-history.css", "utf8");
+const css = readFileSync("app/audit-history.css", "utf8");
 
 const ruleUses = page.match(/<AuditSectionRule \/>/g) ?? [];
 assert.equal(ruleUses.length, 2, "exactly two separators must divide Object / after / before sectors");

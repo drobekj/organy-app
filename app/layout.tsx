@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./service-context-minimal.css";
 import "./data-value-typography.css";
-import "./issue-238-workspace.css";
-import "./issue-253-audit-history.css";
-import "./issue-314-maintenance.css";
-import "./issue-318-offline-db.css";
+import "./workspace-shell.css";
+import "./audit-history.css";
+import "./maintenance-alert.css";
+import "./verify-db-dialog.css";
 
 export const metadata: Metadata = {
   title: "Organ Planner",
-  description: "Planning Lifecycle First scaffold for Organ Planner."
+  description: "Church service music planning and coordination."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

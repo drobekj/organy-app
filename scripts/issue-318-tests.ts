@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const account = readFileSync("app/protected-account-controls.tsx", "utf8");
 const layout = readFileSync("app/layout.tsx", "utf8");
-const css = readFileSync("app/issue-318-offline-db.css", "utf8");
+const css = readFileSync("app/verify-db-dialog.css", "utf8");
 const compose = readFileSync("docker-compose.offline-db.yml", "utf8");
 const operator = readFileSync("scripts/verify-db-offline.ps1", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
@@ -17,7 +17,7 @@ assert.match(account, /Open PowerShell\.[\s\S]*?Copy the complete block below/, 
 assert.match(account, /navigator\.clipboard\.writeText\(VERIFY_DB_COMMAND\)/, "Verify DB must provide a one-click command copy action");
 assert.match(account, /Production → backup → local offline database/, "Dialog must state the one-way safety boundary");
 
-assert.match(layout, /issue-318-offline-db\.css/, "Verify DB dialog styles must be loaded");
+assert.match(layout, /verify-db-dialog\.css/, "Verify DB dialog styles must be loaded");
 assert.match(css, /\.verify-db-dialog-backdrop/);
 assert.match(css, /\.verify-db-command/);
 

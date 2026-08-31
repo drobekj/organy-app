@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const css = readFileSync("app/issue-238-workspace.css", "utf8");
+const css = readFileSync("app/workspace-shell.css", "utf8");
 
 assert.match(css, /\.workspace-account-popover a,[\s\S]*?\.workspace-account-popover button \{[\s\S]*?text-align: left;[\s\S]*?width: 100%;/, "Popover buttons keep their established width and left-aligned labels");
 assert.match(css, /\.workspace-sign-role-options \{[\s\S]*?direction: rtl;[\s\S]*?overflow-y: auto;[\s\S]*?scrollbar-gutter: stable;/, "Sign Role scroll gutter must be reserved on the left");

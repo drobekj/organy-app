@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const css = readFileSync("app/issue-253-audit-history.css", "utf8");
+const css = readFileSync("app/audit-history.css", "utf8");
 
 assert.match(
   css,
