@@ -114,18 +114,19 @@ Do not run any command that drops `organy_app`.
 
 ## Verify DB offline workspace
 
-The Admin **Role Admin → Verify DB** action is the guided operator entry point for routine offline database inspection. The hosted browser cannot launch programs or write files on the operator's Windows machine, so the dialog deliberately hands off one local command:
+The Admin **Role Admin → Verify DB** action is the guided operator entry point for routine offline database inspection. The hosted browser cannot launch programs or write files on the operator's Windows machine, so the dialog copies one complete PowerShell block:
 
 ```powershell
+cd "$env:LOCALAPPDATA\Organy\verify-db"
 npm run db:verify:offline
 ```
 
-That command is the only routine operator step after opening PowerShell in the local `organy-app` repository. It performs the following sequence automatically:
+The routine operator action is therefore only: open PowerShell, paste the copied block, and press Enter. The dedicated checkout is separate from the normal development worktree. It performs the following sequence automatically:
 
 1. Starts Docker Desktop when the Docker engine is not already running and the standard Windows installation is available.
 2. When run from the dedicated `%LOCALAPPDATA%\Organy\verify-db` checkout, first fetches `origin/main` and self-restarts once on the current main revision. It never modifies the normal development worktree.
 3. Uses the authenticated Vercel CLI context for the fixed `organy-app` project to pull the **Production** environment into a temporary file. It never runs `vercel link`.
-4. Reads Production `DATABASE_URL_UNPOOLED` as the authoritative direct Neon operator connection, rejects missing/non-PostgreSQL and loopback/local source URLs, and uses a transient `postgres:16-alpine` container to create a complete custom-format `pg_dump`. The pooled runtime `DATABASE_URL` is deliberately not used for backup.
+4. Resolves the Production backup source. If `DATABASE_URL_UNPOOLED` exists, it is preferred. Otherwise the operator reads `DATABASE_URL`; when that URL is a Neon pooled endpoint, it derives the direct endpoint by removing only the documented `-pooler` hostname suffix while preserving credentials, database name, and TLS/query parameters. Neon documents this conversion specifically for direct operations such as `pg_dump`. Non-PostgreSQL, loopback/local, and non-Neon pooled hosts fail closed.
 
 5. Deletes temporary Production credential files immediately after the dump step.
 6. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
