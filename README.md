@@ -4,7 +4,7 @@ Administration and communication of the musical part of church masses SCEAV.
 
 ## Local Development
 
-This repository contains a minimal Next.js App Router scaffold for the Organ Planner local development baseline, including a single mounted workspace shell for Planning, Plans, History, Catalog, and Development. The default runtime is intentionally **local in-memory only**: planned data is not durable yet and can be lost after refresh, browser/session restart, or app restart.
+This repository contains the Next.js App Router application for Organ Planner. Local development supports both a lightweight in-memory runtime and the PostgreSQL-backed runtime used by the protected application. A plain `npm run dev` defaults to memory mode; set `ORGANY_RUNTIME=db` with a migrated PostgreSQL database to exercise the DB-backed path. Production uses the DB-backed runtime with PostgreSQL persistence and protected account/session handling.
 
 ### Setup
 
@@ -28,7 +28,7 @@ npm run typecheck
 
 ## Local Database Setup
 
-The default application runtime remains intentionally **local in-memory only**. A plain `npm run dev` does not use PostgreSQL. Use the steps below only when you want the DB-backed Planning Lifecycle workspace.
+A plain `npm run dev` intentionally remains a lightweight in-memory local mode and does not use PostgreSQL. Use the steps below when you want a local DB-backed runtime that follows the same persistence boundary as Production.
 
 ### Reproducible DB-backed local workflow
 
@@ -102,70 +102,29 @@ DATABASE_URL=postgres://organy_app:organy_app@localhost:5432/organy_app npm run 
 Expected result: the smoke checks create numeric database-backed planning set ids, verify saved sets can be listed and loaded, update persisted rows and language, and delete their test data. Rows are persisted in `service_set_rows`, the set status and context reference in `service_sets`, and the planning-set service date, service language, priest, and organist display data in `service_contexts`.
 
 
-## First Local Release Acceptance Checklist
+## Current Runtime and Operations
 
-Use this checklist for the first locally usable in-memory Planning Lifecycle First release:
+The application has two explicit runtime modes:
 
-- [ ] App starts locally.
-- [ ] Working set can be created and saved.
-- [ ] Final set can be created.
-- [ ] Completed service record can be created.
-- [ ] Delete works for a saved non-completed set.
-- [ ] `congregationMember` cannot perform planning actions.
-- [ ] Data is not durable across refresh/session restart.
+- **memory** — lightweight local development mode selected when `ORGANY_RUNTIME` is not `db`; state is process-local and is not the Production path.
+- **db** — PostgreSQL-backed application mode selected with `ORGANY_RUNTIME=db`; this is the Production runtime boundary and is also available locally for persistence/authentication work.
 
+Production currently uses **Vercel** for the Next.js application and **Neon PostgreSQL** for durable data. Protected staff accounts use the repository's Better Auth + PostgreSQL integration. Automatic Git production deployment is deliberately disabled in `vercel.json`; Production releases are explicit operator-controlled deployments of an exact reviewed revision after the required database/release gates.
 
-## Manual Local Acceptance Report
+Operational source-of-truth documents:
 
-Manual acceptance report for the current Planning Lifecycle First in-memory release:
+- `docs/production-runtime-runbook.md` — Production runtime variables, Vercel/Neon boundary, preflight, and release ordering.
+- `docs/production-hosting-decision.md` — accepted Vercel + Neon hosting architecture and constraints.
+- `docs/postgres-backup-restore-runbook.md` — logical backup, restore/recovery rehearsal, and the Admin **Verify DB** offline inspection workflow.
+- `docs/production-protected-identity-bootstrap-runbook.md` — protected Production identity bootstrap/recovery boundary.
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `npm install` / `npm run dev` status | Not verified | Not rerun for this documentation-only report to avoid changing dependency or lockfile state. |
-| App starts locally | Not verified | Local browser startup was not rechecked in this change. |
-| Save working set | Not verified | Manual browser flow was not rechecked in this change. |
-| Finalize set | Not verified | Manual browser flow was not rechecked in this change. |
-| Complete service | Not verified | Manual browser flow was not rechecked in this change. |
-| Delete saved non-completed set | Not verified | Manual browser flow was not rechecked in this change. |
-| `congregationMember` permission denial | Not verified | Manual role-based denial flow was not rechecked in this change. |
-| Data lost after refresh/session restart | Not verified | Persistence loss after refresh or session restart was not rechecked in this change. |
+For routine database inspection, Admin **Verify DB** copies one PowerShell block that enters the dedicated operator checkout and runs `npm run db:verify:offline`. The workflow is intentionally one-way:
 
-DB persistence remains blocked by the current npm registry, lockfile, and migration state; this release report covers only the in-memory path and does not add application code or change runtime behavior.
+```text
+Production → verified backup archive → disposable local PostgreSQL → Pgweb
+```
 
-## Known Limitations
-
-- No durable DB persistence.
-- No auth/session/account model.
-- No candidate selection.
-- No melody rules.
-- No antiphon/season highlighting.
-- No preference system.
-
-## Manual Smoke-Test Checklist
-
-Use this short checklist to smoke-test the current local in-memory Planning Lifecycle version after starting the app with `npm run dev`:
-
-- [ ] App loads at <http://localhost:3000> or the localhost URL printed by Next.js.
-- [ ] Role selection is visible for the development roles.
-- [ ] The working draft area is visible for the service being planned.
-- [ ] Basic lifecycle buttons respond in the browser flow, including saving a working draft, finalizing a saved set, completing a finalized set, and deleting a saved non-completed set.
-
-Known limitations and observed issues for this in-memory baseline:
-
-- No durable persistence yet; data can be lost after refresh, browser/session restart, or app restart.
-- Delete does not clear the protocol/log.
-- Set numbering may keep increasing after delete.
-- Saving without service context is currently possible.
-- Only one set can be inserted.
-- Role-specific button enablement still needs tightening.
-
-## Phase 13 Closure
-
-Phase 13 — Local development baseline stabilization should be closed after this local setup, dependency baseline, and smoke-test documentation change is merged.
-
-## Phase 21 Closure
-
-Phase 21 — Reproducible Local DB Release Setup should be closed after this reproducible local PostgreSQL setup, committed migration command, DB smoke workflow, and README update are merged.
+It does not provide a path that writes the disposable local copy back to Production.
 
 ## Project Documentation
 
