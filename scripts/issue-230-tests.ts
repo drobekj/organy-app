@@ -20,8 +20,10 @@ async function main() {
   if (!databaseUrl) throw new Error("DATABASE_URL is required for Issue 230 acceptance.");
 
   const clientSource = await readFile("app/planning-lifecycle-client.tsx", "utf8");
+  const recordListsSource = await readFile("app/plan-history-record-lists.tsx", "utf8");
   const cssSource = await readFile("app/globals.css", "utf8");
-  assert.match(clientSource, /record\.conflictState \? "needs-revision-record" : undefined/, "History must style conflicting Completed records");
+  assert.match(clientSource, /<HistoryRecordWorkspace/, "History must mount the extracted record list");
+  assert.match(recordListsSource, /record\.conflictState \? "needs-revision-record" : undefined/, "History must style conflicting Completed records");
   assert.match(clientSource, /completedConflictRowIndexes\.has\(index\)/, "opened Completed records must mark exact conflicting rows");
   assert.match(clientSource, /completedInvalidationPreview\?\.impactedPlans/, "Completed editor must render current authoritative conflict state, not only new deltas");
   assert.match(clientSource, /historyConflictCount/, "History must expose a concise current-conflict count");
