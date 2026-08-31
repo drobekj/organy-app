@@ -8,6 +8,8 @@ import { getUnresolvedAuditRetentionIncident } from "../src/application/audit-re
 import { resolveApplicationRuntimeMode } from "../src/config/production-runtime";
 import { authPool } from "../src/auth/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const runtimeMode: RuntimeMode = resolveApplicationRuntimeMode();
   if (runtimeMode === "memory") return <PlanningLifecycleClient runtimeMode="memory" />;
