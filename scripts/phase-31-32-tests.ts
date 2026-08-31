@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import {
+  ProductionRuntimeConfigError,
   formatProductionRuntimeIssues,
+  resolveApplicationRuntimeMode,
   validateProductionRuntimeConfig,
   type RuntimeEnvironment,
 } from "../src/config/production-runtime";
@@ -42,6 +44,25 @@ assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "" }), "BETTER_AUTH_URL"));
 assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "not-a-url" }), "BETTER_AUTH_URL"));
 assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "http://organy.example.test" }), "BETTER_AUTH_URL"));
 assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "ftp://organy.example.test" }), "BETTER_AUTH_URL"));
+
+assert.equal(resolveApplicationRuntimeMode(validEnv, "production"), "db");
+assert.throws(
+  () => resolveApplicationRuntimeMode({ ...validEnv, ORGANY_RUNTIME: "memory" }, "production"),
+  ProductionRuntimeConfigError,
+);
+assert.throws(
+  () => resolveApplicationRuntimeMode({ ...validEnv, ORGANY_RUNTIME: "invalid" }, "production"),
+  ProductionRuntimeConfigError,
+);
+assert.throws(
+  () => resolveApplicationRuntimeMode({ ...validEnv, DATABASE_URL: "" }, "production"),
+  ProductionRuntimeConfigError,
+);
+assert.equal(resolveApplicationRuntimeMode({ ORGANY_RUNTIME: "db" }, "development"), "db");
+assert.equal(resolveApplicationRuntimeMode({ ORGANY_RUNTIME: "memory" }, "development"), "memory");
+assert.equal(resolveApplicationRuntimeMode({ ORGANY_RUNTIME: "invalid" }, "development"), "memory");
+assert.equal(resolveApplicationRuntimeMode({}, "development"), "memory");
+assert.equal(resolveApplicationRuntimeMode({}, "test"), "memory");
 
 const redactionIssues = validateProductionRuntimeConfig({
   ORGANY_RUNTIME: "memory",
