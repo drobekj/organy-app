@@ -276,7 +276,8 @@ Concrete package/runtime/provider choices are governed by the accepted Productio
 The conceptual modules above are currently realized through a pragmatic layered Next.js/TypeScript application:
 
 - `app/page.tsx` selects memory versus DB runtime and is the protected application entry boundary for DB mode.
-- `app/planning-lifecycle-client.tsx` is the main mounted client controller for Planning/Plans/History interactions. It currently also owns several runtime client adapters and is intentionally identified as a refactoring target because it has accumulated too many responsibilities.
+- `app/planning-lifecycle-client.tsx` is the main mounted React controller for Planning/Plans/History interactions. It remains a refactoring target for further semantic UI decomposition.
+- `app/planning-runtime-clients.ts` owns the DB/memory runtime client contracts, API transports, and persistence-facing client adapters previously embedded in the mounted controller.
 - focused `app/*.tsx` components own extracted UI areas such as Catalog, service-context fields, non-repetition configuration, and protected account controls.
 - `src/application/` contains application services, authorization-aware interaction contracts, reference-data services, and persistence-facing orchestration.
 - `src/planning-lifecycle/` contains planning-domain and planning-UI support logic that can be exercised independently of the mounted page controller.
