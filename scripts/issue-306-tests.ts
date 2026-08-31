@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const account = readFileSync("app/protected-account-controls.tsx", "utf8");
-const workspaceCss = readFileSync("app/issue-238-workspace.css", "utf8");
+const workspaceCss = readFileSync("app/workspace-shell.css", "utf8");
 const globals = readFileSync("app/globals.css", "utf8");
 
 assert.match(account, /className="workspace-sign-role-arrow"[^>]*\/>/, "Sign Role must use a CSS chevron indicator rather than a text glyph");

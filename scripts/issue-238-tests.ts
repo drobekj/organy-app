@@ -5,7 +5,7 @@ async function main() {
   const [accountControls, layout, styles, planning] = await Promise.all([
     readFile("app/protected-account-controls.tsx", "utf8"),
     readFile("app/layout.tsx", "utf8"),
-    readFile("app/issue-238-workspace.css", "utf8"),
+    readFile("app/workspace-shell.css", "utf8"),
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
   ]);
 

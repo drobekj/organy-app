@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const account = readFileSync("app/protected-account-controls.tsx", "utf8");
 const planning = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
-const css = readFileSync("app/issue-238-workspace.css", "utf8");
+const css = readFileSync("app/workspace-shell.css", "utf8");
 
 const signRoleIndex = account.indexOf("<span>Sign Role</span>");
 const changePasswordIndex = account.indexOf(">Change Password</button>");

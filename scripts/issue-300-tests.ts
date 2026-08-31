@@ -7,7 +7,7 @@ const catalog = readFileSync("app/catalog-workspace.tsx", "utf8");
 const globals = readFileSync("app/globals.css", "utf8");
 const serviceCss = readFileSync("app/service-context-minimal.css", "utf8");
 const antiphonField = readFileSync("app/service-context-reference-antiphon-field.tsx", "utf8");
-const workspaceCss = readFileSync("app/issue-238-workspace.css", "utf8");
+const workspaceCss = readFileSync("app/workspace-shell.css", "utf8");
 
 // Catalog context peer labels use the same muted label color as Organist/Language.
 assert.match(globals, /\.catalog-context-label \{[\s\S]*?color: var\(--muted\);[\s\S]*?font-weight: 600;/);

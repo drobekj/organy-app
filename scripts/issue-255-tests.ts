@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { formatPlanningRowToken } from "../src/planning-lifecycle/row-summary";
 
 const page = readFileSync("app/admin/audit-history/page.tsx", "utf8");
-const css = readFileSync("app/issue-253-audit-history.css", "utf8");
+const css = readFileSync("app/audit-history.css", "utf8");
 const rowSummary = readFileSync("src/planning-lifecycle/row-summary.ts", "utf8");
 
 assert.match(page, /audit-service-primary/, "service context must render in a dedicated primary row");

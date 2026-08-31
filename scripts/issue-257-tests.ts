@@ -72,7 +72,7 @@ for (const action of ["finalizeWorkingSet", "reopenFinalSet", "completeFinalSet"
 }
 
 const page = readFileSync("app/admin/audit-history/page.tsx", "utf8");
-const css = readFileSync("app/issue-253-audit-history.css", "utf8");
+const css = readFileSync("app/audit-history.css", "utf8");
 
 assert.ok(
   page.indexOf('<AuditStateLine label="after"') < page.indexOf('<AuditStateLine label="before"'),

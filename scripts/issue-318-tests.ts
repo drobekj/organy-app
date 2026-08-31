@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const account = readFileSync("app/protected-account-controls.tsx", "utf8");
 const layout = readFileSync("app/layout.tsx", "utf8");
-const css = readFileSync("app/issue-318-offline-db.css", "utf8");
+const css = readFileSync("app/verify-db-dialog.css", "utf8");
 const compose = readFileSync("docker-compose.offline-db.yml", "utf8");
 const operator = readFileSync("scripts/verify-db-offline.ps1", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
