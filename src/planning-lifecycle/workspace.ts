@@ -1,11 +1,11 @@
-import type { CompletedServiceRecord, PersistedPlanningSet, PlanningSetId, CompletedServiceRecordId } from "../application/planning-lifecycle/ports";
+import type { CompletedServiceRecord, PersistedPlanningPlan, PlanningPlanId, CompletedServiceRecordId } from "../application/planning-lifecycle/ports";
 import type { PlanningRole } from "./model";
 import { formatPlanningRowsSummary } from "./row-summary";
 
 export type Workspace = "planning" | "plans" | "history" | "catalog" | "development";
-export type ActiveRecordGroups = { working: PersistedPlanningSet[]; final: PersistedPlanningSet[] };
+export type ActiveRecordGroups = { working: PersistedPlanningPlan[]; final: PersistedPlanningPlan[] };
 export type PersistedRecordReference =
-  | { kind: "active"; id: PlanningSetId }
+  | { kind: "active"; id: PlanningPlanId }
   | { kind: "completed"; id: CompletedServiceRecordId };
 
 export function getAvailableWorkspaces(role: PlanningRole): Workspace[] {
@@ -23,20 +23,26 @@ export function getSafeWorkspace(workspace: Workspace, role: PlanningRole): Work
   return isWorkspaceAvailable(workspace, role) ? workspace : "planning";
 }
 
-export function groupActivePlanningSets(sets: PersistedPlanningSet[]): ActiveRecordGroups {
+export function groupActivePlanningSets(plans: PersistedPlanningPlan[]): ActiveRecordGroups {
   return {
-    working: sets.filter((set) => set.status === "working"),
-    final: sets.filter((set) => set.status === "final"),
+    working: plans.filter((plan) => plan.status === "working"),
+    final: plans.filter((plan) => plan.status === "final"),
   };
 }
 
-export function formatPlanningSetSummary(set: PersistedPlanningSet): string {
+/** Canonical Plan-named helper; historical Set export remains during call-site migration. */
+export const groupActivePlanningPlans = groupActivePlanningSets;
+
+export function formatPlanningSetSummary(plan: PersistedPlanningPlan): string {
   return [
-    formatServiceContext(set.serviceContext),
-    formatPlanningRowsSummary(set.rows),
-    `changed by ${set.lastChangedBy ?? "—"}`,
+    formatServiceContext(plan.serviceContext),
+    formatPlanningRowsSummary(plan.rows),
+    `changed by ${plan.lastChangedBy ?? "—"}`,
   ].join(" · ");
 }
+
+/** Canonical Plan-named helper; historical Set export remains during call-site migration. */
+export const formatPlanningPlanSummary = formatPlanningSetSummary;
 
 export function formatCompletedRecordSummary(record: CompletedServiceRecord): string {
   return [
@@ -56,6 +62,8 @@ export const workspaceLabels: Record<Workspace, string> = {
 
 export function getWorkspaceLabel(workspace: Workspace): string { return workspaceLabels[workspace]; }
 export function getWorkspaceAfterStartNewSet(): Workspace { return "planning"; }
+/** Canonical Plan-named helper; historical Set export remains during call-site migration. */
+export const getWorkspaceAfterStartNewPlan = getWorkspaceAfterStartNewSet;
 export function getWorkspaceAfterSaveWorking(): Workspace { return "plans"; }
 export function getWorkspaceAfterFinalize(): Workspace { return "plans"; }
 export function getWorkspaceAfterComplete(): Workspace { return "history"; }
@@ -66,6 +74,6 @@ export function getWorkspaceAfterDelete(deleted: PersistedRecordReference | null
 }
 export function getWorkspaceAfterOpenRecord(): Workspace { return "planning"; }
 
-function formatServiceContext(context: PersistedPlanningSet["serviceContext"]): string {
+function formatServiceContext(context: PersistedPlanningPlan["serviceContext"]): string {
   return `${context.serviceDate} ${context.serviceTime || "time missing"} · ${context.language} · ${context.priest.displayName || "—"} · ${context.organist.displayName || "—"}`;
 }
