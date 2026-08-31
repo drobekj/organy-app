@@ -11,6 +11,18 @@ export function ProtectedWhatsAppPhoneSetting({ initialPhone, roles }: { initial
   const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!open) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setFeedback(null);
+      }
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [open]);
+
+  useEffect(() => {
     function handlePhoneChange(event: Event) {
       const value = (event as CustomEvent<unknown>).detail;
       const next = typeof value === "string" ? value : "";
