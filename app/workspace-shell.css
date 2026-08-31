@@ -385,7 +385,7 @@ button.workspace-action-pending {
   font-size: 0.72rem;
   line-height: 1.2;
   padding: 0.15rem 0.2rem 0;
-  text-align: right;
+  text-align: end;
   white-space: nowrap;
 }
 
@@ -468,6 +468,6 @@ button.workspace-action-pending {
 
 @media (max-width: 899px) {
   .workspace-copyright {
-    text-align: left;
+    text-align: start;
   }
 }
