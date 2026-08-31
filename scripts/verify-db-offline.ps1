@@ -19,6 +19,41 @@ $PreviousVercelOrgId = $env:VERCEL_ORG_ID
 $PreviousVercelProjectId = $env:VERCEL_PROJECT_ID
 $PreviousRestoreUrl = $env:ORGANY_RESTORE_DATABASE_URL
 $databaseUrl = $null
+$DedicatedOperatorRoot = Join-Path $env:LOCALAPPDATA "Organy\verify-db"
+
+function Update-DedicatedOperatorCheckout {
+  if ($env:ORGANY_VERIFY_DB_SELF_UPDATED -eq "1") {
+    return
+  }
+
+  $resolvedDedicatedRoot = [IO.Path]::GetFullPath($DedicatedOperatorRoot).TrimEnd('\')
+  $resolvedRepoRoot = [IO.Path]::GetFullPath($RepoRoot).TrimEnd('\')
+  if (-not $resolvedRepoRoot.Equals($resolvedDedicatedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    return
+  }
+
+  Write-Host "0/7 Updating dedicated Verify DB checkout"
+  Invoke-Native -FilePath "git" -Arguments @("-C", $RepoRoot, "fetch", "origin", "main") -Quiet
+  $currentSha = Invoke-Native -FilePath "git" -Arguments @("-C", $RepoRoot, "rev-parse", "HEAD") -Capture
+  $remoteSha = Invoke-Native -FilePath "git" -Arguments @("-C", $RepoRoot, "rev-parse", "origin/main") -Capture
+
+  if ($currentSha -eq $remoteSha) {
+    return
+  }
+
+  $dirty = Invoke-Native -FilePath "git" -Arguments @("-C", $RepoRoot, "status", "--porcelain") -Capture
+  if ($dirty) {
+    throw "Dedicated Verify DB checkout contains unexpected local changes. Remove or review them before continuing."
+  }
+
+  Invoke-Native -FilePath "git" -Arguments @("-C", $RepoRoot, "checkout", "--detach", $remoteSha) -Quiet
+  Invoke-Native -FilePath "git" -Arguments @("-C", $RepoRoot, "reset", "--hard", $remoteSha) -Quiet
+
+  $env:ORGANY_VERIFY_DB_SELF_UPDATED = "1"
+  Write-Host "Verify DB checkout updated; restarting with current main."
+  & npm.cmd run db:verify:offline
+  exit $LASTEXITCODE
+}
 
 function Invoke-Native {
   param(
@@ -117,20 +152,22 @@ function Read-DotEnvValue {
 function Assert-RemoteProductionDatabase {
   param([Parameter(Mandatory = $true)][string]$Value)
 
-  try {
-    $uri = [Uri]$Value
-  }
-  catch {
-    throw "Production DATABASE_URL is not a valid PostgreSQL URL."
+  $match = [regex]::Match(
+    $Value,
+    '^(?i:postgres(?:ql)?)://(?:[^@/?#]+@)?(?<host>\[[^\]]+\]|[^:/?#]+)(?::\d+)?(?:[/?#]|$)'
+  )
+
+  if (-not $match.Success) {
+    throw "Production DATABASE_URL_UNPOOLED is not a valid PostgreSQL URL."
   }
 
-  if ($uri.Scheme -notin @("postgres", "postgresql")) {
-    throw "Production DATABASE_URL is not PostgreSQL."
+  $hostName = $match.Groups["host"].Value.Trim('[', ']').ToLowerInvariant()
+  if (-not $hostName) {
+    throw "Production DATABASE_URL_UNPOOLED does not contain a database host."
   }
 
-  $hostName = $uri.Host.ToLowerInvariant()
   if ($hostName -in @("localhost", "127.0.0.1", "::1")) {
-    throw "Production DATABASE_URL unexpectedly points to a local database; refusing to continue."
+    throw "Production DATABASE_URL_UNPOOLED unexpectedly points to a local database; refusing to continue."
   }
 }
 
@@ -158,6 +195,7 @@ function Wait-ForOfflinePostgres {
 
 try {
   Set-Location $RepoRoot
+  Update-DedicatedOperatorCheckout
   New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
   Write-Host "Verify DB offline workspace"
@@ -168,7 +206,7 @@ try {
   $env:VERCEL_ORG_ID = $VercelOrgId
   $env:VERCEL_PROJECT_ID = $VercelProjectId
   Invoke-Native -FilePath "npx.cmd" -Arguments @("--yes", "vercel@$VercelVersion", "env", "pull", $TempVercelEnv, "--environment=production", "--yes") -Quiet
-  $databaseUrl = Read-DotEnvValue -Path $TempVercelEnv -Name "DATABASE_URL"
+  $databaseUrl = Read-DotEnvValue -Path $TempVercelEnv -Name "DATABASE_URL_UNPOOLED"
   Assert-RemoteProductionDatabase -Value $databaseUrl
   [IO.File]::WriteAllText($TempDatabaseEnv, "DATABASE_URL=$databaseUrl" + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 
