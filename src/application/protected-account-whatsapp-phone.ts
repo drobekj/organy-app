@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import { normalizeWhatsAppPhone, WhatsAppPhoneValidationError } from "../planning-lifecycle/whatsapp-phone";
 import { ProtectedActorError, resolveProtectedUser } from "./protected-actor";
 
 export class ProtectedWhatsAppPhoneError extends Error {
@@ -10,34 +11,6 @@ export class ProtectedWhatsAppPhoneError extends Error {
 
 export type ProtectedWhatsAppPhoneSnapshot = { phoneE164: string | null };
 
-export function normalizeWhatsAppPhone(value: unknown): string {
-  if (typeof value !== "string") throw new ProtectedWhatsAppPhoneError("invalidInput", "Phone number is required.");
-  const stripped = value.trim().replace(/[\s().-]/g, "");
-  if (!stripped) throw new ProtectedWhatsAppPhoneError("invalidInput", "Phone number is required.");
-
-  let normalized: string;
-  if (stripped.startsWith("+")) normalized = stripped;
-  else if (stripped.startsWith("00")) normalized = `+${stripped.slice(2)}`;
-  else if (/^[0-9]{9}$/.test(stripped)) normalized = `+420${stripped}`;
-  else if (/^[0-9]{10,15}$/.test(stripped)) normalized = `+${stripped}`;
-  else throw new ProtectedWhatsAppPhoneError("invalidInput", "Use an international phone number such as +420 774 880 971. Czech 9-digit numbers are accepted too.");
-
-  if (!/^\+[1-9][0-9]{7,14}$/.test(normalized)) {
-    throw new ProtectedWhatsAppPhoneError("invalidInput", "Phone number must contain a valid international country code and 8 to 15 digits.");
-  }
-  return normalized;
-}
-
-export function buildWhatsAppUrlForPhone(baseUrl: string, phoneE164: string): string {
-  const normalized = normalizeWhatsAppPhone(phoneE164);
-  const url = new URL(baseUrl);
-  if (url.protocol !== "https:" || url.hostname !== "wa.me") {
-    throw new ProtectedWhatsAppPhoneError("invalidInput", "Only WhatsApp wa.me links can receive a protected Account phone number.");
-  }
-  url.pathname = `/${normalized.slice(1)}`;
-  return url.toString();
-}
-
 export class PostgresProtectedWhatsAppPhoneService {
   constructor(private readonly pool: Pool) {}
 
@@ -48,7 +21,12 @@ export class PostgresProtectedWhatsAppPhoneService {
 
   async setSelf(headers: Headers, phone: unknown): Promise<ProtectedWhatsAppPhoneSnapshot> {
     const user = await this.requireOwner(headers);
-    const phoneE164 = normalizeWhatsAppPhone(phone);
+    let phoneE164: string;
+    try { phoneE164 = normalizeWhatsAppPhone(phone); }
+    catch (error) {
+      if (error instanceof WhatsAppPhoneValidationError) throw new ProtectedWhatsAppPhoneError("invalidInput", error.message);
+      throw error;
+    }
     const result = await this.pool.query(
       "update app_users set whatsapp_phone_e164 = $2, updated_at = now() where id = $1 returning whatsapp_phone_e164",
       [user.id, phoneE164],
