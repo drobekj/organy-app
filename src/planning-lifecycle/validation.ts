@@ -1,9 +1,9 @@
 import type {
   ConcreteSongLanguage,
+  PlanningPlan,
+  PlanningPlanStatus,
   PlanningRow,
-  PlanningSet,
   ServiceLanguage,
-  ServiceSetStatus,
   SongReference,
 } from "./model";
 
@@ -80,27 +80,27 @@ export function validatePlanningRow(row: PlanningRow): PlanningValidationResult 
 }
 
 const serviceLanguages: readonly ServiceLanguage[] = ["czech", "polish", "mixed"];
-const serviceSetStatuses: readonly ServiceSetStatus[] = ["working", "final"];
+const planningPlanStatuses: readonly PlanningPlanStatus[] = ["working", "final"];
 
-export function validatePlanningSet(set: PlanningSet): PlanningValidationResult {
+export function validatePlanningSet(plan: PlanningPlan): PlanningValidationResult {
   const issues: PlanningValidationIssue[] = [];
 
-  if (!serviceSetStatuses.includes(set.status)) {
+  if (!planningPlanStatuses.includes(plan.status)) {
     issues.push({ path: "status", message: "Planning set status must be either working or final." });
   }
 
-  if (!serviceLanguages.includes(set.language)) {
+  if (!serviceLanguages.includes(plan.language)) {
     issues.push({ path: "language", message: "Planning set language must be czech, polish, or mixed." });
   }
 
-  if (!Array.isArray(set.rows)) {
+  if (!Array.isArray(plan.rows)) {
     issues.push({ path: "rows", message: "Planning set rows must be an array." });
   } else {
-    if (set.rows.length > 10) {
+    if (plan.rows.length > 10) {
       issues.push({ path: "rows", message: "Planning set cannot contain more than 10 rows." });
     }
 
-    set.rows.forEach((row, index) => {
+    plan.rows.forEach((row, index) => {
       const rowValidation = validatePlanningRow(row);
       rowValidation.issues.forEach((issue) => {
         issues.push({
@@ -116,3 +116,6 @@ export function validatePlanningSet(set: PlanningSet): PlanningValidationResult 
     issues,
   };
 }
+
+/** Canonical Plan-named validator; historical Set export remains during call-site migration. */
+export const validatePlanningPlan = validatePlanningSet;
