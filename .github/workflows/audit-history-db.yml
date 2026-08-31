@@ -1,0 +1,41 @@
+name: Audit history DB acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_issue_222
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_issue_222"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://organy_app:organy_app@127.0.0.1:5432/organy_issue_222
+      ORGANY_RUNTIME: db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Database migration
+        run: npm run db:migrate
+      - name: Audit history acceptance
+        run: npm run verify:issue-222
+      - name: Typecheck
+        run: npm run typecheck
