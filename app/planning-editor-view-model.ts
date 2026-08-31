@@ -1,7 +1,7 @@
 import type { CatalogSong } from "../src/application/catalog";
 import type { CandidateQueryResult } from "../src/application/interaction-contracts";
 import type { CompletedPlanInvalidationPreview } from "../src/application/completed-plan-conflict-preview";
-import type { PersistedPlanningSet } from "../src/application/planning-lifecycle";
+import type { PersistedPlanningPlan } from "../src/application/planning-lifecycle";
 import type { ConcreteSongLanguage, PlanningRow, ServiceLanguage } from "../src/planning-lifecycle";
 import { formatPlanningSongField, rehydrateCandidateFromSelectedSong } from "../src/planning-lifecycle/candidate-flow";
 
@@ -97,7 +97,7 @@ export function candidateFromSelectedSong(song: {
 
 export function formatConflictPreviewPlanLabel(
   impact: CompletedPlanInvalidationPreview["newlyImpactedPlans"][number],
-  plans: PersistedPlanningSet[],
+  plans: PersistedPlanningPlan[],
 ): string {
   const plan = plans.find((candidate) => candidate.id === impact.planId);
   const status = impact.planStatus === "final" ? "Final" : "Working";
