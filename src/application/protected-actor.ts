@@ -56,13 +56,13 @@ export async function resolveProtectedUser(headers: Headers, pool: Pick<Pool, "q
   if (!session?.user?.id) throw new ProtectedActorError("unauthenticated", "Sign in is required.");
 
   const { rows } = await pool.query(`
-    select u.id, u.display_name, u.person_id, u.active,
+    select u.id, u.display_name, u.person_id, u.active, l.whatsapp_phone_e164,
       coalesce(array_agg(r.role order by r.role) filter (where r.role is not null), '{}') roles
     from protected_account_actor_links l
     join app_users u on u.id = l.app_user_id
     left join app_user_roles r on r.user_id = u.id
     where l.auth_user_id = $1
-    group by u.id
+    group by u.id, l.whatsapp_phone_e164
   `, [session.user.id]);
 
   if (!rows[0]) throw new ProtectedActorError("permissionDenied", "The authenticated account is not linked to an application user.");
@@ -120,6 +120,7 @@ function mapUser(row: Record<string, unknown>): AppUser {
     displayName: String(row.display_name),
     ...(row.person_id ? { personId: String(row.person_id) } : {}),
     active: Boolean(row.active),
+    ...(row.whatsapp_phone_e164 ? { whatsappPhone: String(row.whatsapp_phone_e164) } : {}),
     roles: normalizeRoles(row.roles).sort((a, b) => ROLE_ORDER.indexOf(a) - ROLE_ORDER.indexOf(b)),
   };
 }
