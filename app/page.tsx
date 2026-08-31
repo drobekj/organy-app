@@ -5,10 +5,13 @@ import { ProtectedAccountControls } from "./protected-account-controls";
 import { ProtectedActorError, resolveProtectedUser } from "../src/application/protected-actor";
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../src/application/active-role";
 import { getUnresolvedAuditRetentionIncident } from "../src/application/audit-retention-maintenance";
+import { resolveApplicationRuntimeMode } from "../src/config/production-runtime";
 import { authPool } from "../src/auth/server";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
-  const runtimeMode: RuntimeMode = process.env.ORGANY_RUNTIME === "db" ? "db" : "memory";
+  const runtimeMode: RuntimeMode = resolveApplicationRuntimeMode();
   if (runtimeMode === "memory") return <PlanningLifecycleClient runtimeMode="memory" />;
 
   try {
