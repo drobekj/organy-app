@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 async function main() {
   const [planning, styles] = await Promise.all([
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
-    readFile("app/issue-238-workspace.css", "utf8"),
+    readFile("app/workspace-shell.css", "utf8"),
   ]);
 
   assert.match(
