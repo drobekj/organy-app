@@ -59,7 +59,6 @@ export const catalogPersons = pgTable("catalog_persons", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
   active: boolean("active").notNull().default(true),
-  whatsappPhoneE164: text("whatsapp_phone_e164"),
   priest: boolean("priest").notNull().default(false),
   organist: boolean("organist").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -236,6 +235,7 @@ export const appUsers = pgTable("app_users", {
   displayName: text("display_name").notNull(),
   personId: text("person_id").references(() => catalogPersons.id, { onDelete: "set null" }),
   active: boolean("active").notNull().default(true),
+  whatsappPhoneE164: text("whatsapp_phone_e164"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
