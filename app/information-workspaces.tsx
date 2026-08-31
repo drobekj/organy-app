@@ -29,8 +29,8 @@ export function GuideWorkspaceEntry() {
       <div className="information-copy">
         <h2 id="guide-workspace-title">Practical guide</h2>
         <p>
-          The role-aware EN/CZ guide will be built here in the next approved stage. This entry is already
-          placed at the stable end of the main navigation.
+          Practical instructions for working with Organ Planner are collected here and follow the same
+          sections as the main navigation.
         </p>
       </div>
     </section>
