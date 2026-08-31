@@ -36,15 +36,19 @@ assert.match(compose, /pgsql:\/\/organy_offline:organy_offline@offline-postgres:
 
 assert.match(operator, /VERCEL_ORG_ID/);
 assert.match(operator, /VERCEL_PROJECT_ID/);
-assert.match(operator, /"env", "pull", \$TempVercelEnv, "--environment=production", "--yes"/, "Operator must explicitly pull the Production Vercel environment");
+assert.match(operator, /vercel@\$VercelVersion" env run -e production -- powershell/, "Operator must execute itself under the Vercel Production environment");
+assert.doesNotMatch(operator, /env", "pull"|env pull/, "Routine Verify DB must not parse a pulled dotenv file");
 assert.doesNotMatch(operator, /vercel\s+link/i, "Operator must not mutate Vercel project linking");
-assert.match(operator, /Read-DotEnvValue -Path \$Path -Name "DATABASE_URL_UNPOOLED" -AllowMissing/, "Operator must prefer an explicitly supplied direct Neon URL");
-assert.match(operator, /Read-DotEnvValue -Path \$Path -Name "DATABASE_URL"/, "Operator must fall back to the runtime URL when no separate direct variable is stored");
+assert.match(operator, /\$env:DATABASE_URL_UNPOOLED/, "Operator must prefer an explicitly supplied direct Neon URL from process environment");
+assert.match(operator, /\$env:DATABASE_URL/, "Operator must fall back to the runtime URL from process environment");
 assert.match(operator, /EndsWith\("\.neon\.tech"\)/, "Automatic pooled-to-direct derivation must be restricted to Neon hosts");
 assert.match(operator, /'-pooler\(\?=\\\.\)'/, "Neon direct derivation must remove only the documented -pooler hostname suffix");
 assert.match(operator, /host is not a Neon endpoint; refusing to derive a direct backup URL/, "Arbitrary pooled host rewriting must fail closed");
 assert.match(operator, /Substring\(0, \$hostGroup\.Index\)[\s\S]*?\$directHost[\s\S]*?Substring\(\$hostGroup\.Index \+ \$hostGroup\.Length\)/, "Direct derivation must preserve all non-host connection-string content");
-assert.match(operator, /Resolve-ProductionBackupDatabaseUrl -Path \$TempVercelEnv/);
+assert.match(operator, /Resolve-ProductionBackupDatabaseUrl/);
+assert.match(operator, /--env", "DATABASE_URL"/, "pg_dump container must receive only the resolved database URL through inherited environment");
+assert.doesNotMatch(operator, /--env-file/, "Verify DB must not write a temporary database credential env file");
+assert.doesNotMatch(operator, /TempVercelEnv|TempDatabaseEnv|Read-DotEnvValue/, "Verify DB must not persist or parse Production dotenv credential files");
 assert.match(operator, /Assert-RemoteProductionDatabase/);
 assert.match(operator, /\(\?i:postgres\(\?:ql\)\?\)/, "PostgreSQL scheme validation must not depend on PowerShell System.Uri custom-scheme behavior");
 assert.match(operator, /localhost", "127\.0\.0\.1", "::1"/, "Source validation must still reject loopback PostgreSQL");
@@ -60,8 +64,7 @@ assert.match(operator, /select[\s\S]*?service_contexts[\s\S]*?reference_catalog_
 assert.match(operator, /if \(\$authSessions -ne 0\)[\s\S]*?recovery must not be accepted/, "Restored protected sessions must remain a hard recovery failure");
 assert.doesNotMatch(operator, /npx\.cmd[\s\S]*?postgres-recovery-check/, "Routine Verify DB recovery must not require local Node dependencies");
 assert.match(operator, /Start-Process \$AdminerUrl/);
-assert.match(operator, /Remove-Item -LiteralPath \$TempDatabaseEnv/);
-assert.match(operator, /Remove-Item -LiteralPath \$TempVercelEnv/);
+assert.match(operator, /Production credentials remained process-local and were not written to temporary env files/);
 assert.doesNotMatch(operator, /ORGANY_RESTORE_DATABASE_URL\s*=\s*\$databaseUrl/i, "Production URL must never become the restore target");
 assert.doesNotMatch(operator, /dropdb.+organy_app/i, "Operator must never drop the permanent development DB");
 

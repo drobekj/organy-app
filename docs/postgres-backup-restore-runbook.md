@@ -125,10 +125,9 @@ The routine operator action is therefore only: open PowerShell, paste the copied
 
 1. Starts Docker Desktop when the Docker engine is not already running and the standard Windows installation is available.
 2. When run from the dedicated `%LOCALAPPDATA%\Organy\verify-db` checkout, first fetches `origin/main` and self-restarts once on the current main revision. It never modifies the normal development worktree.
-3. Uses the authenticated Vercel CLI context for the fixed `organy-app` project to pull the **Production** environment into a temporary file. It never runs `vercel link`.
-4. Resolves the Production backup source. If `DATABASE_URL_UNPOOLED` exists, it is preferred. Otherwise the operator reads `DATABASE_URL`; when that URL is a Neon pooled endpoint, it derives the direct endpoint by removing only the documented `-pooler` hostname suffix while preserving credentials, database name, and TLS/query parameters. Neon documents this conversion specifically for direct operations such as `pg_dump`. Non-PostgreSQL, loopback/local, and non-Neon pooled hosts fail closed.
-
-5. Deletes temporary Production credential files immediately after the dump step.
+3. Re-enters the operator script once through Vercel's supported `vercel env run -e production -- ...` command. Production variables are injected into that child process and are not exported to a dotenv file. It never runs `vercel link`.
+4. Resolves the Production backup source directly from the child process environment. If `DATABASE_URL_UNPOOLED` exists, it is preferred. Otherwise the operator reads `DATABASE_URL`; when that URL is a Neon pooled endpoint, it derives the direct endpoint by removing only the documented `-pooler` hostname suffix while preserving credentials, database name, and TLS/query parameters. Non-PostgreSQL, loopback/local, and non-Neon pooled hosts fail closed.
+5. Passes only the resolved direct `DATABASE_URL` into the transient `postgres:16-alpine` pg_dump container through inherited environment. The credential value is not placed on the command line and no temporary credential env file is created.
 6. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
 7. Resets only `docker-compose.offline-db.yml`, which owns the disposable `organy_offline_postgres_data` volume. The normal `organy-app-postgres` container and `organy_app_postgres_data` volume are not part of this Compose project and are never reset by this command.
 8. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs the same representative read-only recovery summary directly through `psql` inside the offline PostgreSQL container. This removes any routine dependency on local `node_modules`.
@@ -146,7 +145,7 @@ There is no command in this workflow that restores, synchronizes, or writes the 
 
 ## Logging and secret boundaries
 
-Application-owned backup/recovery scripts report only PASS/FAIL, artifact paths, counts, and actionable safety reasons. They intentionally do not print database URLs, database passwords, session tokens, password hashes, or backup contents. Child PostgreSQL stderr is not relayed because provider/client errors can contain connection details.
+Application-owned backup/recovery scripts report only PASS/FAIL, artifact paths, counts, and actionable safety reasons. They intentionally do not print database URLs, database passwords, session tokens, password hashes, or backup contents. Verify DB keeps Vercel Production credentials process-local via `vercel env run`; it does not write a pulled Production dotenv file or a temporary database credential file. Child PostgreSQL stderr is not relayed because provider/client errors can contain connection details.
 
 No archive or manifest belongs in Git. `.organy-backups/` is ignored by the repository.
 

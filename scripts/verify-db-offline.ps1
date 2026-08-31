@@ -1,4 +1,4 @@
-param()
+param([switch]$ProductionEnvironment)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -6,18 +6,13 @@ Set-StrictMode -Version Latest
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ComposeFile = Join-Path $RepoRoot "docker-compose.offline-db.yml"
 $BackupDir = Join-Path $RepoRoot ".organy-backups"
-$OfflineDatabaseUrl = "postgres://organy_offline:organy_offline@127.0.0.1:5433/organy_offline"
 $AdminerUrl = "http://127.0.0.1:8080"
 $VercelOrgId = "team_axmKyou7kosjiNPHFNaLa86k"
 $VercelProjectId = "prj_HaAJloeBq90EcFrMOVVC3kTiJxc0"
 $VercelVersion = "59.10.0"
-$RunId = [guid]::NewGuid().ToString("N")
-$TempVercelEnv = Join-Path ([IO.Path]::GetTempPath()) "organy-production-$RunId.env"
-$TempDatabaseEnv = Join-Path ([IO.Path]::GetTempPath()) "organy-production-db-$RunId.env"
 $PreviousLocation = Get-Location
 $PreviousVercelOrgId = $env:VERCEL_ORG_ID
 $PreviousVercelProjectId = $env:VERCEL_PROJECT_ID
-$PreviousRestoreUrl = $env:ORGANY_RESTORE_DATABASE_URL
 $databaseUrl = $null
 $DedicatedOperatorRoot = Join-Path $env:LOCALAPPDATA "Organy\verify-db"
 
@@ -124,38 +119,6 @@ function Ensure-DockerEngine {
   throw "Docker Desktop started but its engine did not become ready. Open Docker Desktop, resolve the reported problem, then run this command again."
 }
 
-function Read-DotEnvValue {
-  param(
-    [Parameter(Mandatory = $true)][string]$Path,
-    [Parameter(Mandatory = $true)][string]$Name,
-    [switch]$AllowMissing
-  )
-
-  $prefix = "$Name="
-  $line = Get-Content -LiteralPath $Path | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) } | Select-Object -Last 1
-  if (-not $line) {
-    if ($AllowMissing) {
-      return $null
-    }
-    throw "$Name was not found in the pulled Production environment."
-  }
-
-  $value = $line.Substring($prefix.Length).Trim()
-  if ($value.Length -ge 2 -and $value.StartsWith('"') -and $value.EndsWith('"')) {
-    $value = $value.Substring(1, $value.Length - 2)
-    $value = $value.Replace('\"', '"').Replace('\\', '\')
-  }
-
-  if (-not $value) {
-    if ($AllowMissing) {
-      return $null
-    }
-    throw "$Name is empty in the pulled Production environment."
-  }
-
-  return $value
-}
-
 function Get-PostgresUrlMatch {
   param([Parameter(Mandatory = $true)][string]$Value)
 
@@ -186,15 +149,17 @@ function Assert-RemoteProductionDatabase {
 }
 
 function Resolve-ProductionBackupDatabaseUrl {
-  param([Parameter(Mandatory = $true)][string]$Path)
-
-  $directUrl = Read-DotEnvValue -Path $Path -Name "DATABASE_URL_UNPOOLED" -AllowMissing
+  $directUrl = if ($null -eq $env:DATABASE_URL_UNPOOLED) { "" } else { $env:DATABASE_URL_UNPOOLED.Trim() }
   if ($directUrl) {
     Assert-RemoteProductionDatabase -Value $directUrl
     return $directUrl
   }
 
-  $runtimeUrl = Read-DotEnvValue -Path $Path -Name "DATABASE_URL"
+  $runtimeUrl = if ($null -eq $env:DATABASE_URL) { "" } else { $env:DATABASE_URL.Trim() }
+  if (-not $runtimeUrl) {
+    throw "DATABASE_URL was not supplied by the Vercel Production environment."
+  }
+
   Assert-RemoteProductionDatabase -Value $runtimeUrl
 
   $match = Get-PostgresUrlMatch -Value $runtimeUrl
@@ -218,6 +183,24 @@ function Resolve-ProductionBackupDatabaseUrl {
 
   Assert-RemoteProductionDatabase -Value $runtimeUrl
   return $runtimeUrl
+}
+
+function Invoke-WithVercelProductionEnvironment {
+  Write-Host "Loading Vercel Production environment without writing a dotenv file..."
+
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & npx.cmd --yes "vercel@$VercelVersion" env run -e production -- powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-db-offline.ps1 -ProductionEnvironment
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $oldPreference
+  }
+
+  if ($exitCode -ne 0) {
+    throw "Verify DB Production environment child failed with exit code $exitCode."
+  }
 }
 
 function Wait-ForOfflinePostgres {
@@ -245,18 +228,24 @@ function Wait-ForOfflinePostgres {
 try {
   Set-Location $RepoRoot
   Update-DedicatedOperatorCheckout
+
+  $env:VERCEL_ORG_ID = $VercelOrgId
+  $env:VERCEL_PROJECT_ID = $VercelProjectId
+
+  if (-not $ProductionEnvironment) {
+    Invoke-WithVercelProductionEnvironment
+    exit 0
+  }
+
   New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
   Write-Host "Verify DB offline workspace"
   Write-Host "1/7 Docker preflight"
   Ensure-DockerEngine
 
-  Write-Host "2/7 Reading Production database configuration"
-  $env:VERCEL_ORG_ID = $VercelOrgId
-  $env:VERCEL_PROJECT_ID = $VercelProjectId
-  Invoke-Native -FilePath "npx.cmd" -Arguments @("--yes", "vercel@$VercelVersion", "env", "pull", $TempVercelEnv, "--environment=production", "--yes") -Quiet
-  $databaseUrl = Resolve-ProductionBackupDatabaseUrl -Path $TempVercelEnv
-  [IO.File]::WriteAllText($TempDatabaseEnv, "DATABASE_URL=$databaseUrl" + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+  Write-Host "2/7 Resolving Production database configuration"
+  $databaseUrl = Resolve-ProductionBackupDatabaseUrl
+  $env:DATABASE_URL = $databaseUrl
 
   $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
   $backupFileName = "organy-production-$stamp.dump"
@@ -270,14 +259,12 @@ try {
   $dumpCommand = "pg_dump --format=custom --no-owner --no-privileges --no-password --file '/backups/$backupFileName' --dbname=" + '"' + '$DATABASE_URL' + '"'
   Invoke-Native -FilePath "docker" -Arguments @(
     "run", "--rm",
-    "--env-file", $TempDatabaseEnv,
+    "--env", "DATABASE_URL",
     "--mount", "type=bind,source=$BackupDir,target=/backups",
     "postgres:16-alpine",
     "sh", "-lc", $dumpCommand
   ) -Quiet
 
-  Remove-Item -LiteralPath $TempDatabaseEnv -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $TempVercelEnv -Force -ErrorAction SilentlyContinue
   $databaseUrl = $null
 
   $hash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -363,11 +350,9 @@ select
   Write-Host "Integrity manifest: $manifestPath"
   Write-Host "Offline database: organy_offline on 127.0.0.1:5433"
   Write-Host "SQL editor: $AdminerUrl"
-  Write-Host "Production credentials were removed from temporary files."
+  Write-Host "Production credentials remained process-local and were not written to temporary env files."
 }
 finally {
-  Remove-Item -LiteralPath $TempDatabaseEnv -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $TempVercelEnv -Force -ErrorAction SilentlyContinue
   $databaseUrl = $null
 
   if ($null -eq $PreviousVercelOrgId) { Remove-Item Env:VERCEL_ORG_ID -ErrorAction SilentlyContinue }
@@ -375,9 +360,6 @@ finally {
 
   if ($null -eq $PreviousVercelProjectId) { Remove-Item Env:VERCEL_PROJECT_ID -ErrorAction SilentlyContinue }
   else { $env:VERCEL_PROJECT_ID = $PreviousVercelProjectId }
-
-  if ($null -eq $PreviousRestoreUrl) { Remove-Item Env:ORGANY_RESTORE_DATABASE_URL -ErrorAction SilentlyContinue }
-  else { $env:ORGANY_RESTORE_DATABASE_URL = $PreviousRestoreUrl }
 
   Set-Location $PreviousLocation
 }
