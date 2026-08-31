@@ -131,14 +131,14 @@ The routine operator action is therefore only: open PowerShell, paste the copied
 6. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
 7. Resets only `docker-compose.offline-db.yml`, which owns the disposable `organy_offline_postgres_data` volume. The normal `organy-app-postgres` container and `organy_app_postgres_data` volume are not part of this Compose project and are never reset by this command.
 8. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs the same representative read-only recovery summary directly through `psql` inside the offline PostgreSQL container. This removes any routine dependency on local `node_modules`.
-9. Starts Adminer and opens `http://127.0.0.1:8080` automatically. Adminer is configured to auto-login only to the Docker-local `organy_offline` database.
+9. Starts pinned Pgweb only after recovery passes and opens `http://127.0.0.1:8080` automatically. Pgweb receives only the Docker-local `organy_offline` connection URL, locks the session to that connection, and therefore opens directly on the restored local database without a login/connection form.
 
-The local database is additionally exposed on `127.0.0.1:5433` for optional local tools. Both database and Adminer ports bind to loopback only.
+The local database is additionally exposed on `127.0.0.1:5433` for optional local tools. Both database and Pgweb ports bind to loopback only.
 
 The safety direction is intentionally one-way:
 
 ```text
-Production → backup archive + SHA-256 → disposable local PostgreSQL → Adminer
+Production → backup archive + SHA-256 → disposable local PostgreSQL → Pgweb
 ```
 
 There is no command in this workflow that restores, synchronizes, or writes the local copy back to Production. Re-running Verify DB destroys and recreates only the disposable offline database, while timestamped backup archives remain available under the Git-ignored backup directory.
