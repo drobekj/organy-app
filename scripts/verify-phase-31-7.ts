@@ -121,6 +121,7 @@ async function main() {
 
       // Deterministic UI contract evidence after Catalog step 3: authoritative repertoire drives Catalog availability and guarded role-aware mutations.
       const ui = await readFile(new URL("../app/planning-lifecycle-client.tsx", import.meta.url), "utf8");
+      const runtimeClients = await readFile(new URL("../app/planning-runtime-clients.ts", import.meta.url), "utf8");
       const catalogUi = await readFile(new URL("../app/catalog-workspace.tsx", import.meta.url), "utf8");
       const candidateService = await readFile(new URL("../src/application/reference-candidate-service.ts", import.meta.url), "utf8");
       for (const pattern of [/aria-label="Catalog organist"/, /canManageRepertoire/, /viewMode === "melodies" && availabilityMode === "available"/, /viewMode === "songs" && availabilityMode === "unavailable"/, /candidate\.repertoire/, /member\.repertoire/, /window\.confirm/, /await reloadCandidates\(\)/, /<MelodyClassDetail/, /className="candidate-inline-detail"/]) assert.match(catalogUi, pattern);
@@ -129,9 +130,10 @@ async function main() {
       assert.match(catalogUi, /actor\.role === "organist" && actor\.personId === organistPersonId/);
       assert.match(catalogUi, /actor\.role === "admin" \? organistPersonId : undefined/);
       assert.match(catalogUi, /freshAvailableClass[\s\S]*?find\(\(member\) => member\.repertoire\)/);
-      for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/, /runtimeMode !== "db"/]) assert.match(ui, pattern);
+      for (const pattern of [/getReferenceRepertoireMembership/, /setReferenceRepertoireMembership/]) assert.match(runtimeClients, pattern);
+      assert.match(ui, /runtimeMode !== "db"/);
       assert.match(catalogUi, /canManageRepertoire[\s\S]*?actor\.role === "organist"[\s\S]*?actor\.personId === organistPersonId/);
-      const memoryClientSection = ui.slice(ui.indexOf("export class MemoryInteractionClient"), ui.indexOf("class DbCatalogClient")); assert.match(memoryClientSection, /getReferenceRepertoireMembership\(\).*permissionDenied/); assert.match(memoryClientSection, /setReferenceRepertoireMembership\(\).*permissionDenied/);
+      const memoryClientSection = runtimeClients.slice(runtimeClients.indexOf("export class MemoryInteractionClient"), runtimeClients.indexOf("export class DbCatalogClient")); assert.match(memoryClientSection, /getReferenceRepertoireMembership\(\).*permissionDenied/); assert.match(memoryClientSection, /setReferenceRepertoireMembership\(\).*permissionDenied/);
 
       assert.deepEqual(await invoke("queryCandidates", { serviceDate: "2026-07-28", serviceLanguage: "czech", candidateUsages: [] }, priest), beforeCandidates); assert.deepEqual(await invoke("getReferencePreferenceAggregate", { referenceSongId: "czech:1" }, admin), beforePreference);
       check = new Pool({ connectionString: isolatedUrl }); try { await check.query("delete from reference_organist_repertoire"); const legacyAfter = JSON.stringify({ columns: (await check.query("select column_name,data_type,is_nullable from information_schema.columns where table_name='organist_repertoire' order by ordinal_position")).rows, rows: (await check.query("select * from organist_repertoire order by organist_person_id,song_id")).rows }); assert.equal(legacyAfter, legacyBefore); assert.equal((await check.query("select count(*)::int n from reference_organist_repertoire")).rows[0].n, 0); } finally { await check.end(); }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
+const runtimeClients = readFileSync("app/planning-runtime-clients.ts", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 const candidateList = readFileSync("src/planning-lifecycle/candidate-list.tsx", "utf8");
 
@@ -29,10 +30,11 @@ for (const required of [
   "const selectedRole = activeActor.role",
   "interactionClient.queryCandidates",
   "interactionClient.queryCatalogCandidates",
-  `this.transport("queryCandidates"`,
 ]) {
   assert(client.includes(required), `Planning UI is missing ${required}`);
 }
+
+assert(runtimeClients.includes(`this.transport("queryCandidates"`), "DB candidate transport boundary is missing from runtime clients");
 
 assert(!client.includes("Set demo 2-month window"), "Planning UI must not retain the legacy fixed demo melody-window control");
 
