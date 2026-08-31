@@ -271,6 +271,23 @@ Technology directions are accepted only through explicit traced decisions/phases
 
 Exact package versions, production providers, hosting, physical auth schema, email delivery, deployment secrets, and other implementation/operations details remain governed by their own later Contract Gates and accepted decisions.
 
+## Current Implementation Map
+
+The conceptual modules above are currently realized through a pragmatic layered Next.js/TypeScript application:
+
+- `app/page.tsx` selects memory versus DB runtime and is the protected application entry boundary for DB mode.
+- `app/planning-lifecycle-client.tsx` is the main mounted client controller for Planning/Plans/History interactions. It currently also owns several runtime client adapters and is intentionally identified as a refactoring target because it has accumulated too many responsibilities.
+- focused `app/*.tsx` components own extracted UI areas such as Catalog, service-context fields, non-repetition configuration, and protected account controls.
+- `src/application/` contains application services, authorization-aware interaction contracts, reference-data services, and persistence-facing orchestration.
+- `src/planning-lifecycle/` contains planning-domain and planning-UI support logic that can be exercised independently of the mounted page controller.
+- `src/db/schema/index.ts` plus committed `drizzle/` migrations define the PostgreSQL persistence implementation.
+- `src/auth/` contains the Better Auth client/server integration used by the protected DB runtime.
+- `scripts/` contains database operations, production/recovery tooling, and accumulated acceptance/regression verification.
+- `.github/workflows/` contains the authoritative CI workflow plus historical phase/issue-specific workflows; consolidation of duplicated historical gates is technical-debt work and must preserve equivalent regression coverage.
+- `docs/production-runtime-runbook.md` and `docs/postgres-backup-restore-runbook.md` are the primary runtime/operations references.
+
+The large mounted client and accumulated phase/issue verification infrastructure are implementation debt, not intended architectural boundaries. Refactoring should move toward smaller semantic modules while preserving the accepted domain/application boundaries and existing behavior.
+
 ## Cross-Cutting Concerns
 
 The following concerns must be addressed in future architecture and implementation work, but are not technically designed here:
@@ -290,9 +307,18 @@ Audit/change history is append-only explanatory history and is initially admin r
 
 ## Deployment and Operations
 
-Deployment environments, operational processes, backup strategy, observability, and runbooks are not selected yet.
+The first Production implementation is now selected and operational:
 
-Operational decisions should respect the current one-local-congregation scope and avoid introducing multi-congregation complexity before it is accepted as product scope.
+- Vercel hosts the Next.js application using the repository-pinned Node.js 22 runtime and Frankfurt Function region.
+- Neon PostgreSQL in Frankfurt provides durable Production persistence; the application runtime uses the pooled connection while migration/backup/recovery tooling uses the direct/unpooled operator boundary.
+- Production runs with `ORGANY_RUNTIME=db` and protected staff authentication/sessions backed by PostgreSQL.
+- automatic Git Production deployment is disabled; releases use an explicit exact-revision operator-controlled deployment after exact-head CI/review and required database gates.
+- logical PostgreSQL backup, checksum verification, separate-target restore, restored-session revocation, and recovery checks are defined in `docs/postgres-backup-restore-runbook.md`.
+- Admin **Verify DB** provides a one-way Production → verified archive → disposable local PostgreSQL → Pgweb inspection workflow. No reverse synchronization to Production exists.
+
+The detailed provider/runtime contract is maintained in `docs/production-hosting-decision.md`, `docs/production-runtime-runbook.md`, `docs/vercel-production-provider-state.md`, and `docs/neon-production-provider-state.md`.
+
+Full disaster-recovery automation, scheduled/off-site backup retention, WAL/PITR strategy, replication/failover, formal RPO/RTO, and broader observability/security telemetry remain separate operations work. Operational design should continue to respect the one-local-congregation scope and avoid premature multi-congregation infrastructure.
 
 ## Open Architecture Questions
 
