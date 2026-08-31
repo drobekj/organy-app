@@ -36,7 +36,7 @@ import {
 } from "../src/planning-lifecycle/service-context-defaults";
 import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, getWorkspaceAfterStartNewSet, getWorkspaceLabel, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
-import { buildFinalPlanWhatsAppUrl } from "../src/planning-lifecycle/whatsapp-finalization";
+import { PostFinalizeWhatsAppHandoff } from "./post-finalize-whatsapp-handoff";
 import {
   DbCatalogClient,
   DbInteractionClient,
@@ -1688,23 +1688,11 @@ Save the correction and mark those plans for revision?`);
         )}
 
         {postFinalizePlan && (
-          <div className="post-finalize-dialog-backdrop" role="presentation">
-            <section className="post-finalize-dialog" role="dialog" aria-modal="true" aria-labelledby="post-finalize-dialog-title">
-              <h2 id="post-finalize-dialog-title">Plan finalized</h2>
-              <p>Inform about the finalized plan via WhatsApp?</p>
-              <div className="post-finalize-dialog-actions">
-                <a
-                  href={buildFinalPlanWhatsAppUrl(postFinalizePlan)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => setPostFinalizePlan(null)}
-                >
-                  Open WhatsApp
-                </a>
-                <button type="button" onClick={() => setPostFinalizePlan(null)}>Close</button>
-              </div>
-            </section>
-          </div>
+          <PostFinalizeWhatsAppHandoff
+            plan={postFinalizePlan}
+            runtimeMode={runtimeMode}
+            onClose={() => setPostFinalizePlan(null)}
+          />
         )}
 
         {workspace === "catalog" && (
