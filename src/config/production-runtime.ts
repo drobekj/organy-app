@@ -8,6 +8,7 @@ export const PRODUCTION_RUNTIME_KEYS = [
 export type ProductionRuntimeKey = typeof PRODUCTION_RUNTIME_KEYS[number];
 export type RuntimeEnvironment = Record<string, string | undefined>;
 export type ProductionRuntimeIssue = { key: ProductionRuntimeKey; reason: string };
+export type ApplicationRuntimeMode = "db" | "memory";
 
 const KNOWN_SECRET_PLACEHOLDER = "organy-build-placeholder-secret-not-for-runtime";
 
@@ -58,6 +59,17 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
 export function assertProductionRuntimeConfig(env: RuntimeEnvironment = process.env): void {
   const issues = validateProductionRuntimeConfig(env);
   if (issues.length > 0) throw new ProductionRuntimeConfigError(issues);
+}
+
+export function resolveApplicationRuntimeMode(
+  env: RuntimeEnvironment = process.env,
+  nodeEnv: string | undefined = process.env.NODE_ENV,
+): ApplicationRuntimeMode {
+  if (nodeEnv === "production") {
+    assertProductionRuntimeConfig(env);
+    return "db";
+  }
+  return read(env, "ORGANY_RUNTIME") === "db" ? "db" : "memory";
 }
 
 export function formatProductionRuntimeIssues(issues: ProductionRuntimeIssue[]): string[] {
