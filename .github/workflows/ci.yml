@@ -58,10 +58,13 @@ jobs:
           name: engineering-e1-log
           path: engineering-e1.log
           if-no-files-found: ignore
+      # Main CI is already ordered. Use focused phase checks here so standalone
+      # verify:phase-* commands may remain full local gates without recursively
+      # re-running prior phases, typecheck, complete tests, and builds in CI.
       - name: Phase 31.2 isolated PostgreSQL catalog acceptance
         run: |
           set -o pipefail
-          npm run verify:phase-31-2 2>&1 | tee phase-31-2.log
+          (node data/catalog/materialize-catalogs.mjs && npm run test:catalog-line-endings && npx tsx scripts/verify-phase-31-2.ts && npm run test:reference-catalog) 2>&1 | tee phase-31-2.log
       - name: Upload Phase 31.2 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,7 +75,7 @@ jobs:
       - name: Phase 31.3 PostgreSQL reference runtime acceptance
         run: |
           set -o pipefail
-          npm run verify:phase-31-3 2>&1 | tee phase-31-3.log
+          (node data/catalog/materialize-catalogs.mjs && npm run test:catalog-line-endings && npx tsx scripts/verify-phase-31-3.ts && npm run test:reference-catalog) 2>&1 | tee phase-31-3.log
       - name: Upload Phase 31.3 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,7 +86,7 @@ jobs:
       - name: Phase 31.4 authoritative local actor acceptance
         run: |
           set -o pipefail
-          npm run verify:phase-31-4 2>&1 | tee phase-31-4.log
+          npx tsx scripts/verify-phase-31-4.ts 2>&1 | tee phase-31-4.log
       - name: Upload Phase 31.4 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -94,7 +97,7 @@ jobs:
       - name: Phase 31.5 persistent reference preferences acceptance
         run: |
           set -o pipefail
-          npm run verify:phase-31-5 2>&1 | tee phase-31-5.log
+          npx tsx scripts/verify-phase-31-5.ts 2>&1 | tee phase-31-5.log
       - name: Upload Phase 31.5 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -195,7 +198,7 @@ jobs:
       - name: Phase 31.14 concrete-song authoritative Planning candidates acceptance
         run: |
           set -o pipefail
-          npm run verify:phase-31-14 2>&1 | tee phase-31-14.log
+          npm run test:phase-31-14 2>&1 | tee phase-31-14.log
       - name: Upload Phase 31.14 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -206,7 +209,7 @@ jobs:
       - name: Phase 31.15 current-service melody occupancy and collision validation
         run: |
           set -o pipefail
-          npm run verify:phase-31-15 2>&1 | tee phase-31-15.log
+          npm run test:phase-31-15 2>&1 | tee phase-31-15.log
       - name: Upload Phase 31.15 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -217,7 +220,7 @@ jobs:
       - name: Phase 31.16 concrete candidate-list UI and single-open interaction
         run: |
           set -o pipefail
-          npm run verify:phase-31-16 2>&1 | tee phase-31-16.log
+          npm run test:phase-31-16 2>&1 | tee phase-31-16.log
       - name: Upload Phase 31.16 log
         if: always()
         uses: actions/upload-artifact@v4
@@ -228,7 +231,7 @@ jobs:
       - name: Phase 31.17 inline melody-class detail and equivalent navigation
         run: |
           set -o pipefail
-          npm run verify:phase-31-17 2>&1 | tee phase-31-17.log
+          npm run test:phase-31-17 2>&1 | tee phase-31-17.log
       - name: Upload Phase 31.17 log
         if: always()
         uses: actions/upload-artifact@v4
