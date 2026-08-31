@@ -28,8 +28,8 @@ assert.match(url, /^https:\/\/wa\.me\/420774880971\?text=/);
 assert.doesNotMatch(url, /wa\.me\/\?text=/);
 
 const handoff = readFileSync("app/post-finalize-whatsapp-handoff.tsx", "utf8");
-assert.match(handoff, /GET[\s\S]*\/api\/account\/whatsapp-phone/);
-assert.match(handoff, /PUT[\s\S]*\/api\/account\/whatsapp-phone/);
+assert.match(handoff, /fetch\("\/api\/account\/whatsapp-phone", \{ method: "GET"/);
+assert.match(handoff, /fetch\("\/api\/account\/whatsapp-phone", \{[\s\S]*?method: "PUT"/);
 assert.match(handoff, /Save this number to my protected Account and use it automatically next time/);
 assert.match(handoff, /useState\(false\)[\s\S]*rememberPhone|rememberPhone[\s\S]*useState\(false\)/);
 assert.match(handoff, /User → Phone Setting/);
