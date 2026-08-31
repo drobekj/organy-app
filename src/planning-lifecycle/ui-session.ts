@@ -1,9 +1,9 @@
 import { normalizeServiceTime } from "./service-time";
-import type { CompletedServiceRecord, CompletedServiceRecordId, PlanningSetId } from "../application/planning-lifecycle/ports";
+import type { CompletedServiceRecord, CompletedServiceRecordId, PlanningPlanId } from "../application/planning-lifecycle/ports";
 import type { PlanningRole } from "./model";
 
 export type PersistedRecordReference =
-  | { kind: "active"; id: PlanningSetId }
+  | { kind: "active"; id: PlanningPlanId }
   | { kind: "completed"; id: CompletedServiceRecordId };
 
 export type DraftPeopleDefaults = Pick<CompletedServiceRecord["serviceContext"], "priest" | "organist">;
