@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { buildWhatsAppUrlForPhone, normalizeWhatsAppPhone } from "../src/application/protected-account-whatsapp-phone";
+import { buildWhatsAppUrlForPhone, normalizeWhatsAppPhone } from "../src/planning-lifecycle/whatsapp-phone";
 
 type Props = { initialPhoneE164: string | null; roles: string[] };
 type DialogMode = "firstUse" | "setting" | null;
@@ -60,7 +60,7 @@ export function ProtectedAccountWhatsApp({ initialPhoneE164, roles }: Props) {
     if (!eligible) return;
     function interceptWhatsApp(event: MouseEvent) {
       const target = event.target instanceof Element ? event.target : null;
-      const link = target?.closest<HTMLAnchorElement>('a[href^="https://wa.me/"]');
+      const link = target?.closest<HTMLAnchorElement>('.post-finalize-dialog a[href^="https://wa.me/"]');
       if (!link) return;
       event.preventDefault();
       const baseUrl = link.href;
@@ -154,8 +154,8 @@ export function ProtectedAccountWhatsApp({ initialPhoneE164, roles }: Props) {
     event.preventDefault();
     const normalized = await savePhone();
     if (normalized) {
-      setFeedback("Phone saved. It will be used automatically for future WhatsApp handoffs.");
       setDialogMode(null);
+      setFeedback(null);
     }
   }
 
@@ -205,7 +205,7 @@ export function ProtectedAccountWhatsApp({ initialPhoneE164, roles }: Props) {
                 autoComplete="tel"
                 value={phoneInput}
                 onChange={(event) => { setPhoneInput(event.target.value); setFeedback(null); }}
-                placeholder="+420 774 880 971"
+                placeholder="+420 777 123 456"
                 disabled={pending}
               />
             </label>
