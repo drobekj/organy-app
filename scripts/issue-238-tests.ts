@@ -9,7 +9,7 @@ async function main() {
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
   ]);
 
-  assert.match(layout, /import "\.\/issue-238-workspace\.css";/, "Issue 238 workspace styles are not loaded");
+  assert.match(layout, /import "\.\/workspace-shell\.css";/, "Issue 238 workspace styles are not loaded");
 
   assert.match(accountControls, /createPortal/, "account controls are not portaled into the workspace header");
   assert.match(accountControls, /document\.querySelector<HTMLElement>\("\.app-header"\)/, "workspace header portal target is missing");

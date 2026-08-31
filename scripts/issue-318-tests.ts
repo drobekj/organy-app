@@ -17,7 +17,7 @@ assert.match(account, /Open PowerShell\.[\s\S]*?Copy the complete block below/, 
 assert.match(account, /navigator\.clipboard\.writeText\(VERIFY_DB_COMMAND\)/, "Verify DB must provide a one-click command copy action");
 assert.match(account, /Production → backup → local offline database/, "Dialog must state the one-way safety boundary");
 
-assert.match(layout, /issue-318-offline-db\.css/, "Verify DB dialog styles must be loaded");
+assert.match(layout, /verify-db-dialog\.css/, "Verify DB dialog styles must be loaded");
 assert.match(css, /\.verify-db-dialog-backdrop/);
 assert.match(css, /\.verify-db-command/);
 
