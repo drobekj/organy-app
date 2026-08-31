@@ -48,7 +48,8 @@
   font-size: 0.88rem;
   overflow-x: auto;
   padding: 0.75rem;
-  white-space: nowrap;
+  margin: 0;
+  white-space: pre-wrap;
 }
 
 .verify-db-dialog-actions {
