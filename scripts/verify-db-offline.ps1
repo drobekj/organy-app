@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ComposeFile = Join-Path $RepoRoot "docker-compose.offline-db.yml"
 $BackupDir = Join-Path $RepoRoot ".organy-backups"
-$AdminerUrl = "http://127.0.0.1:8080"
+$PgwebUrl = "http://127.0.0.1:8080"
 $VercelOrgId = "team_axmKyou7kosjiNPHFNaLa86k"
 $VercelProjectId = "prj_HaAJloeBq90EcFrMOVVC3kTiJxc0"
 $VercelVersion = "59.10.0"
@@ -225,6 +225,28 @@ function Wait-ForOfflinePostgres {
   throw "The disposable offline PostgreSQL container did not become healthy."
 }
 
+function Wait-ForPgweb {
+  for ($attempt = 0; $attempt -lt 60; $attempt += 1) {
+    $status = ""
+    try {
+      $status = Invoke-Native -FilePath "docker" -Arguments @("inspect", "--format", "{{.State.Health.Status}}", "organy-offline-pgweb") -Capture
+    }
+    catch {
+      $status = ""
+    }
+
+    if ($status -eq "healthy") {
+      return
+    }
+    if ($status -eq "unhealthy") {
+      throw "The local Pgweb SQL editor became unhealthy."
+    }
+    Start-Sleep -Seconds 1
+  }
+
+  throw "The local Pgweb SQL editor did not become healthy."
+}
+
 try {
   Set-Location $RepoRoot
   Update-DedicatedOperatorCheckout
@@ -276,7 +298,7 @@ try {
 
   Write-Host "4/7 Resetting disposable offline database"
   Invoke-Native -FilePath "docker" -Arguments @("compose", "-f", $ComposeFile, "down", "-v", "--remove-orphans") -Quiet
-  Invoke-Native -FilePath "docker" -Arguments @("compose", "-f", $ComposeFile, "up", "-d", "offline-postgres", "adminer") -Quiet
+  Invoke-Native -FilePath "docker" -Arguments @("compose", "-f", $ComposeFile, "up", "-d", "offline-postgres") -Quiet
   Wait-ForOfflinePostgres
 
   Write-Host "5/7 Restoring backup into offline PostgreSQL"
@@ -341,15 +363,17 @@ select
   Write-Host "Authoritative role rows: $($recoveryParts[4])"
   Write-Host "Protected sessions: 0"
 
-  Write-Host "7/7 Opening offline SQL editor"
-  Start-Process $AdminerUrl | Out-Null
+  Write-Host "7/7 Starting and opening offline SQL editor"
+  Invoke-Native -FilePath "docker" -Arguments @("compose", "-f", $ComposeFile, "up", "-d", "pgweb") -Quiet
+  Wait-ForPgweb
+  Start-Process $PgwebUrl | Out-Null
 
   Write-Host ""
   Write-Host "Verify DB offline workspace: READY"
   Write-Host "Backup artifact: $backupPath"
   Write-Host "Integrity manifest: $manifestPath"
   Write-Host "Offline database: organy_offline on 127.0.0.1:5433"
-  Write-Host "SQL editor: $AdminerUrl"
+  Write-Host "SQL editor: $PgwebUrl"
   Write-Host "Production credentials remained process-local and were not written to temporary env files."
 }
 finally {
