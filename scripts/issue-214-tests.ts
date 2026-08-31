@@ -87,10 +87,12 @@ const annotated = await service.listPlanningSets();
 assert(annotated.success && annotated.value[0].status === "working" && annotated.value[0].needsRevision, "Accepted history correction must demote Final and derive Needs revision.");
 
 const clientSource = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
+const recordListsSource = readFileSync("app/plan-history-record-lists.tsx", "utf8");
 assert(clientSource.includes("historicalTruth: true"));
 assert(clientSource.includes("Historical truth mode: no Planning filters are applied."));
 assert(clientSource.includes("retroactivePlan."));
-assert(clientSource.includes("needs-revision-record"));
+assert(clientSource.includes("<PlansRecordWorkspace"));
+assert(recordListsSource.includes("needs-revision-record"));
 const accountSource = readFileSync("src/application/protected-account-admin.ts", "utf8");
 assert(accountSource.includes("async deleteAccount"));
 assert(accountSource.includes("async deletePerson"));
