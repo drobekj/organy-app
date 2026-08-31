@@ -1,7 +1,7 @@
 import type {
   CompletedServiceRecord,
-  PersistedPlanningSet,
-  PlanningSetId,
+  PersistedPlanningPlan,
+  PlanningPlanId,
 } from "../src/application/planning-lifecycle";
 import { recordListClassName } from "../src/planning-lifecycle/ui-session";
 import {
@@ -25,12 +25,12 @@ function RecordListSummary({ summary }: { summary: string }) {
 
 type PlansRecordWorkspaceProps = {
   revisionPlanCount: number;
-  workingPlans: PersistedPlanningSet[];
-  finalPlans: PersistedPlanningSet[];
-  openedPlanId?: PlanningSetId;
+  workingPlans: PersistedPlanningPlan[];
+  finalPlans: PersistedPlanningPlan[];
+  openedPlanId?: PlanningPlanId;
   lastSavedRecord: PersistedRecordReference | null;
   onStartNew: () => void | Promise<void>;
-  onLoadPlan: (id: PlanningSetId) => void | Promise<void>;
+  onLoadPlan: (id: PlanningPlanId) => void | Promise<void>;
 };
 
 export function PlansRecordWorkspace({

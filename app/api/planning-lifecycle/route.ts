@@ -6,10 +6,10 @@ import {
   DrizzlePlanningSetRepository,
   isPastPragueDate,
   type CompletedServiceRecord,
-  type PersistedPlanningSet,
+  type PersistedPlanningPlan,
   type PlanningLifecycleDrizzleAdapterDependencies,
 } from "../../../src/application/planning-lifecycle";
-import type { PlanningSet, ServiceContext } from "../../../src/planning-lifecycle";
+import type { PlanningPlan, ServiceContext } from "../../../src/planning-lifecycle";
 import * as schema from "../../../src/db/schema";
 import { ProtectedActorError, resolveProtectedActor } from "../../../src/application/protected-actor";
 import { PostgresReferenceAntiphonProvider } from "../../../src/application/postgres-reference-antiphon";
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         if (action === "listPlanningSets") {
           const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
           const value = await enrichRevisionRowIndexes({
-            plans: result.value as PersistedPlanningSet[],
+            plans: result.value as PersistedPlanningPlan[],
             completedRecords,
             melodyClasses,
             months,
@@ -241,7 +241,7 @@ export async function POST(request: Request) {
       if (currentSet.status !== "working") return NextResponse.json({ success: false, error: { code: "invalidStatus", message: "Only a Working planning set can be previewed as an editable draft." } });
       const completedRecords = await new DrizzleCompletedServiceRecordRepository(adapterDependencies).list();
       const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
-      const proposedPlan: PersistedPlanningSet = {
+      const proposedPlan: PersistedPlanningPlan = {
         ...currentSet,
         serviceContext: { ...currentSet.serviceContext, serviceDate: body.input.serviceDate },
         rows: body.input.rows,
@@ -267,7 +267,7 @@ export async function POST(request: Request) {
       const proposedRecord = {
         ...currentRecord,
         serviceContext: body.input.serviceContext as ServiceContext,
-        set: body.input.set as PlanningSet & { status: "final" },
+        set: body.input.set as PlanningPlan & { status: "final" },
       };
       const value = await previewCompletedPlanInvalidation({
         plans,
@@ -361,7 +361,7 @@ function isPlanningLifecycleAction(action: string): action is PlanningLifecycleA
   return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "previewPlanningSetConflict", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
-function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; rows: PlanningSet["rows"] } {
+function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; rows: PlanningPlan["rows"] } {
   return isRecord(input)
     && typeof input.setId === "string"
     && typeof input.serviceDate === "string"
@@ -377,7 +377,7 @@ function isObjectWithSetId(input: unknown): input is { setId: string } {
   return typeof input === "object" && input !== null && "setId" in input && typeof (input as { setId?: unknown }).setId === "string";
 }
 
-function isCompletedPreviewInput(input: unknown): input is { recordId: string; serviceContext: ServiceContext; set: PlanningSet & { status: "final" } } {
+function isCompletedPreviewInput(input: unknown): input is { recordId: string; serviceContext: ServiceContext; set: PlanningPlan & { status: "final" } } {
   if (!isRecord(input) || typeof input.recordId !== "string" || !input.recordId.trim()) return false;
   if (!isRecord(input.serviceContext) || typeof input.serviceContext.serviceDate !== "string" || typeof input.serviceContext.serviceTime !== "string") return false;
   if (!isRecord(input.set) || input.set.status !== "final" || !Array.isArray(input.set.rows)) return false;

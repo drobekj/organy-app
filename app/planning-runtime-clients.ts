@@ -9,11 +9,11 @@ import type {
 } from "../src/application/interaction-contracts";
 import { apiFailure } from "../src/application/api-error";
 import { InteractionService, InMemoryInteractionServiceRepository } from "../src/application/interaction-service";
-import type { PlanningLifecycleService, PlanningServiceError, PlanningSetId } from "../src/application/planning-lifecycle";
+import type { PlanningLifecycleService, PlanningServiceError, PlanningPlanId } from "../src/application/planning-lifecycle";
 import type { ReferenceMelodyClass } from "../src/application/reference-melody";
 import type { ReferenceRepertoireMembership } from "../src/application/reference-repertoire";
 import { MemoryReferenceThematicSectionProvider } from "../src/application/reference-thematic-section";
-import type { PlanningRole, PlanningRow, PlanningSet, ServiceContext, ServiceLanguage } from "../src/planning-lifecycle";
+import type { PlanningRole, PlanningRow, PlanningPlan, ServiceContext, ServiceLanguage } from "../src/planning-lifecycle";
 import { buildCandidateQueryInput, buildCanonicalCandidateUsages } from "../src/planning-lifecycle/candidate-flow";
 
 export type CatalogClient = CatalogService | DbCatalogClient;
@@ -39,15 +39,15 @@ export class DbPlanningLifecycleClient {
     return callPlanningLifecycleApi("loadCompletedRecord", { recordId });
   }
 
-  async loadPlanningSet(setId: PlanningSetId) {
+  async loadPlanningSet(setId: PlanningPlanId) {
     return callPlanningLifecycleApi("loadPlanningSet", { setId });
   }
 
-  async previewCompletedRecordInvalidation(input: { role: PlanningRole; localActorUserId: string; recordId: string; serviceContext: ServiceContext; set: PlanningSet & { status: "final" } }) {
+  async previewCompletedRecordInvalidation(input: { role: PlanningRole; localActorUserId: string; recordId: string; serviceContext: ServiceContext; set: PlanningPlan & { status: "final" } }) {
     return callPlanningLifecycleApi("previewCompletedRecordInvalidation", input, actorContextFrom(input));
   }
 
-  async previewPlanningSetConflict(input: { setId: PlanningSetId; serviceDate: string; rows: PlanningRow[] }) {
+  async previewPlanningSetConflict(input: { setId: PlanningPlanId; serviceDate: string; rows: PlanningRow[] }) {
     return callPlanningLifecycleApi("previewPlanningSetConflict", input);
   }
 
