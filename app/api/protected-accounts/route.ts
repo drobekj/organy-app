@@ -57,6 +57,10 @@ async function perform(service: PostgresProtectedAccountAdminService, headers: H
     const payload = await service.setActive(headers, { appUserId: input.appUserId, active: input.active });
     return { payload, message: payload.account.active ? "Protected Account reactivated." : "Protected Account deactivated.", currentAdminLostAccess: payload.currentAdminLostAccess };
   }
+  if (action === "removeWhatsappPhone") {
+    const payload = await service.removeWhatsappPhone(headers, { appUserId: input.appUserId });
+    return { payload, message: payload.removed ? "WhatsApp phone forgotten." : "WhatsApp phone was already empty.", currentAdminLostAccess: false };
+  }
   if (action === "resetPassword") {
     const payload = await service.resetPassword(headers, { appUserId: input.appUserId, password: input.password });
     return { payload, message: "Protected Account password reset. Existing sessions were revoked.", currentAdminLostAccess: false };
