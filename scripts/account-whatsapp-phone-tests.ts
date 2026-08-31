@@ -71,10 +71,10 @@ assert.match(migration, /protected_account_whatsapp_phone_state_valid/);
 assert.match(migration, /\^\\\+\[1-9\]\[0-9\]\{7,14\}\$/);
 
 const service = readFileSync("src/application/protected-whatsapp-phone.ts", "utf8");
-assert.match(service, /beforeState: \{ configured:/);
-assert.match(service, /afterState: \{ configured:/);
-assert.doesNotMatch(service, /beforeState: \{[^}]*phoneE164/);
-assert.doesNotMatch(service, /afterState: \{[^}]*phoneE164/);
+assert.match(service, /beforeState: \{ configured: Boolean\(before\.phoneE164\) \},[\s\S]*?afterState: \{ configured: true \}/);
+assert.match(service, /beforeState: \{ configured: true \},[\s\S]*?afterState: \{ configured: false \}/);
+assert.doesNotMatch(service, /beforeState: \{ phone/);
+assert.doesNotMatch(service, /afterState: \{ phone/);
 
 const combined = [handoff, setting, controls, editor, ownApi, adminApi, service].join("\n");
 assert.ok(!combined.includes("774880971"), "The historical fixed test number must not be embedded in application UI or API code.");
