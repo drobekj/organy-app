@@ -230,14 +230,241 @@ export const completedServiceRows = pgTable(
 export const preferenceProfileCategory = pgEnum("preference_profile_category", ["priest", "organist", "congregation_member"]);
 export const userRole = pgEnum("user_role", ["priest", "organist", "admin", "congregation_member"]);
 
-export const appUsers = pgTable("app_users", {
+export const appUsers = pgTable(
+  "app_users",
+  {
+    id: text("id").primaryKey(),
+    displayName: text("display_name").notNull(),
+    personId: text("person_id").references(() => catalogPersons.id, { onDelete: "set null" }),
+    active: boolean("active").notNull().default(true),
+    whatsappPhoneE164: text("whatsapp_phone_e164"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    whatsappPhoneE164Valid: check(
+      "app_users_whatsapp_phone_e164_valid",
+      sql`${table.whatsappPhoneE164} is null or ${table.whatsappPhoneE164} ~ '^\\+[1-9][0-9]{7,14}
+
+export const appUserRoles = pgTable("app_user_roles", {
+  userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+  role: userRole("role").notNull(),
+}, (table) => ({ userRoleUnique: uniqueIndex("app_user_roles_user_role_idx").on(table.userId, table.role) }));
+
+export const authUsers = pgTable("auth_users", {
   id: text("id").primaryKey(),
-  displayName: text("display_name").notNull(),
-  personId: text("person_id").references(() => catalogPersons.id, { onDelete: "set null" }),
-  active: boolean("active").notNull().default(true),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  emailVerified: boolean("email_verified").notNull().default(false),
+  image: text("image"),
+  username: text("username"),
+  displayUsername: text("display_username"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  emailUnique: uniqueIndex("auth_users_email_idx").on(table.email),
+  usernameUnique: uniqueIndex("auth_users_username_idx").on(table.username),
+}));
+
+export const authSessions = pgTable("auth_sessions", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  token: text("token").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+}, (table) => ({
+  tokenUnique: uniqueIndex("auth_sessions_token_idx").on(table.token),
+  userIndex: index("auth_sessions_user_id_idx").on(table.userId),
+}));
+
+export const authAccounts = pgTable("auth_accounts", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  userIndex: index("auth_accounts_user_id_idx").on(table.userId),
+}));
+
+export const authVerifications = pgTable("auth_verifications", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  identifierIndex: index("auth_verifications_identifier_idx").on(table.identifier),
+}));
+
+export const protectedAccountActorLinks = pgTable("protected_account_actor_links", {
+  authUserId: text("auth_user_id").primaryKey().references(() => authUsers.id, { onDelete: "cascade" }),
+  appUserId: text("app_user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  oneAccountPerActor: uniqueIndex("protected_account_actor_links_app_user_idx").on(table.appUserId),
+}));
+
+export const preferenceProfiles = pgTable("preference_profiles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+  category: preferenceProfileCategory("category").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ oneProfilePerUser: uniqueIndex("preference_profiles_user_id_idx").on(table.userId) }));
+
+export const melodyEquivalenceClasses = pgTable("melody_equivalence_classes", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  synthetic: boolean("synthetic").notNull().default(false),
+});
+
+export const songMelodyEquivalence = pgTable("song_melody_equivalence", {
+  songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
+  classId: text("class_id").notNull().references(() => melodyEquivalenceClasses.id, { onDelete: "cascade" }),
+}, (table) => ({ oneClassPerSong: uniqueIndex("song_melody_equivalence_song_id_idx").on(table.songId) }));
+
+export const songPreferences = pgTable("song_preferences", {
+  profileId: text("profile_id").notNull().references(() => preferenceProfiles.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
+  score: integer("score").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ onePreferencePerProfileSong: uniqueIndex("song_preferences_profile_song_idx").on(table.profileId, table.songId), scoreRange: check("song_preferences_score_range", sql`${table.score} >= 0 and ${table.score} <= 3`) }));
+
+export const referenceSongPreferences = pgTable("reference_song_preferences", {
+  profileId: text("profile_id").notNull().references(() => preferenceProfiles.id, { onDelete: "cascade" }),
+  referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  score: integer("score").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ onePreferencePerProfileReference: uniqueIndex("reference_song_preferences_profile_reference_song_idx").on(table.profileId, table.referenceSongId), scoreRange: check("reference_song_preferences_score_range", sql`${table.score} >= 0 and ${table.score} <= 3`) }));
+
+export const referenceOrganistRepertoire = pgTable("reference_organist_repertoire", {
+  organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
+  referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ oneMembership: uniqueIndex("reference_organist_repertoire_person_song_idx").on(table.organistPersonId, table.referenceSongId) }));
+
+export const referenceMelodyClasses = pgTable("reference_melody_classes", {
+  id: text("id").primaryKey(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const referenceSongMelodyMemberships = pgTable("reference_song_melody_memberships", {
+  referenceSongId: text("reference_song_id").primaryKey().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  classId: text("class_id").notNull().references(() => referenceMelodyClasses.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ classLookup: index("reference_song_melody_memberships_class_id_idx").on(table.classId) }));
+
+export const referenceMelodyEdges = pgTable("reference_melody_edges", {
+  songAId: text("song_a_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  songBId: text("song_b_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  pair: uniqueIndex("reference_melody_edges_pair_idx").on(table.songAId, table.songBId),
+  songBLookup: index("reference_melody_edges_song_b_idx").on(table.songBId),
+  canonicalPair: check("reference_melody_edges_canonical_pair", sql`${table.songAId} < ${table.songBId}`),
+}));
+
+export const referenceAntiphonRecommendations = pgTable("reference_antiphon_recommendations", {
+  antiphonId: text("antiphon_id").primaryKey().references(() => referenceAntiphons.id, { onDelete: "cascade" }),
+  referenceSongId: text("reference_song_id").notNull().references(() => referenceCatalogSongs.id, { onDelete: "cascade" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ songLookup: index("reference_antiphon_recommendations_song_id_idx").on(table.referenceSongId) }));
+
+export const organistRepertoire = pgTable("organist_repertoire", {
+  organistPersonId: text("organist_person_id").notNull().references(() => catalogPersons.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }),
+}, (table) => ({ oneRepertoireMembership: uniqueIndex("organist_repertoire_person_song_idx").on(table.organistPersonId, table.songId) }));
+
+export const antiphonMappings = pgTable("antiphon_mappings", { id: text("id").primaryKey(), antiphonKey: text("antiphon_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
+export const liturgicalSeasonMappings = pgTable("liturgical_season_mappings", { id: text("id").primaryKey(), seasonKey: text("season_key").notNull(), songId: text("song_id").notNull().references(() => catalogSongs.songId, { onDelete: "cascade" }), synthetic: boolean("synthetic").notNull().default(false) });
+export const melodyNonRepetitionConfig = pgTable("melody_non_repetition_config", { id: text("id").primaryKey().default("global"), months: integer("months").notNull().default(2), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow() }, (table) => ({ singletonConfig: check("melody_non_repetition_config_singleton", sql`${table.id} = 'global'`), nonNegativeWindow: check("melody_non_repetition_config_non_negative", sql`${table.months} >= 0`) }));
+
+export const auditEvents = pgTable("audit_events", {
+  id: serial("id").primaryKey(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  actorKind: text("actor_kind").notNull(),
+  actorUserId: text("actor_user_id"),
+  actorDisplayName: text("actor_display_name"),
+  actorRole: text("actor_role"),
+  actorPersonId: text("actor_person_id"),
+  action: text("action").notNull(),
+  objectKind: text("object_kind").notNull(),
+  objectRef: text("object_ref").notNull(),
+  beforeState: jsonb("before_state"),
+  afterState: jsonb("after_state"),
+}, (table) => ({
+  occurredAtIndex: index("audit_events_occurred_at_idx").on(table.occurredAt),
+  objectIndex: index("audit_events_object_idx").on(table.objectKind, table.objectRef),
+  actorKindValid: check("audit_events_actor_kind_valid", sql`${table.actorKind} in ('human', 'system')`),
+  actorSnapshotValid: check("audit_events_actor_snapshot_valid", sql`(
+    ${table.actorKind} = 'system' and ${table.actorUserId} is null and ${table.actorDisplayName} is null and ${table.actorRole} is null
+  ) or (
+    ${table.actorKind} = 'human' and ${table.actorUserId} is not null and btrim(${table.actorUserId}) <> '' and
+    ${table.actorDisplayName} is not null and btrim(${table.actorDisplayName}) <> '' and
+    ${table.actorRole} is not null and btrim(${table.actorRole}) <> ''
+  )`),
+  actionNonEmpty: check("audit_events_action_non_empty", sql`btrim(${table.action}) <> ''`),
+  objectKindNonEmpty: check("audit_events_object_kind_non_empty", sql`btrim(${table.objectKind}) <> ''`),
+  objectRefNonEmpty: check("audit_events_object_ref_non_empty", sql`btrim(${table.objectRef}) <> ''`),
+}));
+
+export const serviceContextsRelations = relations(serviceContexts, ({ many }) => ({
+  serviceSets: many(serviceSets),
+  completedServices: many(completedServices),
+}));
+
+export const serviceSetsRelations = relations(serviceSets, ({ one, many }) => ({
+  serviceContext: one(serviceContexts, {
+    fields: [serviceSets.serviceContextId],
+    references: [serviceContexts.id],
+  }),
+  rows: many(serviceSetRows),
+  completedServices: many(completedServices),
+}));
+
+export const serviceSetRowsRelations = relations(serviceSetRows, ({ one }) => ({
+  serviceSet: one(serviceSets, {
+    fields: [serviceSetRows.serviceSetId],
+    references: [serviceSets.id],
+  }),
+}));
+
+export const completedServicesRelations = relations(completedServices, ({ one, many }) => ({
+  serviceContext: one(serviceContexts, {
+    fields: [completedServices.serviceContextId],
+    references: [serviceContexts.id],
+  }),
+  serviceSet: one(serviceSets, {
+    fields: [completedServices.serviceSetId],
+    references: [serviceSets.id],
+  }),
+  rows: many(completedServiceRows),
+}));
+
+export const completedServiceRowsRelations = relations(completedServiceRows, ({ one }) => ({
+  completedService: one(completedServices, {
+    fields: [completedServiceRows.completedServiceId],
+    references: [completedServices.id],
+  }),
+}));
+`,
+    ),
+  }),
+);
 
 export const appUserRoles = pgTable("app_user_roles", {
   userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
