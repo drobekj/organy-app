@@ -130,7 +130,7 @@ That command is the only routine operator step after opening PowerShell in the l
 5. Deletes temporary Production credential files immediately after the dump step.
 6. Writes and verifies a SHA-256 manifest beside the timestamped archive under `.organy-backups/`.
 7. Resets only `docker-compose.offline-db.yml`, which owns the disposable `organy_offline_postgres_data` volume. The normal `organy-app-postgres` container and `organy_app_postgres_data` volume are not part of this Compose project and are never reset by this command.
-8. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs `postgres-recovery-check.ts`.
+8. Restores the archive into `organy_offline`, revokes all restored `auth_sessions`, and runs the same representative read-only recovery summary directly through `psql` inside the offline PostgreSQL container. This removes any routine dependency on local `node_modules`.
 9. Starts Adminer and opens `http://127.0.0.1:8080` automatically. Adminer is configured to auto-login only to the Docker-local `organy_offline` database.
 
 The local database is additionally exposed on `127.0.0.1:5433` for optional local tools. Both database and Adminer ports bind to loopback only.
