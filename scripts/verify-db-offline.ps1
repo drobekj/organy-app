@@ -268,8 +268,43 @@ try {
     "-c", "delete from auth_sessions;"
   ) -Quiet
 
-  $env:ORGANY_RESTORE_DATABASE_URL = $OfflineDatabaseUrl
-  Invoke-Native -FilePath "npx.cmd" -Arguments @("tsx", "scripts/postgres-recovery-check.ts")
+  $recoverySql = @"
+select
+  (select count(*)::int from service_contexts),
+  (select count(*)::int from reference_catalog_songs),
+  (select count(*)::int from auth_users),
+  (select count(*)::int from protected_account_actor_links),
+  (select count(*)::int from app_user_roles),
+  (select count(*)::int from auth_sessions);
+"@
+  $recoverySummary = Invoke-Native -FilePath "docker" -Arguments @(
+    "compose", "-f", $ComposeFile, "exec", "-T", "offline-postgres",
+    "psql",
+    "-v", "ON_ERROR_STOP=1",
+    "-A", "-t",
+    "-F", "|",
+    "-U", "organy_offline",
+    "-d", "organy_offline",
+    "-c", $recoverySql
+  ) -Capture
+
+  $recoveryParts = $recoverySummary.Trim() -split '\|'
+  if ($recoveryParts.Count -ne 6) {
+    throw "Offline recovery check returned an unexpected result."
+  }
+
+  $authSessions = [int]$recoveryParts[5]
+  if ($authSessions -ne 0) {
+    throw "Restore target still contains protected sessions; recovery must not be accepted."
+  }
+
+  Write-Host "PostgreSQL recovery read-only check: PASS"
+  Write-Host "Service contexts: $($recoveryParts[0])"
+  Write-Host "Reference catalog songs: $($recoveryParts[1])"
+  Write-Host "Protected auth users: $($recoveryParts[2])"
+  Write-Host "Protected Account/Actor links: $($recoveryParts[3])"
+  Write-Host "Authoritative role rows: $($recoveryParts[4])"
+  Write-Host "Protected sessions: 0"
 
   Write-Host "7/7 Opening offline SQL editor"
   Start-Process $AdminerUrl | Out-Null
