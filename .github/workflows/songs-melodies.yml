@@ -1,0 +1,51 @@
+name: Songs and melodies acceptance
+
+on:
+  pull_request:
+    paths:
+      - app/api/interaction/route.ts
+      - src/application/reference-candidate-service.ts
+      - src/planning-lifecycle/candidate-list.tsx
+      - src/planning-lifecycle/candidate-view.ts
+      - scripts/issue-237-tests.ts
+      - scripts/phase-31-14-tests.ts
+      - scripts/phase-31-15-tests.tsx
+      - .github/workflows/songs-melodies.yml
+  workflow_dispatch:
+
+jobs:
+  issue-237:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: organy_issue_237
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d organy_issue_237"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/organy_issue_237
+      ORGANY_RUNTIME: db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - name: Songs and melodies acceptance
+        run: npx tsx scripts/issue-237-tests.ts
+      - name: Reference candidate regression
+        run: npx tsx scripts/phase-31-14-tests.ts
+      - name: Candidate occupancy regression
+        run: npx tsx scripts/phase-31-15-tests.tsx
+      - run: npm run typecheck
+      - run: npm test
