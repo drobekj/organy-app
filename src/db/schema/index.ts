@@ -235,7 +235,6 @@ export const appUsers = pgTable("app_users", {
   displayName: text("display_name").notNull(),
   personId: text("person_id").references(() => catalogPersons.id, { onDelete: "set null" }),
   active: boolean("active").notNull().default(true),
-  whatsappPhoneE164: text("whatsapp_phone_e164"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -306,9 +305,16 @@ export const authVerifications = pgTable("auth_verifications", {
 export const protectedAccountActorLinks = pgTable("protected_account_actor_links", {
   authUserId: text("auth_user_id").primaryKey().references(() => authUsers.id, { onDelete: "cascade" }),
   appUserId: text("app_user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+  whatsappPhoneE164: text("whatsapp_phone_e164"),
+  whatsappPhoneConfirmedAt: timestamp("whatsapp_phone_confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   oneAccountPerActor: uniqueIndex("protected_account_actor_links_app_user_idx").on(table.appUserId),
+  whatsappPhoneStateValid: check("protected_account_whatsapp_phone_state_valid", sql`(
+    (${table.whatsappPhoneE164} is null and ${table.whatsappPhoneConfirmedAt} is null)
+    or
+    (${table.whatsappPhoneE164} ~ '^\\+[1-9][0-9]{7,14}$' and ${table.whatsappPhoneConfirmedAt} is not null)
+  )`),
 }));
 
 export const preferenceProfiles = pgTable("preference_profiles", {

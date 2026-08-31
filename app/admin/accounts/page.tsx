@@ -20,8 +20,6 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
   const activeRole = resolveOwnedActiveRole(currentUser.roles, (await cookies()).get(ACTIVE_ROLE_COOKIE_NAME)?.value);
   if (!currentUser.roles.includes("admin") || activeRole !== "admin") redirect("/");
   const snapshot = await new PostgresProtectedAccountAdminService(authPool).list(requestHeaders);
-  const phoneResult = await authPool.query(`select id, whatsapp_phone_e164 from app_users where whatsapp_phone_e164 is not null`);
-  const phones = new Map(phoneResult.rows.map((row) => [String(row.id), String(row.whatsapp_phone_e164)]));
   const activeAdminCount = snapshot.accounts.filter((account) => account.active && account.roles.includes("admin")).length;
   const peopleResult = await authPool.query(`
     select p.id, p.display_name, p.priest, p.organist
@@ -42,7 +40,7 @@ export default async function ProtectedAccountsAdminPage({ searchParams }: PageP
     {message && <p className="saved-summary" role="status">{message}</p>}
     {error && <p className="auth-error" role="alert">{error}</p>}
     <section className="detail-panel" aria-label="Provision protected Account"><h2>Provision future staff Account</h2><ProvisionProtectedAccountForm targets={snapshot.eligibleActors} /></section>
-    <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={{ ...account, whatsappPhoneE164: phones.get(account.appUserId) }} currentAppUserId={currentUser.id} canDeactivate={!(account.active && account.roles.includes("admin") && activeAdminCount === 1)} />)}</div></section>
+    <section aria-label="Existing protected Accounts"><h2>Existing protected Accounts</h2><div style={{ display: "grid", gap: "1rem" }}>{snapshot.accounts.map((account) => <ProtectedAccountEditor key={account.authUserId} account={account} currentAppUserId={currentUser.id} canDeactivate={!(account.active && account.roles.includes("admin") && activeAdminCount === 1)} />)}</div></section>
     <PersonAdminPanel people={allPeople} />
   </section></main>;
 }

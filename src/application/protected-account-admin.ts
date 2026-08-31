@@ -2,11 +2,12 @@ import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import type { Pool, PoolClient } from "pg";
 import { createOrganyAuth } from "../auth/server";
+import { appendAuditEvent, humanAuditActor } from "./audit-history";
 import { ProtectedActorError, resolveProtectedUser } from "./protected-actor";
 
 const PROTECTED_ROLES = ["admin", "priest", "organist"] as const;
 export type ProtectedRole = typeof PROTECTED_ROLES[number];
-export type ProtectedAccountAdminRow = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: ProtectedRole[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
+export type ProtectedAccountAdminRow = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: ProtectedRole[]; whatsappPhone?: string; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
 export type ProtectedAccountProvisionTarget = { appUserId: string; displayName: string; currentRoles: string[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
 export type ProtectedAccountAdminSnapshot = { accounts: ProtectedAccountAdminRow[]; eligibleActors: ProtectedAccountProvisionTarget[] };
 
@@ -22,14 +23,14 @@ export class PostgresProtectedAccountAdminService {
     const [accounts, eligibleActors] = await Promise.all([
       this.pool.query(`
         select au.id auth_user_id, au.username, u.id app_user_id, u.display_name, u.active,
-          u.person_id, p.display_name person_display_name, p.priest person_priest, p.organist person_organist,
+          l.whatsapp_phone_e164, u.person_id, p.display_name person_display_name, p.priest person_priest, p.organist person_organist,
           coalesce(array_agg(r.role order by r.role) filter (where r.role in ('admin','priest','organist')), '{}') protected_roles
         from protected_account_actor_links l
         join auth_users au on au.id = l.auth_user_id
         join app_users u on u.id = l.app_user_id
         left join app_user_roles r on r.user_id = u.id
         left join catalog_persons p on p.id = u.person_id
-        group by au.id, u.id, p.id
+        group by au.id, u.id, p.id, l.whatsapp_phone_e164
         order by lower(u.display_name), lower(au.username)
       `),
       this.pool.query(`
@@ -158,6 +159,47 @@ export class PostgresProtectedAccountAdminService {
     } finally { client.release(); }
   }
 
+  async removeWhatsappPhone(headers: Headers, input: { appUserId?: unknown }) {
+    const currentAdmin = await this.requireAdmin(headers);
+    const appUserId = requireText(input.appUserId, "Application user is required.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      await serializeAdminMutation(client);
+      await requireLinkedTarget(client, appUserId);
+      const current = await client.query(
+        "select whatsapp_phone_e164 from protected_account_actor_links where app_user_id = $1 for update",
+        [appUserId],
+      );
+      if (!current.rows[0]) throw new ProtectedAccountAdminError("notFound", "Protected Account was not found.");
+      const hadPhone = Boolean(current.rows[0].whatsapp_phone_e164);
+      if (hadPhone) {
+        await client.query(
+          "update protected_account_actor_links set whatsapp_phone_e164 = null, whatsapp_phone_confirmed_at = null where app_user_id = $1",
+          [appUserId],
+        );
+        await appendAuditEvent(client, {
+          actor: humanAuditActor({
+            userId: currentAdmin.id,
+            displayName: currentAdmin.displayName,
+            role: "admin",
+            ...(currentAdmin.personId ? { personId: currentAdmin.personId } : {}),
+          }),
+          action: "account.whatsappPhone.adminForget",
+          objectKind: "protectedAccount",
+          objectRef: appUserId,
+          beforeState: { configured: true },
+          afterState: { configured: false },
+        });
+      }
+      await client.query("commit");
+      return { account: await this.getAccount(appUserId), removed: hadPhone };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw normalizeAdminError(error);
+    } finally { client.release(); }
+  }
+
   async deleteAccount(headers: Headers, input: { appUserId?: unknown }) {
     const currentAdmin = await this.requireAdmin(headers);
     const appUserId = requireText(input.appUserId, "Application user is required.");
@@ -216,11 +258,11 @@ export class PostgresProtectedAccountAdminService {
   private async getAccount(appUserId: string): Promise<ProtectedAccountAdminRow> {
     const result = await this.pool.query(`
       select au.id auth_user_id, au.username, u.id app_user_id, u.display_name, u.active,
-        u.person_id, p.display_name person_display_name, p.priest person_priest, p.organist person_organist,
+        l.whatsapp_phone_e164, u.person_id, p.display_name person_display_name, p.priest person_priest, p.organist person_organist,
         coalesce(array_agg(r.role order by r.role) filter (where r.role in ('admin','priest','organist')), '{}') protected_roles
       from protected_account_actor_links l join auth_users au on au.id = l.auth_user_id join app_users u on u.id = l.app_user_id
       left join app_user_roles r on r.user_id = u.id left join catalog_persons p on p.id = u.person_id
-      where u.id = $1 group by au.id, u.id, p.id
+      where u.id = $1 group by au.id, u.id, p.id, l.whatsapp_phone_e164
     `, [appUserId]);
     if (!result.rows[0]) throw new ProtectedAccountAdminError("notFound", "Protected Account was not found.");
     return mapAccount(result.rows[0]);
@@ -263,7 +305,7 @@ async function replaceProtectedRoles(client: PoolClient, appUserId: string, role
   await client.query("delete from app_user_roles where user_id = $1 and role in ('admin','priest','organist')", [appUserId]);
   for (const role of roles) await client.query("insert into app_user_roles (user_id, role) values ($1, $2) on conflict do nothing", [appUserId, role]);
 }
-function mapAccount(row: Record<string, unknown>): ProtectedAccountAdminRow { return { authUserId: String(row.auth_user_id), appUserId: String(row.app_user_id), username: String(row.username), displayName: String(row.display_name), active: Boolean(row.active), roles: normalizeProtectedRoles(row.protected_roles), ...(row.person_id ? { personId: String(row.person_id) } : {}), ...(row.person_display_name ? { personDisplayName: String(row.person_display_name) } : {}), ...(row.person_id ? { personPriest: Boolean(row.person_priest), personOrganist: Boolean(row.person_organist) } : {}) }; }
+function mapAccount(row: Record<string, unknown>): ProtectedAccountAdminRow { return { authUserId: String(row.auth_user_id), appUserId: String(row.app_user_id), username: String(row.username), displayName: String(row.display_name), active: Boolean(row.active), roles: normalizeProtectedRoles(row.protected_roles), ...(row.whatsapp_phone_e164 ? { whatsappPhone: String(row.whatsapp_phone_e164) } : {}), ...(row.person_id ? { personId: String(row.person_id) } : {}), ...(row.person_display_name ? { personDisplayName: String(row.person_display_name) } : {}), ...(row.person_id ? { personPriest: Boolean(row.person_priest), personOrganist: Boolean(row.person_organist) } : {}) }; }
 function validateUsername(value: unknown): string { const username = requireText(value, "Username is required.").toLowerCase(); if (username.length < 3 || username.length > 64 || !/^[a-z0-9._-]+$/.test(username)) throw new ProtectedAccountAdminError("invalidInput", "Username must be 3-64 characters using letters, numbers, dot, underscore, or hyphen."); return username; }
 function validatePassword(value: unknown, label: string): string { if (typeof value !== "string" || value.length < 8 || value.length > 128) throw new ProtectedAccountAdminError("invalidInput", `${label} must contain 8-128 characters.`); return value; }
 function validateProtectedRoles(value: unknown, requireAtLeastOne: boolean): ProtectedRole[] { if (!Array.isArray(value)) throw new ProtectedAccountAdminError("invalidInput", "Protected roles are required."); const roles = [...new Set(value.map(String))]; if (roles.some((role) => !PROTECTED_ROLES.includes(role as ProtectedRole))) throw new ProtectedAccountAdminError("invalidInput", "Protected roles may contain only admin, priest, or organist."); if (requireAtLeastOne && roles.length === 0) throw new ProtectedAccountAdminError("invalidInput", "At least one protected role is required."); return roles as ProtectedRole[]; }
