@@ -1,6 +1,6 @@
-import type { PersistedPlanningSet } from "../application/planning-lifecycle/ports";
+import type { PersistedPlanningPlan } from "../application/planning-lifecycle/ports";
 
-export function formatFinalPlanWhatsAppMessage(plan: PersistedPlanningSet): string {
+export function formatFinalPlanWhatsAppMessage(plan: PersistedPlanningPlan): string {
   const context = plan.serviceContext;
   const lines = [
     "Final plan",
@@ -34,6 +34,6 @@ export function formatFinalPlanWhatsAppMessage(plan: PersistedPlanningSet): stri
   return lines.join("\n");
 }
 
-export function buildFinalPlanWhatsAppUrl(plan: PersistedPlanningSet): string {
+export function buildFinalPlanWhatsAppUrl(plan: PersistedPlanningPlan): string {
   return `https://wa.me/?text=${encodeURIComponent(formatFinalPlanWhatsAppMessage(plan))}`;
 }
