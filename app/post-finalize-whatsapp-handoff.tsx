@@ -124,7 +124,7 @@ export function PostFinalizeWhatsAppHandoff({ plan, runtimeMode, onClose }: Prop
                 autoComplete="tel"
                 value={phoneInput}
                 onChange={(event) => setPhoneInput(event.target.value)}
-                placeholder="+420 774 880 971"
+                placeholder="+420 601 234 567"
                 required
               />
             </label>
