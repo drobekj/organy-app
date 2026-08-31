@@ -11,7 +11,9 @@ const runbook = readFileSync("docs/postgres-backup-restore-runbook.md", "utf8");
 
 assert.match(account, /activeAdmin[\s\S]*?Verify DB/, "Verify DB must be exposed only from the active Admin role menu");
 assert.match(account, /role="dialog"[\s\S]*?<h2 id="verify-db-dialog-title">Verify DB<\/h2>/, "Verify DB must open an operator handoff dialog");
-assert.match(account, /const VERIFY_DB_COMMAND = "npm run db:verify:offline";[\s\S]*?<code className="verify-db-command">\{VERIFY_DB_COMMAND\}<\/code>/, "Dialog must render the one-command workflow");
+assert.match(account, /const VERIFY_DB_COMMAND = 'cd "\$env:LOCALAPPDATA\\\\Organy\\\\verify-db"\\nnpm run db:verify:offline';/, "Copied Verify DB block must navigate to the dedicated operator checkout and run the workflow");
+assert.match(account, /<pre className="verify-db-command"><code>\{VERIFY_DB_COMMAND\}<\/code><\/pre>/, "Dialog must render the complete multiline PowerShell block");
+assert.match(account, /Open PowerShell\.[\s\S]*?Copy the complete block below/, "Dialog must not require manual repository navigation");
 assert.match(account, /navigator\.clipboard\.writeText\(VERIFY_DB_COMMAND\)/, "Verify DB must provide a one-click command copy action");
 assert.match(account, /Production → backup → local offline database/, "Dialog must state the one-way safety boundary");
 
