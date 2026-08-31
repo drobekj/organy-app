@@ -14,14 +14,14 @@ import type {
   CompletedServiceRecordRepository,
   FinalSetCompletionPersistenceResult,
   FinalSetCompletionRepository,
-  PersistedPlanningSet,
-  PlanningSetId,
-  PlanningSetRepository,
+  PersistedPlanningPlan,
+  PlanningPlanId,
+  PlanningPlanRepository,
 } from "./ports";
 import { PlanningLifecycleService } from "./service";
 import { DrizzleCatalogRepository } from "../catalog";
 import type { PlanningLifecycleServiceDependencies } from "./service";
-import { normalizeServiceTime, type PlanningRow, type PlanningSet, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
+import { normalizeServiceTime, type PlanningRow, type PlanningPlan, type ServiceContext, type ServiceLanguage } from "../../planning-lifecycle";
 
 export type PlanningLifecycleDrizzleSchema = Pick<
   typeof planningLifecycleSchema,
@@ -83,16 +83,16 @@ type CompletedServiceRecordRecord = {
   completedAt: Date;
 };
 
-export class DrizzlePlanningSetRepository implements PlanningSetRepository {
+export class DrizzlePlanningSetRepository implements PlanningPlanRepository {
   constructor(private readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
 
-  async list(): Promise<PersistedPlanningSet[]> {
+  async list(): Promise<PersistedPlanningPlan[]> {
     const sets = (await selectAll(this.dependencies.db).from(serviceSets).orderBy(asc(serviceSets.id))) as ServiceSetRecord[];
     const loaded = await Promise.all(sets.map((set) => this.findByIdWithExecutor(this.dependencies.db, set.id)));
-    return loaded.filter((set): set is PersistedPlanningSet => Boolean(set));
+    return loaded.filter((set): set is PersistedPlanningPlan => Boolean(set));
   }
 
-  async findById(id: PlanningSetId): Promise<PersistedPlanningSet | undefined> {
+  async findById(id: PlanningPlanId): Promise<PersistedPlanningPlan | undefined> {
     const numericId = parsePlanningSetId(id);
     if (numericId === undefined) {
       return undefined;
@@ -132,22 +132,22 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
   }
 
   async saveWorkingSet(
-    set: PlanningSet & { status: "working" },
+    set: PlanningPlan & { status: "working" },
     serviceContext: ServiceContext,
-    existingId?: PlanningSetId,
-  ): Promise<PersistedPlanningSet> {
+    existingId?: PlanningPlanId,
+  ): Promise<PersistedPlanningPlan> {
     return this.saveSet(set, serviceContext, existingId);
   }
 
   async saveFinalSet(
-    set: PlanningSet & { status: "final" },
+    set: PlanningPlan & { status: "final" },
     serviceContext: ServiceContext,
-    existingId?: PlanningSetId,
-  ): Promise<PersistedPlanningSet> {
+    existingId?: PlanningPlanId,
+  ): Promise<PersistedPlanningPlan> {
     return this.saveSet(set, serviceContext, existingId);
   }
 
-  async demoteFinalToWorking(id: PlanningSetId): Promise<void> {
+  async demoteFinalToWorking(id: PlanningPlanId): Promise<void> {
     const numericId = parsePlanningSetId(id);
     if (numericId === undefined) return;
     await updateTable(this.dependencies.db, serviceSets)
@@ -155,7 +155,7 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
       .where(eq(serviceSets.id, numericId));
   }
 
-  async deleteById(id: PlanningSetId): Promise<void> {
+  async deleteById(id: PlanningPlanId): Promise<void> {
     const numericId = parsePlanningSetId(id);
     if (numericId === undefined) {
       return;
@@ -185,7 +185,7 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
     });
   }
 
-  private async saveSet<TSet extends PlanningSet>(set: TSet, serviceContext: ServiceContext, existingId?: PlanningSetId): Promise<PersistedPlanningSet> {
+  private async saveSet<TSet extends PlanningPlan>(set: TSet, serviceContext: ServiceContext, existingId?: PlanningPlanId): Promise<PersistedPlanningPlan> {
     return this.dependencies.db.transaction(async (tx) => {
       const now = new Date();
       const existingNumericId = existingId ? parsePlanningSetId(existingId) : undefined;
@@ -209,7 +209,7 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
     });
   }
 
-  private async findByIdWithExecutor(db: DrizzleExecutor, numericId: number): Promise<PersistedPlanningSet | undefined> {
+  private async findByIdWithExecutor(db: DrizzleExecutor, numericId: number): Promise<PersistedPlanningPlan | undefined> {
     const [set] = (await selectAll(db)
       .from(serviceSets)
       .where(eq(serviceSets.id, numericId))
@@ -246,7 +246,7 @@ export class DrizzlePlanningSetRepository implements PlanningSetRepository {
 export class DrizzleFinalSetCompletionRepository implements FinalSetCompletionRepository {
   constructor(private readonly dependencies: PlanningLifecycleDrizzleAdapterDependencies) {}
 
-  async completeFinalSet(finalSetId: PlanningSetId, completedAt: Date): Promise<FinalSetCompletionPersistenceResult> {
+  async completeFinalSet(finalSetId: PlanningPlanId, completedAt: Date): Promise<FinalSetCompletionPersistenceResult> {
     const numericId = parsePlanningSetId(finalSetId);
     if (numericId === undefined) return { status: "notFound" };
 
@@ -412,7 +412,7 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
     return { id: formatCompletedServiceRecordId(row.id), sourceFinalSetId: row.serviceSetId ? formatPlanningSetId(row.serviceSetId) : "", set: { status: "final", language: context.serviceLanguage, rows: rows.map(mapRowRecordToPlanningRow) }, serviceContext: mapContextRecordToServiceContext(context), completedAt: new Date(row.completedAt) };
   }
 
-  async update(id: string, serviceContext: ServiceContext, set: PlanningSet & { status: "final" }, invalidatedPlanIds: PlanningSetId[] = []): Promise<CompletedServiceRecord> {
+  async update(id: string, serviceContext: ServiceContext, set: PlanningPlan & { status: "final" }, invalidatedPlanIds: PlanningPlanId[] = []): Promise<CompletedServiceRecord> {
     const numericId = parsePlanningSetId(id);
     if (numericId === undefined) {
       throw new Error(`Completed service record id '${id}' is not valid.`);
@@ -457,7 +457,7 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
     });
   }
 
-  async deleteBySourceFinalSetId(sourceFinalSetId: PlanningSetId): Promise<void> {
+  async deleteBySourceFinalSetId(sourceFinalSetId: PlanningPlanId): Promise<void> {
     const numericId = parsePlanningSetId(sourceFinalSetId);
     if (numericId === undefined) {
       return;
@@ -487,7 +487,7 @@ export function createDbBackedPlanningLifecycleService(
   });
 }
 
-async function insertNewSet(db: DrizzleExecutor, set: PlanningSet, serviceContext: ServiceContext, now: Date): Promise<number> {
+async function insertNewSet(db: DrizzleExecutor, set: PlanningPlan, serviceContext: ServiceContext, now: Date): Promise<number> {
   const [context] = (await insertInto(db, serviceContexts)
     .values({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, createdAt: now, updatedAt: now })
     .returning({ id: serviceContexts.id })) as { id: number }[];
@@ -499,7 +499,7 @@ async function insertNewSet(db: DrizzleExecutor, set: PlanningSet, serviceContex
   return serviceSet.id;
 }
 
-async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningSet, serviceContext: ServiceContext, now: Date): Promise<number> {
+async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningPlan, serviceContext: ServiceContext, now: Date): Promise<number> {
   const [existing] = (await selectAll(db)
     .from(serviceSets)
     .where(eq(serviceSets.id, id))
@@ -615,12 +615,12 @@ function mapRowRecordToPlanningRow(row: ServiceSetRowRecord): PlanningRow {
   };
 }
 
-function parsePlanningSetId(id: PlanningSetId): number | undefined {
+function parsePlanningSetId(id: PlanningPlanId): number | undefined {
   const numericId = Number.parseInt(id, 10);
   return Number.isSafeInteger(numericId) && numericId > 0 && numericId.toString() === id ? numericId : undefined;
 }
 
-function formatPlanningSetId(id: number): PlanningSetId {
+function formatPlanningSetId(id: number): PlanningPlanId {
   return id.toString();
 }
 
@@ -628,7 +628,7 @@ function formatCompletedServiceRecordId(id: number): string {
   return id.toString();
 }
 
-function clonePlanningSet<T extends PlanningSet>(set: T): T {
+function clonePlanningSet<T extends PlanningPlan>(set: T): T {
   return {
     ...set,
     rows: set.rows.map((row) => ({
