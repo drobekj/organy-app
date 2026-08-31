@@ -4,6 +4,7 @@ import type { PersistedPlanningSet } from "../src/application/planning-lifecycle
 import { buildFinalPlanWhatsAppUrl, formatFinalPlanWhatsAppMessage } from "../src/planning-lifecycle/whatsapp-finalization";
 
 const planning = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
+const handoff = readFileSync("app/post-finalize-whatsapp-handoff.tsx", "utf8");
 
 const plan: PersistedPlanningSet = {
   id: "plan-test",
@@ -52,8 +53,8 @@ assert.doesNotMatch(minimalMessage, /Antiphon:/);
 assert.doesNotMatch(minimalMessage, /Topic:/);
 assert.doesNotMatch(minimalMessage, /Note:/);
 
-const url = buildFinalPlanWhatsAppUrl(plan);
-assert.match(url, /^https:\/\/wa\.me\/\?text=/);
+const url = buildFinalPlanWhatsAppUrl(plan, "+420774880971");
+assert.match(url, /^https:\/\/wa\.me\/420774880971\?text=/);
 assert.equal(decodeURIComponent(url.split("?text=")[1] ?? ""), message);
 
 assert.match(planning, />\s*Save working plan\s*<\/button>/);
@@ -66,7 +67,8 @@ assert.doesNotMatch(planning, /type="checkbox"/);
 assert.doesNotMatch(planning, /<button[^>]*>\s*Inform\s*<\/button>/);
 
 assert.match(planning, /if \(!result\.success\) \{[\s\S]*?return;[\s\S]*?setPostFinalizePlan\(result\.value\)/, "WhatsApp offer appears only after successful finalization");
-assert.match(planning, /role="dialog"[\s\S]*?>Plan finalized<[\s\S]*?Inform about the finalized plan via WhatsApp\?[\s\S]*?>\s*Open WhatsApp\s*<[\s\S]*?>Close<\/button>/);
-assert.match(planning, /href=\{buildFinalPlanWhatsAppUrl\(postFinalizePlan\)\}[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"/);
+assert.match(planning, /<PostFinalizeWhatsAppHandoff[\s\S]*?plan=\{postFinalizePlan\}[\s\S]*?runtimeMode=\{runtimeMode\}/);
+assert.match(handoff, /role="dialog"[\s\S]*?>Plan finalized<[\s\S]*?Inform about the finalized plan via WhatsApp\?[\s\S]*?Open WhatsApp[\s\S]*?>Close<\/button>/);
+assert.match(handoff, /href=\{buildFinalPlanWhatsAppUrl\(plan, phone\)\}[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"/);
 
 console.log("Issue 310 plan terminology and post-finalization WhatsApp handoff coverage passed.");
