@@ -9,7 +9,7 @@ import { PasswordVisibilityField } from "./password-visibility-field";
 
 type PendingAccountAction = "signOut" | "changePassword" | null;
 
-const VERIFY_DB_COMMAND = "npm run db:verify:offline";
+const VERIFY_DB_COMMAND = 'cd "$env:LOCALAPPDATA\\Organy\\verify-db"\nnpm run db:verify:offline';
 
 type TrackedButtonState = {
   button: HTMLButtonElement;
@@ -403,13 +403,13 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
             <p>Create a fresh complete copy of the current Production database for local SQL verification.</p>
             <p><strong>Safety:</strong> Production → backup → local offline database. Nothing is restored or synchronized back to Production.</p>
             <ol>
-              <li>Open PowerShell in your local <code>organy-app</code> repository folder.</li>
-              <li>Run the single command below. Docker Desktop is started automatically when possible.</li>
+              <li>Open PowerShell.</li>
+              <li>Copy the complete block below, paste it into PowerShell, and press Enter.</li>
               <li>When recovery checks pass, the local Adminer SQL editor opens automatically with the disposable database.</li>
             </ol>
-            <code className="verify-db-command">{VERIFY_DB_COMMAND}</code>
+            <pre className="verify-db-command"><code>{VERIFY_DB_COMMAND}</code></pre>
             <div className="verify-db-dialog-actions">
-              <button type="button" onClick={copyVerifyDbCommand}>{verifyDbCopied ? "Copied" : "Copy command"}</button>
+              <button type="button" onClick={copyVerifyDbCommand}>{verifyDbCopied ? "Copied" : "Copy PowerShell block"}</button>
               <button type="button" onClick={() => { setVerifyDbOpen(false); setVerifyDbCopied(false); }}>Close</button>
             </div>
             <p className="verify-db-dialog-note">Each run replaces only the dedicated offline database. Timestamped backup artifacts remain under the Git-ignored <code>.organy-backups</code> folder.</p>
