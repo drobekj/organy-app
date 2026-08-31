@@ -6,13 +6,13 @@ import {
   serviceAntiphonMatchesLanguage,
   serviceTopicLanguageFromId,
   serviceTopicMatchesLanguage,
-  validatePlanningSet,
+  validatePlanningPlan,
   findMelodyCollisions,
   melodyCollisionSummary,
   type MelodyCollision,
   type PlanningRole,
   type PlanningRow,
-  type PlanningSet,
+  type PlanningPlan,
   type ServiceAntiphonReference,
   type ServiceContext,
   type ServiceTopicReference,
@@ -28,14 +28,14 @@ import type {
   CompletedServiceRecordRepository,
   FinalSetCompletionPersistenceResult,
   FinalSetCompletionRepository,
-  PersistedPlanningSet,
-  PlanningSetId,
-  PlanningSetRepository,
+  PersistedPlanningPlan,
+  PlanningPlanId,
+  PlanningPlanRepository,
 } from "./ports";
 import { failure, success, type PlanningServiceResult } from "./results";
 
 export type PlanningLifecycleServiceDependencies = {
-  planningSets: PlanningSetRepository;
+  planningSets: PlanningPlanRepository;
   completedServiceRecords: CompletedServiceRecordRepository;
   finalSetCompletion?: FinalSetCompletionRepository;
   catalog: CatalogRepository;
@@ -52,44 +52,44 @@ export type SaveWorkingSetServiceContext = ServiceContext;
 
 export type SaveWorkingSetInput = {
   role: PlanningRole;
-  existingSetId?: PlanningSetId;
+  existingSetId?: PlanningPlanId;
   serviceContext: SaveWorkingSetServiceContext;
-  set: PlanningSet & { status: "working" };
+  set: PlanningPlan & { status: "working" };
   allowLanguageDeviations?: boolean;
 };
 
 export type FinalizeWorkingSetInput = {
   role: PlanningRole;
-  workingSetId: PlanningSetId;
-  replaceFinalSetId?: PlanningSetId;
+  workingSetId: PlanningPlanId;
+  replaceFinalSetId?: PlanningPlanId;
 };
 
 export type ReopenFinalSetInput = {
   role: PlanningRole;
-  finalSetId: PlanningSetId;
+  finalSetId: PlanningPlanId;
 };
 
 export type DeletePlanningSetInput = {
   role: PlanningRole;
-  setId: PlanningSetId;
+  setId: PlanningPlanId;
 };
 
 export type ReorderRowsInput = {
   role: PlanningRole;
-  workingSetId: PlanningSetId;
+  workingSetId: PlanningPlanId;
   rowOrder: number[];
 };
 
 export type CompleteFinalSetInput = {
   role: PlanningRole;
-  finalSetId: PlanningSetId;
+  finalSetId: PlanningPlanId;
 };
 
 export type UpdateCompletedRecordInput = {
   role: PlanningRole;
   recordId: string;
   serviceContext: ServiceContext;
-  set: PlanningSet & { status: "final" };
+  set: PlanningPlan & { status: "final" };
   allowLanguageDeviations?: boolean;
   acceptPlanInvalidation?: boolean;
 };
@@ -101,7 +101,7 @@ export type DeleteCompletedRecordInput = {
 
 export class PlanningLifecycleService {
   private readonly now: () => Date;
-  private readonly planningSets: PlanningSetRepository;
+  private readonly planningSets: PlanningPlanRepository;
   private readonly completedServiceRecords: CompletedServiceRecordRepository;
   private readonly finalSetCompletion?: FinalSetCompletionRepository;
   private fallbackCompletionTail: Promise<void> = Promise.resolve();
@@ -128,7 +128,7 @@ export class PlanningLifecycleService {
   }
 
 
-  async listPlanningSets(): Promise<PlanningServiceResult<PersistedPlanningSet[]>> {
+  async listPlanningSets(): Promise<PlanningServiceResult<PersistedPlanningPlan[]>> {
     await this.reconcilePastFinalSets();
     return success(await this.annotateRevisionStates(await this.planningSets.list()));
   }
@@ -138,7 +138,7 @@ export class PlanningLifecycleService {
     return success(await this.completedServiceRecords.list());
   }
 
-  async loadPlanningSet(setId: PlanningSetId): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+  async loadPlanningSet(setId: PlanningPlanId): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
     const set = await this.planningSets.findById(setId);
     if (!set) return failure({ code: "notFound", message: "Planning set was not found." });
     return success((await this.annotateRevisionStates([set]))[0]);
@@ -149,7 +149,7 @@ export class PlanningLifecycleService {
     return record ? success(record) : failure({ code: "notFound", message: "Completed record was not found." });
   }
 
-  async saveWorkingSet(input: SaveWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+  async saveWorkingSet(input: SaveWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
     if (!canPerformPlanningAction(input.role, input.existingSetId ? "editWorkingSet" : "createWorkingSet")) {
       return failure({ code: "permissionDenied", message: "Role cannot save a working planning set." });
     }
@@ -175,7 +175,7 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: "Catalog selections are invalid.", issues: normalized.issues });
     }
 
-    const validation = validatePlanningSet(normalized.set);
+    const validation = validatePlanningPlan(normalized.set);
     if (!validation.valid) {
       return failure({ code: "invalidInput", message: "Working planning set is invalid.", issues: validation.issues });
     }
@@ -196,13 +196,13 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: `A service already exists for ${serviceContext.serviceDate} at ${serviceContext.serviceTime}.` });
     }
 
-    const historyConflicts = await this.findHistoryConflictsForPlan({ ...(normalized.set as PlanningSet & { status: "working" }), id: input.existingSetId ?? "candidate", serviceContext: normalized.serviceContext });
+    const historyConflicts = await this.findHistoryConflictsForPlan({ ...(normalized.set as PlanningPlan & { status: "working" }), id: input.existingSetId ?? "candidate", serviceContext: normalized.serviceContext });
     if (historyConflicts.length > 0) return failure({ code: "invalidInput", message: "Working planning set conflicts with authoritative Completed history.", issues: historyConflicts.map((conflict) => ({ path: "historyNonRepeat", message: conflict.reason })) });
 
-    return success(await this.planningSets.saveWorkingSet(normalized.set as PlanningSet & { status: "working" }, normalized.serviceContext, input.existingSetId));
+    return success(await this.planningSets.saveWorkingSet(normalized.set as PlanningPlan & { status: "working" }, normalized.serviceContext, input.existingSetId));
   }
 
-  async finalizeWorkingSet(input: FinalizeWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+  async finalizeWorkingSet(input: FinalizeWorkingSetInput): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
     if (!canPerformPlanningAction(input.role, "saveFinalSet")) {
       return failure({ code: "permissionDenied", message: "Role cannot finalize a working planning set." });
     }
@@ -232,12 +232,12 @@ export class PlanningLifecycleService {
       }
     }
 
-    const finalSet: PlanningSet & { status: "final" } = {
+    const finalSet: PlanningPlan & { status: "final" } = {
       status: "final",
       language: workingSet.language,
       rows: workingSet.rows,
     };
-    const validation = validatePlanningSet(finalSet);
+    const validation = validatePlanningPlan(finalSet);
     if (!validation.valid) {
       return failure({ code: "invalidInput", message: "Final planning set is invalid.", issues: validation.issues });
     }
@@ -270,7 +270,7 @@ export class PlanningLifecycleService {
     return success(persistedFinalSet);
   }
 
-  async reopenFinalSet(input: ReopenFinalSetInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+  async reopenFinalSet(input: ReopenFinalSetInput): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
     if (input.role !== "admin") {
       return failure({ code: "permissionDenied", message: "Only admin can reopen a final planning set." });
     }
@@ -284,7 +284,7 @@ export class PlanningLifecycleService {
     ));
   }
 
-  async deletePlanningSet(input: DeletePlanningSetInput): Promise<PlanningServiceResult<{ deletedSetId: PlanningSetId }>> {
+  async deletePlanningSet(input: DeletePlanningSetInput): Promise<PlanningServiceResult<{ deletedSetId: PlanningPlanId }>> {
     const set = await this.planningSets.findById(input.setId);
     if (!set) {
       return failure({ code: "notFound", message: "Planning set was not found." });
@@ -300,7 +300,7 @@ export class PlanningLifecycleService {
     return success({ deletedSetId: input.setId });
   }
 
-  async reorderRows(input: ReorderRowsInput): Promise<PlanningServiceResult<PersistedPlanningSet>> {
+  async reorderRows(input: ReorderRowsInput): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
     if (!canPerformPlanningAction(input.role, "editWorkingSet")) {
       return failure({ code: "permissionDenied", message: "Role cannot reorder rows in a working planning set." });
     }
@@ -319,7 +319,7 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: "Row order must include every row index exactly once." });
     }
 
-    const reorderedWorkingSet: PlanningSet & { status: "working" } = {
+    const reorderedWorkingSet: PlanningPlan & { status: "working" } = {
       status: "working",
       language: workingSet.language,
       rows: reorderedRows,
@@ -413,7 +413,7 @@ export class PlanningLifecycleService {
       return failure({ code: "invalidInput", message: `Future service ${finalSet.serviceContext.serviceDate} at ${finalSet.serviceContext.serviceTime || "Time missing"} cannot be completed.` });
     }
 
-    const outcome = await this.persistFinalSetCompletion(finalSet as PersistedPlanningSet & { status: "final" }, this.now());
+    const outcome = await this.persistFinalSetCompletion(finalSet as PersistedPlanningPlan & { status: "final" }, this.now());
     if (outcome.status === "notFound") {
       return failure({ code: "notFound", message: "Final planning set was not found." });
     }
@@ -426,7 +426,7 @@ export class PlanningLifecycleService {
   private async reconcilePastFinalSets(): Promise<void> {
     const now = this.now();
     const overdue = (await this.planningSets.list())
-      .filter((set): set is PersistedPlanningSet & { status: "final" } => set.status === "final" && isPastPragueDate(set.serviceContext.serviceDate, now))
+      .filter((set): set is PersistedPlanningPlan & { status: "final" } => set.status === "final" && isPastPragueDate(set.serviceContext.serviceDate, now))
       .sort((left, right) => left.serviceContext.serviceDate.localeCompare(right.serviceContext.serviceDate) || left.id.localeCompare(right.id));
 
     for (const finalSet of overdue) {
@@ -437,7 +437,7 @@ export class PlanningLifecycleService {
   }
 
   private async persistFinalSetCompletion(
-    finalSet: PersistedPlanningSet & { status: "final" },
+    finalSet: PersistedPlanningPlan & { status: "final" },
     completedAt: Date,
   ): Promise<FinalSetCompletionPersistenceResult> {
     if (this.finalSetCompletion) {
@@ -488,7 +488,7 @@ export class PlanningLifecycleService {
 
   private async validateAndNormalizeReferenceAntiphon(
     serviceContext: ServiceContext,
-    existing?: PersistedPlanningSet | CompletedServiceRecord,
+    existing?: PersistedPlanningPlan | CompletedServiceRecord,
   ): Promise<PlanningServiceResult<ServiceContext>> {
     const candidate = (serviceContext as ServiceContext & { referenceAntiphon?: unknown }).referenceAntiphon;
     if (candidate === undefined) {
@@ -539,7 +539,7 @@ export class PlanningLifecycleService {
 
   private async validateAndNormalizeReferenceTopic(
     serviceContext: ServiceContext,
-    existing?: PersistedPlanningSet | CompletedServiceRecord,
+    existing?: PersistedPlanningPlan | CompletedServiceRecord,
   ): Promise<PlanningServiceResult<ServiceContext>> {
     const candidate = (serviceContext as ServiceContext & { referenceTopic?: unknown }).referenceTopic;
     if (candidate === undefined) return success({ ...serviceContext, referenceTopic: undefined });
@@ -561,7 +561,7 @@ export class PlanningLifecycleService {
     return success({ ...serviceContext, referenceTopic: serviceTopicSnapshot(authoritative) });
   }
 
-  private async validateAndNormalizeCatalogReferences<TSet extends PlanningSet>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningSet | CompletedServiceRecord, allowLanguageDeviations = false, allowHistoricalTruthRows = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
+  private async validateAndNormalizeCatalogReferences<TSet extends PlanningPlan>(serviceContext: ServiceContext, set: TSet, existing?: PersistedPlanningPlan | CompletedServiceRecord, allowLanguageDeviations = false, allowHistoricalTruthRows = false): Promise<{ serviceContext: ServiceContext; set: TSet; issues: { path: string; message: string }[] }> {
     const issues: { path: string; message: string }[] = [];
     if (!this.enforceCatalogSelections) {
       return {
@@ -624,7 +624,7 @@ export class PlanningLifecycleService {
     return { serviceContext: normalizedContext, set: { ...set, rows: normalizedRows } as TSet, issues };
   }
 
-  private async annotateRevisionStates(sets: PersistedPlanningSet[]): Promise<PersistedPlanningSet[]> {
+  private async annotateRevisionStates(sets: PersistedPlanningPlan[]): Promise<PersistedPlanningPlan[]> {
     if (!this.referenceMelodyClasses || sets.length === 0) return sets;
     return Promise.all(sets.map(async (set) => {
       const conflicts = await this.findHistoryConflictsForPlan(set);
@@ -647,7 +647,7 @@ export class PlanningLifecycleService {
     return impacts;
   }
 
-  private async findHistoryConflictsForPlan(plan: PersistedPlanningSet, completedOverride?: CompletedServiceRecord[]): Promise<HistoryConflict[]> {
+  private async findHistoryConflictsForPlan(plan: PersistedPlanningPlan, completedOverride?: CompletedServiceRecord[]): Promise<HistoryConflict[]> {
     if (!this.referenceMelodyClasses) return [];
     const completed = completedOverride ?? await this.completedServiceRecords.list();
     if (completed.length === 0) return [];
@@ -690,7 +690,7 @@ export class PlanningLifecycleService {
     return issues;
   }
 
-  private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningSetId, currentCompletedRecordId?: string): Promise<PersistedPlanningSet | CompletedServiceRecord | undefined> {
+  private async findDuplicateService(serviceContext: ServiceContext, currentSetId?: PlanningPlanId, currentCompletedRecordId?: string): Promise<PersistedPlanningPlan | CompletedServiceRecord | undefined> {
     const sets = await this.planningSets.list();
     const activeDuplicate = sets.find((set) => set.id !== currentSetId && set.serviceContext.serviceDate === serviceContext.serviceDate && normalizeServiceTime(set.serviceContext.serviceTime) === serviceContext.serviceTime);
     if (activeDuplicate) return activeDuplicate;
@@ -699,13 +699,13 @@ export class PlanningLifecycleService {
   }
 }
 
-type HistoryConflict = { planId: PlanningSetId; planStatus: "working" | "final"; completedRecordId: string; planRowIndex: number; completedRowIndex: number; reason: string };
+type HistoryConflict = { planId: PlanningPlanId; planStatus: "working" | "final"; completedRecordId: string; planRowIndex: number; completedRowIndex: number; reason: string };
 
 function historyConflictKey(conflict: HistoryConflict): string {
   return `${conflict.planId} ${conflict.completedRecordId} ${conflict.planRowIndex} ${conflict.completedRowIndex}`;
 }
 
-function validateHistoricalCompletedSet(set: PlanningSet): { path: string; message: string }[] {
+function validateHistoricalCompletedSet(set: PlanningPlan): { path: string; message: string }[] {
   const issues: { path: string; message: string }[] = [];
   if (set.status !== "final") issues.push({ path: "status", message: "Completed snapshot status must be final." });
   if (set.language !== "czech" && set.language !== "polish" && set.language !== "mixed") issues.push({ path: "language", message: "Completed snapshot language is invalid." });
@@ -794,7 +794,7 @@ function serviceAntiphonSnapshot(record: ReferenceAntiphonRecord): ServiceAntiph
   return { id: record.id, displayNumber: record.displayNumber, title: record.title, ...(record.sourceUrl ? { sourceUrl: record.sourceUrl } : {}) };
 }
 
-function getRowsFromExisting(existing: PersistedPlanningSet | CompletedServiceRecord): PlanningRow[] {
+function getRowsFromExisting(existing: PersistedPlanningPlan | CompletedServiceRecord): PlanningRow[] {
   return "set" in existing ? existing.set.rows : existing.rows;
 }
 
@@ -855,7 +855,7 @@ function reorderRowsByIndex(rows: PlanningRow[], rowOrder: number[]): PlanningRo
 
 function validateSaveWorkingSetServiceContext(
   serviceContext: SaveWorkingSetServiceContext,
-  set: PlanningSet,
+  set: PlanningPlan,
 ): { path: string; message: string }[] {
   return [
     ...(serviceContext.language !== set.language
