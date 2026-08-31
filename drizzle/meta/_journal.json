@@ -2,27 +2,159 @@
   "version": "7",
   "dialect": "postgresql",
   "entries": [
-    {"idx":0,"version":"7","when":1783618589802,"tag":"0000_gigantic_wild_child","breakpoints":true},
-    {"idx":1,"version":"7","when":1783621268993,"tag":"0001_service_context_language","breakpoints":true},
-    {"idx":2,"version":"7","when":1783657314344,"tag":"0002_serious_magma","breakpoints":true},
-    {"idx":3,"version":"7","when":1783800000000,"tag":"0003_service_time_identity","breakpoints":true},
-    {"idx":4,"version":"7","when":1784280000000,"tag":"0004_phase_29_catalog_lookup","breakpoints":true},
-    {"idx":5,"version":"7","when":1784403789407,"tag":"0005_phase_30_1_contract_foundation","breakpoints":true},
-    {"idx":6,"version":"7","when":1784500000000,"tag":"0006_melody_non_repetition_months","breakpoints":true},
-    {"idx":7,"version":"7","when":1784600000000,"tag":"0007_service_context_hydration_keys","breakpoints":true},
-    {"idx":8,"version":"7","when":1785125199672,"tag":"0008_phase_31_2_reference_catalog","breakpoints":true},
-    {"idx":9,"version":"7","when":1785150000000,"tag":"0009_phase_31_5_reference_preferences","breakpoints":true},
-    {"idx":10,"version":"7","when":1785200000000,"tag":"0010_phase_31_7_reference_organist_repertoire","breakpoints":true},
-    {"idx":11,"version":"7","when":1785300000000,"tag":"0011_phase_31_8_reference_melodies","breakpoints":true},
-    {"idx":12,"version":"7","when":1785400000000,"tag":"0012_phase_31_9_reference_antiphons","breakpoints":true},
-    {"idx":13,"version":"7","when":1785500000000,"tag":"0013_phase_31_10a_antiphon_recommendations","breakpoints":true},
-    {"idx":14,"version":"7","when":1785700000000,"tag":"0014_phase_31_11_service_context_reference_antiphon","breakpoints":true},
-    {"idx":15,"version":"7","when":1785950000000,"tag":"0015_phase_31_13_reference_thematic_sections","breakpoints":true},
-    {"idx":16,"version":"7","when":1786200000000,"tag":"0016_phase_31_18_bilingual_antiphons","breakpoints":true},
-    {"idx":17,"version":"7","when":1786270000000,"tag":"0017_phase_31_20_service_context_topic","breakpoints":true},
-    {"idx":18,"version":"7","when":1786545164399,"tag":"0018_many_wong","breakpoints":true},
-    {"idx":19,"version":"7","when":1787635433186,"tag":"0019_issue_222_audit_history","breakpoints":true},
-    {"idx":20,"version":"7","when":1788004000000,"tag":"0020_reference_melody_edges","breakpoints":true},
-    {"idx":21,"version":"7","when":1788199500000,"tag":"0021_protected_whatsapp_phone","breakpoints":true}
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1783618589802,
+      "tag": "0000_gigantic_wild_child",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783621268993,
+      "tag": "0001_service_context_language",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783657314344,
+      "tag": "0002_serious_magma",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783800000000,
+      "tag": "0003_service_time_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784280000000,
+      "tag": "0004_phase_29_catalog_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784403789407,
+      "tag": "0005_phase_30_1_contract_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784500000000,
+      "tag": "0006_melody_non_repetition_months",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784600000000,
+      "tag": "0007_service_context_hydration_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785125199672,
+      "tag": "0008_phase_31_2_reference_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785150000000,
+      "tag": "0009_phase_31_5_reference_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785200000000,
+      "tag": "0010_phase_31_7_reference_organist_repertoire",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785300000000,
+      "tag": "0011_phase_31_8_reference_melodies",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785400000000,
+      "tag": "0012_phase_31_9_reference_antiphons",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785500000000,
+      "tag": "0013_phase_31_10a_antiphon_recommendations",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785700000000,
+      "tag": "0014_phase_31_11_service_context_reference_antiphon",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785950000000,
+      "tag": "0015_phase_31_13_reference_thematic_sections",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0016_phase_31_18_bilingual_antiphons",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786270000000,
+      "tag": "0017_phase_31_20_service_context_topic",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786545164399,
+      "tag": "0018_many_wong",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787635433186,
+      "tag": "0019_issue_222_audit_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788004000000,
+      "tag": "0020_reference_melody_edges",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788199500000,
+      "tag": "0021_protected_whatsapp_phone",
+      "breakpoints": true
+    }
   ]
 }
