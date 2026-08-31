@@ -2,7 +2,9 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import PlanningLifecycleClient, { type RuntimeMode } from "./planning-lifecycle-client";
 import { ProtectedAccountControls } from "./protected-account-controls";
+import { ProtectedAccountWhatsApp } from "./protected-account-whatsapp";
 import { ProtectedActorError, resolveProtectedUser } from "../src/application/protected-actor";
+import { PostgresProtectedWhatsAppPhoneService } from "../src/application/protected-account-whatsapp-phone";
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../src/application/active-role";
 import { getUnresolvedAuditRetentionIncident } from "../src/application/audit-retention-maintenance";
 import { resolveApplicationRuntimeMode } from "../src/config/production-runtime";
@@ -17,12 +19,16 @@ export default async function Home() {
   try {
     const authenticatedUser = await resolveProtectedUser(await headers(), authPool);
     const activeRole = resolveOwnedActiveRole(authenticatedUser.roles, (await cookies()).get(ACTIVE_ROLE_COOKIE_NAME)?.value);
-    const maintenanceIncident = authenticatedUser.roles.includes("admin")
-      ? await getUnresolvedAuditRetentionIncident(authPool)
-      : null;
+    const [maintenanceIncident, whatsappPhone] = await Promise.all([
+      authenticatedUser.roles.includes("admin") ? getUnresolvedAuditRetentionIncident(authPool) : Promise.resolve(null),
+      authenticatedUser.roles.some((role) => role === "admin" || role === "priest")
+        ? new PostgresProtectedWhatsAppPhoneService(authPool).getByAppUserId(authenticatedUser.id)
+        : Promise.resolve({ phoneE164: null }),
+    ]);
     return (
       <>
         <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} initialActiveRole={activeRole} />
+        <ProtectedAccountWhatsApp initialPhoneE164={whatsappPhone.phoneE164} roles={authenticatedUser.roles} />
         {maintenanceIncident && (
           <aside className="maintenance-incident-alert" role="alert">
             <strong>Audit maintenance requires attention.</strong>

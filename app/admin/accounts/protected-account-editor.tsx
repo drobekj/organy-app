@@ -1,7 +1,7 @@
 import { PasswordVisibilityField } from "../../password-visibility-field";
 import { ConfirmSubmitButton } from "./confirm-submit-button";
 
-type Account = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: string[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean };
+type Account = { authUserId: string; appUserId: string; username: string; displayName: string; active: boolean; roles: string[]; personId?: string; personDisplayName?: string; personPriest?: boolean; personOrganist?: boolean; whatsappPhoneE164?: string };
 
 export function ProtectedAccountEditor({ account, currentAppUserId, canDeactivate }: { account: Account; currentAppUserId: string; canDeactivate: boolean }) {
   const eligibility = account.personId ? [account.personPriest ? "priest" : "", account.personOrganist ? "organist" : ""].filter(Boolean).join(", ") || "none" : undefined;
@@ -20,6 +20,14 @@ export function ProtectedAccountEditor({ account, currentAppUserId, canDeactivat
         <input type="hidden" name="active" value={account.active ? "false" : "true"} />
         <button type="submit">{account.active ? "Deactivate" : "Reactivate"}</button>
       </form>}
+    </div>
+    <div className="planning-form">
+      <p className="field-help">WhatsApp phone: {account.whatsappPhoneE164 ? <strong>{account.whatsappPhoneE164}</strong> : "not saved"}</p>
+      {account.whatsappPhoneE164 && <form action="/api/protected-account-whatsapp-phone/admin-remove" method="post">
+        <input type="hidden" name="appUserId" value={account.appUserId} />
+        <ConfirmSubmitButton message={`Remove the stored WhatsApp phone for ${account.displayName}? The account owner will be asked again before future automatic WhatsApp use.`}>Remove WhatsApp phone</ConfirmSubmitButton>
+      </form>}
+      <p className="field-help">Only the account owner can add or change this phone. Admin can remove it to revoke automatic use.</p>
     </div>
     <form action="/api/protected-accounts" method="post" className="planning-form">
       <input type="hidden" name="action" value="updateRoles" />

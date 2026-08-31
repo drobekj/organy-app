@@ -148,6 +148,13 @@
       "when": 1788004000000,
       "tag": "0020_reference_melody_edges",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788199500000,
+      "tag": "0021_protected_whatsapp_phone",
+      "breakpoints": true
     }
   ]
 }
