@@ -1,3 +1,4 @@
+import "./issue-212-acceptance-tests";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
