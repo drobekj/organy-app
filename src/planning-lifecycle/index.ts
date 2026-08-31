@@ -17,6 +17,7 @@ export { canPerformPlanningAction } from "./permissions";
 export type { PlanningAction } from "./permissions";
 export {
   isConcreteSongLanguage,
+  validatePlanningPlan,
   validatePlanningRow,
   validatePlanningSet,
   validateSongReference,
