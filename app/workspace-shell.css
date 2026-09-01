@@ -460,7 +460,7 @@ button.workspace-action-pending {
 
   .workspace-copyright {
     border-top: 1px solid var(--border);
-    margin-top: 0.15rem;
+    margin-top: 0.65rem;
     padding-top: 0.65rem;
     text-align: center;
   }
@@ -469,8 +469,137 @@ button.workspace-action-pending {
 @media (max-width: 899px) {
   .workspace-copyright {
     border-top: 1px solid var(--border);
-    margin-top: 0.15rem;
+    margin-top: 0.65rem;
     padding-top: 0.65rem;
     text-align: start;
+  }
+}
+
+
+/* Issue #375: bilingual role-aware Guide. */
+.guide-workspace {
+  display: grid;
+  gap: 1rem;
+  max-width: 58rem;
+}
+
+.guide-header {
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.guide-header h2,
+.guide-header p {
+  margin: 0;
+}
+
+.guide-header p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 0.45rem;
+  max-width: 44rem;
+}
+
+.guide-language {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.35rem;
+}
+
+.guide-language > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-inline-end: 0.15rem;
+}
+
+.guide-language button {
+  min-width: 2.7rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.guide-sections {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.guide-section {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+}
+
+.guide-section h3,
+.guide-section h4,
+.guide-section p,
+.guide-section ul {
+  margin: 0;
+}
+
+.guide-summary {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.guide-shared {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.guide-section ul {
+  display: grid;
+  gap: 0.3rem;
+  line-height: 1.45;
+  padding-inline-start: 1.2rem;
+}
+
+.guide-role-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.guide-role-card {
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+}
+
+.guide-role-current {
+  box-shadow: inset 0 0 0 1px var(--foreground);
+}
+
+.guide-current-role {
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .guide-header {
+    display: grid;
+  }
+
+  .guide-language {
+    justify-content: flex-start;
+  }
+
+  .guide-role-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .guide-section,
+  .guide-header {
+    padding: 0.85rem;
   }
 }
