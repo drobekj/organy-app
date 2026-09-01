@@ -60,7 +60,8 @@ import {
   type WorkingSetSnapshot,
 } from "./planning-editor-view-model";
 import { HistoryRecordWorkspace, PlansRecordWorkspace } from "./plan-history-record-lists";
-import { AboutWorkspace, GuideWorkspaceEntry } from "./information-workspaces";
+import { AboutWorkspace } from "./information-workspaces";
+import { GuideWorkspace } from "./guide-workspace";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -1376,7 +1377,7 @@ Save the correction and mark those plans for revision?`);
         </nav>
 
         {workspace === "about" && <AboutWorkspace />}
-        {workspace === "guide" && <GuideWorkspaceEntry />}
+        {workspace === "guide" && <GuideWorkspace activeRole={selectedRole} />}
 
         {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveState === "unsaved" && "Unsaved"}

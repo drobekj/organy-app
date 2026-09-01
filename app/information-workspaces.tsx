@@ -22,17 +22,3 @@ export function AboutWorkspace() {
     </section>
   );
 }
-
-export function GuideWorkspaceEntry() {
-  return (
-    <section className="information-workspace" aria-labelledby="guide-workspace-title">
-      <div className="information-copy">
-        <h2 id="guide-workspace-title">Practical guide</h2>
-        <p>
-          Practical instructions for working with Organ Planner are collected here and follow the same
-          sections as the main navigation.
-        </p>
-      </div>
-    </section>
-  );
-}
