@@ -535,13 +535,33 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
   async function getEligibleDraftPeopleDefaults(records: CompletedServiceRecord[]): Promise<DraftPeopleDefaults> {
     const defaults = getDraftPeopleDefaults(records);
-    const [priestResult, organistResult] = await Promise.all([
-      defaults.priest.id ? catalogClient.getPerson({ id: defaults.priest.id }) : Promise.resolve({ success: false as const, error: { code: "notFound" as const, message: "No default priest." } }),
-      defaults.organist.id ? catalogClient.getPerson({ id: defaults.organist.id }) : Promise.resolve({ success: false as const, error: { code: "notFound" as const, message: "No default organist." } }),
+    const [priest, organist] = await Promise.all([
+      resolveEligibleDraftPerson(defaults.priest, "priest"),
+      resolveEligibleDraftPerson(defaults.organist, "organist"),
     ]);
-    const priest = priestResult.success && priestResult.value.active && priestResult.value.priest ? { id: priestResult.value.id, displayName: priestResult.value.displayName } : { displayName: "Anonymous" };
-    const organist = organistResult.success && organistResult.value.active && organistResult.value.organist ? { id: organistResult.value.id, displayName: organistResult.value.displayName } : { displayName: "Anonymous" };
     return { priest, organist };
+  }
+
+  async function resolveEligibleDraftPerson(
+    stored: { id?: string; displayName: string },
+    role: PersonRole,
+  ): Promise<{ id?: string; displayName: string }> {
+    if (stored.id) {
+      const byId = await catalogClient.getPerson({ id: stored.id });
+      if (byId.success && byId.value.active && byId.value[role]) {
+        return { id: byId.value.id, displayName: byId.value.displayName };
+      }
+    }
+
+    const displayName = stored.displayName.trim();
+    if (!displayName || displayName === "Anonymous") return { displayName: "Anonymous" };
+
+    const matches = await catalogClient.searchPeople({ role, query: displayName });
+    if (!matches.success) return { displayName: "Anonymous" };
+    const exactMatches = matches.value.filter((person) => person.active && person[role] && person.displayName === displayName);
+    return exactMatches.length === 1
+      ? { id: exactMatches[0].id, displayName: exactMatches[0].displayName }
+      : { displayName: "Anonymous" };
   }
 
   async function refreshDbSets() {
