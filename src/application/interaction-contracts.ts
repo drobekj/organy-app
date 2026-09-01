@@ -14,7 +14,7 @@ export type KnowledgeMapping = { id: string; key: string; songId: string; synthe
 export type MelodyNonRepetitionConfig = { months: number };
 export type CandidateUsageSource = "completed" | "working" | "final" | "current";
 export type CandidateUsage = { songId: string; serviceDate: string; source: CandidateUsageSource; planId?: string; rowId?: number; rowLabel?: string };
-export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[]; historicalTruth?: boolean };
+export type CandidateQueryInput = { serviceDate: string; serviceLanguage: ServiceLanguage; organistPersonId?: string; melodyProtectionMonths?: number; referenceAntiphonId?: string; referenceTopicId?: string; antiphonKey?: string; liturgicalSeasonKey?: string; queryText?: string; preferenceThreshold?: number; currentPlanId?: string; candidateUsages?: CandidateUsage[]; historicalTruth?: boolean };
 export type CatalogCandidateAvailabilityMode = "available" | "unavailable";
 export type CatalogCandidateQueryInput = { serviceLanguage: ServiceLanguage; organistPersonId?: string; referenceAntiphonId?: string; referenceTopicId?: string; queryText?: string; availabilityMode: CatalogCandidateAvailabilityMode };
 export type CandidateMelodyMember = { songId: string; language: ConcreteSongLanguage; number: string; title: string; repertoire: boolean; aggregatePreferenceScore: number; sheetMusicUrl?: string };
@@ -83,7 +83,7 @@ export class InMemoryInteractionRepository {
     if (input.historicalTruth) return queryHistoricalTruthCatalogCandidates(songs, input.serviceLanguage, input.queryText);
     const organistPersonId = input.organistPersonId;
     const languageSet = new Set(languagesForService(input.serviceLanguage));
-    const recentClassIds = getRecentMelodyClassIds(this.melodyClasses, input, this.melodyWindow);
+    const recentClassIds = getRecentMelodyClassIds(this.melodyClasses, input, { months: input.melodyProtectionMonths ?? this.melodyWindow.months });
     const queryText = input.queryText?.trim().toLowerCase();
     const threshold = input.preferenceThreshold ?? 0;
     const songsById = new Map(songs.map((song) => [song.songId, song]));
