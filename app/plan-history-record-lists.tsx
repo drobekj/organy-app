@@ -43,7 +43,7 @@ export function PlansRecordWorkspace({
   onLoadPlan,
 }: PlansRecordWorkspaceProps) {
   return (
-    <section className="db-workspace" aria-label="Plans" data-guide-hint="plans.records">
+    <section className="db-workspace" aria-label="Plans">
       {revisionPlanCount > 0 && (
         <p className="error-summary" role="alert">
           {revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"}{" "}
@@ -51,7 +51,7 @@ export function PlansRecordWorkspace({
         </p>
       )}
       <div className="rows-header">
-        <h2>Working plans</h2>
+        <h2 data-guide-hint="plans.records">Working plans</h2>
         <button type="button" onClick={onStartNew}>Start new set</button>
       </div>
       {workingPlans.length === 0 ? (
@@ -121,8 +121,8 @@ export function HistoryRecordWorkspace({
   onLoadRecord,
 }: HistoryRecordWorkspaceProps) {
   return (
-    <section className="db-workspace" aria-label="Completed history" data-guide-hint="history.records">
-      <h2>Completed history</h2>
+    <section className="db-workspace" aria-label="Completed history">
+      <h2 data-guide-hint="history.records">Completed history</h2>
       {historyConflictCount > 0 && (
         <p className="error-summary" role="alert">
           {historyConflictCount} completed service{historyConflictCount === 1 ? "" : "s"} conflict
