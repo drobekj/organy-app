@@ -94,7 +94,20 @@ jobs:
               ;;
           esac
 
-          if ! tr -d '\r' < d0-root.headers | grep -qiE '^location: /sign-in$'; then
+          if ! tr -d '\r' < d0-root.headers | grep -qiE '^location: (https?://[^/]+)?/sign-in
+            echo "Production root did not redirect to /sign-in"
+            cat d0-root.headers
+            exit 1
+          fi
+
+      - name: Upload D0 server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-d0-server-log
+          path: d0-next.log
+          if-no-files-found: ignore
+; then
             echo "Production root did not redirect to /sign-in"
             cat d0-root.headers
             exit 1
