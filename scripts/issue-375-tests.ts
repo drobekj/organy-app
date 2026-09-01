@@ -46,8 +46,8 @@ assert.match(catalogCzech, /0 nebo 1/i);
 const component = readFileSync("app/guide-workspace.tsx", "utf8");
 assert.match(component, /localStorage\.getItem\(GUIDE_LANGUAGE_STORAGE_KEY\)/);
 assert.match(component, /localStorage\.setItem\(GUIDE_LANGUAGE_STORAGE_KEY, next\)/);
-assert.match(component, />EN</);
-assert.match(component, />CZ</);
+assert.match(component, />\s*EN\s*</);
+assert.match(component, />\s*CZ\s*</);
 assert.match(component, /data-guide-topic=/);
 assert.match(component, /guide-role-grid/);
 
