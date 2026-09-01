@@ -47,7 +47,7 @@ assert.match(planning, /data-guide-hint-scope="planning\.service-context"/);
 assert.match(planning, /data-guide-hint-trigger="planning\.service-context"/);
 assert.match(planning, /data-guide-hint-scope="planning\.rows"/);
 assert.match(planning, /data-guide-hint-trigger="planning\.rows"/);
-assert.match(planning, /<GuideHintLayer activeRole=\{selectedRole\} \/>/);
+assert.match(planning, /<GuideHintLayer activeRole=\{selectedRole\} activeWorkspace=\{workspace\} \/>/);
 
 const css = readFileSync("app/workspace-shell.css", "utf8");
 assert.doesNotMatch(css, /guide-hints-enabled \[data-guide-hint\]/);
