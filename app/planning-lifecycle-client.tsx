@@ -120,6 +120,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [organist, setOrganist] = useState("");
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
+  const [melodyProtectionMonths, setMelodyProtectionMonths] = useState(0);
   const [serviceNote, setServiceNote] = useState("");
   const [referenceAntiphon, setReferenceAntiphon] = useState<ServiceAntiphonReference | undefined>();
   const [planningAntiphonRecommendation, setPlanningAntiphonRecommendation] = useState<ReferenceAntiphonRecommendation>();
@@ -251,6 +252,16 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       setOrganistId(draftPeopleDefaults.organist.id);
     }
   }, [draftPeopleDefaults]);
+
+  useEffect(() => {
+    let active = true;
+    void interactionClient.getOrganistMelodyProtection({ actor: activeActor, organistPersonId: organistId })
+      .then((result) => {
+        if (!active || !result.success) return;
+        setMelodyProtectionMonths((current) => Math.max(current, result.value.months));
+      });
+    return () => { active = false; };
+  }, [interactionClient, activeActor.userId, activeActor.role, activeActor.personId, organistId]);
 
   const planningRows = useMemo(() => rows.map(toPlanningRow), [rows]);
   const activeRecordGroups = useMemo(() => groupActivePlanningSets(savedDbSets), [savedDbSets]);
@@ -397,6 +408,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        melodyProtectionMonths,
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
         ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
         ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
@@ -474,6 +486,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
           serviceDate,
           serviceLanguage,
           organistPersonId: organistId,
+          melodyProtectionMonths,
           referenceAntiphonId: referenceAntiphon?.id,
           referenceTopicId: referenceTopic?.id,
           antiphonKey: candidateAntiphonKey,
@@ -587,6 +600,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setPriestId(set.serviceContext.priest.id);
     setOrganist(set.serviceContext.organist.displayName);
     setOrganistId(set.serviceContext.organist.id);
+    setMelodyProtectionMonths(set.serviceContext.melodyProtectionMonths ?? (set.serviceContext.organist.id ? 2 : 0));
     setServiceNote(set.serviceContext.note ?? "");
     setReferenceAntiphon(set.serviceContext.referenceAntiphon ? { ...set.serviceContext.referenceAntiphon } : undefined);
     setReferenceTopic(set.serviceContext.referenceTopic ? { ...set.serviceContext.referenceTopic } : undefined);
@@ -611,6 +625,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setPriestId(record.serviceContext.priest.id);
     setOrganist(record.serviceContext.organist.displayName);
     setOrganistId(record.serviceContext.organist.id);
+    setMelodyProtectionMonths(record.serviceContext.melodyProtectionMonths ?? (record.serviceContext.organist.id ? 2 : 0));
     setServiceNote(record.serviceContext.note ?? "");
     setReferenceAntiphon(record.serviceContext.referenceAntiphon ? { ...record.serviceContext.referenceAntiphon } : undefined);
     setReferenceTopic(record.serviceContext.referenceTopic ? { ...record.serviceContext.referenceTopic } : undefined);
@@ -658,6 +673,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setPriestId(defaults.priest.id);
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
+    setMelodyProtectionMonths(0);
     setServiceNote("");
     setReferenceAntiphon(undefined);
     setReferenceTopic(undefined);
@@ -680,6 +696,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setPriestId(defaults.priest.id);
     setOrganist(defaults.organist.displayName);
     setOrganistId(defaults.organist.id);
+    setMelodyProtectionMonths(0);
     setServiceNote("");
     setReferenceAntiphon(undefined);
     setReferenceTopic(undefined);
@@ -713,7 +730,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     const token = lookupTracker.begin(scope, value);
     guardedEditorUpdate(() => {
       if (role === "priest") { setPriest(value); setPriestId(undefined); }
-      else { setOrganist(value); setOrganistId(undefined); }
+      else { setOrganist(value); setOrganistId(undefined); setMelodyProtectionMonths(0); }
     });
     const result = await catalogClient.searchPeople({ role, query: value });
     if (!lookupTracker.isCurrent(token, value)) return;
@@ -724,7 +741,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     lookupTracker.invalidate(getPersonLookupScope(role));
     guardedEditorUpdate(() => {
       if (role === "priest") { setPriest(person.displayName); setPriestId(person.id); }
-      else { lookupTracker.invalidatePrefix("song:"); setOrganist(person.displayName); setOrganistId(person.id); }
+      else { lookupTracker.invalidatePrefix("song:"); setOrganist(person.displayName); setOrganistId(person.id); setMelodyProtectionMonths(0); }
     });
   }
 
@@ -732,7 +749,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     lookupTracker.invalidate(getPersonLookupScope(role));
     guardedEditorUpdate(() => {
       if (role === "priest") { setPriest("Anonymous"); setPriestId(undefined); }
-      else { lookupTracker.invalidatePrefix("song:"); setOrganist("Anonymous"); setOrganistId(undefined); }
+      else { lookupTracker.invalidatePrefix("song:"); setOrganist("Anonymous"); setOrganistId(undefined); setMelodyProtectionMonths(0); }
     });
   }
 
@@ -750,13 +767,13 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   async function queryCandidateResults(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
     const languageAtRequest = serviceLanguage;
-    const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", referenceAntiphon?.id ?? "", referenceTopic?.id ?? "", value].join("|");
+    const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", melodyProtectionMonths, referenceAntiphon?.id ?? "", referenceTopic?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
     setCandidateLoading((current) => ({ ...current, [rowId]: true }));
     setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
     setCandidateResults((current) => ({ ...current, [rowId]: [] }));
     try {
-      const candidates = await interactionClient.queryCandidates(isCompletedRecordOpen ? { serviceDate, serviceLanguage: languageAtRequest, queryText: value, candidateUsages: [], historicalTruth: true } : { serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, referenceAntiphonId: referenceAntiphon?.id, referenceTopicId: referenceTopic?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
+      const candidates = await interactionClient.queryCandidates(isCompletedRecordOpen ? { serviceDate, serviceLanguage: languageAtRequest, queryText: value, candidateUsages: [], historicalTruth: true } : { serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, melodyProtectionMonths, referenceAntiphonId: referenceAntiphon?.id, referenceTopicId: referenceTopic?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
       setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
       setCandidateLoading((current) => ({ ...current, [rowId]: false }));
@@ -1063,6 +1080,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        melodyProtectionMonths,
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
         ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
         ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
@@ -1154,6 +1172,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         language: serviceLanguage,
         priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
         organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        melodyProtectionMonths,
         ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
         ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
         ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
@@ -1433,12 +1452,27 @@ Save the correction and mark those plans for revision?`);
               )}
             </div>
             <div className="planning-melody-protection-slot" aria-label="Melody Protection reserved area">
-              {selectedRole === "admin" && (
+              {(selectedRole === "priest" || selectedRole === "organist") && (
                 <NonRepetitionPeriodPanel
                   runtimeMode={runtimeMode}
                   actor={activeActor}
+                  selectedOrganistPersonId={organistId}
+                  effectiveMonths={melodyProtectionMonths}
+                  disabled={selectedRole === "priest" && isEditorLocked}
                   memoryInteractionRepository={interactionRepository}
                   memoryPlanningSets={repositories.planningSets}
+                  onMinimumLoaded={(minimum) => {
+                    setMelodyProtectionMonths((current) => Math.max(current, minimum));
+                  }}
+                  onEffectiveChange={(months) => {
+                    if (selectedRole === "priest") {
+                      guardedEditorUpdate(() => setMelodyProtectionMonths(months));
+                    } else if (!isEditorLocked) {
+                      setMelodyProtectionMonths(months);
+                      setSaveState("unsaved");
+                      setServiceError(null);
+                    }
+                  }}
                   onSaved={() => {
                     lookupTracker.invalidatePrefix("song:");
                     setCandidateResults({});
