@@ -108,10 +108,11 @@ export function NonRepetitionPeriodPanel({
 
   return (
     <fieldset className="melody-protection-panel" aria-label="Melody Protection">
-      <legend data-guide-hint="planning.melody-protection">Melody Protection</legend>
+      <legend>Melody Protection</legend>
       <label className="melody-protection-control">
         <span className="sr-only">Melody Protection period</span>
         <select
+          data-guide-hint="planning.melody-protection"
           aria-label="Melody Protection period"
           value={draftMonths}
           disabled={feedback.kind === "loading"}
