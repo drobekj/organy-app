@@ -57,6 +57,6 @@ assert.match(client, /<GuideWorkspace activeRole=\{selectedRole\} \/>/);
 const css = readFileSync("app/workspace-shell.css", "utf8");
 assert.match(css, /\.guide-role-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 assert.match(css, /@media \(max-width: 700px\) \{[\s\S]*?\.guide-role-grid \{[\s\S]*?grid-template-columns: 1fr;/);
-assert.match(css, /\\.workspace-copyright \\{[\\s\\S]*?border-top: 1px solid var\\(--border\\);[\\s\\S]*?margin-top: calc\\(0\\.65rem \\+ var\\(--workspace-nav-button-height\\)\\);/);
+assert.match(css, /\.workspace-copyright \{[\s\S]*?border-top: 1px solid var\(--border\);[\s\S]*?margin-top: calc\(0\.65rem \+ var\(--workspace-nav-button-height\)\);/);
 
 console.log("Issue 375 bilingual role-aware Guide acceptance passed.");
