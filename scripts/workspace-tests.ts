@@ -35,13 +35,16 @@ assert.equal(getAvailableWorkspaces("congregationMember").includes("development"
 assert.equal(getAvailableWorkspaces("congregationMember").includes("catalog"), false);
 const summary = formatPlanningSetSummary(final);
 assert.doesNotMatch(summary, /Final service|Working service/);
-assert.match(summary, /2026-07-19 10:00/);
+assert.match(summary, /19\.07\.2026 10:00/);
+assert.doesNotMatch(summary, /2026-07-19/);
 assert.match(summary, /Priest One/);
 assert.match(summary, /rows: t, t/);
 assert.match(summary, /changed by Editor Two/);
 assert.doesNotMatch(summary, /set-2|person-1|person-2/);
 const completedSummary = formatCompletedRecordSummary(completed);
 assert.doesNotMatch(completedSummary, /Completed service/);
+assert.match(completedSummary, /19\.07\.2026 10:00/);
+assert.doesNotMatch(completedSummary, /2026-07-19/);
 assert.match(completedSummary, /rows: t/);
 assert.match(completedSummary, /changed by Editor Three/);
 assert.doesNotMatch(completedSummary, /completed-1|set-2/);

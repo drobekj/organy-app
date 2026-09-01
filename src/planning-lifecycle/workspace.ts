@@ -76,6 +76,13 @@ export function getWorkspaceAfterDelete(deleted: PersistedRecordReference | null
 }
 export function getWorkspaceAfterOpenRecord(): Workspace { return "planning"; }
 
+function formatListServiceDate(serviceDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(serviceDate);
+  if (!match) return serviceDate;
+  const [, year, month, day] = match;
+  return `${day}.${month}.${year}`;
+}
+
 function formatServiceContext(context: PersistedPlanningPlan["serviceContext"]): string {
-  return `${context.serviceDate} ${context.serviceTime || "time missing"} · ${context.language} · ${context.priest.displayName || "—"} · ${context.organist.displayName || "—"}`;
+  return `${formatListServiceDate(context.serviceDate)} ${context.serviceTime || "time missing"} · ${context.language} · ${context.priest.displayName || "—"} · ${context.organist.displayName || "—"}`;
 }
