@@ -84,7 +84,7 @@ export async function findCompletedPlanConflicts(
   monthsInput: number,
 ): Promise<CompletedPlanConflictImpact[]> {
   if (plans.length === 0 || completedRecords.length === 0) return [];
-  const months = Math.max(0, Math.floor(monthsInput));
+  const fallbackMonths = Math.max(0, Math.floor(monthsInput));
   const songIds = [...new Set([
     ...plans.flatMap((plan) => plan.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : [])),
     ...completedRecords.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : [])),
@@ -95,6 +95,7 @@ export async function findCompletedPlanConflicts(
   const impacts: CompletedPlanConflictImpact[] = [];
 
   for (const plan of plans) {
+    const months = Math.max(0, Math.floor(plan.serviceContext.melodyProtectionMonths ?? fallbackMonths));
     for (const record of completedRecords) {
       if (!isWithinCalendarMonths(plan.serviceContext.serviceDate, record.serviceContext.serviceDate, months)) continue;
       const conflictPairs: CompletedPlanConflictPair[] = [];
