@@ -94,7 +94,7 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
                         {isCurrent && <span className="guide-current-role"> · {text(guideUi.currentRole, language)}</span>}
                       </h4>
                       <ul>
-                        {section.roles[role].map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+                        {section.roles![role].map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
                       </ul>
                     </section>
                   );
