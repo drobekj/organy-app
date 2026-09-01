@@ -8,7 +8,10 @@ $PgwebUrl = "http://127.0.0.1:8080"
 $NeonVersion = "4.13.0"
 $NeonProductionProjectName = "organy-app-production"
 $NeonProductionProjectId = "young-voice-36803445"
-$NeonCredentialPath = Join-Path $HOME ".config\neonctl\credentials.json"
+$NeonCredentialPaths = @(
+  (Join-Path $HOME ".config\neon\credentials.json"),
+  (Join-Path $HOME ".config\neonctl\credentials.json")
+)
 $PreviousLocation = Get-Location
 $PreviousDatabaseUrl = $env:DATABASE_URL
 $PreviousDatabaseUrlUnpooled = $env:DATABASE_URL_UNPOOLED
@@ -82,7 +85,8 @@ function Invoke-Native {
 
 function Ensure-NeonCliAuthentication {
   $apiKey = if ($null -eq $env:NEON_API_KEY) { "" } else { $env:NEON_API_KEY.Trim() }
-  if ($apiKey -or (Test-Path -LiteralPath $NeonCredentialPath)) {
+  $hasStoredCredentials = $NeonCredentialPaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  if ($apiKey -or $hasStoredCredentials) {
     return
   }
 
@@ -102,8 +106,9 @@ function Ensure-NeonCliAuthentication {
     throw "Neon CLI authorization failed."
   }
 
-  if (-not (Test-Path -LiteralPath $NeonCredentialPath)) {
-    throw "Neon CLI authorization completed without creating the expected local credential file."
+  $hasStoredCredentials = $NeonCredentialPaths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+  if (-not $hasStoredCredentials) {
+    throw "Neon CLI authorization completed without creating a credential file in either the current or legacy config directory."
   }
 }
 
