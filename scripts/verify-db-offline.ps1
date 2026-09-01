@@ -8,6 +8,8 @@ $PgwebUrl = "http://127.0.0.1:8080"
 $NeonVersion = "4.13.0"
 $NeonProductionProjectName = "organy-app-production"
 $PreviousLocation = Get-Location
+$PreviousDatabaseUrl = $env:DATABASE_URL
+$PreviousDatabaseUrlUnpooled = $env:DATABASE_URL_UNPOOLED
 $databaseUrl = $null
 $DedicatedOperatorRoot = Join-Path $env:LOCALAPPDATA "Organy\verify-db"
 
@@ -74,6 +76,26 @@ function Invoke-Native {
   if (-not $Quiet) {
     $output | ForEach-Object { Write-Host $_ }
   }
+}
+
+function Invoke-NeonCli {
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = & npx.cmd --yes "neon@$NeonVersion" @Arguments 2>$null
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $oldPreference
+  }
+
+  if ($exitCode -ne 0) {
+    throw "Neon CLI failed. Re-run Verify DB and complete the browser authorization if Neon asks to connect this computer."
+  }
+
+  return ($output | Out-String).Trim()
 }
 
 function Test-DockerEngine {
@@ -183,15 +205,13 @@ function Resolve-ProductionBackupDatabaseUrl {
 function Resolve-NeonProductionBackupDatabaseUrl {
   Write-Host "Resolving direct Production database connection through authenticated Neon CLI..."
 
-  $projectsJson = Invoke-Native -FilePath "npx.cmd" -Arguments @(
-    "--yes",
-    "neon@$NeonVersion",
+  $projectsJson = Invoke-NeonCli -Arguments @(
     "projects",
     "list",
     "--output",
     "json",
     "--no-analytics"
-  ) -Capture
+  )
 
   try {
     $parsedProjects = $projectsJson | ConvertFrom-Json
@@ -200,14 +220,9 @@ function Resolve-NeonProductionBackupDatabaseUrl {
     throw "Neon CLI project discovery returned invalid JSON. Re-run the command; if browser authorization appears, approve the Neon CLI connection first."
   }
 
-  $projects = if ($parsedProjects -is [System.Array]) {
-    @($parsedProjects)
-  }
-  elseif ($null -ne $parsedProjects.projects) {
-    @($parsedProjects.projects)
-  }
-  else {
-    @($parsedProjects)
+  $projects = @($parsedProjects)
+  if ($parsedProjects -isnot [System.Array] -and $parsedProjects.PSObject.Properties.Name -contains "projects") {
+    $projects = @($parsedProjects.projects)
   }
 
   $matches = @($projects | Where-Object { $_.name -eq $NeonProductionProjectName })
@@ -220,14 +235,12 @@ function Resolve-NeonProductionBackupDatabaseUrl {
     throw "The matched Neon Production project did not provide a project id."
   }
 
-  $directUrl = Invoke-Native -FilePath "npx.cmd" -Arguments @(
-    "--yes",
-    "neon@$NeonVersion",
+  $directUrl = Invoke-NeonCli -Arguments @(
     "connection-string",
     "--project-id",
     $projectId,
     "--no-analytics"
-  ) -Capture
+  )
 
   $directUrl = $directUrl.Trim()
   Assert-RemoteProductionDatabase -Value $directUrl
@@ -411,6 +424,12 @@ select
 }
 finally {
   $databaseUrl = $null
+
+  if ($null -eq $PreviousDatabaseUrl) { Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue }
+  else { $env:DATABASE_URL = $PreviousDatabaseUrl }
+
+  if ($null -eq $PreviousDatabaseUrlUnpooled) { Remove-Item Env:DATABASE_URL_UNPOOLED -ErrorAction SilentlyContinue }
+  else { $env:DATABASE_URL_UNPOOLED = $PreviousDatabaseUrlUnpooled }
 
   Set-Location $PreviousLocation
 }
