@@ -68,6 +68,9 @@ export async function POST(request: Request) {
       case "getReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, false); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.get(actor, input.antiphonId)); }
       case "setReferenceAntiphonRecommendation": { const input = referenceAntiphonRecommendationInput(body.input, true); validateRepertoireActor(body.actor); return respond(await referenceAntiphonRecommendation.set(actor, input.antiphonId, input.referenceSongId!)); }
       case "setRepertoire": { const input = asRecord(body.input); return NextResponse.json(await auditedInteractionMutation(pool, actor, "repertoire.local.set", "repertoire", `${String(input.organistPersonId)}:${String(input.songId)}`, body.input, (client) => new InteractionService(new PgInteractionRepository(client), pgCatalog(client)).setRepertoire(actor, String(input.organistPersonId), String(input.songId), Boolean(input.active)))); }
+      case "getOrganistMelodyProtection": { const input = organistMelodyProtectionReadInput(body.input); return respond(await nonRepetitionPeriod.getOrganistMinimum(actor, input.organistPersonId)); }
+      case "getOwnMelodyProtection": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.getOwnOrganistMinimum(actor)); }
+      case "setOwnMelodyProtection": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.setOwnOrganistMinimum(actor, input.months)); }
       case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(actor)); }
       case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(actor, input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
@@ -153,6 +156,13 @@ function referenceAntiphonRecommendationInput(value: unknown, mutation: boolean)
   if (Object.keys(input).length !== allowed.length || Object.keys(input).some((key) => !allowed.includes(key)) || typeof input.antiphonId !== "string" || !/^(?:czech|polish):[1-9]\d*$/.test(input.antiphonId)) throw new LocalActorError("invalidInput", "Reference antiphon recommendation input is malformed.");
   if (mutation && input.referenceSongId !== null && (typeof input.referenceSongId !== "string" || !/^(czech|polish):[1-9]\d*$/.test(input.referenceSongId))) throw new LocalActorError("invalidInput", "referenceSongId must be a valid Reference song id or null.");
   return { antiphonId: input.antiphonId, ...(mutation ? { referenceSongId: input.referenceSongId as string | null } : {}) };
+}
+function organistMelodyProtectionReadInput(value: unknown): { organistPersonId?: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Melody Protection read input is required.");
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some((key) => key !== "organistPersonId")) throw new LocalActorError("invalidInput", "Melody Protection read input is malformed.");
+  if (input.organistPersonId !== undefined && (typeof input.organistPersonId !== "string" || !input.organistPersonId.trim())) throw new LocalActorError("invalidInput", "organistPersonId must be a non-empty string.");
+  return input.organistPersonId ? { organistPersonId: input.organistPersonId } : {};
 }
 function validateMelodyWindowReadInput(value: unknown): void {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== 0) throw new LocalActorError("invalidInput", "Melody non-repetition read input must be an empty object.");
