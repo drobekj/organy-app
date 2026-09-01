@@ -20,7 +20,7 @@ import { PostgresNonRepetitionPeriodService } from "../../../src/application/pos
 import { enrichCompletedConflictStates, enrichPlanningConflictStates, enrichRevisionRowIndexes, findCompletedPlanConflicts, previewCompletedPlanInvalidation } from "../../../src/application/completed-plan-conflict-preview";
 import { auditEventValues, humanAuditActor, listPlanningAuditEvents, systemAuditActor } from "../../../src/application/audit-history";
 import { attributePlanningLastEditors, shouldRecordPlanningAudit } from "../../../src/application/planning-change-attribution";
-import { DrizzleCatalogRepository, getEligiblePersonDefaultById } from "../../../src/application/catalog";
+import { DrizzleCatalogRepository, getEligiblePersonDefault } from "../../../src/application/catalog";
 import { getDraftPeopleDefaults } from "../../../src/planning-lifecycle/ui-session";
 import { getAppDbPool } from "../../../src/db/app-pool";
 
@@ -122,8 +122,8 @@ export async function POST(request: Request) {
       const rawDefaults = getDraftPeopleDefaults(attributed.completedRecords);
       const catalog = new DrizzleCatalogRepository(db);
       const [priest, organist] = await Promise.all([
-        getEligiblePersonDefaultById(catalog, rawDefaults.priest.id, "priest"),
-        getEligiblePersonDefaultById(catalog, rawDefaults.organist.id, "organist"),
+        getEligiblePersonDefault(catalog, rawDefaults.priest, "priest"),
+        getEligiblePersonDefault(catalog, rawDefaults.organist, "organist"),
       ]);
       return NextResponse.json({
         success: true,
