@@ -39,11 +39,15 @@ assert.doesNotMatch(compose, /adminer/i, "Adminer must not remain in the offline
 
 assert.match(operator, /\$NeonVersion = "4\.13\.0"/, "Verify DB must pin the reviewed Neon CLI version");
 assert.match(operator, /\$NeonProductionProjectName = "organy-app-production"/, "Verify DB must identify the intended Production project by its reviewed non-secret name");
-assert.match(operator, /neon@\$NeonVersion[\s\S]*?"projects"[\s\S]*?"list"[\s\S]*?"--output"[\s\S]*?"json"/, "Verify DB must discover the Production Neon project through authenticated structured CLI output");
-assert.match(operator, /"connection-string"[\s\S]*?"--project-id"[\s\S]*?\$projectId/, "Verify DB must resolve the direct Production connection through the authenticated Neon CLI");
+assert.match(operator, /\$NeonProductionProjectId = "young-voice-36803445"/, "Verify DB must pin the reviewed Production project id and avoid interactive project discovery");
+assert.match(operator, /Neon CLI authorization is required once on this computer/);
+assert.match(operator, /npx\.cmd --yes "neon@\$NeonVersion" auth/, "First-use Neon authentication must be explicit and visible");
+assert.doesNotMatch(operator, /"projects"[\s\S]*?"list"/, "Verify DB must not use interactive project listing");
+assert.match(operator, /"projects"[\s\S]*?"get"[\s\S]*?\$NeonProductionProjectId[\s\S]*?"--output"[\s\S]*?"json"/, "Verify DB must verify the pinned Production project identity directly");
+assert.match(operator, /project identity does not match the reviewed Production project/, "Pinned project id/name mismatch must fail closed");
+assert.match(operator, /"connection-string"[\s\S]*?"--project-id"[\s\S]*?\$NeonProductionProjectId/, "Verify DB must resolve the direct Production connection through the pinned project id");
 assert.doesNotMatch(operator, /env", "pull"|env pull/, "Routine Verify DB must not write Neon or Vercel dotenv credentials");
 assert.doesNotMatch(operator, /neon(?:ctl)?\s+link|vercel\s+link/i, "Routine Verify DB must not mutate provider project linking");
-assert.match(operator, /Expected exactly one Neon project named/, "Provider discovery must fail closed instead of guessing among projects");
 assert.match(operator, /Neon CLI returned a pooled endpoint/, "Provider discovery must reject pooled backup endpoints");
 assert.match(operator, /\$env:DATABASE_URL_UNPOOLED/, "Operator must still prefer an explicitly supplied direct Neon URL from process environment");
 assert.match(operator, /\$env:DATABASE_URL/, "Operator must still accept an explicitly supplied runtime URL from process environment");
