@@ -19,6 +19,61 @@ type PersistedUsageRow = {
 export class PostgresNonRepetitionPeriodService {
   constructor(private readonly pool: Pool) {}
 
+  async getOrganistMinimum(actor: ActorIdentity, organistPersonId?: string): Promise<MelodyWindowResult> {
+    if (!actor.userId || !actor.role) return failure("permissionDenied", "An active actor is required.");
+    if (!organistPersonId) return success(0);
+    const result = await this.pool.query(
+      "select melody_protection_months from catalog_persons where id = $1 and active = true and organist = true",
+      [organistPersonId],
+    );
+    if (!result.rows[0]) return failure("notFound", "Selected Organist is not available.");
+    return success(Number(result.rows[0].melody_protection_months ?? 2));
+  }
+
+  async getOwnOrganistMinimum(actor: ActorIdentity): Promise<MelodyWindowResult> {
+    if (actor.role !== "organist" || !actor.personId) return failure("permissionDenied", "Only an Organist can read their own Melody Protection.");
+    return this.getOrganistMinimum(actor, actor.personId);
+  }
+
+  async setOwnOrganistMinimum(actor: ActorIdentity, months: unknown): Promise<MelodyWindowResult> {
+    if (actor.role !== "organist" || !actor.personId) return failure("permissionDenied", "Only an Organist can change their own Melody Protection.");
+    if (!validateMelodyWindowMonths(months)) return failure("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const before = await client.query(
+        "select melody_protection_months from catalog_persons where id = $1 and active = true and organist = true for update",
+        [actor.personId],
+      );
+      if (!before.rows[0]) {
+        await client.query("rollback");
+        return failure("notFound", "The Organist profile is not available.");
+      }
+      const beforeMonths = Number(before.rows[0].melody_protection_months ?? 2);
+      if (beforeMonths !== months) {
+        await client.query(
+          "update catalog_persons set melody_protection_months = $2, updated_at = now() where id = $1",
+          [actor.personId, months],
+        );
+        await appendAuditEvent(client, {
+          actor: humanAuditActor(actor),
+          action: "knowledge.melodyProtection.own.set",
+          objectKind: "catalogPerson",
+          objectRef: actor.personId,
+          beforeState: { melodyProtectionMonths: beforeMonths },
+          afterState: { melodyProtectionMonths: months },
+        });
+      }
+      await client.query("commit");
+      return success(months);
+    } catch (error) {
+      await rollbackQuietly(client);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async get(actor: ActorIdentity): Promise<MelodyWindowResult> {
     if (!actor.userId || !actor.role) {
       return failure("permissionDenied", "An active actor is required to read melody non-repetition configuration.");
@@ -125,6 +180,6 @@ function success(months: number): MelodyWindowResult {
   return { success: true, value: { months } };
 }
 
-function failure(code: "permissionDenied" | "invalidInput", message: string): MelodyWindowResult {
+function failure(code: "permissionDenied" | "invalidInput" | "notFound", message: string): MelodyWindowResult {
   return { success: false, error: { code, message } };
 }
