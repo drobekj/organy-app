@@ -243,7 +243,7 @@ export async function POST(request: Request) {
       const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
       const proposedPlan: PersistedPlanningPlan = {
         ...currentSet,
-        serviceContext: { ...currentSet.serviceContext, serviceDate: body.input.serviceDate, melodyProtectionMonths: body.input.melodyProtectionMonths },
+        serviceContext: { ...currentSet.serviceContext, serviceDate: body.input.serviceDate, ...(body.input.melodyProtectionMonths !== undefined ? { melodyProtectionMonths: body.input.melodyProtectionMonths } : {}) },
         rows: body.input.rows,
       };
       const impacts = await findCompletedPlanConflicts(
@@ -397,14 +397,16 @@ function isPlanningLifecycleAction(action: string): action is PlanningLifecycleA
   return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "previewPlanningSetConflict", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
-function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; melodyProtectionMonths: number; rows: PlanningPlan["rows"] } {
+function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; melodyProtectionMonths?: number; rows: PlanningPlan["rows"] } {
   return isRecord(input)
     && typeof input.setId === "string"
     && typeof input.serviceDate === "string"
-    && typeof input.melodyProtectionMonths === "number"
-    && Number.isInteger(input.melodyProtectionMonths)
-    && input.melodyProtectionMonths >= 0
-    && input.melodyProtectionMonths <= 12
+    && (input.melodyProtectionMonths === undefined || (
+      typeof input.melodyProtectionMonths === "number"
+      && Number.isInteger(input.melodyProtectionMonths)
+      && input.melodyProtectionMonths >= 0
+      && input.melodyProtectionMonths <= 12
+    ))
     && Array.isArray(input.rows)
     && input.rows.every(isRecord);
 }
