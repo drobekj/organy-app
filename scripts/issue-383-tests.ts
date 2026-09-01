@@ -85,7 +85,7 @@ assert.match(about, /data-guide-hint-scope="about\.links"/);
 assert.match(about, /data-guide-hint="about\.github"/);
 assert.match(about, /data-guide-hint="about\.portfolio"/);
 
-const developmentStart = planning.indexOf('workspace === "development"');
+const developmentStart = planning.indexOf('<section className="release-guidance" aria-label="Development workspace">');
 const developmentEnd = planning.indexOf("</section>", developmentStart);
 assert.ok(developmentStart >= 0 && developmentEnd > developmentStart);
 assert.doesNotMatch(planning.slice(developmentStart, developmentEnd), /data-guide-hint/, "Development must remain without contextual hints.");
