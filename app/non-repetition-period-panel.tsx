@@ -3,20 +3,19 @@
 import { useEffect, useState } from "react";
 import type { ActorIdentity, InMemoryInteractionRepository } from "../src/application/interaction-contracts";
 import type { InMemoryPlanningSetRepository } from "../src/application/planning-lifecycle";
+import type { MelodyWindowResult } from "../src/application/non-repetition-period";
 import { GuidePanelHelpButton } from "./guide-panel-help-button";
-import {
-  buildNonRepetitionPlanMelodyUsages,
-  findNonRepetitionPlanConflicts,
-  melodyWindowConflictMessage,
-  validateMelodyWindowMonths,
-  type MelodyWindowResult,
-} from "../src/application/non-repetition-period";
 
 export type NonRepetitionPeriodPanelProps = {
   runtimeMode: "memory" | "db";
   actor: ActorIdentity;
+  selectedOrganistPersonId?: string;
+  effectiveMonths: number;
+  disabled?: boolean;
   memoryInteractionRepository: InMemoryInteractionRepository;
   memoryPlanningSets: InMemoryPlanningSetRepository;
+  onEffectiveChange: (months: number) => void;
+  onMinimumLoaded?: (months: number) => void;
   onSaved?: (months: number) => void;
 };
 
@@ -25,87 +24,70 @@ type PanelFeedback = { kind: "idle" | "loading" | "saved" | "error"; message?: s
 export function NonRepetitionPeriodPanel({
   runtimeMode,
   actor,
-  memoryInteractionRepository,
-  memoryPlanningSets,
+  selectedOrganistPersonId,
+  effectiveMonths,
+  disabled = false,
+  onEffectiveChange,
+  onMinimumLoaded,
   onSaved,
 }: NonRepetitionPeriodPanelProps) {
-  const [currentMonths, setCurrentMonths] = useState<number | null>(null);
-  const [draftMonths, setDraftMonths] = useState("2");
+  const [minimumMonths, setMinimumMonths] = useState(actor.role === "priest" ? (selectedOrganistPersonId ? 2 : 0) : 2);
+  const [ownMonths, setOwnMonths] = useState(2);
   const [feedback, setFeedback] = useState<PanelFeedback>({ kind: "loading" });
 
   useEffect(() => {
+    if (actor.role !== "priest" && actor.role !== "organist") return;
     let active = true;
     setFeedback({ kind: "loading" });
-    void readCurrent().then((result) => {
+    const read = runtimeMode === "db"
+      ? actor.role === "organist"
+        ? callMelodyProtectionApi("getOwnMelodyProtection", {}, actor)
+        : callMelodyProtectionApi("getOrganistMelodyProtection", selectedOrganistPersonId ? { organistPersonId: selectedOrganistPersonId } : {}, actor)
+      : Promise.resolve({ success: true, value: { months: actor.role === "priest" ? (selectedOrganistPersonId ? 2 : 0) : 2 } } as MelodyWindowResult);
+
+    void read.then((result) => {
       if (!active) return;
-      if (result.success) {
-        setCurrentMonths(result.value.months);
-        setDraftMonths(String(result.value.months));
-        setFeedback({ kind: "idle" });
-      } else {
+      if (!result.success) {
         setFeedback({ kind: "error", message: result.error.message });
+        return;
       }
+      const months = result.value.months;
+      setMinimumMonths(actor.role === "priest" ? months : ownMonths);
+      if (actor.role === "organist") setOwnMonths(months);
+      if (actor.role === "priest") onMinimumLoaded?.(months);
+      setFeedback({ kind: "idle" });
     }).catch((error: unknown) => {
       if (active) setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Melody Protection could not be loaded." });
     });
     return () => { active = false; };
-  }, [runtimeMode, actor.userId, actor.role]);
+  }, [runtimeMode, actor.userId, actor.role, actor.personId, selectedOrganistPersonId]);
 
-  async function readCurrent(): Promise<MelodyWindowResult> {
-    if (runtimeMode === "memory") {
-      return { success: true, value: memoryInteractionRepository.getMelodyWindow() };
-    }
-    return callPeriodApi("getMelodyWindow", {}, actor);
-  }
+  if (actor.role !== "priest" && actor.role !== "organist") return null;
 
-  async function save(months: number) {
-    if (!validateMelodyWindowMonths(months)) {
-      setFeedback({ kind: "error", message: "Melody Protection must be between 0 and 12 calendar months." });
-      if (currentMonths !== null) setDraftMonths(String(currentMonths));
+  const value = actor.role === "organist" ? ownMonths : Math.max(effectiveMonths, minimumMonths);
+
+  async function change(months: number) {
+    if (actor.role === "priest") {
+      if (months < minimumMonths) return;
+      onEffectiveChange(months);
+      onSaved?.(months);
       return;
     }
 
-    setDraftMonths(String(months));
     setFeedback({ kind: "loading" });
-    try {
-      const result = runtimeMode === "memory"
-        ? await setMemoryPeriod(months)
-        : await callPeriodApi("setMelodyWindow", { months }, actor);
-      if (!result.success) {
-        setFeedback({ kind: "error", message: result.error.message });
-        if (currentMonths !== null) setDraftMonths(String(currentMonths));
-        return;
-      }
-      setCurrentMonths(result.value.months);
-      setDraftMonths(String(result.value.months));
-      setFeedback({ kind: "saved", message: `Saved ${result.value.months} calendar month${result.value.months === 1 ? "" : "s"}.` });
-      onSaved?.(result.value.months);
-    } catch (error) {
-      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Melody Protection could not be saved." });
-      if (currentMonths !== null) setDraftMonths(String(currentMonths));
+    const result = runtimeMode === "db"
+      ? await callMelodyProtectionApi("setOwnMelodyProtection", { months }, actor)
+      : ({ success: true, value: { months } } as MelodyWindowResult);
+    if (!result.success) {
+      setFeedback({ kind: "error", message: result.error.message });
+      return;
     }
+    setOwnMonths(result.value.months);
+    setMinimumMonths(result.value.months);
+    if (selectedOrganistPersonId === actor.personId) onEffectiveChange(result.value.months);
+    setFeedback({ kind: "saved" });
+    onSaved?.(result.value.months);
   }
-
-  async function setMemoryPeriod(months: number): Promise<MelodyWindowResult> {
-    if (actor.role !== "admin") return { success: false, error: { code: "permissionDenied", message: "Only admin can change Melody Protection." } };
-    if (!validateMelodyWindowMonths(months)) return { success: false, error: { code: "invalidInput", message: "Melody Protection must be between 0 and 12 calendar months." } };
-
-    const plans = await memoryPlanningSets.list();
-    const classBySongId = new Map<string, string>();
-    for (const melodyClass of memoryInteractionRepository.listMelodyClasses()) {
-      for (const songId of melodyClass.songIds) classBySongId.set(songId, melodyClass.id);
-    }
-    const conflicts = findNonRepetitionPlanConflicts(buildNonRepetitionPlanMelodyUsages(plans, classBySongId), months);
-    if (conflicts.length > 0) {
-      return { success: false, error: { code: "conflict", message: melodyWindowConflictMessage(conflicts, months), conflicts } };
-    }
-    const saved = memoryInteractionRepository.setMelodyWindow(actor, { months });
-    return saved
-      ? { success: true, value: memoryInteractionRepository.getMelodyWindow() }
-      : { success: false, error: { code: "invalidInput", message: "Melody Protection could not be saved." } };
-  }
-
-  if (actor.role !== "admin") return null;
 
   return (
     <fieldset className="melody-protection-panel" aria-label="Melody Protection" data-guide-hint-scope="planning.melody-protection">
@@ -114,15 +96,14 @@ export function NonRepetitionPeriodPanel({
       <label className="melody-protection-control">
         <span className="sr-only">Melody Protection period</span>
         <select
-         
           aria-label="Melody Protection period"
           data-guide-hint="planning.melody-protection"
-          value={draftMonths}
-          disabled={feedback.kind === "loading"}
-          onChange={(event) => void save(Number(event.target.value))}
+          value={value}
+          disabled={disabled || feedback.kind === "loading"}
+          onChange={(event) => void change(Number(event.target.value))}
         >
           {Array.from({ length: 13 }, (_, months) => (
-            <option key={months} value={months}>
+            <option key={months} value={months} disabled={actor.role === "priest" && months < minimumMonths}>
               {months} {months === 1 ? "Month" : "Months"}
             </option>
           ))}
@@ -133,13 +114,29 @@ export function NonRepetitionPeriodPanel({
   );
 }
 
+export async function callMelodyProtectionApi(
+  action: "getOrganistMelodyProtection" | "getOwnMelodyProtection" | "setOwnMelodyProtection",
+  input: unknown,
+  actor: ActorIdentity,
+): Promise<MelodyWindowResult> {
+  const response = await fetch("/api/interaction", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action, input, actor: { role: actor.role } }),
+  });
+  const payload = await response.json().catch(() => undefined) as MelodyWindowResult | { error?: { message?: string } } | undefined;
+  if (payload && "success" in payload) return payload;
+  return { success: false, error: { code: response.status === 404 ? "notFound" : "permissionDenied", message: payload?.error?.message ?? "Melody Protection request failed." } };
+}
+
+/** Historical compatibility seam retained for Phase 31.24 acceptance only. */
 export async function callPeriodApi(action: "getMelodyWindow" | "setMelodyWindow", input: unknown, actor: ActorIdentity): Promise<MelodyWindowResult> {
   const response = await fetch("/api/interaction", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ action, input, actor: { role: actor.role } }),
   });
-  const payload = await response.json().catch(() => undefined) as MelodyWindowResult | { error?: { code?: string; message?: string } } | undefined;
+  const payload = await response.json().catch(() => undefined) as MelodyWindowResult | { error?: { message?: string } } | undefined;
   if (payload && "success" in payload) return payload;
-  return { success: false, error: { code: "invalidInput", message: payload?.error?.message ?? `Melody Protection ${action === "getMelodyWindow" ? "read" : "save"} failed.` } };
+  return { success: false, error: { code: "invalidInput", message: payload?.error?.message ?? "Melody Protection request failed." } };
 }
