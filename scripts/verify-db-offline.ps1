@@ -8,7 +8,10 @@ $PgwebUrl = "http://127.0.0.1:8080"
 $NeonVersion = "4.13.0"
 $NeonProductionProjectName = "organy-app-production"
 $NeonProductionProjectId = "young-voice-36803445"
-$NeonCredentialPath = Join-Path $HOME ".config\neonctl\credentials.json"
+$NeonCredentialPaths = @(
+  (Join-Path $HOME ".config\neon\credentials.json"),
+  (Join-Path $HOME ".config\neonctl\credentials.json")
+)
 $PreviousLocation = Get-Location
 $PreviousDatabaseUrl = $env:DATABASE_URL
 $PreviousDatabaseUrlUnpooled = $env:DATABASE_URL_UNPOOLED
