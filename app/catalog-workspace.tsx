@@ -290,8 +290,8 @@ export function CatalogWorkspace({
 
   return <section className="catalog-workspace" aria-label="Catalog">
     <fieldset className="field-group catalog-context">
-      <legend data-guide-hint="catalog.context">Catalog context</legend>
-      <div className="catalog-organist-language-row">
+      <legend>Catalog context</legend>
+      <div className="catalog-organist-language-row" data-guide-hint="catalog.context">
         <label className="catalog-context-cell">
           <span>Organist</span>
           <select
@@ -354,8 +354,8 @@ export function CatalogWorkspace({
     </fieldset>
 
     <fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates">
-      <legend data-guide-hint="catalog.candidates">Candidates</legend>
-      <div className="catalog-candidate-header">
+      <legend>Candidates</legend>
+      <div className="catalog-candidate-header" data-guide-hint="catalog.candidates">
         <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
           <button
             type="button"
