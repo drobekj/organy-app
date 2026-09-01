@@ -1,23 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PlanningRole } from "../src/planning-lifecycle";
 import {
   GUIDE_HINTS_CHANGED_EVENT,
   GUIDE_HINTS_STORAGE_KEY,
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
-  guideHintCopy,
-  guideHints,
-  isGuideHintKey,
-  type GuideHintKey,
   type GuideLanguage,
 } from "./guide-content";
+import {
+  anyGuideHintCopy,
+  guidePanelHintKeys,
+  isAnyGuideHintKey,
+  type AnyGuideHintKey,
+} from "./guide-control-hints";
 
 type ActiveHint = {
-  key: GuideHintKey;
+  keys: AnyGuideHintKey[];
   rect: DOMRect;
-  touch: boolean;
+  mode: "control" | "info";
+  triggerScope?: string;
 };
 
 function storedLanguage(): GuideLanguage {
@@ -27,28 +30,60 @@ function storedLanguage(): GuideLanguage {
 }
 
 function storedEnabled(): boolean {
-  return typeof window !== "undefined" && window.localStorage.getItem(GUIDE_HINTS_STORAGE_KEY) === "on";
+  return typeof window === "undefined" || window.localStorage.getItem(GUIDE_HINTS_STORAGE_KEY) !== "off";
 }
 
-function hintTarget(target: EventTarget | null): HTMLElement | null {
-  return target instanceof Element ? target.closest<HTMLElement>("[data-guide-hint]") : null;
+function closestElement(target: EventTarget | null): Element | null {
+  return target instanceof Element ? target : null;
+}
+
+function hintedControl(target: EventTarget | null): HTMLElement | null {
+  return closestElement(target)?.closest<HTMLElement>("[data-guide-hint]") ?? null;
+}
+
+function hintKeyForControl(control: HTMLElement | null): AnyGuideHintKey | null {
+  const rawKey = control?.dataset.guideHint;
+  return rawKey && isAnyGuideHintKey(rawKey) ? rawKey : null;
+}
+
+function infoTrigger(target: EventTarget | null): HTMLElement | null {
+  return closestElement(target)?.closest<HTMLElement>("[data-guide-hint-trigger]") ?? null;
 }
 
 export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(true);
   const [language, setLanguage] = useState<GuideLanguage>("en");
   const [active, setActive] = useState<ActiveHint | null>(null);
+  const activeControlRef = useRef<HTMLElement | null>(null);
+  const suppressedControlRef = useRef<HTMLElement | null>(null);
 
   const syncSettings = useCallback(() => {
     setEnabled(storedEnabled());
     setLanguage(storedLanguage());
   }, []);
 
+  const hideControlHint = useCallback((control?: HTMLElement | null) => {
+    if (!control || activeControlRef.current === control) {
+      activeControlRef.current = null;
+      setActive((current) => current?.mode === "control" ? null : current);
+    }
+  }, []);
+
+  const showControlHint = useCallback((control: HTMLElement) => {
+    if (suppressedControlRef.current === control) return;
+    const key = hintKeyForControl(control);
+    if (!key) return;
+    activeControlRef.current = control;
+    setActive({ keys: [key], rect: control.getBoundingClientRect(), mode: "control" });
+  }, []);
+
   useEffect(() => {
     syncSettings();
+
     function handleStorage(event: StorageEvent) {
       if (event.key === GUIDE_HINTS_STORAGE_KEY || event.key === GUIDE_LANGUAGE_STORAGE_KEY) syncSettings();
     }
+
     window.addEventListener("storage", handleStorage);
     window.addEventListener(GUIDE_HINTS_CHANGED_EVENT, syncSettings);
     window.addEventListener(GUIDE_LANGUAGE_CHANGED_EVENT, syncSettings);
@@ -60,128 +95,148 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
   }, [syncSettings]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("guide-hints-enabled", enabled);
-    if (!enabled) setActive(null);
-    return () => document.documentElement.classList.remove("guide-hints-enabled");
+    if (!enabled) {
+      activeControlRef.current = null;
+      suppressedControlRef.current = null;
+      setActive(null);
+    }
   }, [enabled]);
-
-  const show = useCallback((target: HTMLElement, touch: boolean) => {
-    const rawKey = target.dataset.guideHint;
-    if (!rawKey || !isGuideHintKey(rawKey)) return;
-    setActive({ key: rawKey, rect: target.getBoundingClientRect(), touch });
-  }, []);
 
   useEffect(() => {
     if (!enabled) return;
 
     function onPointerOver(event: PointerEvent) {
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-      const target = hintTarget(event.target);
-      if (target) show(target, false);
+      const control = hintedControl(event.target);
+      if (control) showControlHint(control);
     }
 
     function onPointerOut(event: PointerEvent) {
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-      const target = hintTarget(event.target);
-      if (!target) return;
+      const control = hintedControl(event.target);
+      if (!control) return;
       const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-      if (next && target.contains(next)) return;
-      setActive((current) => current?.touch ? current : null);
+      if (next && control.contains(next)) return;
+      if (suppressedControlRef.current === control) suppressedControlRef.current = null;
+      hideControlHint(control);
     }
 
     function onFocusIn(event: FocusEvent) {
-      const target = hintTarget(event.target);
-      if (target) show(target, false);
+      const control = hintedControl(event.target);
+      if (control) showControlHint(control);
     }
 
     function onFocusOut(event: FocusEvent) {
-      const target = hintTarget(event.target);
-      if (!target) return;
+      const control = hintedControl(event.target);
+      if (!control) return;
       const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-      if (next && target.contains(next)) return;
-      setActive((current) => current?.touch ? current : null);
-    }
-
-    function onPointerUp(event: PointerEvent) {
-      if (event.pointerType !== "touch") return;
-      const target = hintTarget(event.target);
-      if (target) show(target, true);
+      if (next && control.contains(next)) return;
+      hideControlHint(control);
     }
 
     function onPointerDown(event: PointerEvent) {
-      if (!active?.touch) return;
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest(".guide-hint-popover") || target?.closest("[data-guide-hint]")) return;
-      setActive(null);
+      const control = hintedControl(event.target);
+      if (!control) return;
+      suppressedControlRef.current = control;
+      activeControlRef.current = null;
+      setActive((current) => current?.mode === "control" ? null : current);
+    }
+
+    function onClick(event: MouseEvent) {
+      const trigger = infoTrigger(event.target);
+      if (!trigger) return;
+      const scope = trigger.dataset.guideHintTrigger;
+      if (!scope) return;
+      const keys = guidePanelHintKeys(scope);
+      if (keys.length === 0) return;
+      activeControlRef.current = null;
+      setActive((current) => (
+        current?.mode === "info" && current.triggerScope === scope
+          ? null
+          : { keys, rect: trigger.getBoundingClientRect(), mode: "info", triggerScope: scope }
+      ));
     }
 
     document.addEventListener("pointerover", onPointerOver, true);
     document.addEventListener("pointerout", onPointerOut, true);
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("focusout", onFocusOut, true);
-    document.addEventListener("pointerup", onPointerUp, true);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("click", onClick, true);
 
     return () => {
       document.removeEventListener("pointerover", onPointerOver, true);
       document.removeEventListener("pointerout", onPointerOut, true);
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("focusout", onFocusOut, true);
-      document.removeEventListener("pointerup", onPointerUp, true);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("click", onClick, true);
     };
-  }, [active?.touch, enabled, show]);
+  }, [enabled, hideControlHint, showControlHint]);
 
   useEffect(() => {
     if (!active) return;
-    const activeKey = active.key;
+    const triggerScope = active.triggerScope;
+
     function refreshPosition() {
-      const target = document.querySelector<HTMLElement>(`[data-guide-hint="${activeKey}"]`);
-      if (!target) {
-        setActive(null);
+      if (activeControlRef.current?.isConnected) {
+        setActive((current) => current ? { ...current, rect: activeControlRef.current!.getBoundingClientRect() } : null);
         return;
       }
-      setActive((current) => current ? { ...current, rect: target.getBoundingClientRect() } : null);
+
+      if (triggerScope) {
+        const trigger = document.querySelector<HTMLElement>(`[data-guide-hint-trigger="${triggerScope}"]`);
+        if (trigger) {
+          setActive((current) => current ? { ...current, rect: trigger.getBoundingClientRect() } : null);
+          return;
+        }
+      }
+
+      setActive(null);
     }
+
     window.addEventListener("resize", refreshPosition);
     window.addEventListener("scroll", refreshPosition, true);
     return () => {
       window.removeEventListener("resize", refreshPosition);
       window.removeEventListener("scroll", refreshPosition, true);
     };
-  }, [active?.key]);
+  }, [active?.triggerScope, active?.keys.join("|")]);
 
   const content = useMemo(
-    () => active ? guideHintCopy(active.key, language, activeRole) : null,
+    () => active ? active.keys.map((key) => ({ key, ...anyGuideHintCopy(key, language, activeRole) })) : [],
     [active, activeRole, language],
   );
 
-  if (!enabled || !active || !content) return null;
+  if (!enabled || !active || content.length === 0) return null;
 
-  const mobile = active.touch || (typeof window !== "undefined" && window.matchMedia("(max-width: 700px), (pointer: coarse)").matches);
-  const width = Math.min(360, Math.max(260, typeof window === "undefined" ? 360 : window.innerWidth - 24));
+  const mobile = active.mode === "info"
+    && typeof window !== "undefined"
+    && window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+  const width = Math.min(active.mode === "info" ? 430 : 360, Math.max(260, typeof window === "undefined" ? 360 : window.innerWidth - 24));
   const left = mobile
     ? 12
     : Math.max(12, Math.min(active.rect.left, window.innerWidth - width - 12));
+  const below = active.rect.bottom + 8;
+  const expectedHeight = active.mode === "info" ? 360 : 165;
   const top = mobile
     ? undefined
-    : Math.min(window.innerHeight - 180, Math.max(12, active.rect.bottom + 8));
+    : (below + expectedHeight <= window.innerHeight ? below : Math.max(12, active.rect.top - expectedHeight));
 
   return (
     <aside
-      className={`guide-hint-popover${mobile ? " guide-hint-mobile" : ""}`}
+      className={`guide-hint-popover${mobile ? " guide-hint-mobile" : ""}${active.mode === "info" ? " guide-hint-summary" : ""}`}
       role="tooltip"
       style={mobile ? undefined : { left, top, width }}
-      data-guide-hint-key={active.key}
+      data-guide-hint-key={active.keys.join("|")}
     >
-      <div className="guide-hint-heading">
-        <strong>{content.title}</strong>
-        <button type="button" aria-label={language === "cz" ? "Zavřít nápovědu" : "Close hint"} onClick={() => setActive(null)}>×</button>
-      </div>
-      <p>{content.copy}</p>
-      {content.roleCopy && <p className="guide-hint-role">{content.roleCopy}</p>}
+      {content.map((item) => (
+        <div className="guide-hint-item" key={item.key}>
+          <strong>{item.title}</strong>
+          <p>{item.copy}</p>
+          {item.roleCopy && <p className="guide-hint-role">{item.roleCopy}</p>}
+        </div>
+      ))}
     </aside>
   );
 }
-
-export const guideHintKeys = Object.keys(guideHints) as GuideHintKey[];
