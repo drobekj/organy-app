@@ -99,7 +99,6 @@ async function main(connectionString: string) {
       },
     });
     assert.equal(saveWorking.success, true, "Priest must retain Working-plan persistence.");
-    if (!saveWorking.success) throw new Error(saveWorking.error.message);
     lifecyclePlanId = saveWorking.value.id;
 
     const contextRow = await db.query("select service_context_id from service_sets where id=$1", [Number(lifecyclePlanId)]);
@@ -111,7 +110,6 @@ async function main(connectionString: string) {
       workingSetId: lifecyclePlanId,
     });
     assert.equal(finalize.success, true, "Priest must retain current Finalize authorization.");
-    if (!finalize.success) throw new Error(finalize.error.message);
     assert.equal(finalize.value.status, "final");
 
     const before = await db.query("select melody_protection_months from catalog_persons where id='demo-organist'");
@@ -120,7 +118,6 @@ async function main(connectionString: string) {
     const melodyProtection = new PostgresNonRepetitionPeriodService(db);
     const organistMutation = await melodyProtection.setOwnOrganistMinimum(organist, targetMonths);
     assert.equal(organistMutation.success, true, "Organist must retain own Melody Protection persistence.");
-    if (!organistMutation.success) throw new Error(organistMutation.error.message);
     assert.equal(organistMutation.value.months, targetMonths);
     assert.equal(Number((await db.query("select melody_protection_months from catalog_persons where id='demo-organist'")).rows[0].melody_protection_months), targetMonths);
 
