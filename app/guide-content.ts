@@ -358,7 +358,7 @@ export function isGuideHintKey(value: string): value is GuideHintKey {
 }
 
 export function guideHintCopy(key: GuideHintKey, language: GuideLanguage, role: PlanningRoleLike): { title: string; copy: string; roleCopy?: string } {
-  const hint = guideHints[key];
+  const hint: GuideHint = guideHints[key];
   const guideRole = role === "priest" || role === "organist" ? role : undefined;
   return {
     title: hint.title[language],
