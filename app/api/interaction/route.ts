@@ -74,7 +74,10 @@ export async function POST(request: Request) {
       case "getMelodyWindow": { validateMelodyWindowReadInput(body.input); return respond(await nonRepetitionPeriod.get(actor)); }
       case "setMelodyWindow": { const input = melodyWindowMutationInput(body.input); return respond(await nonRepetitionPeriod.set(actor, input.months)); }
       case "listKnowledge": return NextResponse.json(await service.listKnowledge());
-      case "queryCandidates": return respond({ success: true, value: await referenceCandidates.queryCandidates(referenceCandidateQueryInput(body.input)) });
+      case "queryCandidates": return respond({ success: true, value: await referenceCandidates.queryCandidates(
+        referenceCandidateQueryInput(body.input),
+        { allowBelowOrganistMinimum: actor.role === "admin" },
+      ) });
       case "queryCatalogCandidates": return respond({ success: true, value: await referenceCandidates.queryCatalogCandidates(referenceCatalogCandidateQueryInput(body.input)) });
       case "hydrateCandidates": return respond({ success: true, value: await referenceCandidates.hydrateCandidates(referenceCandidateHydrationInput(body.input)) });
       default: return NextResponse.json({ error: { code: "invalidInput", message: `Unsupported interaction action '${body.action}'.` } }, { status: 400 });
