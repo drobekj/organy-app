@@ -181,6 +181,16 @@ const controlGuideHints = {
     title: { en: "Edit Final Plan", cz: "Upravit Final plán" },
     copy: { en: "Reopens a Final plan for an authorized corrective edit.", cz: "Znovu otevře Final plán pro oprávněnou korekční úpravu." },
   },
+  "planning.lifecycle.save-completed": {
+    sectionId: "guide.history",
+    title: { en: "Save completed changes", cz: "Uložit změny dokončené bohoslužby" },
+    copy: { en: "Admin-only correction of the opened completed History record.", cz: "Admin korekce právě otevřeného dokončeného záznamu History." },
+  },
+  "planning.lifecycle.delete-completed": {
+    sectionId: "guide.history",
+    title: { en: "Delete completed record", cz: "Smazat dokončený záznam" },
+    copy: { en: "Admin-only deletion of the opened completed History record.", cz: "Admin smazání právě otevřeného dokončeného záznamu History." },
+  },
   "plans.start": {
     sectionId: "guide.plans",
     title: { en: "Start new set", cz: "Začít nový plán" },
@@ -292,6 +302,7 @@ export const panelGuideHintGroups = {
     "planning.service.topic",
     "planning.service.note",
   ],
+  "planning.melody-protection": ["planning.melody-protection"],
   "planning.rows": [
     "planning.rows",
     "planning.rows.song",
