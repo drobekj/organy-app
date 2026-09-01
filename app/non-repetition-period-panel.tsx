@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ActorIdentity, InMemoryInteractionRepository } from "../src/application/interaction-contracts";
 import type { InMemoryPlanningSetRepository } from "../src/application/planning-lifecycle";
+import { GuidePanelHelpButton } from "./guide-panel-help-button";
 import {
   buildNonRepetitionPlanMelodyUsages,
   findNonRepetitionPlanConflicts,
@@ -107,13 +108,15 @@ export function NonRepetitionPeriodPanel({
   if (actor.role !== "admin") return null;
 
   return (
-    <fieldset className="melody-protection-panel" aria-label="Melody Protection">
+    <fieldset className="melody-protection-panel" aria-label="Melody Protection" data-guide-hint-scope="planning.melody-protection">
+      <GuidePanelHelpButton scope="planning.melody-protection" label="Melody Protection help" />
       <legend>Melody Protection</legend>
       <label className="melody-protection-control">
         <span className="sr-only">Melody Protection period</span>
         <select
          
           aria-label="Melody Protection period"
+          data-guide-hint="planning.melody-protection"
           value={draftMonths}
           disabled={feedback.kind === "loading"}
           onChange={(event) => void save(Number(event.target.value))}

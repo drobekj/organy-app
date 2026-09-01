@@ -9,6 +9,7 @@ import {
 } from "../src/application/reference-melody-edge-editor";
 import type { RecommendedReferenceSong } from "../src/application/reference-antiphon-recommendation";
 import { ReferenceSongLookupField } from "./reference-song-lookup-field";
+import { GuidePanelHelpButton } from "./guide-panel-help-button";
 
 type EditorResult<T> =
   | { success: true; value: T }
@@ -189,12 +190,14 @@ export function ReferenceMelodyEdgeEditor({
     }
   }
 
-  return <fieldset className="field-group catalog-melody-edge-editor" aria-label="Melody edge editor">
+  return <fieldset className="field-group catalog-melody-edge-editor" aria-label="Melody edge editor" data-guide-hint-scope="catalog.melody-edges">
+    <GuidePanelHelpButton scope="catalog.melody-edges" label="Melody edges help" />
     <legend>Melody edges</legend>
 
     <div className="catalog-melody-edge-language-row">
       <select
         aria-label="First song language"
+        data-guide-hint="catalog.melody.language"
         value={firstLanguage}
         onChange={(event) => {
           setFirstLanguage(event.target.value as SongLanguage);
@@ -206,6 +209,7 @@ export function ReferenceMelodyEdgeEditor({
       </select>
       <select
         aria-label="Second song language"
+        data-guide-hint="catalog.melody.language"
         value={secondLanguage}
         onChange={(event) => {
           setSecondLanguage(event.target.value as SongLanguage);
@@ -241,11 +245,13 @@ export function ReferenceMelodyEdgeEditor({
     <div className="catalog-melody-edge-actions" aria-label="Melody edge actions">
       <button
         type="button"
+        data-guide-hint="catalog.melody.add"
         disabled={saving || edgeLoading || mode !== "add"}
         onClick={() => void mutate("add")}
       >Add</button>
       <button
         type="button"
+        data-guide-hint="catalog.melody.remove"
         disabled={saving || edgeLoading || mode !== "remove"}
         onClick={() => void mutate("remove")}
       >Remove</button>
@@ -280,6 +286,7 @@ function MelodyEdgeSongLookup({
     listboxId={`melody-edge-${side}-song-listbox`}
     getOptionClassName={optionClassName}
     selectedValueClassName="melody-edge-selected-value"
+    guideHint="catalog.melody.song"
     onSelect={onSelect}
   />;
 }

@@ -30,12 +30,13 @@ assert.match(planning, /<legend>Rows<\/legend>/);
 assert.match(planning, /data-guide-hint-trigger="planning\.rows"/);
 assert.match(planning, />\s*Add row\s*<\/button>/);
 
-assert.match(layer, /const GUIDE_FIELD_SELECTOR = 'input:not\(\[type="hidden"\]\), select, textarea, \[role="combobox"\]'/);
+assert.match(layer, /\[data-guide-hint\]/);
 assert.match(layer, /onPointerOver/);
 assert.match(layer, /onPointerOut/);
 assert.match(layer, /onFocusIn/);
 assert.match(layer, /onPointerDown/);
-assert.match(layer, /suppressedFieldRef\.current = field/);
+assert.match(layer, /suppressedControlRef\.current = control/);
+assert.match(layer, /guidePanelHintKeys/);
 assert.doesNotMatch(layer, /Close hint|Zavřít nápovědu|guide-hint-heading/);
 
 assert.doesNotMatch(css, /cursor: help/);

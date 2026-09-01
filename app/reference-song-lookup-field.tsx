@@ -15,6 +15,7 @@ export type ReferenceSongLookupFieldProps = {
   listboxId?: string;
   getOptionClassName?: (record: ReferenceCatalogRecord) => string | undefined;
   selectedValueClassName?: string;
+  guideHint?: string;
   onSelect: (record: ReferenceCatalogRecord | null) => void;
   clientFactory?: () => ReferenceSongLookupClient;
 };
@@ -41,6 +42,7 @@ export function ReferenceSongLookupField({
   listboxId = "reference-song-listbox",
   getOptionClassName,
   selectedValueClassName,
+  guideHint,
   onSelect,
   clientFactory = defaultClientFactory,
 }: ReferenceSongLookupFieldProps) {
@@ -156,6 +158,7 @@ export function ReferenceSongLookupField({
     <div className="reference-song-control">
       <input
         aria-label={ariaLabel}
+        data-guide-hint={guideHint}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={open}

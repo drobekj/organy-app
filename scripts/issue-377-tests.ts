@@ -29,14 +29,14 @@ assert.doesNotMatch(guide, /GUIDE_HINTS_STORAGE_KEY/);
 assert.doesNotMatch(guide, /Guide hints|Našeptávač/);
 
 const layer = readFileSync("app/guide-hint-layer.tsx", "utf8");
-assert.match(layer, /GUIDE_FIELD_SELECTOR/);
-assert.match(layer, /data-guide-hint-scope/);
+assert.match(layer, /\[data-guide-hint\]/);
+assert.match(layer, /guidePanelHintKeys/);
 assert.match(layer, /data-guide-hint-trigger/);
 assert.match(layer, /pointerover/);
 assert.match(layer, /pointerout/);
 assert.match(layer, /focusin/);
 assert.match(layer, /focusout/);
-assert.match(layer, /suppressedFieldRef/);
+assert.match(layer, /suppressedControlRef/);
 assert.match(layer, /pointerdown/);
 assert.doesNotMatch(layer, /guide-hint-heading/);
 assert.doesNotMatch(layer, /Close hint|Zavřít nápovědu/);

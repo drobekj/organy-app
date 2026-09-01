@@ -1462,7 +1462,7 @@ Save the correction and mark those plans for revision?`);
             >
               i
             </button>
-            <label>
+            <label data-guide-hint="planning.service.date">
               Service date
               <input
                 type="date"
@@ -1473,7 +1473,7 @@ Save the correction and mark those plans for revision?`);
                 }}
               />
             </label>
-            <label>
+            <label data-guide-hint="planning.service.time">
               Service time
               <input
                 type="time"
@@ -1485,7 +1485,7 @@ Save the correction and mark those plans for revision?`);
               />
               {!serviceTime && <span className="field-help">Time missing</span>}
             </label>
-            <label>
+            <label data-guide-hint="planning.service.language">
               Service language
               <select
                 disabled={isEditorLocked}
@@ -1501,7 +1501,7 @@ Save the correction and mark those plans for revision?`);
                 ))}
               </select>
             </label>
-            <label>
+            <label data-guide-hint="planning.service.priest">
               Priest
               <select className="planning-person-select" disabled={isEditorLocked} value={priestId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("priest"); else { const person = priestResults.find((p) => p.id === event.target.value); if (person) selectPerson("priest", person); } }}>
                 <option value="">Anonymous</option>
@@ -1510,7 +1510,7 @@ Save the correction and mark those plans for revision?`);
               </select>
               <span className="field-help">{priestId ? "Selected priest." : "Anonymous is allowed while the plan is Working."}</span>
             </label>
-            <label>
+            <label data-guide-hint="planning.service.organist">
               Organist
               <select className="planning-person-select" disabled={isEditorLocked} value={organistId ?? ""} onChange={(event) => { if (!event.target.value) selectAnonymous("organist"); else { const person = organistResults.find((p) => p.id === event.target.value); if (person) selectPerson("organist", person); } }}>
                 <option value="">Anonymous</option>
@@ -1519,12 +1519,13 @@ Save the correction and mark those plans for revision?`);
               </select>
               <span className="field-help">{isCompletedRecordOpen ? "Historical truth mode: no Planning filters are applied." : organistId ? "Selected organist; repertoire filter is active." : "Anonymous: repertoire filter is not applied while choosing candidates."}</span>
             </label>
-            <label className="note-field">
+            <label className="note-field" data-guide-hint="planning.service.note">
               Service note
               <textarea rows={4} disabled={isEditorLocked} value={serviceNote} onChange={(event) => guardedEditorUpdate(() => setServiceNote(event.target.value))} placeholder="Gospel readings, links, or planning information" />
             </label>
             <div className="service-antiphon-topic-row">
-              <ServiceContextReferenceAntiphonField
+              <div className="guide-hint-contents" data-guide-hint="planning.service.antiphon">
+                <ServiceContextReferenceAntiphonField
                 runtime={runtimeMode}
                 editable={!isEditorLocked}
                 contextKey={serviceContextRecordKey}
@@ -1536,8 +1537,10 @@ Save the correction and mark those plans for revision?`);
                 recommendationClient={planningAntiphonRecommendationClient ?? undefined}
                 invalid={hasAntiphonLanguageMismatch}
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined)); }}
-              />
-              <ServiceContextReferenceTopicField
+                />
+              </div>
+              <div className="guide-hint-contents" data-guide-hint="planning.service.topic">
+                <ServiceContextReferenceTopicField
                 runtime={runtimeMode}
                 editable={!isEditorLocked}
                 contextKey={serviceContextRecordKey}
@@ -1545,7 +1548,8 @@ Save the correction and mark those plans for revision?`);
                 selected={referenceTopic}
                 invalid={hasTopicLanguageMismatch}
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceTopic(value ? { ...value } : undefined)); }}
-              />
+                />
+              </div>
             </div>
           </fieldset>
 
@@ -1586,14 +1590,15 @@ Save the correction and mark those plans for revision?`);
                 <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}${planningAlertConflict ? " planning-alert-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
-                    <button type="button" className="row-icon-button" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
-                    <button type="button" className="row-icon-button" aria-label="Move row down" title="Move row down" onClick={() => moveRow(index, 1)} disabled={!canEditRows || index === rows.length - 1}>↓</button>
-                    <button type="button" className="row-icon-button" aria-label="Clear row" title="Clear row" onClick={() => clearRow(row.id)} disabled={!canEditRows || (!row.selectedSong && !row.note.trim() && !row.songSearch.trim() && planningExpansion?.rowId !== row.id)}>↶</button>
-                    <button type="button" className="row-icon-button row-icon-remove" aria-label="Remove row" title="Remove row" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>×</button>
+                    <button type="button" className="row-icon-button" aria-label="Move row up" data-guide-hint="planning.rows.move" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
+                    <button type="button" className="row-icon-button" aria-label="Move row down" data-guide-hint="planning.rows.move" title="Move row down" onClick={() => moveRow(index, 1)} disabled={!canEditRows || index === rows.length - 1}>↓</button>
+                    <button type="button" className="row-icon-button" aria-label="Clear row" data-guide-hint="planning.rows.clear" title="Clear row" onClick={() => clearRow(row.id)} disabled={!canEditRows || (!row.selectedSong && !row.note.trim() && !row.songSearch.trim() && planningExpansion?.rowId !== row.id)}>↶</button>
+                    <button type="button" className="row-icon-button row-icon-remove" aria-label="Remove row" data-guide-hint="planning.rows.remove" title="Remove row" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>×</button>
                   </div>
                   <div className="compact-row-fields">
                     <div className="song-field-row">
-                      <CandidateCombobox
+                      <div className="guide-hint-contents" data-guide-hint="planning.rows.song">
+                        <CandidateCombobox
                                               rowId={row.id}
                                               rowLabel={`Row ${index + 1}`}
                                               open={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id}
@@ -1623,9 +1628,11 @@ Save the correction and mark those plans for revision?`);
                                               onRetryDetail={retryDetailEligibility}
                                               onShowDetailCandidate={showCandidateFromDetail}
                                             />
+                      </div>
                       <button
                         id={`selected-song-detail-button-${row.id}`}
                         type="button"
+                        data-guide-hint="planning.rows.detail"
                         className="song-field-detail"
                         disabled={!row.selectedSong}
                         onClick={() => row.selectedSong && openSelectedSongDetail(row.id, row.selectedCandidate ?? candidateFromSelectedSong(row.selectedSong))}
@@ -1635,6 +1642,7 @@ Save the correction and mark those plans for revision?`);
                     </div>
                     <input
                       className="row-note-input"
+                      data-guide-hint="planning.rows.note"
                       aria-label={`Text note for Row ${index + 1}`}
                       type="text"
                       value={row.note}
@@ -1664,7 +1672,7 @@ Save the correction and mark those plans for revision?`);
             })}
             </div>
             <div className="rows-header">
-              <button type="button" onClick={addRow} disabled={!canEditRows}>
+              <button type="button" data-guide-hint="planning.rows.add" onClick={addRow} disabled={!canEditRows}>
                 Add row
               </button>
             </div>
@@ -1686,34 +1694,34 @@ Save the correction and mark those plans for revision?`);
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
                       Save working plan
                     </button>
-                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
+                    <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
                       Finalize plan
                     </button>
-                    <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
                       Delete saved plan
                     </button>
                   </>
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
-                    {selectedRole === "admin" && <button type="button" onClick={reopenFinalSet}>Edit Final Plan</button>}
-                    <button type="button" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet} title={completeDateReason || undefined}>
+                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet}>Edit Final Plan</button>}
+                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet} title={completeDateReason || undefined}>
                       Store Service
                     </button>
-                    <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
                       Delete Saved Plan
                     </button>
                   </>
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
                       Save completed changes
                     </button>
-                    <button type="button" onClick={deleteCompletedRecord}>Delete completed record</button>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete-completed" onClick={deleteCompletedRecord}>Delete completed record</button>
                   </>
                 )}
               </>
