@@ -865,5 +865,10 @@ function validateSaveWorkingSetServiceContext(
     ...(!isValidServiceTime(serviceContext.serviceTime) ? [{ path: "serviceTime", message: "Service time is required in HH:mm format between 00:00 and 23:59." }] : []),
     ...(!serviceContext.priest.displayName.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
     ...(!serviceContext.organist.displayName.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
+    ...(serviceContext.melodyProtectionMonths !== undefined && (
+      !Number.isInteger(serviceContext.melodyProtectionMonths)
+      || serviceContext.melodyProtectionMonths < 0
+      || serviceContext.melodyProtectionMonths > 12
+    ) ? [{ path: "melodyProtectionMonths", message: "Melody Protection must be between 0 and 12 calendar months." }] : []),
   ];
 }
