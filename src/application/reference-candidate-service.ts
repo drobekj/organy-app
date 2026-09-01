@@ -82,13 +82,18 @@ type CandidateRow = {
 export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
 
-  async queryCandidates(input: CandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
+  async queryCandidates(
+    input: CandidateQueryInput,
+    policy: { allowBelowOrganistMinimum?: boolean } = {},
+  ): Promise<ReferenceCandidateQueryResult[]> {
     const minimumMonths = await this.loadOrganistMinimum(input.organistPersonId);
     const requestedMonths = input.melodyProtectionMonths ?? minimumMonths;
     if (!Number.isInteger(requestedMonths) || requestedMonths < 0 || requestedMonths > 12) {
       throw new ReferenceCandidateError("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
     }
-    const effectiveMonths = Math.max(minimumMonths, requestedMonths);
+    const effectiveMonths = policy.allowBelowOrganistMinimum
+      ? requestedMonths
+      : Math.max(minimumMonths, requestedMonths);
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId, effectiveMonths);
     return queryReferenceCandidatesFromData(data, { ...input, melodyProtectionMonths: effectiveMonths });
   }
