@@ -21,6 +21,7 @@ import { getDefaultServiceLanguage, getNearestSunday } from "../src/planning-lif
 import { ServiceContextReferenceTopicField } from "./service-context-reference-topic-field";
 import { ReferenceMelodyEdgeEditor } from "./reference-melody-edge-editor";
 import type { ReferenceMelodyClass } from "../src/application/reference-melody";
+import { GuidePanelHelpButton } from "./guide-panel-help-button";
 
 type PreferenceResult<T> =
   | { success: true; value: T }
@@ -289,10 +290,11 @@ export function CatalogWorkspace({
   }
 
   return <section className="catalog-workspace" aria-label="Catalog">
-    <fieldset className="field-group catalog-context">
+    <fieldset className="field-group catalog-context" data-guide-hint-scope="catalog.context">
+      <GuidePanelHelpButton scope="catalog.context" label="Catalog context help" />
       <legend>Catalog context</legend>
       <div className="catalog-organist-language-row">
-        <label className="catalog-context-cell">
+        <label className="catalog-context-cell" data-guide-hint="catalog.context.organist">
           <span>Organist</span>
           <select
             aria-label="Catalog organist"
@@ -303,7 +305,7 @@ export function CatalogWorkspace({
             {organists.map((person) => <option key={person.id} value={person.id}>{person.displayName}</option>)}
           </select>
         </label>
-        <label className="catalog-context-cell">
+        <label className="catalog-context-cell" data-guide-hint="catalog.context.language">
           <span>Language</span>
           <select aria-label="Catalog language" value={language} onChange={(event) => setLanguage(event.target.value as ServiceLanguage)}>
             <option value="mixed">Mixed</option>
@@ -313,7 +315,7 @@ export function CatalogWorkspace({
         </label>
       </div>
       <div className="service-antiphon-topic-row catalog-antiphon-topic-row">
-        <div className="catalog-context-cell">
+        <div className="catalog-context-cell" data-guide-hint="catalog.context.antiphon">
           <span className="catalog-context-label">Antiphon</span>
           <ServiceContextReferenceAntiphonField
             runtime={runtime}
@@ -339,7 +341,7 @@ export function CatalogWorkspace({
             onChange={(value) => setAntiphon(value ? { ...value } : undefined)}
           />
         </div>
-        <div className="catalog-context-cell">
+        <div className="catalog-context-cell" data-guide-hint="catalog.context.topic">
           <span className="catalog-context-label">Topic</span>
           <ServiceContextReferenceTopicField
             runtime={runtime}
@@ -353,12 +355,14 @@ export function CatalogWorkspace({
       </div>
     </fieldset>
 
-    <fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates">
+    <fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates" data-guide-hint-scope="catalog.candidates">
+      <GuidePanelHelpButton scope="catalog.candidates" label="Catalog candidates help" />
       <legend>Candidates</legend>
       <div className="catalog-candidate-header">
         <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
           <button
             type="button"
+            data-guide-hint="catalog.candidates.availability"
             aria-pressed={availabilityMode === "available"}
             className={availabilityMode === "available" ? "active-workspace" : undefined}
             onClick={() => setAvailabilityMode("available")}
@@ -367,6 +371,7 @@ export function CatalogWorkspace({
           </button>
           <button
             type="button"
+            data-guide-hint="catalog.candidates.availability"
             aria-pressed={availabilityMode === "unavailable"}
             className={availabilityMode === "unavailable" ? "active-workspace" : undefined}
             onClick={() => setAvailabilityMode("unavailable")}
@@ -375,8 +380,8 @@ export function CatalogWorkspace({
           </button>
         </div>
         <div className="workspace-nav catalog-view-switch" role="group" aria-label="Catalog candidate view">
-          <button type="button" className={viewMode === "songs" ? "active-workspace" : undefined} aria-pressed={viewMode === "songs"} onClick={() => setViewMode("songs")}>Songs</button>
-          <button type="button" className={viewMode === "melodies" ? "active-workspace" : undefined} aria-pressed={viewMode === "melodies"} onClick={() => setViewMode("melodies")}>Melodies</button>
+          <button type="button" data-guide-hint="catalog.candidates.view" className={viewMode === "songs" ? "active-workspace" : undefined} aria-pressed={viewMode === "songs"} onClick={() => setViewMode("songs")}>Songs</button>
+          <button type="button" data-guide-hint="catalog.candidates.view" className={viewMode === "melodies" ? "active-workspace" : undefined} aria-pressed={viewMode === "melodies"} onClick={() => setViewMode("melodies")}>Melodies</button>
         </div>
       </div>
 
@@ -458,9 +463,10 @@ function CatalogCandidateRow({
       </span>
     </div>
     <div className="catalog-candidate-actions">
-      {repertoireAction && <button type="button" disabled={repertoireSaving} onClick={() => onRepertoireAction(repertoireAction)}>{repertoireAction}</button>}
+      {repertoireAction && <button type="button" data-guide-hint="catalog.candidates.repertoire" disabled={repertoireSaving} onClick={() => onRepertoireAction(repertoireAction)}>{repertoireAction}</button>}
       <button
         type="button"
+        data-guide-hint="catalog.candidates.detail"
         className="candidate-inline-detail"
         style={{ alignItems: "center", alignSelf: "center", borderRadius: "0.65rem", display: "inline-flex", height: "2rem", justifyContent: "center", lineHeight: 1, minWidth: "4.7rem", padding: "0 0.65rem" }}
         onClick={onDetail}
