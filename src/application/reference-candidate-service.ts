@@ -79,6 +79,14 @@ type CandidateRow = {
  * It reads only the dedicated Reference subsystem and ignores every legacy
  * or synthetic candidate knowledge source.
  */
+export function resolveEffectiveCandidateMelodyProtectionMonths(
+  minimumMonths: number,
+  requestedMonths: number,
+  allowBelowOrganistMinimum: boolean,
+): number {
+  return allowBelowOrganistMinimum ? requestedMonths : Math.max(minimumMonths, requestedMonths);
+}
+
 export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
 
@@ -91,9 +99,11 @@ export class ReferenceCandidateService {
     if (!Number.isInteger(requestedMonths) || requestedMonths < 0 || requestedMonths > 12) {
       throw new ReferenceCandidateError("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
     }
-    const effectiveMonths = policy.allowBelowOrganistMinimum
-      ? requestedMonths
-      : Math.max(minimumMonths, requestedMonths);
+    const effectiveMonths = resolveEffectiveCandidateMelodyProtectionMonths(
+      minimumMonths,
+      requestedMonths,
+      policy.allowBelowOrganistMinimum === true,
+    );
     const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId, effectiveMonths);
     return queryReferenceCandidatesFromData(data, { ...input, melodyProtectionMonths: effectiveMonths });
   }
