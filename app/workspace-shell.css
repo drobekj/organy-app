@@ -375,6 +375,14 @@ button.workspace-action-pending {
 
 
 /* Issue #371: stable informational navigation and lightweight About/Guide surfaces. */
+.workspace-nav {
+  --workspace-nav-button-height: 2.35rem;
+}
+
+.workspace-nav button {
+  min-height: var(--workspace-nav-button-height);
+}
+
 .workspace-nav-section {
   display: contents;
 }
@@ -446,12 +454,11 @@ button.workspace-action-pending {
   }
 
   .workspace-nav-about {
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.65rem;
+    padding-bottom: 0;
   }
 
   .workspace-nav-main {
-    padding-top: 0.15rem;
+    padding-top: 0;
   }
 
   .workspace-nav-footer {
@@ -460,7 +467,7 @@ button.workspace-action-pending {
 
   .workspace-copyright {
     border-top: 1px solid var(--border);
-    margin-top: 0.65rem;
+    margin-top: calc(0.65rem + var(--workspace-nav-button-height));
     padding-top: 0.65rem;
     text-align: center;
   }
@@ -469,7 +476,7 @@ button.workspace-action-pending {
 @media (max-width: 899px) {
   .workspace-copyright {
     border-top: 1px solid var(--border);
-    margin-top: 0.65rem;
+    margin-top: calc(0.65rem + var(--workspace-nav-button-height));
     padding-top: 0.65rem;
     text-align: start;
   }
@@ -522,6 +529,12 @@ button.workspace-action-pending {
 .guide-language button {
   min-width: 2.7rem;
   padding: 0.4rem 0.6rem;
+}
+
+.guide-language button[aria-pressed="true"] {
+  background: var(--foreground);
+  border-color: var(--foreground);
+  color: #fff;
 }
 
 .guide-sections {
@@ -605,19 +618,7 @@ button.workspace-action-pending {
 }
 
 
-/* Issue #377: contextual Guide hints. */
-.guide-controls {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 0.45rem;
-}
-
-.guide-hints-enabled [data-guide-hint] {
-  cursor: help;
-  outline: 1px dotted #94a3b8;
-  outline-offset: 2px;
-}
-
+/* Issue #377/#379: contextual Guide hints. */
 .guide-hint-popover {
   background: #ffffff;
   border: 1px solid var(--border);
@@ -629,27 +630,6 @@ button.workspace-action-pending {
   padding: 0.75rem 0.8rem;
   position: fixed;
   z-index: 80;
-}
-
-.guide-hint-heading {
-  align-items: center;
-  display: flex;
-  gap: 0.6rem;
-  justify-content: space-between;
-}
-
-.guide-hint-heading button {
-  align-items: center;
-  border: 0;
-  border-radius: 50%;
-  display: inline-flex;
-  flex: 0 0 auto;
-  font-size: 1rem;
-  height: 1.7rem;
-  justify-content: center;
-  min-width: 1.7rem;
-  padding: 0;
-  width: 1.7rem;
 }
 
 .guide-hint-popover p {
@@ -673,15 +653,95 @@ button.workspace-action-pending {
 }
 
 @media (max-width: 700px) {
-  .guide-controls {
-    width: 100%;
-  }
-
   .guide-language {
     justify-content: flex-start;
   }
+}
 
-  .guide-hints-enabled [data-guide-hint] {
-    outline-offset: 1px;
-  }
+
+/* Issue #379: User-menu Guide Hints toggle and Planning contour experiment. */
+.workspace-guide-hints-setting {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  display: flex;
+  font-size: 0.86rem;
+  font-weight: 700;
+  gap: 1rem;
+  justify-content: space-between;
+  min-height: 2.2rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.workspace-account-popover .workspace-toggle-switch {
+  align-items: center;
+  background: #e5e7eb;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  display: flex;
+  flex: 0 0 auto;
+  height: 1.4rem;
+  justify-content: flex-start;
+  min-height: 1.4rem;
+  padding: 0.1rem;
+  transition: background 120ms ease, border-color 120ms ease;
+  width: 2.6rem;
+}
+
+.workspace-account-popover .workspace-toggle-switch[aria-checked="true"] {
+  background: var(--foreground);
+  border-color: var(--foreground);
+  justify-content: flex-end;
+}
+
+.workspace-toggle-thumb {
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
+  display: block;
+  height: 1.05rem;
+  width: 1.05rem;
+}
+
+.planning-service-context,
+.planning-rows-panel {
+  position: relative;
+}
+
+.planning-rows-panel {
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.planning-rows-panel > .rows-header {
+  justify-content: flex-end;
+  margin-top: -0.45rem;
+}
+
+.guide-scope-info {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  display: inline-flex;
+  font-size: 0.82rem;
+  height: 1.55rem;
+  justify-content: center;
+  line-height: 1;
+  min-height: 1.55rem;
+  padding: 0;
+  position: absolute;
+  right: 0.75rem;
+  top: -0.78rem;
+  width: 1.55rem;
+  z-index: 2;
+}
+
+.guide-scope-info:focus-visible {
+  outline: 2px solid #84adff;
+  outline-offset: 2px;
 }
