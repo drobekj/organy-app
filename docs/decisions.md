@@ -178,6 +178,16 @@ For each decision, include an identifier, date, status, context, options conside
 - **Consequences:** The first schema/migration PR is unblocked at baseline level only. This documentation PR does not install packages, create schema files, migrations, SQL, DB config, or runtime persistence. Auth provider, hosting provider, production DB provider, backup/export/restore, final deployment, API contracts, UI changes, seed strategy, test strategy, and complete target schema remain out of scope. Domain/application validation remains mandatory and is not replaced by DB constraints or Drizzle schema. The application is not production-ready.
 - **Related:** `docs/implementation-preparation.md`; `docs/adr-first-slice-storage.md`; `docs/adr-first-slice-tooling.md`; `docs/adr-planning-lifecycle-stack-storage-auth.md`; `docs/backlog.md`; `docs/planning-lifecycle-first-schema-subset.md`.
 
+### DEC-2026-09-01-01 — Keep application UI English-only; bilingual choice remains Guide-only
+
+- **Date:** 2026-09-01
+- **Status:** Accepted
+- **Context:** A broader bilingual application treatment had been considered after the Guide localization work, including a possible EN/CZ switch in the main application shell.
+- **Options considered:** localize the whole application and add a main-shell language switch; keep only the existing bilingual Guide; defer localization without an explicit boundary.
+- **Decision:** App-wide bilingual localization is frozen indefinitely. The application shell and ordinary workspaces remain in the current language without a global EN/CZ selector. The existing EN/CZ choice remains available only inside Guide with its current browser-local behavior.
+- **Consequences:** No EN/CZ control is added to the main navigation. Future app-wide localization requires a new explicit product decision. Guide may continue to expose its existing EN/CZ content independently.
+- **Related:** Issue #388; `app/guide-workspace.tsx`; `app/guide-content.ts`.
+
 ## Active Proposals
 
 No active proposals are recorded at this time.
