@@ -1,0 +1,109 @@
+name: Demo D0 safety foundation acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
+      ORGANY_RUNTIME: db
+      BETTER_AUTH_SECRET: demo-d0-ci-secret-long-enough-for-protected-runtime-acceptance
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      ORGANY_BOOTSTRAP_ADMIN_PASSWORD: DemoD0Admin!2026
+      ORGANY_BOOTSTRAP_PRIEST_PASSWORD: DemoD0Priest!2026
+      ORGANY_BOOTSTRAP_ORGANIST_PASSWORD: DemoD0Organist!2026
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+
+      - name: Database migration
+        run: npm run db:migrate
+
+      - name: Stage D0 pure safety contract
+        run: npm run test:issue-402
+
+      - name: Stage D0 protected API and write boundaries
+        run: npm run test:issue-402:db
+
+      - name: Existing Priest lifecycle regression
+        run: npm run test:lifecycle
+
+      - name: Existing Organist Melody Protection regression
+        run: npm run test:issue-390
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Complete tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Production root still requires authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- --hostname 127.0.0.1 --port 3000 > d0-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -sS -o /dev/null http://127.0.0.1:3000/sign-in; then
+              break
+            fi
+            sleep 1
+          done
+
+          status="$(curl -sS -o /dev/null -D d0-root.headers -w '%{http_code}' http://127.0.0.1:3000/)"
+          case "$status" in
+            302|303|307|308) ;;
+            *)
+              echo "Expected unauthenticated Production root redirect, got HTTP $status"
+              cat d0-root.headers
+              exit 1
+              ;;
+          esac
+
+          if ! tr -d '\r' < d0-root.headers | grep -qiE '^location: /sign-in$'; then
+            echo "Production root did not redirect to /sign-in"
+            cat d0-root.headers
+            exit 1
+          fi
+
+      - name: Upload D0 server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-d0-server-log
+          path: d0-next.log
+          if-no-files-found: ignore
