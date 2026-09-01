@@ -30,6 +30,7 @@ export type ServiceContextReferenceAntiphonFieldProps = {
   recommendationClient?: AntiphonRecommendationClient;
   canEditRecommendation?: boolean;
   invalid?: boolean;
+  guideHint?: string;
   onChange: (value: ServiceAntiphonReference | undefined) => void;
   onRecommendationChanged?: (value: ReferenceAntiphonRecommendation) => void | Promise<void>;
   clientFactory?: (runtime: "memory" | "db") => Pick<ReferenceAntiphonProvider, "list">;
@@ -243,6 +244,7 @@ export function ServiceContextReferenceAntiphonField({
   recommendationClient,
   canEditRecommendation,
   invalid,
+  guideHint,
   onChange,
   onRecommendationChanged,
   clientFactory = defaultClientFactory,
@@ -480,7 +482,7 @@ export function ServiceContextReferenceAntiphonField({
     }
   };
 
-  return <div className="service-antiphon-lookup" ref={wrapperRef}>
+  return <div className="service-antiphon-lookup" data-guide-hint={guideHint} ref={wrapperRef}>
     <ServiceContextReferenceAntiphonFieldView
       editable={editable}
       selected={selected}
