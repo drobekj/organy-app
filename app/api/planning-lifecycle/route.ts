@@ -243,7 +243,7 @@ export async function POST(request: Request) {
       const melodyWindow = await new PostgresNonRepetitionPeriodService(pool).get(actor);
       const proposedPlan: PersistedPlanningPlan = {
         ...currentSet,
-        serviceContext: { ...currentSet.serviceContext, serviceDate: body.input.serviceDate },
+        serviceContext: { ...currentSet.serviceContext, serviceDate: body.input.serviceDate, melodyProtectionMonths: body.input.melodyProtectionMonths },
         rows: body.input.rows,
       };
       const impacts = await findCompletedPlanConflicts(
@@ -281,10 +281,18 @@ export async function POST(request: Request) {
 
     if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");
     if (action === "saveWorkingSet" && (!isRecord(body.input.serviceContext) || !isRecord(body.input.set))) return invalidInput("saveWorkingSet requires serviceContext and set objects.");
-    const input = { ...body.input, role: actor.role };
+
+    let mutationInput: Record<string, unknown> = { ...body.input };
+    if (action === "saveWorkingSet") {
+      const normalizedContext = await validateAndNormalizeMelodyProtectionContext(pool, body.input.serviceContext as Record<string, unknown>);
+      if (!normalizedContext.success) return invalidInput(normalizedContext.message);
+      mutationInput = { ...mutationInput, serviceContext: normalizedContext.context };
+    }
+
+    const input = { ...mutationInput, role: actor.role };
     const result = await db.transaction(async (tx) => {
       const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
-      const before = await planningBeforeState(action, body.input as Record<string, unknown>, txDependencies);
+      const before = await planningBeforeState(action, mutationInput, txDependencies);
       const service = createDbBackedPlanningLifecycleService({
         ...txDependencies,
         referenceAntiphons: new PostgresReferenceAntiphonProvider(pool),
@@ -298,9 +306,9 @@ export async function POST(request: Request) {
           actor: humanAuditActor(actor),
           action: planningAuditAction(action),
           objectKind: planningObjectKind(action),
-          objectRef: planningObjectRef(action, body.input as Record<string, unknown>, mutation.value),
+          objectRef: planningObjectRef(action, mutationInput, mutation.value),
           beforeState: before ?? null,
-          afterState: mutation.value ?? { request: body.input },
+          afterState: mutation.value ?? { request: mutationInput },
         }));
       }
       return mutation;
@@ -354,6 +362,34 @@ function planningObjectRef(action: PlanningLifecycleAction, input: Record<string
   return "new";
 }
 
+async function validateAndNormalizeMelodyProtectionContext(
+  pool: ReturnType<typeof getAppDbPool>,
+  context: Record<string, unknown>,
+): Promise<{ success: true; context: Record<string, unknown> } | { success: false; message: string }> {
+  const organist = isRecord(context.organist) ? context.organist : undefined;
+  const organistId = typeof organist?.id === "string" && organist.id.trim() ? organist.id : undefined;
+  let minimum = 0;
+
+  if (organistId) {
+    const result = await pool.query(
+      "select melody_protection_months from catalog_persons where id = $1 and active = true and organist = true",
+      [organistId],
+    );
+    if (!result.rows[0]) return { success: false, message: "Selected Organist is not available." };
+    minimum = Number(result.rows[0].melody_protection_months ?? 2);
+  }
+
+  const raw = context.melodyProtectionMonths;
+  const months = raw === undefined ? minimum : raw;
+  if (typeof months !== "number" || !Number.isInteger(months) || months < 0 || months > 12) {
+    return { success: false, message: "Melody Protection must be between 0 and 12 calendar months." };
+  }
+  if (months < minimum) {
+    return { success: false, message: `Melody Protection cannot be lower than the selected Organist minimum of ${minimum} months.` };
+  }
+  return { success: true, context: { ...context, melodyProtectionMonths: months } };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
@@ -361,10 +397,14 @@ function isPlanningLifecycleAction(action: string): action is PlanningLifecycleA
   return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "previewPlanningSetConflict", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
-function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; rows: PlanningPlan["rows"] } {
+function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; melodyProtectionMonths: number; rows: PlanningPlan["rows"] } {
   return isRecord(input)
     && typeof input.setId === "string"
     && typeof input.serviceDate === "string"
+    && typeof input.melodyProtectionMonths === "number"
+    && Number.isInteger(input.melodyProtectionMonths)
+    && input.melodyProtectionMonths >= 0
+    && input.melodyProtectionMonths <= 12
     && Array.isArray(input.rows)
     && input.rows.every(isRecord);
 }
