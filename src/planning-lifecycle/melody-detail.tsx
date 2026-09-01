@@ -109,6 +109,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
   const [openedSongId, setOpenedSongId] = useState(props.candidate.songId);
   const [activeIndex, setActiveIndex] = useState(-1);
   const classHasRepertoire = members.some((member) => member.repertoire);
+  const detailGuideHint = props.mode === "candidate" ? "catalog.candidates.detail" : "planning.rows.detail";
   const eligibilityBySongId = useMemo(() => new Map(props.eligibilityCandidates.map((candidate) => [candidate.songId, candidate])), [props.eligibilityCandidates]);
   const activationEnabled = props.mode === "candidate"
     ? Boolean(props.onReturnToCandidates || props.onActivateMember || props.onBack || props.onShowCandidate)
@@ -286,6 +287,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
               onFocus={() => { if (rowActivatable) setActiveIndex(index); }}
               onClick={() => activateMember(index)}
               data-melody-member={member.songId}
+              data-guide-hint={rowActivatable ? detailGuideHint : undefined}
             >
               <div
                 className="melody-member-summary"
@@ -311,6 +313,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                           onClick={stopRowActivation}
                           onKeyDown={(event) => event.stopPropagation()}
                           aria-label={`Open score for ${member.number} ${member.title}`}
+                          data-guide-hint={props.mode === "candidate" ? "catalog.candidates.score" : detailGuideHint}
                         >Score</a>
                       ) : (
                         <span className="field-help melody-score-missing">Score not available</span>
@@ -325,6 +328,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                       <select
                         data-guide-hint="catalog.preference"
                         aria-label={`Personal preference for ${member.number} ${member.title}`}
+                        data-guide-hint={props.mode === "candidate" ? "catalog.preference" : detailGuideHint}
                         value={props.personalPreference.value}
                         disabled={props.personalPreference.disabled}
                         onChange={(event) => props.personalPreference?.onChange(event.target.value)}
@@ -338,6 +342,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                   {!isOpened && (
                     <button
                       type="button"
+                      data-guide-hint={detailGuideHint}
                       className="candidate-inline-detail melody-member-detail-button"
                       style={{ alignItems: "center", borderRadius: "0.65rem", display: "inline-flex", height: "2rem", justifyContent: "center", lineHeight: 1, minWidth: "4.7rem", padding: "0 0.65rem" }}
                       aria-expanded={false}
