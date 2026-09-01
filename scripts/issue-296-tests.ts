@@ -27,7 +27,7 @@ assert.doesNotMatch(catalog, /<h2>Catalog<\/h2>/);
 assert.doesNotMatch(catalog, /Candidate and repertoire workspace/);
 
 // Stable vertical Catalog order.
-const contextIndex = catalog.indexOf('<fieldset className="field-group catalog-context">');
+const contextIndex = catalog.indexOf('<fieldset className="field-group catalog-context"');
 const candidateIndex = catalog.indexOf('<fieldset className="field-group catalog-candidate-panel"');
 const availabilityIndex = catalog.indexOf('className="catalog-availability-switch"', candidateIndex);
 const melodyIndex = catalog.indexOf('<ReferenceMelodyEdgeEditor');
@@ -37,7 +37,7 @@ assert.ok(contextIndex >= 0 && contextIndex < candidateIndex && candidateIndex <
 assert.match(css, /\.catalog-candidate-scroll \{[\s\S]*?max-height: 18rem;/);
 
 // Melody Edges uses the same contour/legend language as Catalog context.
-assert.match(editor, /<fieldset className="field-group catalog-melody-edge-editor" aria-label="Melody edge editor">/);
+assert.match(editor, /<fieldset className="field-group catalog-melody-edge-editor" aria-label="Melody edge editor"[^>]*>/);
 assert.match(editor, /<legend>Melody edges<\/legend>/);
 assert.doesNotMatch(editor, />Admin</);
 assert.doesNotMatch(editor, /<span>Language<\/span>/);
