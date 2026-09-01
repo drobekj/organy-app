@@ -1560,12 +1560,6 @@ Save the correction and mark those plans for revision?`);
             >
               i
             </button>
-            <div className="rows-header">
-              <button type="button" onClick={addRow} disabled={!canEditRows}>
-                Add row
-              </button>
-            </div>
-
             <div className="rows-list">
             {rows.map((row, index) => {
               const planningRevisionConflict = persistedSet && !completedRecord
@@ -1668,6 +1662,11 @@ Save the correction and mark those plans for revision?`);
                 </fieldset>
               );
             })}
+            </div>
+            <div className="rows-header">
+              <button type="button" onClick={addRow} disabled={!canEditRows}>
+                Add row
+              </button>
             </div>
           </fieldset>
 
