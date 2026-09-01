@@ -227,8 +227,8 @@ export const guideSections: GuideSection[] = [
     id: "guide.guide",
     title: { en: "Guide", cz: "Guide" },
     summary: {
-      en: "This manual stays inside the application and uses the same stable topic IDs that contextual hints can use later.",
-      cz: "Tento manuál zůstává uvnitř aplikace a používá stejné stabilní topic ID, která může později využít kontextový našeptávač.",
+      en: "In-app help for normal work; opening or reading the Guide does not change application data.",
+      cz: "Nápověda uvnitř aplikace pro běžnou práci; otevření ani čtení Guide nemění data aplikace.",
     },
     bullets: [
       {
