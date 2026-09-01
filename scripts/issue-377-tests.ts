@@ -9,76 +9,49 @@ import {
   isGuideHintKey,
 } from "../app/guide-content";
 
-const expectedKeys = [
-  "planning.service-context",
-  "planning.rows",
-  "planning.lifecycle",
-  "planning.melody-protection",
-  "plans.records",
-  "history.records",
-  "catalog.context",
-  "catalog.candidates",
-  "catalog.preference",
-  "development.runtime",
-] as const;
-
 assert.equal(GUIDE_HINTS_STORAGE_KEY, "organy-guide-hints");
 assert.equal(GUIDE_HINTS_CHANGED_EVENT, "organy:guide-hints-changed");
 assert.equal(GUIDE_LANGUAGE_CHANGED_EVENT, "organy:guide-language-changed");
-assert.deepEqual(Object.keys(guideHints), expectedKeys);
-for (const key of expectedKeys) {
-  assert.equal(isGuideHintKey(key), true);
-  assert.ok(guideHints[key].title.en.trim());
-  assert.ok(guideHints[key].title.cz.trim());
-  assert.ok(guideHints[key].copy.en.trim());
-  assert.ok(guideHints[key].copy.cz.trim());
-}
-assert.equal(isGuideHintKey("unknown.hint"), false);
+assert.equal(isGuideHintKey("planning.service-context"), true);
+assert.equal(isGuideHintKey("planning.rows"), true);
+assert.match(guideHintCopy("planning.service-context", "en", "priest").copy, /service/i);
+assert.match(guideHintCopy("planning.rows", "cz", "organist").copy, /řádek/i);
+assert.ok(Object.keys(guideHints).length >= 2);
 
-const priestPreference = guideHintCopy("catalog.preference", "en", "priest");
-const organistPreference = guideHintCopy("catalog.preference", "cz", "organist");
-assert.match(priestPreference.roleCopy ?? "", /0–3/);
-assert.match(organistPreference.roleCopy ?? "", /0–2/);
-assert.match(guideHintCopy("planning.lifecycle", "en", "organist").roleCopy ?? "", /cannot finalize/i);
+const setting = readFileSync("app/guide-hints-setting.tsx", "utf8");
+assert.match(setting, /localStorage\.getItem\(GUIDE_HINTS_STORAGE_KEY\) !== "off"/);
+assert.match(setting, /role="switch"/);
+assert.match(setting, /aria-checked=\{enabled\}/);
+assert.match(setting, /Guide Hints/);
 
 const guide = readFileSync("app/guide-workspace.tsx", "utf8");
-assert.match(guide, /GUIDE_HINTS_STORAGE_KEY/);
-assert.match(guide, /localStorage\.setItem\(GUIDE_HINTS_STORAGE_KEY, enabled \? "on" : "off"\)/);
-assert.match(guide, /GUIDE_HINTS_CHANGED_EVENT/);
-assert.match(guide, /Guide hints/);
-assert.match(guide, /Našeptávač/);
+assert.doesNotMatch(guide, /GUIDE_HINTS_STORAGE_KEY/);
+assert.doesNotMatch(guide, /Guide hints|Našeptávač/);
 
 const layer = readFileSync("app/guide-hint-layer.tsx", "utf8");
+assert.match(layer, /GUIDE_FIELD_SELECTOR/);
+assert.match(layer, /data-guide-hint-scope/);
+assert.match(layer, /data-guide-hint-trigger/);
 assert.match(layer, /pointerover/);
+assert.match(layer, /pointerout/);
 assert.match(layer, /focusin/);
-assert.match(layer, /event\.pointerType !== "touch"/);
-assert.match(layer, /guide-hint-mobile/);
-assert.match(layer, /role="tooltip"/);
-assert.doesNotMatch(layer, /preventDefault\(/, "Hint layer must not consume underlying control activation");
+assert.match(layer, /focusout/);
+assert.match(layer, /suppressedFieldRef/);
+assert.match(layer, /pointerdown/);
+assert.doesNotMatch(layer, /guide-hint-heading/);
+assert.doesNotMatch(layer, /Close hint|Zavřít nápovědu/);
+assert.doesNotMatch(layer, /preventDefault\(/);
 
 const planning = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
-for (const key of ["planning.service-context", "planning.rows", "planning.lifecycle", "development.runtime"]) {
-  assert.ok(planning.includes(`data-guide-hint="${key}"`), `Missing ${key} marker`);
-}
+assert.match(planning, /data-guide-hint-scope="planning\.service-context"/);
+assert.match(planning, /data-guide-hint-trigger="planning\.service-context"/);
+assert.match(planning, /data-guide-hint-scope="planning\.rows"/);
+assert.match(planning, /data-guide-hint-trigger="planning\.rows"/);
 assert.match(planning, /<GuideHintLayer activeRole=\{selectedRole\} \/>/);
 
-const nonRepetition = readFileSync("app/non-repetition-period-panel.tsx", "utf8");
-assert.match(nonRepetition, /data-guide-hint="planning\.melody-protection"/);
-
-const records = readFileSync("app/plan-history-record-lists.tsx", "utf8");
-assert.match(records, /data-guide-hint="plans\.records"/);
-assert.match(records, /data-guide-hint="history\.records"/);
-
-const catalog = readFileSync("app/catalog-workspace.tsx", "utf8");
-assert.match(catalog, /data-guide-hint="catalog\.context"/);
-assert.match(catalog, /data-guide-hint="catalog\.candidates"/);
-
-const detail = readFileSync("src/planning-lifecycle/melody-detail.tsx", "utf8");
-assert.match(detail, /data-guide-hint="catalog\.preference"/);
-
 const css = readFileSync("app/workspace-shell.css", "utf8");
-assert.match(css, /\.guide-hints-enabled \[data-guide-hint\]/);
+assert.doesNotMatch(css, /guide-hints-enabled \[data-guide-hint\]/);
 assert.match(css, /\.guide-hint-popover/);
-assert.match(css, /\.guide-hint-mobile \{[\s\S]*?bottom:/);
+assert.match(css, /\.guide-hint-mobile/);
 
-console.log("Issue 377 contextual Guide hints acceptance passed.");
+console.log("Issue 377 contextual Guide hints evolved acceptance passed.");

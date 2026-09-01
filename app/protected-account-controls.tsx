@@ -7,6 +7,7 @@ import { ACTIVE_ROLE_CHANGED_EVENT, isPlanningRole, serializeActiveRoleCookie } 
 import { authClient } from "../src/auth/client";
 import { PasswordVisibilityField } from "./password-visibility-field";
 import { ProtectedWhatsAppPhoneSetting } from "./protected-whatsapp-phone-setting";
+import { GuideHintsSetting } from "./guide-hints-setting";
 
 type PendingAccountAction = "signOut" | "changePassword" | null;
 
@@ -349,6 +350,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
                   ))}
                 </div>
               </details>
+              <GuideHintsSetting />
               <ProtectedWhatsAppPhoneSetting initialPhone={initialWhatsAppPhone} roles={roles} />
               <button type="button" onClick={() => { setEditingPassword(true); setFeedback(null); }} disabled={pending}>Change Password</button>
               <button type="button" onClick={signOut} disabled={pending} aria-busy={pendingAction === "signOut"}>{pendingAction === "signOut" ? "Signing Out…" : "Sign Out"}</button>
