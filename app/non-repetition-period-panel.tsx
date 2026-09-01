@@ -31,19 +31,22 @@ export function NonRepetitionPeriodPanel({
   onMinimumLoaded,
   onSaved,
 }: NonRepetitionPeriodPanelProps) {
-  const [minimumMonths, setMinimumMonths] = useState(actor.role === "priest" ? (selectedOrganistPersonId ? 2 : 0) : 2);
+  const [minimumMonths, setMinimumMonths] = useState(actor.role === "organist" ? 2 : selectedOrganistPersonId ? 2 : 0);
   const [ownMonths, setOwnMonths] = useState(2);
   const [feedback, setFeedback] = useState<PanelFeedback>({ kind: "loading" });
 
   useEffect(() => {
-    if (actor.role !== "priest" && actor.role !== "organist") return;
+    if (actor.role !== "priest" && actor.role !== "organist" && actor.role !== "admin") return;
     let active = true;
     setFeedback({ kind: "loading" });
     const read = runtimeMode === "db"
       ? actor.role === "organist"
         ? callMelodyProtectionApi("getOwnMelodyProtection", {}, actor)
         : callMelodyProtectionApi("getOrganistMelodyProtection", selectedOrganistPersonId ? { organistPersonId: selectedOrganistPersonId } : {}, actor)
-      : Promise.resolve({ success: true, value: { months: actor.role === "priest" ? (selectedOrganistPersonId ? 2 : 0) : 2 } } as MelodyWindowResult);
+      : Promise.resolve({
+          success: true,
+          value: { months: actor.role === "organist" ? 2 : selectedOrganistPersonId ? 2 : 0 },
+        } as MelodyWindowResult);
 
     void read.then((result) => {
       if (!active) return;
@@ -54,7 +57,7 @@ export function NonRepetitionPeriodPanel({
       const months = result.value.months;
       setMinimumMonths(months);
       if (actor.role === "organist") setOwnMonths(months);
-      if (actor.role === "priest") onMinimumLoaded?.(months);
+      if (actor.role === "priest" || actor.role === "admin") onMinimumLoaded?.(months);
       setFeedback({ kind: "idle" });
     }).catch((error: unknown) => {
       if (active) setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Melody Protection could not be loaded." });
@@ -62,11 +65,23 @@ export function NonRepetitionPeriodPanel({
     return () => { active = false; };
   }, [runtimeMode, actor.userId, actor.role, actor.personId, selectedOrganistPersonId]);
 
-  if (actor.role !== "priest" && actor.role !== "organist") return null;
+  if (actor.role !== "priest" && actor.role !== "organist" && actor.role !== "admin") return null;
 
-  const value = actor.role === "organist" ? ownMonths : Math.max(effectiveMonths, minimumMonths);
+  const value = actor.role === "organist"
+    ? ownMonths
+    : actor.role === "admin"
+      ? effectiveMonths
+      : Math.max(effectiveMonths, minimumMonths);
 
   async function change(months: number) {
+    if (!Number.isInteger(months) || months < 0 || months > 12) return;
+
+    if (actor.role === "admin") {
+      onEffectiveChange(months);
+      onSaved?.(months);
+      return;
+    }
+
     if (actor.role === "priest") {
       if (months < minimumMonths) return;
       onEffectiveChange(months);
