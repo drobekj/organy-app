@@ -196,11 +196,12 @@ export function referenceCatalogCandidateQueryInput(value: unknown): CatalogCand
 export function referenceCandidateQueryInput(value: unknown): CandidateQueryInput {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new LocalActorError("invalidInput", "Candidate query input is required.");
   const input = value as Record<string, unknown>;
-  const allowed = new Set(["serviceDate", "serviceLanguage", "organistPersonId", "referenceAntiphonId", "referenceTopicId", "antiphonKey", "liturgicalSeasonKey", "queryText", "preferenceThreshold", "currentPlanId", "candidateUsages", "historicalTruth"]);
+  const allowed = new Set(["serviceDate", "serviceLanguage", "organistPersonId", "melodyProtectionMonths", "referenceAntiphonId", "referenceTopicId", "antiphonKey", "liturgicalSeasonKey", "queryText", "preferenceThreshold", "currentPlanId", "candidateUsages", "historicalTruth"]);
   if (Object.keys(input).some((key) => !allowed.has(key))) throw new LocalActorError("invalidInput", "Candidate query input contains unsupported fields.");
   if (typeof input.serviceDate !== "string" || !isValidIsoDate(input.serviceDate)) throw new LocalActorError("invalidInput", "A valid serviceDate is required.");
   if (input.serviceLanguage !== "czech" && input.serviceLanguage !== "polish" && input.serviceLanguage !== "mixed") throw new LocalActorError("invalidInput", "A valid serviceLanguage is required.");
   validateOptionalNonEmptyString(input, "organistPersonId");
+  if (input.melodyProtectionMonths !== undefined && (typeof input.melodyProtectionMonths !== "number" || !Number.isInteger(input.melodyProtectionMonths) || input.melodyProtectionMonths < 0 || input.melodyProtectionMonths > 12)) throw new LocalActorError("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
   validateOptionalString(input, "antiphonKey");
   validateOptionalString(input, "liturgicalSeasonKey");
   validateOptionalString(input, "queryText");
@@ -214,6 +215,7 @@ export function referenceCandidateQueryInput(value: unknown): CandidateQueryInpu
     serviceDate: input.serviceDate,
     serviceLanguage: input.serviceLanguage,
     ...(input.organistPersonId !== undefined ? { organistPersonId: input.organistPersonId as string } : {}),
+    ...(input.melodyProtectionMonths !== undefined ? { melodyProtectionMonths: input.melodyProtectionMonths as number } : {}),
     ...(input.referenceAntiphonId !== undefined ? { referenceAntiphonId: input.referenceAntiphonId as string } : {}),
     ...(input.referenceTopicId !== undefined ? { referenceTopicId: input.referenceTopicId as string } : {}),
     ...(input.antiphonKey !== undefined ? { antiphonKey: input.antiphonKey as string } : {}),
