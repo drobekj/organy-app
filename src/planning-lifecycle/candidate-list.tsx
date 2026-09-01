@@ -33,6 +33,7 @@ type CandidateComboboxProps = {
   serviceLanguage: ServiceLanguage;
   disabled?: boolean;
   selectionUnavailable?: boolean;
+  guideHint?: string;
   focusSongId?: string;
   detail?: CandidateDetailState;
   onOpen: () => void;
@@ -324,6 +325,7 @@ export function CandidateCombobox(props: CandidateComboboxProps) {
     <div
       ref={rootRef}
       className="candidate-combobox"
+      data-guide-hint={props.guideHint}
       onBlur={(event) => {
         const next = event.relatedTarget;
         if (props.open && next instanceof Node && !event.currentTarget.contains(next)) props.onCancel();

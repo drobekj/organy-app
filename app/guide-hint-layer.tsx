@@ -50,7 +50,7 @@ function infoTrigger(target: EventTarget | null): HTMLElement | null {
   return closestElement(target)?.closest<HTMLElement>("[data-guide-hint-trigger]") ?? null;
 }
 
-export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
+export function GuideHintLayer({ activeRole, activeWorkspace }: { activeRole: PlanningRole; activeWorkspace: string }) {
   const [enabled, setEnabled] = useState(true);
   const [language, setLanguage] = useState<GuideLanguage>("en");
   const [active, setActive] = useState<ActiveHint | null>(null);
@@ -98,20 +98,26 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
     if (!enabled) {
       activeControlRef.current = null;
       suppressedControlRef.current = null;
-      setActive(null);
+      setActive((current) => current?.mode === "control" ? null : current);
     }
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled) return;
+    activeControlRef.current = null;
+    suppressedControlRef.current = null;
+    setActive(null);
+  }, [activeWorkspace]);
 
+  useEffect(() => {
     function onPointerOver(event: PointerEvent) {
+      if (!enabled) return;
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
       const control = hintedControl(event.target);
       if (control) showControlHint(control);
     }
 
     function onPointerOut(event: PointerEvent) {
+      if (!enabled) return;
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
       const control = hintedControl(event.target);
       if (!control) return;
@@ -122,11 +128,13 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
     }
 
     function onFocusIn(event: FocusEvent) {
+      if (!enabled) return;
       const control = hintedControl(event.target);
       if (control) showControlHint(control);
     }
 
     function onFocusOut(event: FocusEvent) {
+      if (!enabled) return;
       const control = hintedControl(event.target);
       if (!control) return;
       const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
@@ -135,6 +143,7 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
     }
 
     function onPointerDown(event: PointerEvent) {
+      if (!enabled) return;
       const control = hintedControl(event.target);
       if (!control) return;
       suppressedControlRef.current = control;
@@ -208,7 +217,7 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
     [active, activeRole, language],
   );
 
-  if (!enabled || !active || content.length === 0) return null;
+  if (!active || content.length === 0 || (!enabled && active.mode === "control")) return null;
 
   const mobile = active.mode === "info"
     && typeof window !== "undefined"

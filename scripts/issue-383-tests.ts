@@ -41,10 +41,7 @@ for (const key of [
   "planning.service.language",
   "planning.service.priest",
   "planning.service.organist",
-  "planning.service.antiphon",
-  "planning.service.topic",
   "planning.service.note",
-  "planning.rows.song",
   "planning.rows.detail",
   "planning.rows.note",
   "planning.rows.add",
@@ -52,6 +49,10 @@ for (const key of [
   "planning.rows.clear",
   "planning.rows.remove",
 ]) assert.ok(planning.includes(`data-guide-hint="${key}"`), `Planning control missing ${key}`);
+
+for (const key of ["planning.service.antiphon", "planning.service.topic", "planning.rows.song"]) {
+  assert.ok(planning.includes(`guideHint="${key}"`), `Planning lookup missing anchored hint ${key}`);
+}
 
 const rowsPanelStart = planning.indexOf('data-guide-hint-scope="planning.rows"');
 const rowsListStart = planning.indexOf('<div className="rows-list">', rowsPanelStart);

@@ -14,6 +14,7 @@ export type ServiceContextReferenceTopicFieldProps = {
   serviceLanguage: ServiceLanguage;
   selected?: ServiceTopicReference;
   invalid?: boolean;
+  guideHint?: string;
   onChange: (value: ServiceTopicReference | undefined) => void;
   clientFactory?: (runtime: "memory" | "db") => Pick<ReferenceThematicSectionProvider, "listSections">;
 };
@@ -120,7 +121,7 @@ async function listAll(client: Pick<ReferenceThematicSectionProvider, "listSecti
   return query ? records.filter((record) => record.title.toLocaleLowerCase().includes(query)) : records;
 }
 
-export function ServiceContextReferenceTopicField({ runtime, editable, contextKey, serviceLanguage, selected, invalid, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceTopicFieldProps) {
+export function ServiceContextReferenceTopicField({ runtime, editable, contextKey, serviceLanguage, selected, invalid, guideHint, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceTopicFieldProps) {
   const identity = { runtimeMode: runtime, contextKey, editable, serviceLanguage } as const;
   const machineRef = useRef<ServiceContextReferenceTopicUiState | null>(null);
   if (!machineRef.current) machineRef.current = new ServiceContextReferenceTopicUiState(identity);
@@ -225,7 +226,7 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
     }
   };
 
-  return <div className="service-antiphon-lookup service-topic-lookup" ref={wrapperRef}>
+  return <div className="service-antiphon-lookup service-topic-lookup" data-guide-hint={guideHint} ref={wrapperRef}>
     <ServiceContextReferenceTopicFieldView
       editable={editable}
       selected={selected}
