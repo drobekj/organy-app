@@ -12,6 +12,9 @@ export type GuideSection = {
 };
 
 export const GUIDE_LANGUAGE_STORAGE_KEY = "organy-guide-language";
+export const GUIDE_HINTS_STORAGE_KEY = "organy-guide-hints";
+export const GUIDE_HINTS_CHANGED_EVENT = "organy:guide-hints-changed";
+export const GUIDE_LANGUAGE_CHANGED_EVENT = "organy:guide-language-changed";
 
 export const guideUi = {
   title: { en: "Practical guide", cz: "Praktický průvodce" },
@@ -242,3 +245,126 @@ export const guideSections: GuideSection[] = [
     ],
   },
 ];
+
+
+export type GuideHint = {
+  sectionId: GuideSection["id"];
+  title: LocalizedText;
+  copy: LocalizedText;
+  roles?: Partial<Record<GuideRole, LocalizedText>>;
+};
+
+export const guideHints = {
+  "planning.service-context": {
+    sectionId: "guide.planning",
+    title: { en: "Service context", cz: "Kontext bohoslužby" },
+    copy: {
+      en: "Set the concrete service date, time, language, priest and organist here. Antiphon, Topic and the service note refine the context used for candidate selection.",
+      cz: "Zde nastavte konkrétní datum, čas, jazyk, kněze a varhaníka. Antiphon, Topic a poznámka k bohoslužbě dále zpřesňují kontext pro výběr kandidátů.",
+    },
+  },
+  "planning.rows": {
+    sectionId: "guide.planning",
+    title: { en: "Plan rows", cz: "Řádky plánu" },
+    copy: {
+      en: "Each row is either a selected song or a text note. Add, remove or reorder rows to match the real service order.",
+      cz: "Každý řádek obsahuje buď vybranou píseň, nebo textovou poznámku. Řádky přidávejte, mažte a řaďte podle skutečného pořadí bohoslužby.",
+    },
+  },
+  "planning.lifecycle": {
+    sectionId: "guide.planning",
+    title: { en: "Save and lifecycle actions", cz: "Uložení a lifecycle akce" },
+    copy: {
+      en: "Save keeps a Working plan. Finalize moves an eligible saved Working plan to Final. Store Service turns an eligible Final plan into History.",
+      cz: "Save ponechá plán jako Working. Finalize převede způsobilý uložený Working plán na Final. Store Service uloží způsobilý Final plán do History.",
+    },
+    roles: {
+      priest: {
+        en: "Priest can finalize and store eligible plans.",
+        cz: "Priest může způsobilé plány finalizovat a ukládat jako dokončené.",
+      },
+      organist: {
+        en: "Organist can work with Working plans but cannot finalize or store Final plans.",
+        cz: "Organist může pracovat s Working plány, ale nemůže je finalizovat ani ukládat Final plány jako dokončené.",
+      },
+    },
+  },
+  "planning.melody-protection": {
+    sectionId: "guide.planning",
+    title: { en: "Melody Protection", cz: "Melody Protection" },
+    copy: {
+      en: "The configured month window suppresses recently used melody classes from normal candidate selection and protects plans against repetition conflicts.",
+      cz: "Nastavené období v měsících potlačuje nedávno použité třídy melodií z běžného výběru kandidátů a chrání plány před konflikty opakování.",
+    },
+  },
+  "plans.records": {
+    sectionId: "guide.plans",
+    title: { en: "Working and Final plans", cz: "Working a Final plány" },
+    copy: {
+      en: "Working plans are still editable. Final plans are locked for ordinary editing and wait for the remaining lifecycle action.",
+      cz: "Working plány lze dále upravovat. Final plány jsou pro běžné úpravy uzamčené a čekají na zbývající lifecycle akci.",
+    },
+  },
+  "history.records": {
+    sectionId: "guide.history",
+    title: { en: "Completed History", cz: "Dokončená History" },
+    copy: {
+      en: "History contains stored completed services and is the historical source used by conflict and repetition checks.",
+      cz: "History obsahuje uložené dokončené bohoslužby a slouží jako historický zdroj pro kontroly konfliktů a opakování.",
+    },
+  },
+  "catalog.context": {
+    sectionId: "guide.catalog",
+    title: { en: "Catalog context", cz: "Kontext Catalogu" },
+    copy: {
+      en: "These filters define whose repertoire and which service context the Catalog candidate list represents.",
+      cz: "Tyto filtry určují, čí repertoár a jaký kontext bohoslužby seznam kandidátů v Catalogu představuje.",
+    },
+  },
+  "catalog.candidates": {
+    sectionId: "guide.catalog",
+    title: { en: "Catalog candidates", cz: "Kandidáti v Catalogu" },
+    copy: {
+      en: "Available/Unavailable changes the availability set; Songs/Melodies changes how the same musical knowledge is grouped for inspection.",
+      cz: "Available/Unavailable mění množinu podle dostupnosti; Songs/Melodies mění způsob seskupení stejných hudebních znalostí pro prohlížení.",
+    },
+  },
+  "catalog.preference": {
+    sectionId: "guide.catalog",
+    title: { en: "Personal preference", cz: "Osobní preference" },
+    copy: {
+      en: "This is your own staff preference for the selected song. A changed value is saved when you leave the song Detail.",
+      cz: "Jde o vaši vlastní preferenci vybrané písně. Změněná hodnota se uloží při opuštění Detailu písně.",
+    },
+    roles: {
+      priest: { en: "Priest uses values 0–3.", cz: "Priest používá hodnoty 0–3." },
+      organist: { en: "Organist uses values 0–2.", cz: "Organist používá hodnoty 0–2." },
+    },
+  },
+  "development.runtime": {
+    sectionId: "guide.development",
+    title: { en: "Development", cz: "Development" },
+    copy: {
+      en: "This area exposes runtime and maintenance information. Ordinary Priest/Organist work does not require these controls.",
+      cz: "Tato část zobrazuje informace o runtime a údržbě. Běžná práce Priest/Organist tyto ovládací prvky nepotřebuje.",
+    },
+  },
+} satisfies Record<string, GuideHint>;
+
+export type GuideHintKey = keyof typeof guideHints;
+
+export function isGuideHintKey(value: string): value is GuideHintKey {
+  return Object.prototype.hasOwnProperty.call(guideHints, value);
+}
+
+export function guideHintCopy(key: GuideHintKey, language: GuideLanguage, role: PlanningRoleLike): { title: string; copy: string; roleCopy?: string } {
+  const hint: GuideHint = guideHints[key];
+  const guideRole = role === "priest" || role === "organist" ? role : undefined;
+  return {
+    title: hint.title[language],
+    copy: hint.copy[language],
+    ...(guideRole && hint.roles?.[guideRole] ? { roleCopy: hint.roles[guideRole]![language] } : {}),
+  };
+}
+
+type PlanningRoleLike = GuideRole | "admin" | "congregationMember";

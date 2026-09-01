@@ -323,6 +323,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                     <label className="melody-personal-preference" onClick={stopRowActivation}>
                       <span>Personal preference</span>
                       <select
+                        data-guide-hint="catalog.preference"
                         aria-label={`Personal preference for ${member.number} ${member.title}`}
                         value={props.personalPreference.value}
                         disabled={props.personalPreference.disabled}

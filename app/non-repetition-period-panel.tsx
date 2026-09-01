@@ -112,6 +112,7 @@ export function NonRepetitionPeriodPanel({
       <label className="melody-protection-control">
         <span className="sr-only">Melody Protection period</span>
         <select
+          data-guide-hint="planning.melody-protection"
           aria-label="Melody Protection period"
           value={draftMonths}
           disabled={feedback.kind === "loading"}
