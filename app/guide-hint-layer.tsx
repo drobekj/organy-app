@@ -134,8 +134,9 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
 
   useEffect(() => {
     if (!active) return;
+    const activeKey = active.key;
     function refreshPosition() {
-      const target = document.querySelector<HTMLElement>(`[data-guide-hint="${active.key}"]`);
+      const target = document.querySelector<HTMLElement>(`[data-guide-hint="${activeKey}"]`);
       if (!target) {
         setActive(null);
         return;
