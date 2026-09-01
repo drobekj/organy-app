@@ -47,6 +47,7 @@ assert.match(css, /\.workspace-account-popover \.workspace-toggle-switch\[aria-c
 assert.match(css, /\.workspace-nav-about \{[\s\S]*?padding-bottom: 0;/);
 assert.doesNotMatch(css, /\.workspace-nav-about \{[\s\S]*?border-bottom:/);
 assert.match(css, /--workspace-nav-button-height: 2\.35rem;/);
-assert.match(css, /margin-top: calc\(0\.65rem \+ var\(--workspace-nav-button-height\)\);/);
+assert.match(css, /--workspace-nav-half-button-height: 1\.175rem;/);
+assert.match(css, /margin-top: calc\(0\.65rem \+ var\(--workspace-nav-half-button-height\)\);/);
 
 console.log("Issue 379 Planning hint UX refinement acceptance passed.");
