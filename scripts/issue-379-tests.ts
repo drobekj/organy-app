@@ -30,7 +30,7 @@ assert.match(planning, /<legend>Rows<\/legend>/);
 assert.match(planning, /data-guide-hint-trigger="planning\.rows"/);
 assert.match(planning, />\s*Add row\s*<\/button>/);
 
-assert.match(layer, /\\[data-guide-hint\\]/);
+assert.match(layer, /\[data-guide-hint\]/);
 assert.match(layer, /onPointerOver/);
 assert.match(layer, /onPointerOut/);
 assert.match(layer, /onFocusIn/);
