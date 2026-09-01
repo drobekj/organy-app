@@ -651,7 +651,7 @@ export class PlanningLifecycleService {
     if (!this.referenceMelodyClasses) return [];
     const completed = completedOverride ?? await this.completedServiceRecords.list();
     if (completed.length === 0) return [];
-    const months = Math.max(0, Math.floor(await this.melodyNonRepetitionMonths()));
+    const months = Math.max(0, Math.floor(plan.serviceContext.melodyProtectionMonths ?? 2));
     const planSongIds = plan.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []);
     const completedSongIds = completed.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []));
     const allIds = [...new Set([...planSongIds, ...completedSongIds])];
