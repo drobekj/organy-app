@@ -1451,8 +1451,17 @@ Save the correction and mark those plans for revision?`);
             </div>
           </div>
 
-          <fieldset className="field-group planning-service-context">
+          <fieldset className="field-group planning-service-context" data-guide-hint-scope="planning.service-context">
             <legend>Service context</legend>
+            <button
+              type="button"
+              className="guide-scope-info"
+              data-guide-hint-trigger="planning.service-context"
+              aria-label="Service Context help"
+              title="Service Context help"
+            >
+              i
+            </button>
             <label>
               Service date
               <input
@@ -1479,7 +1488,6 @@ Save the correction and mark those plans for revision?`);
             <label>
               Service language
               <select
-                data-guide-hint="planning.service-context"
                 disabled={isEditorLocked}
                 value={serviceLanguage}
                 onChange={(event) => {
@@ -1541,14 +1549,24 @@ Save the correction and mark those plans for revision?`);
             </div>
           </fieldset>
 
-          <div className="rows-header">
-            <h2>Rows</h2>
-            <button type="button" onClick={addRow} disabled={!canEditRows}>
-              Add row
+          <fieldset className="planning-rows-panel" data-guide-hint-scope="planning.rows">
+            <legend>Rows</legend>
+            <button
+              type="button"
+              className="guide-scope-info"
+              data-guide-hint-trigger="planning.rows"
+              aria-label="Rows help"
+              title="Rows help"
+            >
+              i
             </button>
-          </div>
+            <div className="rows-header">
+              <button type="button" onClick={addRow} disabled={!canEditRows}>
+                Add row
+              </button>
+            </div>
 
-          <div className="rows-list" data-guide-hint="planning.rows">
+            <div className="rows-list">
             {rows.map((row, index) => {
               const planningRevisionConflict = persistedSet && !completedRecord
                 ? resolvePlanningDraftConflictRow({
@@ -1650,7 +1668,8 @@ Save the correction and mark those plans for revision?`);
                 </fieldset>
               );
             })}
-          </div>
+            </div>
+          </fieldset>
 
           {planningActionValidationMessages.length > 0 && (
             <ul className="validation-list planning-action-validation-list" aria-label="Planning action validation errors">
@@ -1671,7 +1690,7 @@ Save the correction and mark those plans for revision?`);
                     <button className="save-button" type="button" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
                       Save working plan
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
+                    <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
                       Finalize plan
                     </button>
                     <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
@@ -1747,7 +1766,7 @@ Save the correction and mark those plans for revision?`);
         )}
         {workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
-            <div data-guide-hint="development.runtime"><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
+            <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
             {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong><p>DB runtime identity comes from the protected server session. Role switching is available from the User menu.</p></div>}
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
