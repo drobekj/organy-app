@@ -269,9 +269,9 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const conflictingRevisionRowIndexes = useMemo(() => new Set(persistedSet?.needsRevision?.conflictingRowIndexes ?? []), [persistedSet?.id, persistedSet?.needsRevision]);
   const planningConflictPreviewKey = useMemo(() => (
     persistedSet && persistedSet.status === "working" && !completedRecord
-      ? JSON.stringify([persistedSet.id, serviceDate, planningRows.map((row) => row.song?.songId ?? null)])
+      ? JSON.stringify([persistedSet.id, serviceDate, melodyProtectionMonths, planningRows.map((row) => row.song?.songId ?? null)])
       : ""
-  ), [persistedSet?.id, persistedSet?.status, completedRecord?.id, serviceDate, planningRows]);
+  ), [persistedSet?.id, persistedSet?.status, completedRecord?.id, serviceDate, melodyProtectionMonths, planningRows]);
   const completedConflictImpacts = completedInvalidationPreview?.impactedPlans ?? [];
   const completedConflictPlanCount = completedInvalidationPreview
     ? new Set(completedConflictImpacts.map((impact) => impact.planId)).size
@@ -355,6 +355,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     serviceDate,
     serviceLanguage,
     organistId: organistId ?? "",
+    melodyProtectionMonths,
     referenceAntiphonId: referenceAntiphon?.id ?? "",
     referenceTopicId: referenceTopic?.id ?? "",
     candidateAntiphonKey,
@@ -429,6 +430,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     void planningLifecycleService.previewPlanningSetConflict({
       setId: persistedSet.id,
       serviceDate,
+      melodyProtectionMonths,
       rows: planningRows,
     }).then((result) => {
       if (request !== planningDraftConflictPreviewRequest.current) return;
@@ -806,6 +808,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         serviceDate,
         serviceLanguage,
         organistPersonId: organistId,
+        melodyProtectionMonths,
         referenceAntiphonId: referenceAntiphon?.id,
         referenceTopicId: referenceTopic?.id,
         antiphonKey: candidateAntiphonKey,
