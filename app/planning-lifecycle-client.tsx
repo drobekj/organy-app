@@ -1590,10 +1590,10 @@ Save the correction and mark those plans for revision?`);
                 <fieldset className={`row-card${revisionConflict ? " needs-revision-row" : ""}${planningAlertConflict ? " planning-alert-row" : ""}`} key={row.id} onFocus={() => { if (openCandidateRowId === null || openCandidateRowId === row.id) activateExistingRow(row.id); }} onKeyDown={(event) => { if (event.key === "Escape") cancelActiveLookup(row.id); }}>
                   <legend>Row {index + 1}</legend>
                   <div className="row-icon-palette" role="group" aria-label={`Row ${index + 1} controls`}>
-                    <button type="button" className="row-icon-button" data-guide-hint="planning.rows.move" aria-label="Move row up" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
-                    <button type="button" className="row-icon-button" data-guide-hint="planning.rows.move" aria-label="Move row down" title="Move row down" onClick={() => moveRow(index, 1)} disabled={!canEditRows || index === rows.length - 1}>↓</button>
-                    <button type="button" className="row-icon-button" data-guide-hint="planning.rows.clear" aria-label="Clear row" title="Clear row" onClick={() => clearRow(row.id)} disabled={!canEditRows || (!row.selectedSong && !row.note.trim() && !row.songSearch.trim() && planningExpansion?.rowId !== row.id)}>↶</button>
-                    <button type="button" className="row-icon-button row-icon-remove" data-guide-hint="planning.rows.remove" aria-label="Remove row" title="Remove row" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>×</button>
+                    <button type="button" className="row-icon-button" aria-label="Move row up" data-guide-hint="planning.rows.move" title="Move row up" onClick={() => moveRow(index, -1)} disabled={!canEditRows || index === 0}>↑</button>
+                    <button type="button" className="row-icon-button" aria-label="Move row down" data-guide-hint="planning.rows.move" title="Move row down" onClick={() => moveRow(index, 1)} disabled={!canEditRows || index === rows.length - 1}>↓</button>
+                    <button type="button" className="row-icon-button" aria-label="Clear row" data-guide-hint="planning.rows.clear" title="Clear row" onClick={() => clearRow(row.id)} disabled={!canEditRows || (!row.selectedSong && !row.note.trim() && !row.songSearch.trim() && planningExpansion?.rowId !== row.id)}>↶</button>
+                    <button type="button" className="row-icon-button row-icon-remove" aria-label="Remove row" data-guide-hint="planning.rows.remove" title="Remove row" onClick={() => removeRow(row.id)} disabled={!canEditRows || rows.length === 1}>×</button>
                   </div>
                   <div className="compact-row-fields">
                     <div className="song-field-row">
