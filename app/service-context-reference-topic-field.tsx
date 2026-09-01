@@ -14,6 +14,7 @@ export type ServiceContextReferenceTopicFieldProps = {
   serviceLanguage: ServiceLanguage;
   selected?: ServiceTopicReference;
   invalid?: boolean;
+  guideHint?: string;
   onChange: (value: ServiceTopicReference | undefined) => void;
   clientFactory?: (runtime: "memory" | "db") => Pick<ReferenceThematicSectionProvider, "listSections">;
 };
@@ -225,7 +226,7 @@ export function ServiceContextReferenceTopicField({ runtime, editable, contextKe
     }
   };
 
-  return <div className="service-antiphon-lookup service-topic-lookup" ref={wrapperRef}>
+  return <div className="service-antiphon-lookup service-topic-lookup" data-guide-hint={guideHint} ref={wrapperRef}>
     <ServiceContextReferenceTopicFieldView
       editable={editable}
       selected={selected}
