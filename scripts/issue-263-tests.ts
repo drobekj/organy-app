@@ -52,7 +52,7 @@ for (const plan of [working, final]) {
   const summary = formatPlanningSetSummary(plan);
   assert.equal(
     summary,
-    "2026-09-06 11:00 · czech · Lukáš Štefek · Jaroslav Drobek · rows: 465, t, 21+t · changed by Jaroslav Drobek",
+    "06.09.2026 11:00 · czech · Lukáš Štefek · Jaroslav Drobek · rows: 465, t, 21+t · changed by Jaroslav Drobek",
   );
   assert.doesNotMatch(summary, /\bpriest\b|\borganist\b/);
   assert.doesNotMatch(summary, /\b3 rows\b|\b3 row\b/);
@@ -61,7 +61,7 @@ for (const plan of [working, final]) {
 const completedSummary = formatCompletedRecordSummary(completed);
 assert.equal(
   completedSummary,
-  "2026-09-06 11:00 · czech · Lukáš Štefek · Jaroslav Drobek · rows: 465, t, 21+t · changed by Jaroslav Drobek",
+  "06.09.2026 11:00 · czech · Lukáš Štefek · Jaroslav Drobek · rows: 465, t, 21+t · changed by Jaroslav Drobek",
 );
 assert.doesNotMatch(completedSummary, /\bpriest\b|\borganist\b/);
 
