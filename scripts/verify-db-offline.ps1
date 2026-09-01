@@ -1,5 +1,3 @@
-param([switch]$ProductionEnvironment)
-
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -7,12 +5,11 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ComposeFile = Join-Path $RepoRoot "docker-compose.offline-db.yml"
 $BackupDir = Join-Path $RepoRoot ".organy-backups"
 $PgwebUrl = "http://127.0.0.1:8080"
-$VercelOrgId = "team_axmKyou7kosjiNPHFNaLa86k"
-$VercelProjectId = "prj_HaAJloeBq90EcFrMOVVC3kTiJxc0"
-$VercelVersion = "59.10.0"
+$NeonVersion = "4.13.0"
+$NeonProductionProjectName = "organy-app-production"
 $PreviousLocation = Get-Location
-$PreviousVercelOrgId = $env:VERCEL_ORG_ID
-$PreviousVercelProjectId = $env:VERCEL_PROJECT_ID
+$PreviousDatabaseUrl = $env:DATABASE_URL
+$PreviousDatabaseUrlUnpooled = $env:DATABASE_URL_UNPOOLED
 $databaseUrl = $null
 $DedicatedOperatorRoot = Join-Path $env:LOCALAPPDATA "Organy\verify-db"
 
@@ -79,6 +76,26 @@ function Invoke-Native {
   if (-not $Quiet) {
     $output | ForEach-Object { Write-Host $_ }
   }
+}
+
+function Invoke-NeonCli {
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
+
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = & npx.cmd --yes "neon@$NeonVersion" @Arguments 2>$null
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $oldPreference
+  }
+
+  if ($exitCode -ne 0) {
+    throw "Neon CLI failed. Re-run Verify DB and complete the browser authorization if Neon asks to connect this computer."
+  }
+
+  return ($output | Out-String).Trim()
 }
 
 function Test-DockerEngine {
@@ -157,7 +174,7 @@ function Resolve-ProductionBackupDatabaseUrl {
 
   $runtimeUrl = if ($null -eq $env:DATABASE_URL) { "" } else { $env:DATABASE_URL.Trim() }
   if (-not $runtimeUrl) {
-    throw "DATABASE_URL was not supplied by the Vercel Production environment."
+    return Resolve-NeonProductionBackupDatabaseUrl
   }
 
   Assert-RemoteProductionDatabase -Value $runtimeUrl
@@ -185,22 +202,59 @@ function Resolve-ProductionBackupDatabaseUrl {
   return $runtimeUrl
 }
 
-function Invoke-WithVercelProductionEnvironment {
-  Write-Host "Loading Vercel Production environment without writing a dotenv file..."
+function Resolve-NeonProductionBackupDatabaseUrl {
+  Write-Host "Resolving direct Production database connection through authenticated Neon CLI..."
 
-  $oldPreference = $ErrorActionPreference
+  $projectsJson = Invoke-NeonCli -Arguments @(
+    "projects",
+    "list",
+    "--output",
+    "json",
+    "--no-analytics"
+  )
+
   try {
-    $ErrorActionPreference = "Continue"
-    & npx.cmd --yes "vercel@$VercelVersion" env run -e production -- powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-db-offline.ps1 -ProductionEnvironment
-    $exitCode = $LASTEXITCODE
+    $parsedProjects = $projectsJson | ConvertFrom-Json
   }
-  finally {
-    $ErrorActionPreference = $oldPreference
+  catch {
+    throw "Neon CLI project discovery returned invalid JSON. Re-run the command; if browser authorization appears, approve the Neon CLI connection first."
   }
 
-  if ($exitCode -ne 0) {
-    throw "Verify DB Production environment child failed with exit code $exitCode."
+  $projects = @($parsedProjects)
+  if ($parsedProjects -isnot [System.Array] -and $parsedProjects.PSObject.Properties.Name -contains "projects") {
+    $projects = @($parsedProjects.projects)
   }
+
+  $matches = @($projects | Where-Object { $_.name -eq $NeonProductionProjectName })
+  if ($matches.Count -ne 1) {
+    throw "Expected exactly one Neon project named '$NeonProductionProjectName', found $($matches.Count). Refusing to guess the Production database target."
+  }
+
+  $projectId = [string]$matches[0].id
+  if (-not $projectId) {
+    throw "The matched Neon Production project did not provide a project id."
+  }
+
+  $directUrl = Invoke-NeonCli -Arguments @(
+    "connection-string",
+    "--project-id",
+    $projectId,
+    "--no-analytics"
+  )
+
+  $directUrl = $directUrl.Trim()
+  Assert-RemoteProductionDatabase -Value $directUrl
+
+  $match = Get-PostgresUrlMatch -Value $directUrl
+  $hostName = $match.Groups["host"].Value.Trim('[', ']').ToLowerInvariant()
+  if (-not $hostName.EndsWith(".neon.tech")) {
+    throw "Neon CLI returned a non-Neon PostgreSQL host; refusing to continue."
+  }
+  if ($hostName.Contains("-pooler")) {
+    throw "Neon CLI returned a pooled endpoint; Verify DB requires the direct Production connection."
+  }
+
+  return $directUrl
 }
 
 function Wait-ForOfflinePostgres {
@@ -250,14 +304,6 @@ function Wait-ForPgweb {
 try {
   Set-Location $RepoRoot
   Update-DedicatedOperatorCheckout
-
-  $env:VERCEL_ORG_ID = $VercelOrgId
-  $env:VERCEL_PROJECT_ID = $VercelProjectId
-
-  if (-not $ProductionEnvironment) {
-    Invoke-WithVercelProductionEnvironment
-    exit 0
-  }
 
   New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
@@ -374,16 +420,16 @@ select
   Write-Host "Integrity manifest: $manifestPath"
   Write-Host "Offline database: organy_offline on 127.0.0.1:5433"
   Write-Host "SQL editor: $PgwebUrl"
-  Write-Host "Production credentials remained process-local and were not written to temporary env files."
+  Write-Host "Production database credentials remained process-local and were not written to temporary env files."
 }
 finally {
   $databaseUrl = $null
 
-  if ($null -eq $PreviousVercelOrgId) { Remove-Item Env:VERCEL_ORG_ID -ErrorAction SilentlyContinue }
-  else { $env:VERCEL_ORG_ID = $PreviousVercelOrgId }
+  if ($null -eq $PreviousDatabaseUrl) { Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue }
+  else { $env:DATABASE_URL = $PreviousDatabaseUrl }
 
-  if ($null -eq $PreviousVercelProjectId) { Remove-Item Env:VERCEL_PROJECT_ID -ErrorAction SilentlyContinue }
-  else { $env:VERCEL_PROJECT_ID = $PreviousVercelProjectId }
+  if ($null -eq $PreviousDatabaseUrlUnpooled) { Remove-Item Env:DATABASE_URL_UNPOOLED -ErrorAction SilentlyContinue }
+  else { $env:DATABASE_URL_UNPOOLED = $PreviousDatabaseUrlUnpooled }
 
   Set-Location $PreviousLocation
 }
