@@ -37,13 +37,16 @@ assert.match(compose, /PGWEB_LOCK_SESSION:\s*"1"/, "Pgweb must be locked to the 
 assert.match(compose, /curl", "--fail", "--silent", "http:\/\/127\.0\.0\.1:8081\/"/, "Pgweb must expose a health check");
 assert.doesNotMatch(compose, /adminer/i, "Adminer must not remain in the offline editor stack");
 
-assert.match(operator, /VERCEL_ORG_ID/);
-assert.match(operator, /VERCEL_PROJECT_ID/);
-assert.match(operator, /vercel@\$VercelVersion" env run -e production -- powershell/, "Operator must execute itself under the Vercel Production environment");
-assert.doesNotMatch(operator, /env", "pull"|env pull/, "Routine Verify DB must not parse a pulled dotenv file");
-assert.doesNotMatch(operator, /vercel\s+link/i, "Operator must not mutate Vercel project linking");
-assert.match(operator, /\$env:DATABASE_URL_UNPOOLED/, "Operator must prefer an explicitly supplied direct Neon URL from process environment");
-assert.match(operator, /\$env:DATABASE_URL/, "Operator must fall back to the runtime URL from process environment");
+assert.match(operator, /\$NeonVersion = "4\.13\.0"/, "Verify DB must pin the reviewed Neon CLI version");
+assert.match(operator, /\$NeonProductionProjectName = "organy-app-production"/, "Verify DB must identify the intended Production project by its reviewed non-secret name");
+assert.match(operator, /neon@\$NeonVersion[\s\S]*?"projects"[\s\S]*?"list"[\s\S]*?"--output"[\s\S]*?"json"/, "Verify DB must discover the Production Neon project through authenticated structured CLI output");
+assert.match(operator, /"connection-string"[\s\S]*?"--project-id"[\s\S]*?\$projectId/, "Verify DB must resolve the direct Production connection through the authenticated Neon CLI");
+assert.doesNotMatch(operator, /env", "pull"|env pull/, "Routine Verify DB must not write Neon or Vercel dotenv credentials");
+assert.doesNotMatch(operator, /neon(?:ctl)?\s+link|vercel\s+link/i, "Routine Verify DB must not mutate provider project linking");
+assert.match(operator, /Expected exactly one Neon project named/, "Provider discovery must fail closed instead of guessing among projects");
+assert.match(operator, /Neon CLI returned a pooled endpoint/, "Provider discovery must reject pooled backup endpoints");
+assert.match(operator, /\$env:DATABASE_URL_UNPOOLED/, "Operator must still prefer an explicitly supplied direct Neon URL from process environment");
+assert.match(operator, /\$env:DATABASE_URL/, "Operator must still accept an explicitly supplied runtime URL from process environment");
 assert.match(operator, /EndsWith\("\.neon\.tech"\)/, "Automatic pooled-to-direct derivation must be restricted to Neon hosts");
 assert.match(operator, /'-pooler\(\?=\\\.\)'/, "Neon direct derivation must remove only the documented -pooler hostname suffix");
 assert.match(operator, /host is not a Neon endpoint; refusing to derive a direct backup URL/, "Arbitrary pooled host rewriting must fail closed");
@@ -71,7 +74,7 @@ assert.match(operator, /"up", "-d", "pgweb"/, "Pgweb must start only after resto
 assert.match(operator, /Wait-ForPgweb/);
 assert.match(operator, /Start-Process \$PgwebUrl/);
 assert.doesNotMatch(operator, /Adminer/i, "Verify DB launcher must no longer depend on Adminer");
-assert.match(operator, /Production credentials remained process-local and were not written to temporary env files/);
+assert.match(operator, /Production database credentials remained process-local and were not written to temporary env files/);
 assert.doesNotMatch(operator, /ORGANY_RESTORE_DATABASE_URL\s*=\s*\$databaseUrl/i, "Production URL must never become the restore target");
 assert.doesNotMatch(operator, /dropdb.+organy_app/i, "Operator must never drop the permanent development DB");
 
