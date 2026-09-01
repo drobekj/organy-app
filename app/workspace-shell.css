@@ -377,6 +377,7 @@ button.workspace-action-pending {
 /* Issue #371: stable informational navigation and lightweight About/Guide surfaces. */
 .workspace-nav {
   --workspace-nav-button-height: 2.35rem;
+  --workspace-nav-half-button-height: 1.175rem;
 }
 
 .workspace-nav button {
@@ -467,7 +468,7 @@ button.workspace-action-pending {
 
   .workspace-copyright {
     border-top: 1px solid var(--border);
-    margin-top: calc(0.65rem + var(--workspace-nav-button-height));
+    margin-top: calc(0.65rem + var(--workspace-nav-half-button-height));
     padding-top: 0.65rem;
     text-align: center;
   }
@@ -476,7 +477,7 @@ button.workspace-action-pending {
 @media (max-width: 899px) {
   .workspace-copyright {
     border-top: 1px solid var(--border);
-    margin-top: calc(0.65rem + var(--workspace-nav-button-height));
+    margin-top: calc(0.65rem + var(--workspace-nav-half-button-height));
     padding-top: 0.65rem;
     text-align: start;
   }
@@ -719,7 +720,6 @@ button.workspace-action-pending {
 
 .planning-rows-panel > .rows-header {
   justify-content: flex-end;
-  margin-top: -0.45rem;
 }
 
 .guide-scope-info {
@@ -727,6 +727,8 @@ button.workspace-action-pending {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 0.35rem;
+  box-shadow: 0 0 0 0.24rem var(--surface);
+  box-sizing: border-box;
   display: inline-flex;
   font-size: 0.82rem;
   height: 1.55rem;
@@ -735,8 +737,8 @@ button.workspace-action-pending {
   min-height: 1.55rem;
   padding: 0;
   position: absolute;
-  right: 0.75rem;
-  top: -0.78rem;
+  right: 1.4rem;
+  top: -0.8rem;
   width: 1.55rem;
   z-index: 2;
 }
