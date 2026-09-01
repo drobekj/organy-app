@@ -43,7 +43,7 @@ export function PlansRecordWorkspace({
   onLoadPlan,
 }: PlansRecordWorkspaceProps) {
   return (
-    <section className="db-workspace" aria-label="Plans">
+    <section className="db-workspace" aria-label="Plans" data-guide-hint="plans.records">
       {revisionPlanCount > 0 && (
         <p className="error-summary" role="alert">
           {revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"}{" "}
@@ -121,7 +121,7 @@ export function HistoryRecordWorkspace({
   onLoadRecord,
 }: HistoryRecordWorkspaceProps) {
   return (
-    <section className="db-workspace" aria-label="Completed history">
+    <section className="db-workspace" aria-label="Completed history" data-guide-hint="history.records">
       <h2>Completed history</h2>
       {historyConflictCount > 0 && (
         <p className="error-summary" role="alert">
