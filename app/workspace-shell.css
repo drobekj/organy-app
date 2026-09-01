@@ -455,19 +455,22 @@ button.workspace-action-pending {
   }
 
   .workspace-nav-footer {
-    border-top: 1px solid var(--border);
     margin-top: 0.4rem;
-    padding-top: 0.65rem;
   }
 
   .workspace-copyright {
-    padding-top: 0.2rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.15rem;
+    padding-top: 0.65rem;
     text-align: center;
   }
 }
 
 @media (max-width: 899px) {
   .workspace-copyright {
+    border-top: 1px solid var(--border);
+    margin-top: 0.15rem;
+    padding-top: 0.65rem;
     text-align: start;
   }
 }
