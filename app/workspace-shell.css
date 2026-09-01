@@ -625,7 +625,9 @@ button.workspace-action-pending {
   box-shadow: 0 0.8rem 2rem rgb(15 23 42 / 0.16);
   display: grid;
   gap: 0.45rem;
+  max-height: min(70vh, 36rem);
   max-width: calc(100vw - 1.5rem);
+  overflow: auto;
   padding: 0.75rem 0.8rem;
   position: fixed;
   z-index: 80;
@@ -655,6 +657,21 @@ button.workspace-action-pending {
 .guide-hint-popover p {
   line-height: 1.4;
   margin: 0;
+}
+
+.guide-hint-item {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.guide-hint-item + .guide-hint-item {
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+  padding-top: 0.65rem;
+}
+
+.guide-hint-summary {
+  gap: 0.65rem;
 }
 
 .guide-hint-role {
