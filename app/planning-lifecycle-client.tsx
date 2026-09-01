@@ -121,6 +121,8 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [organistId, setOrganistId] = useState<string | undefined>(undefined);
   const [organistResults, setOrganistResults] = useState<CatalogPerson[]>([]);
   const [melodyProtectionMonths, setMelodyProtectionMonths] = useState(0);
+  const [adminMelodyProtectionMinimums, setAdminMelodyProtectionMinimums] = useState<Record<string, number>>({});
+  const [adminMelodyProtectionOverrides, setAdminMelodyProtectionOverrides] = useState<Record<string, number>>({});
   const [serviceNote, setServiceNote] = useState("");
   const [referenceAntiphon, setReferenceAntiphon] = useState<ServiceAntiphonReference | undefined>();
   const [planningAntiphonRecommendation, setPlanningAntiphonRecommendation] = useState<ReferenceAntiphonRecommendation>();
@@ -172,6 +174,13 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
   const selectedRole = activeActor.role;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
+  const adminMelodyProtectionKey = organistId ?? "__anonymous__";
+  const adminCandidateMelodyProtectionMonths = adminMelodyProtectionOverrides[adminMelodyProtectionKey]
+    ?? adminMelodyProtectionMinimums[adminMelodyProtectionKey]
+    ?? (organistId ? 2 : 0);
+  const candidateMelodyProtectionMonths = selectedRole === "admin"
+    ? adminCandidateMelodyProtectionMonths
+    : melodyProtectionMonths;
 
   const planningAntiphonRecommendationClient = useMemo(
     () => runtimeMode === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: activeActor.userId, role: activeActor.role }) : null,
@@ -185,6 +194,11 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       window.dispatchEvent(new CustomEvent(ACTIVE_ROLE_CHANGED_EVENT, { detail: role }));
     }
   }
+
+  useEffect(() => {
+    setAdminMelodyProtectionMinimums({});
+    setAdminMelodyProtectionOverrides({});
+  }, [activeActor.userId]);
 
   useEffect(() => {
     if (runtimeMode !== "db") return;
@@ -355,7 +369,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     serviceDate,
     serviceLanguage,
     organistId: organistId ?? "",
-    melodyProtectionMonths,
+    melodyProtectionMonths: candidateMelodyProtectionMonths,
     referenceAntiphonId: referenceAntiphon?.id ?? "",
     referenceTopicId: referenceTopic?.id ?? "",
     candidateAntiphonKey,
@@ -488,7 +502,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
           serviceDate,
           serviceLanguage,
           organistPersonId: organistId,
-          melodyProtectionMonths,
+          melodyProtectionMonths: candidateMelodyProtectionMonths,
           referenceAntiphonId: referenceAntiphon?.id,
           referenceTopicId: referenceTopic?.id,
           antiphonKey: candidateAntiphonKey,
@@ -769,13 +783,13 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   async function queryCandidateResults(rowId: number, value: string) {
     const scope = getSongLookupScope(rowId);
     const languageAtRequest = serviceLanguage;
-    const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", melodyProtectionMonths, referenceAntiphon?.id ?? "", referenceTopic?.id ?? "", value].join("|");
+    const requestIdentity = [runtimeMode, serviceContextRecordKey, serviceDate, languageAtRequest, organistId ?? "", candidateMelodyProtectionMonths, referenceAntiphon?.id ?? "", referenceTopic?.id ?? "", value].join("|");
     const token = lookupTracker.begin(scope, requestIdentity);
     setCandidateLoading((current) => ({ ...current, [rowId]: true }));
     setCandidateErrors((current) => ({ ...current, [rowId]: undefined }));
     setCandidateResults((current) => ({ ...current, [rowId]: [] }));
     try {
-      const candidates = await interactionClient.queryCandidates(isCompletedRecordOpen ? { serviceDate, serviceLanguage: languageAtRequest, queryText: value, candidateUsages: [], historicalTruth: true } : { serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, melodyProtectionMonths, referenceAntiphonId: referenceAntiphon?.id, referenceTopicId: referenceTopic?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
+      const candidates = await interactionClient.queryCandidates(isCompletedRecordOpen ? { serviceDate, serviceLanguage: languageAtRequest, queryText: value, candidateUsages: [], historicalTruth: true } : { serviceDate, serviceLanguage: languageAtRequest, organistPersonId: organistId, melodyProtectionMonths: candidateMelodyProtectionMonths, referenceAntiphonId: referenceAntiphon?.id, referenceTopicId: referenceTopic?.id, antiphonKey: candidateAntiphonKey, liturgicalSeasonKey: candidateSeasonKey, queryText: value, preferenceThreshold: PHASE_30_1_PREFERENCE_THRESHOLD, candidateUsages: getCanonicalCandidateUsages(rowId), currentPlanId: persistedSet?.id });
       if (!lookupTracker.isCurrent(token, requestIdentity)) return;
       setCandidateResults((current) => ({ ...current, [rowId]: candidates }));
       setCandidateLoading((current) => ({ ...current, [rowId]: false }));
@@ -808,7 +822,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
         serviceDate,
         serviceLanguage,
         organistPersonId: organistId,
-        melodyProtectionMonths,
+        melodyProtectionMonths: candidateMelodyProtectionMonths,
         referenceAntiphonId: referenceAntiphon?.id,
         referenceTopicId: referenceTopic?.id,
         antiphonKey: candidateAntiphonKey,
@@ -1455,20 +1469,26 @@ Save the correction and mark those plans for revision?`);
               )}
             </div>
             <div className="planning-melody-protection-slot" aria-label="Melody Protection reserved area">
-              {(selectedRole === "priest" || selectedRole === "organist") && (
+              {(selectedRole === "priest" || selectedRole === "organist" || selectedRole === "admin") && (
                 <NonRepetitionPeriodPanel
                   runtimeMode={runtimeMode}
                   actor={activeActor}
                   selectedOrganistPersonId={organistId}
-                  effectiveMonths={melodyProtectionMonths}
+                  effectiveMonths={selectedRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
                   disabled={selectedRole === "priest" && isEditorLocked}
                   memoryInteractionRepository={interactionRepository}
                   memoryPlanningSets={repositories.planningSets}
                   onMinimumLoaded={(minimum) => {
-                    setMelodyProtectionMonths((current) => Math.max(current, minimum));
+                    if (selectedRole === "admin") {
+                      setAdminMelodyProtectionMinimums((current) => ({ ...current, [adminMelodyProtectionKey]: minimum }));
+                    } else {
+                      setMelodyProtectionMonths((current) => Math.max(current, minimum));
+                    }
                   }}
                   onEffectiveChange={(months) => {
-                    if (selectedRole === "priest") {
+                    if (selectedRole === "admin") {
+                      setAdminMelodyProtectionOverrides((current) => ({ ...current, [adminMelodyProtectionKey]: months }));
+                    } else if (selectedRole === "priest") {
                       guardedEditorUpdate(() => setMelodyProtectionMonths(months));
                     } else if (!isEditorLocked) {
                       setMelodyProtectionMonths(months);

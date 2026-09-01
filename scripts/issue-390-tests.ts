@@ -16,14 +16,14 @@ assert.match(migration, /service_contexts"[\s\S]*melody_protection_months"[\s\S]
 assert.match(migration, /UPDATE "service_contexts"[\s\S]*SET "melody_protection_months" = 0[\s\S]*WHERE "organist_id" IS NULL/);
 assert.match(schema, /melodyProtectionMonths: integer\("melody_protection_months"\)\.notNull\(\)\.default\(2\)/);
 
-assert.match(panel, /actor\.role !== "priest" && actor\.role !== "organist"/);
+assert.match(panel, /actor\.role !== "priest" && actor\.role !== "organist" && actor\.role !== "admin"/);
 assert.match(panel, /disabled=\{actor\.role === "priest" && months < minimumMonths\}/);
 assert.match(panel, /setOwnMelodyProtection/);
 assert.match(panel, /getOwnMelodyProtection/);
 assert.match(panel, /getOrganistMelodyProtection/);
-assert.doesNotMatch(panel, /actor\.role === "admin"/);
+assert.match(panel, /actor\.role === "admin"[\s\S]*onEffectiveChange\(months\)[\s\S]*return/);
 
-assert.match(planning, /selectedRole === "priest" \|\| selectedRole === "organist"/);
+assert.match(planning, /selectedRole === "priest" \|\| selectedRole === "organist" \|\| selectedRole === "admin"/);
 assert.match(planning, /const \[melodyProtectionMonths, setMelodyProtectionMonths\] = useState\(0\)/);
 assert.match(planning, /setMelodyProtectionMonths\(0\)/);
 assert.match(planning, /melodyProtectionMonths,/);
@@ -31,7 +31,8 @@ assert.match(planning, /melodyProtectionMonths: input\.melodyProtectionMonths|me
 assert.match(planning, /disabled=\{selectedRole === "priest" && isEditorLocked\}/);
 
 assert.match(interactionRoute, /melodyProtectionMonths/);
-assert.match(candidates, /const effectiveMonths = Math\.max\(minimumMonths, requestedMonths\)/);
+assert.match(candidates, /resolveEffectiveCandidateMelodyProtectionMonths/);
+assert.match(candidates, /return allowBelowOrganistMinimum \? requestedMonths : Math\.max\(minimumMonths, requestedMonths\)/);
 assert.match(candidates, /select melody_protection_months from catalog_persons/);
 assert.doesNotMatch(candidates, /select months from melody_non_repetition_config/);
 
