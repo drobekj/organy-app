@@ -27,7 +27,9 @@ assert.match(panel, /actor\.role !== "priest" && actor\.role !== "organist" && a
 assert.match(panel, /actor\.role === "admin"[\s\S]*onEffectiveChange\(months\);[\s\S]*onSaved\?\.\(months\);[\s\S]*return;/);
 assert.match(panel, /Array\.from\(\{ length: 13 \}, \(_, months\) =>/);
 assert.match(panel, /disabled=\{actor\.role === "priest" && months < minimumMonths\}/);
-assert.doesNotMatch(panel, /actor\.role === "admin"[\s\S]{0,500}setOwnMelodyProtection/);
+const adminChangeBranch = panel.match(/if \(actor\.role === "admin"\) \{([\s\S]*?)\n    \}/)?.[1] ?? "";
+assert.ok(adminChangeBranch, "Admin change branch must exist.");
+assert.doesNotMatch(adminChangeBranch, /callMelodyProtectionApi|setOwnMelodyProtection|setMelodyWindow/, "Admin change branch must not call a persistence API.");
 
 assert.match(planning, /adminMelodyProtectionMinimums/);
 assert.match(planning, /adminMelodyProtectionOverrides/);
