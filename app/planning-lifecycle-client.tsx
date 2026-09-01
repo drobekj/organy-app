@@ -558,7 +558,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
 
     const matches = await catalogClient.searchPeople({ role, query: displayName });
     if (!matches.success) return { displayName: "Anonymous" };
-    const exactMatches = matches.value.filter((person) => person.active && person[role] && person.displayName === displayName);
+    const exactMatches = matches.value.filter((person: CatalogPerson) => person.active && person[role] && person.displayName === displayName);
     return exactMatches.length === 1
       ? { id: exactMatches[0].id, displayName: exactMatches[0].displayName }
       : { displayName: "Anonymous" };
