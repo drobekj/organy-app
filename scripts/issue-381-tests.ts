@@ -23,7 +23,7 @@ assert.doesNotMatch(css, /\.planning-rows-panel > \.rows-header \{[\s\S]*?margin
 assert.match(css, /\.guide-scope-info \{[\s\S]*?box-shadow: 0 0 0 0\.24rem var\(--surface\);/);
 assert.match(css, /\.guide-scope-info \{[\s\S]*?box-sizing: border-box;/);
 assert.match(css, /\.guide-scope-info \{[\s\S]*?right: 1\.4rem;/);
-assert.match(css, /\.guide-scope-info \{[\s\S]*?top: -0\.8rem;/);
+assert.match(css, /\.guide-scope-info \{[\s\S]*?top: -1\.3rem;/);
 
 assert.match(css, /--workspace-nav-button-height: 2\.35rem;/);
 assert.match(css, /--workspace-nav-half-button-height: 1\.175rem;/);
