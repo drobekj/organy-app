@@ -67,6 +67,7 @@ export type CandidateQueryContextInput = {
   serviceDate: string;
   serviceLanguage: ServiceLanguage;
   organistPersonId?: string;
+  melodyProtectionMonths?: number;
   referenceAntiphonId?: string;
   referenceTopicId?: string;
   antiphonKey?: string;
@@ -135,6 +136,7 @@ export function buildCandidateQueryInput(input: CandidateQueryContextInput): Can
     serviceDate: input.serviceDate,
     serviceLanguage: input.serviceLanguage,
     ...(input.organistPersonId ? { organistPersonId: input.organistPersonId } : {}),
+    ...(typeof input.melodyProtectionMonths === "number" ? { melodyProtectionMonths: input.melodyProtectionMonths } : {}),
     ...(input.referenceAntiphonId?.trim() ? { referenceAntiphonId: input.referenceAntiphonId.trim() } : {}),
     ...(input.referenceTopicId?.trim() ? { referenceTopicId: input.referenceTopicId.trim() } : {}),
     ...(input.antiphonKey?.trim() ? { antiphonKey: input.antiphonKey.trim() } : {}),
