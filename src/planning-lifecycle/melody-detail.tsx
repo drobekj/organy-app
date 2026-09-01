@@ -320,7 +320,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                 </div>
                 <div className="melody-member-actions" onClick={stopRowActivation}>
                   {member.songId === props.candidate.songId && props.personalPreference && (
-                    <label className="melody-personal-preference" onClick={stopRowActivation}>
+                    <label className="melody-personal-preference" data-guide-hint="catalog.preference" onClick={stopRowActivation}>
                       <span>Personal preference</span>
                       <select
                         aria-label={`Personal preference for ${member.number} ${member.title}`}
