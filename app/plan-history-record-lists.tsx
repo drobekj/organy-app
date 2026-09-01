@@ -4,6 +4,7 @@ import type {
   PlanningPlanId,
 } from "../src/application/planning-lifecycle";
 import { recordListClassName } from "../src/planning-lifecycle/ui-session";
+import { GuidePanelHelpButton } from "./guide-panel-help-button";
 import {
   formatCompletedRecordSummary,
   formatPlanningSetSummary,
@@ -43,7 +44,8 @@ export function PlansRecordWorkspace({
   onLoadPlan,
 }: PlansRecordWorkspaceProps) {
   return (
-    <section className="db-workspace" aria-label="Plans">
+    <section className="db-workspace" aria-label="Plans" data-guide-hint-scope="plans.records">
+      <GuidePanelHelpButton scope="plans.records" label="Plans help" />
       {revisionPlanCount > 0 && (
         <p className="error-summary" role="alert">
           {revisionPlanCount} conflicting plan{revisionPlanCount === 1 ? "" : "s"}{" "}
@@ -52,7 +54,7 @@ export function PlansRecordWorkspace({
       )}
       <div className="rows-header" data-guide-hint="plans.records">
         <h2>Working plans</h2>
-        <button type="button" onClick={onStartNew}>Start new set</button>
+        <button type="button" data-guide-hint="plans.start" onClick={onStartNew}>Start new set</button>
       </div>
       {workingPlans.length === 0 ? (
         <p className="field-help">No working plans saved yet.</p>
@@ -69,6 +71,7 @@ export function PlansRecordWorkspace({
               <button
                 type="button"
                 className={plan.needsRevision ? "needs-revision-record" : undefined}
+                data-guide-hint="plans.open-working"
                 onClick={() => onLoadPlan(plan.id)}
               >
                 <RecordListSummary summary={formatPlanningSetSummary(plan)} />
@@ -93,6 +96,7 @@ export function PlansRecordWorkspace({
               <button
                 type="button"
                 className={plan.needsRevision ? "needs-revision-record" : undefined}
+                data-guide-hint="plans.open-final"
                 onClick={() => onLoadPlan(plan.id)}
               >
                 <RecordListSummary summary={formatPlanningSetSummary(plan)} />
@@ -121,7 +125,8 @@ export function HistoryRecordWorkspace({
   onLoadRecord,
 }: HistoryRecordWorkspaceProps) {
   return (
-    <section className="db-workspace" aria-label="Completed history">
+    <section className="db-workspace" aria-label="Completed history" data-guide-hint-scope="history.records">
+      <GuidePanelHelpButton scope="history.records" label="History help" />
       <div data-guide-hint="history.records"><h2>Completed history</h2></div>
       {historyConflictCount > 0 && (
         <p className="error-summary" role="alert">
@@ -144,6 +149,7 @@ export function HistoryRecordWorkspace({
               <button
                 type="button"
                 className={record.conflictState ? "needs-revision-record" : undefined}
+                data-guide-hint="history.open"
                 onClick={() => onLoadRecord(record.id)}
               >
                 <RecordListSummary summary={formatCompletedRecordSummary(record)} />
