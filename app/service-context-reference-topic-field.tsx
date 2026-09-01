@@ -121,7 +121,7 @@ async function listAll(client: Pick<ReferenceThematicSectionProvider, "listSecti
   return query ? records.filter((record) => record.title.toLocaleLowerCase().includes(query)) : records;
 }
 
-export function ServiceContextReferenceTopicField({ runtime, editable, contextKey, serviceLanguage, selected, invalid, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceTopicFieldProps) {
+export function ServiceContextReferenceTopicField({ runtime, editable, contextKey, serviceLanguage, selected, invalid, guideHint, onChange, clientFactory = defaultClientFactory }: ServiceContextReferenceTopicFieldProps) {
   const identity = { runtimeMode: runtime, contextKey, editable, serviceLanguage } as const;
   const machineRef = useRef<ServiceContextReferenceTopicUiState | null>(null);
   if (!machineRef.current) machineRef.current = new ServiceContextReferenceTopicUiState(identity);
