@@ -1451,8 +1451,8 @@ Save the correction and mark those plans for revision?`);
             </div>
           </div>
 
-          <fieldset className="field-group planning-service-context" data-guide-hint="planning.service-context">
-            <legend>Service context</legend>
+          <fieldset className="field-group planning-service-context">
+            <legend data-guide-hint="planning.service-context">Service context</legend>
             <label>
               Service date
               <input
@@ -1540,8 +1540,8 @@ Save the correction and mark those plans for revision?`);
             </div>
           </fieldset>
 
-          <div className="rows-header" data-guide-hint="planning.rows">
-            <h2>Rows</h2>
+          <div className="rows-header">
+            <h2 data-guide-hint="planning.rows">Rows</h2>
             <button type="button" onClick={addRow} disabled={!canEditRows}>
               Add row
             </button>
@@ -1663,7 +1663,7 @@ Save the correction and mark those plans for revision?`);
             </p>
           )}
 
-          <div className="form-actions" data-guide-hint="planning.lifecycle">
+          <div className="form-actions">
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
@@ -1671,7 +1671,7 @@ Save the correction and mark those plans for revision?`);
                       Save working plan
                     </button>
                     <button type="button" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
-                      Finalize plan
+                      <span data-guide-hint="planning.lifecycle">Finalize plan</span>
                     </button>
                     <button type="button" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
                       Delete saved plan
@@ -1745,8 +1745,8 @@ Save the correction and mark those plans for revision?`);
           />
         )}
         {workspace === "development" && (
-          <section className="release-guidance" aria-label="Development workspace" data-guide-hint="development.runtime">
-            <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
+          <section className="release-guidance" aria-label="Development workspace">
+            <div><span className="guidance-label" data-guide-hint="development.runtime">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
             {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong><p>DB runtime identity comes from the protected server session. Role switching is available from the User menu.</p></div>}
             <div><span className="guidance-label">Local checks</span><strong>Smoke guidance</strong><p>Use npm run db:start, db:migrate, db:seed:catalog, db:lifecycle-smoke, db:catalog-lifecycle-smoke, and db:catalog-seed-smoke for DB runtime verification.</p></div>
           </section>
