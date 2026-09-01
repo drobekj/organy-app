@@ -85,6 +85,25 @@ export async function getEligiblePersonDefaultById(repo: Pick<CatalogRepository,
   const person = await repo.findPersonById(id);
   return isEligiblePerson(person, role) ? { id: person!.id, displayName: person!.displayName } : undefined;
 }
+
+export async function getEligiblePersonDefault(
+  repo: Pick<CatalogRepository, "findPersonById" | "searchPeople">,
+  stored: { id?: string; displayName: string },
+  role: PersonRole,
+): Promise<{ id: string; displayName: string } | undefined> {
+  const byId = await getEligiblePersonDefaultById(repo, stored.id, role);
+  if (byId) return byId;
+
+  const displayName = stored.displayName.trim();
+  if (!displayName || displayName === "Anonymous") return undefined;
+
+  const exactMatches = (await repo.searchPeople(role, displayName))
+    .filter((person) => person.active && person[role] && person.displayName === displayName);
+
+  return exactMatches.length === 1
+    ? { id: exactMatches[0].id, displayName: exactMatches[0].displayName }
+    : undefined;
+}
 export function isEligibleSong(song: CatalogSong | undefined, serviceLanguage: ServiceLanguage) { return Boolean(song?.active && languagesForService(serviceLanguage).includes(song.language)); }
 export function validateCatalogSongImport(input: CatalogSongImportRecord[]): CatalogImportValidationIssue[] { const issues: CatalogImportValidationIssue[] = []; const seen = new Set<string>(); input.forEach((r, i) => { if (r.language !== "czech" && r.language !== "polish") issues.push({ path: `${i}.language`, message: "Unsupported language." }); if (typeof r.number !== "string" || !r.number.trim()) issues.push({ path: `${i}.number`, message: "Number is required." }); if (typeof r.title !== "string" || !r.title.trim()) issues.push({ path: `${i}.title`, message: "Title is required." }); if (r.active !== undefined && typeof r.active !== "boolean") issues.push({ path: `${i}.active`, message: "Active must be a boolean when provided." }); if (r.sheetMusicUrl !== undefined && r.sheetMusicUrl !== null && typeof r.sheetMusicUrl !== "string") issues.push({ path: `${i}.sheetMusicUrl`, message: "Sheet music URL must be a string." }); if (typeof r.sheetMusicUrl === "string" && r.sheetMusicUrl && !/^https?:\/\//.test(r.sheetMusicUrl)) issues.push({ path: `${i}.sheetMusicUrl`, message: "Sheet music URL must be http(s)." }); const key = `${r.language}:${r.number}`; if (seen.has(key)) issues.push({ path: `${i}`, message: "Duplicate language/number in import." }); seen.add(key); }); return issues; }
 function mapPerson(r: CatalogPersonRecord): CatalogPerson { return { id: r.id, displayName: r.displayName, active: r.active, priest: r.priest, organist: r.organist }; }
