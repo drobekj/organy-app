@@ -7,6 +7,8 @@ $BackupDir = Join-Path $RepoRoot ".organy-backups"
 $PgwebUrl = "http://127.0.0.1:8080"
 $NeonVersion = "4.13.0"
 $NeonProductionProjectName = "organy-app-production"
+$NeonProductionProjectId = "young-voice-36803445"
+$NeonCredentialPath = Join-Path $HOME ".config\neonctl\credentials.json"
 $PreviousLocation = Get-Location
 $PreviousDatabaseUrl = $env:DATABASE_URL
 $PreviousDatabaseUrlUnpooled = $env:DATABASE_URL_UNPOOLED
@@ -78,6 +80,33 @@ function Invoke-Native {
   }
 }
 
+function Ensure-NeonCliAuthentication {
+  $apiKey = if ($null -eq $env:NEON_API_KEY) { "" } else { $env:NEON_API_KEY.Trim() }
+  if ($apiKey -or (Test-Path -LiteralPath $NeonCredentialPath)) {
+    return
+  }
+
+  Write-Host "Neon CLI authorization is required once on this computer."
+  Write-Host "A browser window will open. Approve the Neon CLI connection, then return here."
+  $oldPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & npx.cmd --yes "neon@$NeonVersion" auth
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $oldPreference
+  }
+
+  if ($exitCode -ne 0) {
+    throw "Neon CLI authorization failed."
+  }
+
+  if (-not (Test-Path -LiteralPath $NeonCredentialPath)) {
+    throw "Neon CLI authorization completed without creating the expected local credential file."
+  }
+}
+
 function Invoke-NeonCli {
   param([Parameter(Mandatory = $true)][string[]]$Arguments)
 
@@ -92,7 +121,7 @@ function Invoke-NeonCli {
   }
 
   if ($exitCode -ne 0) {
-    throw "Neon CLI failed. Re-run Verify DB and complete the browser authorization if Neon asks to connect this computer."
+    throw "Neon CLI command failed after authentication."
   }
 
   return ($output | Out-String).Trim()
@@ -204,41 +233,33 @@ function Resolve-ProductionBackupDatabaseUrl {
 
 function Resolve-NeonProductionBackupDatabaseUrl {
   Write-Host "Resolving direct Production database connection through authenticated Neon CLI..."
+  Ensure-NeonCliAuthentication
 
-  $projectsJson = Invoke-NeonCli -Arguments @(
+  $projectJson = Invoke-NeonCli -Arguments @(
     "projects",
-    "list",
+    "get",
+    $NeonProductionProjectId,
     "--output",
     "json",
     "--no-analytics"
   )
 
   try {
-    $parsedProjects = $projectsJson | ConvertFrom-Json
+    $project = $projectJson | ConvertFrom-Json
   }
   catch {
-    throw "Neon CLI project discovery returned invalid JSON. Re-run the command; if browser authorization appears, approve the Neon CLI connection first."
+    throw "Neon CLI project verification returned invalid JSON."
   }
 
-  $projects = @($parsedProjects)
-  if ($parsedProjects -isnot [System.Array] -and $parsedProjects.PSObject.Properties.Name -contains "projects") {
-    $projects = @($parsedProjects.projects)
-  }
-
-  $matches = @($projects | Where-Object { $_.name -eq $NeonProductionProjectName })
-  if ($matches.Count -ne 1) {
-    throw "Expected exactly one Neon project named '$NeonProductionProjectName', found $($matches.Count). Refusing to guess the Production database target."
-  }
-
-  $projectId = [string]$matches[0].id
-  if (-not $projectId) {
-    throw "The matched Neon Production project did not provide a project id."
+  $projectRecord = if ($project.PSObject.Properties.Name -contains "project") { $project.project } else { $project }
+  if ([string]$projectRecord.id -ne $NeonProductionProjectId -or [string]$projectRecord.name -ne $NeonProductionProjectName) {
+    throw "Neon CLI project identity does not match the reviewed Production project; refusing to continue."
   }
 
   $directUrl = Invoke-NeonCli -Arguments @(
     "connection-string",
     "--project-id",
-    $projectId,
+    $NeonProductionProjectId,
     "--no-analytics"
   )
 
