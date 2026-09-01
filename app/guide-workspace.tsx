@@ -79,7 +79,7 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
               aria-pressed={!hintsEnabled}
               onClick={() => selectHints(false)}
             >
-              Off
+              {language === "cz" ? "Vyp" : "Off"}
             </button>
             <button
               type="button"
@@ -87,7 +87,7 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
               aria-pressed={hintsEnabled}
               onClick={() => selectHints(true)}
             >
-              On
+              {language === "cz" ? "Zap" : "On"}
             </button>
           </div>
         </div>
