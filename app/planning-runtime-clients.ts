@@ -47,7 +47,7 @@ export class DbPlanningLifecycleClient {
     return callPlanningLifecycleApi("previewCompletedRecordInvalidation", input, actorContextFrom(input));
   }
 
-  async previewPlanningSetConflict(input: { setId: PlanningPlanId; serviceDate: string; rows: PlanningRow[] }) {
+  async previewPlanningSetConflict(input: { setId: PlanningPlanId; serviceDate: string; melodyProtectionMonths: number; rows: PlanningRow[] }) {
     return callPlanningLifecycleApi("previewPlanningSetConflict", input);
   }
 
