@@ -52,7 +52,7 @@ export function NonRepetitionPeriodPanel({
         return;
       }
       const months = result.value.months;
-      setMinimumMonths(actor.role === "priest" ? months : ownMonths);
+      setMinimumMonths(months);
       if (actor.role === "organist") setOwnMonths(months);
       if (actor.role === "priest") onMinimumLoaded?.(months);
       setFeedback({ kind: "idle" });
