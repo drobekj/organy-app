@@ -603,3 +603,85 @@ button.workspace-action-pending {
     padding: 0.85rem;
   }
 }
+
+
+/* Issue #377: contextual Guide hints. */
+.guide-controls {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.45rem;
+}
+
+.guide-hints-enabled [data-guide-hint] {
+  cursor: help;
+  outline: 1px dotted #94a3b8;
+  outline-offset: 2px;
+}
+
+.guide-hint-popover {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  box-shadow: 0 0.8rem 2rem rgb(15 23 42 / 0.16);
+  display: grid;
+  gap: 0.45rem;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.75rem 0.8rem;
+  position: fixed;
+  z-index: 80;
+}
+
+.guide-hint-heading {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.guide-hint-heading button {
+  align-items: center;
+  border: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 1rem;
+  height: 1.7rem;
+  justify-content: center;
+  min-width: 1.7rem;
+  padding: 0;
+  width: 1.7rem;
+}
+
+.guide-hint-popover p {
+  line-height: 1.4;
+  margin: 0;
+}
+
+.guide-hint-role {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.88rem;
+  padding-top: 0.45rem;
+}
+
+.guide-hint-mobile {
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  left: 0.75rem;
+  right: 0.75rem;
+  top: auto;
+  width: auto;
+}
+
+@media (max-width: 700px) {
+  .guide-controls {
+    width: 100%;
+  }
+
+  .guide-language {
+    justify-content: flex-start;
+  }
+
+  .guide-hints-enabled [data-guide-hint] {
+    outline-offset: 1px;
+  }
+}
