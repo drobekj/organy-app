@@ -46,6 +46,8 @@ export type ServiceContext = {
   language: ServiceLanguage;
   priest: ServicePersonReference;
   organist: ServicePersonReference;
+  /** Effective Melody Protection for this concrete service/plan. New drafts set this explicitly. */
+  melodyProtectionMonths?: number;
   /** Optional service-level note. Whitespace-only values are normalized away before persistence. */
   note?: string;
   /** Optional authoritative Czech/Polish antiphon snapshot selected for this concrete service. */

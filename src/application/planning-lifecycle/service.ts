@@ -651,7 +651,7 @@ export class PlanningLifecycleService {
     if (!this.referenceMelodyClasses) return [];
     const completed = completedOverride ?? await this.completedServiceRecords.list();
     if (completed.length === 0) return [];
-    const months = Math.max(0, Math.floor(await this.melodyNonRepetitionMonths()));
+    const months = Math.max(0, Math.floor(plan.serviceContext.melodyProtectionMonths ?? 2));
     const planSongIds = plan.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []);
     const completedSongIds = completed.flatMap((record) => record.set.rows.flatMap((row) => row.song?.songId ? [row.song.songId] : []));
     const allIds = [...new Set([...planSongIds, ...completedSongIds])];
@@ -865,5 +865,10 @@ function validateSaveWorkingSetServiceContext(
     ...(!isValidServiceTime(serviceContext.serviceTime) ? [{ path: "serviceTime", message: "Service time is required in HH:mm format between 00:00 and 23:59." }] : []),
     ...(!serviceContext.priest.displayName.trim() ? [{ path: "priest", message: "Priest is required." }] : []),
     ...(!serviceContext.organist.displayName.trim() ? [{ path: "organist", message: "Organist is required." }] : []),
+    ...(serviceContext.melodyProtectionMonths !== undefined && (
+      !Number.isInteger(serviceContext.melodyProtectionMonths)
+      || serviceContext.melodyProtectionMonths < 0
+      || serviceContext.melodyProtectionMonths > 12
+    ) ? [{ path: "melodyProtectionMonths", message: "Melody Protection must be between 0 and 12 calendar months." }] : []),
   ];
 }

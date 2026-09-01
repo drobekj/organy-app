@@ -96,14 +96,20 @@ async function waitForDatabaseConnectionsToClose(control: Pool, databaseName: st
 }
 
 async function seedFocusedAuthority(pool: Pool) {
+  await pool.query(
+    "insert into catalog_persons(id,display_name,active,priest,organist,melody_protection_months) values('phase29-demo-organist','Phase 31.12 Demo Organist',true,false,true,2) on conflict(id) do update set active=true,organist=true,melody_protection_months=2,updated_at=now()",
+  );
+  await pool.query(
+    "insert into catalog_persons(id,display_name,active,priest,organist,melody_protection_months) values('no-authoritative-repertoire','Phase 31.12 Empty Repertoire Organist',true,false,true,2) on conflict(id) do update set active=true,organist=true,melody_protection_months=2,updated_at=now()",
+  );
   await pool.query("update reference_catalog_songs set title='Phase 31.12 Authoritative Candidate' where id='czech:1'");
   const profiles = (await pool.query("select id,category from preference_profiles order by category,id")).rows;
   assert.ok(profiles.length > 0, "deterministic profiles were not seeded");
   const profileId = String(profiles.find((row) => row.category === "priest")?.id ?? profiles[0].id);
   await pool.query("delete from reference_song_preferences where reference_song_id in ('czech:1','polish:1')");
   await pool.query("insert into reference_song_preferences(profile_id,reference_song_id,score) values($1,'czech:1',3),($1,'polish:1',1)", [profileId]);
-  await pool.query("delete from reference_organist_repertoire where organist_person_id='demo-organist' and reference_song_id in ('czech:1','polish:1','czech:5210')");
-  await pool.query("insert into reference_organist_repertoire(organist_person_id,reference_song_id) values('demo-organist','czech:1'),('demo-organist','czech:5210')");
+  await pool.query("delete from reference_organist_repertoire where organist_person_id='phase29-demo-organist' and reference_song_id in ('czech:1','polish:1','czech:5210')");
+  await pool.query("insert into reference_organist_repertoire(organist_person_id,reference_song_id) values('phase29-demo-organist','czech:1'),('phase29-demo-organist','czech:5210')");
   const czechClass = String((await pool.query("select class_id from reference_song_melody_memberships where reference_song_id='czech:1'")).rows[0].class_id);
   const polishClass = String((await pool.query("select class_id from reference_song_melody_memberships where reference_song_id='polish:1'")).rows[0].class_id);
   await pool.query("update reference_song_melody_memberships set class_id=$1,updated_at=now() where reference_song_id='polish:1'", [czechClass]);
@@ -117,7 +123,7 @@ function baseQuery(changes: Partial<CandidateQueryInput> = {}): CandidateQueryIn
   return {
     serviceDate: "2026-08-09",
     serviceLanguage: "czech",
-    organistPersonId: "demo-organist",
+    organistPersonId: "phase29-demo-organist",
     preferenceThreshold: 1,
     candidateUsages: [],
     ...changes,
@@ -189,7 +195,7 @@ async function verifyAuthoritativeCandidates(pool: Pool) {
   const displayVariant = await query(baseQuery({ preferenceThreshold: 0, queryText: "52/1" }));
   assert.ok(displayVariant.some((candidate) => candidate.songId === "czech:5210"));
 
-  const hydrated = await invoke("hydrateCandidates", { songs: [{ songId: "czech:1", language: "czech", number: "OLD", title: "Historical" }], organistPersonId: "demo-organist", referenceAntiphonId: "czech:800" });
+  const hydrated = await invoke("hydrateCandidates", { songs: [{ songId: "czech:1", language: "czech", number: "OLD", title: "Historical" }], organistPersonId: "phase29-demo-organist", referenceAntiphonId: "czech:800" });
   assert.equal(hydrated.status, 200);
   assert.equal(hydrated.body.value[0].title, "Historical");
   assert.equal(hydrated.body.value[0].number, "OLD");
@@ -213,7 +219,7 @@ async function verifyReferenceCandidateLifecycle(pool: Pool) {
       serviceTime: "13:12",
       language: "czech",
       priest: { id: "demo-priest", displayName: "Demo Priest" },
-      organist: { id: "demo-organist", displayName: "Demo Organist" },
+      organist: { id: "phase29-demo-organist", displayName: "Demo Organist" },
       antiphonKey: "legacy-test",
     },
     set: {

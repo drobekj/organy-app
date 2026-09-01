@@ -56,6 +56,7 @@ type ServiceContextRecord = {
   priestDisplayName: string;
   organistId: string | null;
   organistDisplayName: string;
+  melodyProtectionMonths: number;
   note: string | null;
   referenceAntiphonId: string | null;
   referenceAntiphonDisplayNumber: string | null;
@@ -571,6 +572,7 @@ function mapContextRecordToServiceContext(context: ServiceContextRecord): Servic
     language: context.serviceLanguage,
     priest: { ...(context.priestId ? { id: context.priestId } : {}), displayName: context.priestDisplayName },
     organist: { ...(context.organistId ? { id: context.organistId } : {}), displayName: context.organistDisplayName },
+    melodyProtectionMonths: Number(context.melodyProtectionMonths ?? 2),
     ...(context.note ? { note: context.note } : {}),
     ...(context.referenceAntiphonId && context.referenceAntiphonDisplayNumber && context.referenceAntiphonTitle
       ? { referenceAntiphon: {
@@ -596,6 +598,7 @@ function mapServiceContextToContextValues(context: ServiceContext) {
     priestDisplayName: context.priest.displayName,
     organistId: context.organist.id,
     organistDisplayName: context.organist.displayName,
+    melodyProtectionMonths: context.melodyProtectionMonths ?? 2,
     note: context.note?.trim() || null,
     referenceAntiphonId: context.referenceAntiphon?.id ?? null,
     referenceAntiphonDisplayNumber: context.referenceAntiphon?.displayNumber ?? null,

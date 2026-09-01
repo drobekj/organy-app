@@ -83,8 +83,14 @@ export class ReferenceCandidateService {
   constructor(private readonly pool: Pool) {}
 
   async queryCandidates(input: CandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
-    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId);
-    return queryReferenceCandidatesFromData(data, input);
+    const minimumMonths = await this.loadOrganistMinimum(input.organistPersonId);
+    const requestedMonths = input.melodyProtectionMonths ?? minimumMonths;
+    if (!Number.isInteger(requestedMonths) || requestedMonths < 0 || requestedMonths > 12) {
+      throw new ReferenceCandidateError("invalidInput", "Melody Protection must be between 0 and 12 calendar months.");
+    }
+    const effectiveMonths = Math.max(minimumMonths, requestedMonths);
+    const data = await this.loadData(input.organistPersonId, input.referenceAntiphonId, input.referenceTopicId, effectiveMonths);
+    return queryReferenceCandidatesFromData(data, { ...input, melodyProtectionMonths: effectiveMonths });
   }
 
   async queryCatalogCandidates(input: CatalogCandidateQueryInput): Promise<ReferenceCandidateQueryResult[]> {
@@ -97,7 +103,7 @@ export class ReferenceCandidateService {
     return hydrateReferenceCandidatesFromData(data, input);
   }
 
-  private async loadData(organistPersonId?: string, referenceAntiphonId?: string, referenceTopicId?: string): Promise<ReferenceCandidateData> {
+  private async loadData(organistPersonId?: string, referenceAntiphonId?: string, referenceTopicId?: string, melodyWindowMonths = 0): Promise<ReferenceCandidateData> {
     const songRowsPromise = this.pool.query(
       `select
          s.id,
@@ -123,8 +129,6 @@ export class ReferenceCandidateService {
        order by s.language, s.canonical_number, s.id`,
       [organistPersonId ?? null, DEFAULT_MELODY_REPRESENTATIVE_ORGANIST_ID],
     ).then((result) => result.rows as CandidateRow[]);
-    const windowPromise = this.pool.query("select months from melody_non_repetition_config where id = 'global'")
-      .then((result) => result.rows as { months: number | string }[]);
     const recommendationPromise = referenceAntiphonId
       ? this.pool.query(
           `select r.reference_song_id
@@ -144,7 +148,7 @@ export class ReferenceCandidateService {
           [referenceTopicId],
         ).then((result) => result.rows as TopicRangeRow[])
       : Promise.resolve([] as TopicRangeRow[]);
-    const [songRows, melodyWindowRows, recommendationRows, topicRows] = await Promise.all([songRowsPromise, windowPromise, recommendationPromise, topicPromise]);
+    const [songRows, recommendationRows, topicRows] = await Promise.all([songRowsPromise, recommendationPromise, topicPromise]);
 
     const songs = songRows.map((row): ReferenceCandidateSong => {
       const canonicalNumber = Number(row.canonical_number);
@@ -168,10 +172,20 @@ export class ReferenceCandidateService {
     const topicLanguage = topicRows[0]?.language;
     return {
       songs,
-      melodyWindowMonths: Number(melodyWindowRows[0]?.months ?? 2),
+      melodyWindowMonths,
       ...(recommendationRow?.reference_song_id ? { recommendedReferenceSongId: String(recommendationRow.reference_song_id) } : {}),
       ...(topicLanguage ? { referenceTopic: { language: topicLanguage, ranges: topicRows.map((row) => ({ from: Number(row.from_number), to: Number(row.to_number) })) } } : {}),
     };
+  }
+
+  private async loadOrganistMinimum(organistPersonId?: string): Promise<number> {
+    if (!organistPersonId) return 0;
+    const result = await this.pool.query(
+      "select melody_protection_months from catalog_persons where id = $1 and active = true and organist = true",
+      [organistPersonId],
+    );
+    if (!result.rows[0]) throw new ReferenceCandidateError("notFound", "Selected Organist is not available.");
+    return Number(result.rows[0].melody_protection_months ?? 2);
   }
 }
 

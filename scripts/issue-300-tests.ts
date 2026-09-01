@@ -23,8 +23,8 @@ assert.ok(headerIndex >= 0 && infoIndex > headerIndex && slotIndex > infoIndex &
 // The slot is unconditional; only its content is role-gated.
 const headerFragment = planning.slice(headerIndex, serviceContextIndex);
 assert.match(headerFragment, /className="planning-melody-protection-slot"/);
-assert.match(headerFragment, /selectedRole === "admin" && \(\s*<NonRepetitionPeriodPanel/);
-assert.doesNotMatch(headerFragment, /selectedRole !== "admin"/);
+assert.match(headerFragment, /selectedRole === "priest" \|\| selectedRole === "organist"[\s\S]*?<NonRepetitionPeriodPanel/);
+assert.doesNotMatch(headerFragment, /selectedRole === "admin" && \(\s*<NonRepetitionPeriodPanel/);
 
 // Status/opened-record information is reserved to the left header area.
 assert.match(headerFragment, /status status-\$\{saveState\}/);

@@ -61,9 +61,12 @@ export const catalogPersons = pgTable("catalog_persons", {
   active: boolean("active").notNull().default(true),
   priest: boolean("priest").notNull().default(false),
   organist: boolean("organist").notNull().default(false),
+  melodyProtectionMonths: integer("melody_protection_months").notNull().default(2),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+  melodyProtectionRange: check("catalog_persons_melody_protection_months_range", sql`${table.melodyProtectionMonths} between 0 and 12`),
+}));
 
 export const catalogSongs = pgTable("catalog_songs", {
   songId: text("song_id").primaryKey(),
@@ -90,6 +93,7 @@ export const serviceContexts = pgTable(
     priestDisplayName: text("priest_display_name").notNull().default(""),
     organistId: text("organist_id"),
     organistDisplayName: text("organist_display_name").notNull().default(""),
+    melodyProtectionMonths: integer("melody_protection_months").notNull().default(2),
     note: text("note"),
     referenceAntiphonId: text("reference_antiphon_id"),
     referenceAntiphonDisplayNumber: text("reference_antiphon_display_number"),
@@ -104,6 +108,7 @@ export const serviceContexts = pgTable(
   },
   (table) => ({
     serviceDateTime: uniqueIndex("service_contexts_service_date_time_idx").on(table.serviceDate, table.serviceTime),
+    melodyProtectionRange: check("service_contexts_melody_protection_months_range", sql`${table.melodyProtectionMonths} between 0 and 12`),
     referenceAntiphonSnapshotComplete: check(
       "service_contexts_reference_antiphon_snapshot_complete",
       sql`(

@@ -26,7 +26,7 @@ export type MelodyWindowValue = { months: number };
 export type MelodyWindowFailure = {
   success: false;
   error: {
-    code: "permissionDenied" | "invalidInput" | "conflict";
+    code: "permissionDenied" | "invalidInput" | "conflict" | "notFound";
     message: string;
     conflicts?: NonRepetitionPlanConflict[];
   };

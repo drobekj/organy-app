@@ -173,13 +173,24 @@ async function databaseContractChecks() {
   const freshService = new PostgresNonRepetitionPeriodService(pool);
   assert.deepEqual(await freshService.get(admin), { success: true, value: { months: 0 } }, "Fresh repository/service read must observe persisted value");
 
-  const candidatesWithZeroWindow = await new ReferenceCandidateService(pool).queryCandidates({
+  const candidatesWithLegacyZero = await new ReferenceCandidateService(pool).queryCandidates({
     serviceDate: "2098-02-01",
     serviceLanguage: "czech",
     organistPersonId,
     candidateUsages: [{ songId: czechSongId, serviceDate: "2098-01-01", source: "completed" }],
   });
-  assert.ok(candidatesWithZeroWindow.some((candidate) => candidate.songId === czechSongId), "Subsequent candidate query must use successfully persisted zero-month window");
+  assert.equal(candidatesWithLegacyZero.some((candidate) => candidate.songId === czechSongId), false, "Legacy global zero must no longer broaden candidates below the Organist default minimum");
+
+  await pool.query("update catalog_persons set melody_protection_months = 0 where id = $1", [organistPersonId]);
+  const candidatesWithOrganistZero = await new ReferenceCandidateService(pool).queryCandidates({
+    serviceDate: "2098-02-01",
+    serviceLanguage: "czech",
+    organistPersonId,
+    melodyProtectionMonths: 0,
+    candidateUsages: [{ songId: czechSongId, serviceDate: "2098-01-01", source: "completed" }],
+  });
+  assert.ok(candidatesWithOrganistZero.some((candidate) => candidate.songId === czechSongId), "Organist-owned zero-month minimum must permit a zero-month candidate window");
+  await pool.query("update catalog_persons set melody_protection_months = 2 where id = $1", [organistPersonId]);
 
   await pool.query("delete from service_contexts where id = (select service_context_id from service_sets where id = $1)", [finalB]);
   finalB = "";
