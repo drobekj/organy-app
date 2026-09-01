@@ -8,6 +8,10 @@ ALTER TABLE "catalog_persons"
 ALTER TABLE "service_contexts"
   ADD COLUMN "melody_protection_months" integer DEFAULT 2 NOT NULL;
 
+UPDATE "service_contexts"
+SET "melody_protection_months" = 0
+WHERE "organist_id" IS NULL;
+
 ALTER TABLE "service_contexts"
   ADD CONSTRAINT "service_contexts_melody_protection_months_range"
   CHECK ("melody_protection_months" BETWEEN 0 AND 12);
