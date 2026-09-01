@@ -107,8 +107,8 @@ export function NonRepetitionPeriodPanel({
   if (actor.role !== "admin") return null;
 
   return (
-    <fieldset className="melody-protection-panel" aria-label="Melody Protection" data-guide-hint="planning.melody-protection">
-      <legend>Melody Protection</legend>
+    <fieldset className="melody-protection-panel" aria-label="Melody Protection">
+      <legend data-guide-hint="planning.melody-protection">Melody Protection</legend>
       <label className="melody-protection-control">
         <span className="sr-only">Melody Protection period</span>
         <select
