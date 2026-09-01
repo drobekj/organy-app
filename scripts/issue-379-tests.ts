@@ -35,7 +35,8 @@ assert.match(layer, /onPointerOver/);
 assert.match(layer, /onPointerOut/);
 assert.match(layer, /onFocusIn/);
 assert.match(layer, /onPointerDown/);
-assert.match(layer, /suppressedFieldRef\.current = field/);
+assert.match(layer, /suppressedControlRef\.current = control/);
+assert.match(layer, /guidePanelHintKeys/);
 assert.doesNotMatch(layer, /Close hint|Zavřít nápovědu|guide-hint-heading/);
 
 assert.doesNotMatch(css, /cursor: help/);
