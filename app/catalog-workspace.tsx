@@ -289,8 +289,8 @@ export function CatalogWorkspace({
   }
 
   return <section className="catalog-workspace" aria-label="Catalog">
-    <fieldset className="field-group catalog-context" data-guide-hint="catalog.context">
-      <legend>Catalog context</legend>
+    <fieldset className="field-group catalog-context">
+      <legend data-guide-hint="catalog.context">Catalog context</legend>
       <div className="catalog-organist-language-row">
         <label className="catalog-context-cell">
           <span>Organist</span>
@@ -353,8 +353,8 @@ export function CatalogWorkspace({
       </div>
     </fieldset>
 
-    <fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates" data-guide-hint="catalog.candidates">
-      <legend>Candidates</legend>
+    <fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates">
+      <legend data-guide-hint="catalog.candidates">Candidates</legend>
       <div className="catalog-candidate-header">
         <div className="catalog-availability-switch" role="group" aria-label="Catalog availability">
           <button
