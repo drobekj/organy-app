@@ -774,3 +774,14 @@ button.workspace-action-pending {
   outline: 2px solid #84adff;
   outline-offset: 2px;
 }
+
+
+/* Issue #386: corrective contextual Guide geometry and visibility. */
+.melody-protection-panel {
+  overflow: visible;
+}
+
+.db-workspace > .guide-scope-info,
+.information-workspace > .guide-scope-info {
+  top: -0.775rem;
+}
