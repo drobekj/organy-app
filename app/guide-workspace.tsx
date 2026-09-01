@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import type { PlanningRole } from "../src/planning-lifecycle";
 import {
-  GUIDE_HINTS_CHANGED_EVENT,
-  GUIDE_HINTS_STORAGE_KEY,
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
   guideSections,
@@ -24,12 +22,10 @@ function roleLabel(role: GuideRole, language: GuideLanguage): string {
 
 export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
   const [language, setLanguage] = useState<GuideLanguage>("en");
-  const [hintsEnabled, setHintsEnabled] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(GUIDE_LANGUAGE_STORAGE_KEY);
     if (stored === "en" || stored === "cz") setLanguage(stored);
-    setHintsEnabled(window.localStorage.getItem(GUIDE_HINTS_STORAGE_KEY) === "on");
   }, []);
 
   function selectLanguage(next: GuideLanguage) {
@@ -38,11 +34,6 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
     window.dispatchEvent(new Event(GUIDE_LANGUAGE_CHANGED_EVENT));
   }
 
-  function selectHints(enabled: boolean) {
-    setHintsEnabled(enabled);
-    window.localStorage.setItem(GUIDE_HINTS_STORAGE_KEY, enabled ? "on" : "off");
-    window.dispatchEvent(new Event(GUIDE_HINTS_CHANGED_EVENT));
-  }
 
   return (
     <section className="guide-workspace" aria-labelledby="guide-workspace-title">
@@ -51,9 +42,8 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
           <h2 id="guide-workspace-title">{text(guideUi.title, language)}</h2>
           <p>{text(guideUi.intro, language)}</p>
         </div>
-        <div className="guide-controls">
-          <div className="guide-language" role="group" aria-label={text(guideUi.language, language)}>
-            <span>{text(guideUi.language, language)}</span>
+        <div className="guide-language" role="group" aria-label={text(guideUi.language, language)}>
+          <span>{text(guideUi.language, language)}</span>
           <button
             type="button"
             className={language === "en" ? "active-workspace" : undefined}
@@ -70,26 +60,6 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
           >
             CZ
           </button>
-          </div>
-          <div className="guide-language" role="group" aria-label={language === "cz" ? "Našeptávač Guide" : "Guide hints"}>
-            <span>{language === "cz" ? "Našeptávač" : "Guide hints"}</span>
-            <button
-              type="button"
-              className={!hintsEnabled ? "active-workspace" : undefined}
-              aria-pressed={!hintsEnabled}
-              onClick={() => selectHints(false)}
-            >
-              {language === "cz" ? "Vyp" : "Off"}
-            </button>
-            <button
-              type="button"
-              className={hintsEnabled ? "active-workspace" : undefined}
-              aria-pressed={hintsEnabled}
-              onClick={() => selectHints(true)}
-            >
-              {language === "cz" ? "Zap" : "On"}
-            </button>
-          </div>
         </div>
       </header>
 
