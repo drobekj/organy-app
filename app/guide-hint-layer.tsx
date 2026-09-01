@@ -7,19 +7,21 @@ import {
   GUIDE_HINTS_STORAGE_KEY,
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
-  guideHintCopy,
-  isGuideHintKey,
-  type GuideHintKey,
   type GuideLanguage,
 } from "./guide-content";
+import {
+  anyGuideHintCopy,
+  guidePanelHintKeys,
+  isAnyGuideHintKey,
+  type AnyGuideHintKey,
+} from "./guide-control-hints";
 
 type ActiveHint = {
-  key: GuideHintKey;
+  keys: AnyGuideHintKey[];
   rect: DOMRect;
-  mode: "field" | "info";
+  mode: "control" | "info";
+  triggerScope?: string;
 };
-
-const GUIDE_FIELD_SELECTOR = 'input:not([type="hidden"]), select, textarea, [role="combobox"]';
 
 function storedLanguage(): GuideLanguage {
   if (typeof window === "undefined") return "en";
@@ -35,19 +37,13 @@ function closestElement(target: EventTarget | null): Element | null {
   return target instanceof Element ? target : null;
 }
 
-function scopeFor(element: Element | null): HTMLElement | null {
-  return element?.closest<HTMLElement>("[data-guide-hint-scope]") ?? null;
+function hintedControl(target: EventTarget | null): HTMLElement | null {
+  return closestElement(target)?.closest<HTMLElement>("[data-guide-hint]") ?? null;
 }
 
-function scopedField(target: EventTarget | null): HTMLElement | null {
-  const element = closestElement(target);
-  const field = element?.closest<HTMLElement>(GUIDE_FIELD_SELECTOR) ?? null;
-  return field && scopeFor(field) ? field : null;
-}
-
-function hintKeyForScope(scope: HTMLElement | null): GuideHintKey | null {
-  const rawKey = scope?.dataset.guideHintScope;
-  return rawKey && isGuideHintKey(rawKey) ? rawKey : null;
+function hintKeyForControl(control: HTMLElement | null): AnyGuideHintKey | null {
+  const rawKey = control?.dataset.guideHint;
+  return rawKey && isAnyGuideHintKey(rawKey) ? rawKey : null;
 }
 
 function infoTrigger(target: EventTarget | null): HTMLElement | null {
@@ -58,27 +54,27 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
   const [enabled, setEnabled] = useState(true);
   const [language, setLanguage] = useState<GuideLanguage>("en");
   const [active, setActive] = useState<ActiveHint | null>(null);
-  const activeFieldRef = useRef<HTMLElement | null>(null);
-  const suppressedFieldRef = useRef<HTMLElement | null>(null);
+  const activeControlRef = useRef<HTMLElement | null>(null);
+  const suppressedControlRef = useRef<HTMLElement | null>(null);
 
   const syncSettings = useCallback(() => {
     setEnabled(storedEnabled());
     setLanguage(storedLanguage());
   }, []);
 
-  const hideFieldHint = useCallback((field?: HTMLElement | null) => {
-    if (!field || activeFieldRef.current === field) {
-      activeFieldRef.current = null;
-      setActive((current) => current?.mode === "field" ? null : current);
+  const hideControlHint = useCallback((control?: HTMLElement | null) => {
+    if (!control || activeControlRef.current === control) {
+      activeControlRef.current = null;
+      setActive((current) => current?.mode === "control" ? null : current);
     }
   }, []);
 
-  const showFieldHint = useCallback((field: HTMLElement) => {
-    if (suppressedFieldRef.current === field) return;
-    const key = hintKeyForScope(scopeFor(field));
+  const showControlHint = useCallback((control: HTMLElement) => {
+    if (suppressedControlRef.current === control) return;
+    const key = hintKeyForControl(control);
     if (!key) return;
-    activeFieldRef.current = field;
-    setActive({ key, rect: field.getBoundingClientRect(), mode: "field" });
+    activeControlRef.current = control;
+    setActive({ keys: [key], rect: control.getBoundingClientRect(), mode: "control" });
   }, []);
 
   useEffect(() => {
@@ -100,8 +96,8 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
 
   useEffect(() => {
     if (!enabled) {
-      activeFieldRef.current = null;
-      suppressedFieldRef.current = null;
+      activeControlRef.current = null;
+      suppressedControlRef.current = null;
       setActive(null);
     }
   }, [enabled]);
@@ -111,51 +107,53 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
 
     function onPointerOver(event: PointerEvent) {
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-      const field = scopedField(event.target);
-      if (field) showFieldHint(field);
+      const control = hintedControl(event.target);
+      if (control) showControlHint(control);
     }
 
     function onPointerOut(event: PointerEvent) {
       if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
-      const field = scopedField(event.target);
-      if (!field) return;
+      const control = hintedControl(event.target);
+      if (!control) return;
       const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-      if (next && field.contains(next)) return;
-      if (suppressedFieldRef.current === field) suppressedFieldRef.current = null;
-      hideFieldHint(field);
+      if (next && control.contains(next)) return;
+      if (suppressedControlRef.current === control) suppressedControlRef.current = null;
+      hideControlHint(control);
     }
 
     function onFocusIn(event: FocusEvent) {
-      const field = scopedField(event.target);
-      if (field) showFieldHint(field);
+      const control = hintedControl(event.target);
+      if (control) showControlHint(control);
     }
 
     function onFocusOut(event: FocusEvent) {
-      const field = scopedField(event.target);
-      if (!field) return;
+      const control = hintedControl(event.target);
+      if (!control) return;
       const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-      if (next && field.contains(next)) return;
-      hideFieldHint(field);
+      if (next && control.contains(next)) return;
+      hideControlHint(control);
     }
 
     function onPointerDown(event: PointerEvent) {
-      const field = scopedField(event.target);
-      if (!field) return;
-      suppressedFieldRef.current = field;
-      activeFieldRef.current = null;
-      setActive(null);
+      const control = hintedControl(event.target);
+      if (!control) return;
+      suppressedControlRef.current = control;
+      activeControlRef.current = null;
+      setActive((current) => current?.mode === "control" ? null : current);
     }
 
     function onClick(event: MouseEvent) {
       const trigger = infoTrigger(event.target);
       if (!trigger) return;
-      const rawKey = trigger.dataset.guideHintTrigger;
-      if (!rawKey || !isGuideHintKey(rawKey)) return;
-      activeFieldRef.current = null;
+      const scope = trigger.dataset.guideHintTrigger;
+      if (!scope) return;
+      const keys = guidePanelHintKeys(scope);
+      if (keys.length === 0) return;
+      activeControlRef.current = null;
       setActive((current) => (
-        current?.mode === "info" && current.key === rawKey
+        current?.mode === "info" && current.triggerScope === scope
           ? null
-          : { key: rawKey, rect: trigger.getBoundingClientRect(), mode: "info" }
+          : { keys, rect: trigger.getBoundingClientRect(), mode: "info", triggerScope: scope }
       ));
     }
 
@@ -174,22 +172,24 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("click", onClick, true);
     };
-  }, [enabled, hideFieldHint, showFieldHint]);
+  }, [enabled, hideControlHint, showControlHint]);
 
   useEffect(() => {
     if (!active) return;
-    const activeKey = active.key;
+    const triggerScope = active.triggerScope;
 
     function refreshPosition() {
-      if (activeFieldRef.current?.isConnected) {
-        setActive((current) => current ? { ...current, rect: activeFieldRef.current!.getBoundingClientRect() } : null);
+      if (activeControlRef.current?.isConnected) {
+        setActive((current) => current ? { ...current, rect: activeControlRef.current!.getBoundingClientRect() } : null);
         return;
       }
 
-      const trigger = document.querySelector<HTMLElement>(`[data-guide-hint-trigger="${activeKey}"]`);
-      if (trigger) {
-        setActive((current) => current ? { ...current, rect: trigger.getBoundingClientRect() } : null);
-        return;
+      if (triggerScope) {
+        const trigger = document.querySelector<HTMLElement>(`[data-guide-hint-trigger="${triggerScope}"]`);
+        if (trigger) {
+          setActive((current) => current ? { ...current, rect: trigger.getBoundingClientRect() } : null);
+          return;
+        }
       }
 
       setActive(null);
@@ -201,37 +201,42 @@ export function GuideHintLayer({ activeRole }: { activeRole: PlanningRole }) {
       window.removeEventListener("resize", refreshPosition);
       window.removeEventListener("scroll", refreshPosition, true);
     };
-  }, [active?.key]);
+  }, [active?.triggerScope, active?.keys.join("|")]);
 
   const content = useMemo(
-    () => active ? guideHintCopy(active.key, language, activeRole) : null,
+    () => active ? active.keys.map((key) => ({ key, ...anyGuideHintCopy(key, language, activeRole) })) : [],
     [active, activeRole, language],
   );
 
-  if (!enabled || !active || !content) return null;
+  if (!enabled || !active || content.length === 0) return null;
 
   const mobile = active.mode === "info"
     && typeof window !== "undefined"
     && window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
-  const width = Math.min(360, Math.max(260, typeof window === "undefined" ? 360 : window.innerWidth - 24));
+  const width = Math.min(active.mode === "info" ? 430 : 360, Math.max(260, typeof window === "undefined" ? 360 : window.innerWidth - 24));
   const left = mobile
     ? 12
     : Math.max(12, Math.min(active.rect.left, window.innerWidth - width - 12));
   const below = active.rect.bottom + 8;
+  const expectedHeight = active.mode === "info" ? 360 : 165;
   const top = mobile
     ? undefined
-    : (below + 165 <= window.innerHeight ? below : Math.max(12, active.rect.top - 165));
+    : (below + expectedHeight <= window.innerHeight ? below : Math.max(12, active.rect.top - expectedHeight));
 
   return (
     <aside
-      className={`guide-hint-popover${mobile ? " guide-hint-mobile" : ""}`}
+      className={`guide-hint-popover${mobile ? " guide-hint-mobile" : ""}${active.mode === "info" ? " guide-hint-summary" : ""}`}
       role="tooltip"
       style={mobile ? undefined : { left, top, width }}
-      data-guide-hint-key={active.key}
+      data-guide-hint-key={active.keys.join("|")}
     >
-      <strong>{content.title}</strong>
-      <p>{content.copy}</p>
-      {content.roleCopy && <p className="guide-hint-role">{content.roleCopy}</p>}
+      {content.map((item) => (
+        <div className="guide-hint-item" key={item.key}>
+          <strong>{item.title}</strong>
+          <p>{item.copy}</p>
+          {item.roleCopy && <p className="guide-hint-role">{item.roleCopy}</p>}
+        </div>
+      ))}
     </aside>
   );
 }
