@@ -1524,8 +1524,7 @@ Save the correction and mark those plans for revision?`);
               <textarea rows={4} disabled={isEditorLocked} value={serviceNote} onChange={(event) => guardedEditorUpdate(() => setServiceNote(event.target.value))} placeholder="Gospel readings, links, or planning information" />
             </label>
             <div className="service-antiphon-topic-row">
-              <div className="guide-hint-contents" data-guide-hint="planning.service.antiphon">
-                <ServiceContextReferenceAntiphonField
+              <ServiceContextReferenceAntiphonField
                 runtime={runtimeMode}
                 editable={!isEditorLocked}
                 contextKey={serviceContextRecordKey}
@@ -1536,20 +1535,19 @@ Save the correction and mark those plans for revision?`);
                 recommendationError={planningAntiphonRecommendationError}
                 recommendationClient={planningAntiphonRecommendationClient ?? undefined}
                 invalid={hasAntiphonLanguageMismatch}
+                guideHint="planning.service.antiphon"
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceAntiphon(value ? { ...value } : undefined)); }}
-                />
-              </div>
-              <div className="guide-hint-contents" data-guide-hint="planning.service.topic">
-                <ServiceContextReferenceTopicField
+              />
+              <ServiceContextReferenceTopicField
                 runtime={runtimeMode}
                 editable={!isEditorLocked}
                 contextKey={serviceContextRecordKey}
                 serviceLanguage={serviceLanguage}
                 selected={referenceTopic}
                 invalid={hasTopicLanguageMismatch}
+                guideHint="planning.service.topic"
                 onChange={(value) => { lookupTracker.invalidatePrefix("song:"); guardedEditorUpdate(() => setReferenceTopic(value ? { ...value } : undefined)); }}
-                />
-              </div>
+              />
             </div>
           </fieldset>
 
@@ -1597,8 +1595,7 @@ Save the correction and mark those plans for revision?`);
                   </div>
                   <div className="compact-row-fields">
                     <div className="song-field-row">
-                      <div className="guide-hint-contents" data-guide-hint="planning.rows.song">
-                        <CandidateCombobox
+                      <CandidateCombobox
                                               rowId={row.id}
                                               rowLabel={`Row ${index + 1}`}
                                               open={planningExpansion?.kind === "candidateList" && planningExpansion.rowId === row.id}
@@ -1618,6 +1615,7 @@ Save the correction and mark those plans for revision?`);
                                               serviceLanguage={serviceLanguage}
                                               disabled={!canEditRows}
                                               selectionUnavailable={rowCandidateUnavailable(row) && Boolean(row.selectedSong && row.songSearch === formatPlanningSongField(row.selectedSong))}
+                                              guideHint="planning.rows.song"
                                               onOpen={() => openCandidateList(row.id)}
                                               onQueryChange={(value) => { void updateSongSearch(row.id, value); }}
                                               onSelect={(candidate) => selectCandidate(row.id, candidate)}
@@ -1628,7 +1626,6 @@ Save the correction and mark those plans for revision?`);
                                               onRetryDetail={retryDetailEligibility}
                                               onShowDetailCandidate={showCandidateFromDetail}
                                             />
-                      </div>
                       <button
                         id={`selected-song-detail-button-${row.id}`}
                         type="button"
@@ -1805,7 +1802,7 @@ Save the correction and mark those plans for revision?`);
           </p>
         )}
       </section>
-      <GuideHintLayer activeRole={selectedRole} />
+      <GuideHintLayer activeRole={selectedRole} activeWorkspace={workspace} />
     </main>
   );
 }
