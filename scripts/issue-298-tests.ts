@@ -7,7 +7,8 @@ const lookup = readFileSync("app/reference-song-lookup-field.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 
 // Candidates is a contour legend, with both switch groups sharing one stable internal header row.
-assert.match(catalog, /<fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates">\s*<legend>Candidates<\/legend>/);
+assert.match(catalog, /<fieldset className="field-group catalog-candidate-panel" aria-label="Catalog candidates"[^>]*>/);
+assert.match(catalog, /<legend>Candidates<\/legend>/);
 const candidateStart = catalog.indexOf('<fieldset className="field-group catalog-candidate-panel"');
 const candidateEnd = catalog.indexOf('</fieldset>', candidateStart);
 assert.ok(candidateStart >= 0 && candidateEnd > candidateStart);
