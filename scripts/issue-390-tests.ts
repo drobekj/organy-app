@@ -41,44 +41,52 @@ assert.match(planningRoute, /Selected Organist is not available/);
 assert.match(adapters, /melodyProtectionMonths: context\.melodyProtectionMonths \?\? 2/);
 assert.match(adapters, /melodyProtectionMonths: Number\(context\.melodyProtectionMonths \?\? 2\)/);
 
-const melodyClasses = {
-  async getClassMemberships(songIds: string[]) {
-    return songIds.map((songId) => ({ songId, melodyClassId: songId === "current" || songId === "historic" ? "class-1" : songId }));
-  },
-};
-
-const completed = [{
-  id: "completed-1",
-  sourceFinalSetId: "old",
-  serviceContext: {
-    serviceDate: "2026-01-01",
-    serviceTime: "10:00",
+async function main() {
+  const melodyClasses = {
+    async getClassMemberships(songIds: string[]) {
+      return songIds.map((songId) => ({ songId, melodyClassId: songId === "current" || songId === "historic" ? "class-1" : songId }));
+    },
+  };
+  
+  const completed = [{
+    id: "completed-1",
+    sourceFinalSetId: "old",
+    serviceContext: {
+      serviceDate: "2026-01-01",
+      serviceTime: "10:00",
+      language: "czech" as const,
+      priest: { displayName: "P" },
+      organist: { displayName: "O" },
+      melodyProtectionMonths: 2,
+    },
+    set: { status: "final" as const, language: "czech" as const, rows: [{ song: { songId: "historic", number: "1", language: "czech" as const } }] },
+    completedAt: new Date("2026-01-01T10:00:00Z"),
+  }];
+  
+  const basePlan = {
+    status: "working" as const,
     language: "czech" as const,
-    priest: { displayName: "P" },
-    organist: { displayName: "O" },
-    melodyProtectionMonths: 2,
-  },
-  set: { status: "final" as const, language: "czech" as const, rows: [{ song: { songId: "historic", number: "1", language: "czech" as const } }] },
-  completedAt: new Date("2026-01-01T10:00:00Z"),
-}];
+    rows: [{ song: { songId: "current", number: "2", language: "czech" as const } }],
+    serviceContext: {
+      serviceDate: "2026-04-01",
+      serviceTime: "10:00",
+      language: "czech" as const,
+      priest: { displayName: "P" },
+      organist: { displayName: "O" },
+    },
+  };
+  
+  const shortPlan = { ...basePlan, id: "short", serviceContext: { ...basePlan.serviceContext, melodyProtectionMonths: 2 } };
+  const longPlan = { ...basePlan, id: "long", serviceContext: { ...basePlan.serviceContext, melodyProtectionMonths: 4 } };
+  const impacts = await findCompletedPlanConflicts([shortPlan, longPlan], completed, melodyClasses, 12);
+  assert.equal(impacts.some((impact) => impact.planId === "short"), false, "Two-month plan must not inherit a global 12-month window.");
+  assert.equal(impacts.some((impact) => impact.planId === "long"), true, "Four-month plan must use its own persisted window.");
+  
+  console.log("Issue 390 Organist-owned Melody Protection acceptance passed.");
+  
+}
 
-const basePlan = {
-  status: "working" as const,
-  language: "czech" as const,
-  rows: [{ song: { songId: "current", number: "2", language: "czech" as const } }],
-  serviceContext: {
-    serviceDate: "2026-04-01",
-    serviceTime: "10:00",
-    language: "czech" as const,
-    priest: { displayName: "P" },
-    organist: { displayName: "O" },
-  },
-};
-
-const shortPlan = { ...basePlan, id: "short", serviceContext: { ...basePlan.serviceContext, melodyProtectionMonths: 2 } };
-const longPlan = { ...basePlan, id: "long", serviceContext: { ...basePlan.serviceContext, melodyProtectionMonths: 4 } };
-const impacts = await findCompletedPlanConflicts([shortPlan, longPlan], completed, melodyClasses, 12);
-assert.equal(impacts.some((impact) => impact.planId === "short"), false, "Two-month plan must not inherit a global 12-month window.");
-assert.equal(impacts.some((impact) => impact.planId === "long"), true, "Four-month plan must use its own persisted window.");
-
-console.log("Issue 390 Organist-owned Melody Protection acceptance passed.");
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
