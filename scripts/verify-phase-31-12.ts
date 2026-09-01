@@ -99,6 +99,9 @@ async function seedFocusedAuthority(pool: Pool) {
   await pool.query(
     "insert into catalog_persons(id,display_name,active,priest,organist,melody_protection_months) values('phase29-demo-organist','Phase 31.12 Demo Organist',true,false,true,2) on conflict(id) do update set active=true,organist=true,melody_protection_months=2,updated_at=now()",
   );
+  await pool.query(
+    "insert into catalog_persons(id,display_name,active,priest,organist,melody_protection_months) values('no-authoritative-repertoire','Phase 31.12 Empty Repertoire Organist',true,false,true,2) on conflict(id) do update set active=true,organist=true,melody_protection_months=2,updated_at=now()",
+  );
   await pool.query("update reference_catalog_songs set title='Phase 31.12 Authoritative Candidate' where id='czech:1'");
   const profiles = (await pool.query("select id,category from preference_profiles order by category,id")).rows;
   assert.ok(profiles.length > 0, "deterministic profiles were not seeded");
