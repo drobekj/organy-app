@@ -249,9 +249,9 @@ const controlGuideHints = {
   "catalog.candidates.repertoire": {
     sectionId: "guide.catalog",
     title: { en: "Repertoire membership", cz: "Členství v repertoáru" },
-    copy: { en: "Adds or removes the permitted repertoire pivot for the selected melody class.", cz: "Přidá nebo odebere povolený repertoárový pivot vybrané třídy melodie." },
+    copy: { en: "In Production, adds or removes the permitted repertoire pivot for the selected melody class. Demo Catalog is read-only.", cz: "V Production přidá nebo odebere povolený repertoárový pivot vybrané třídy melodie. Demo Catalog je pouze ke čtení." },
     roles: {
-      organist: { en: "Organist can change only their own repertoire.", cz: "Varhaník může měnit pouze vlastní repertoár." },
+      organist: { en: "In Production, Organist can change only their own repertoire.", cz: "V Production může Organist měnit pouze vlastní repertoár." },
     },
   },
   "catalog.candidates.score": {
@@ -361,7 +361,7 @@ export function anyGuideHintCopy(
 ): { title: string; copy: string; roleCopy?: string } {
   if (isGuideHintKey(key)) return guideHintCopy(key, language, role);
   const hint: GuideHint = controlGuideHints[key];
-  const guideRole = role === "priest" || role === "organist" ? role : undefined;
+  const guideRole = role === "admin" || role === "priest" || role === "organist" ? role : undefined;
   return {
     title: hint.title[language],
     copy: hint.copy[language],
