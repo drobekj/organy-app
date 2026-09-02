@@ -1,4 +1,4 @@
-export const DEMO_PRESENTATION_ROLES = ["priest", "organist", "admin"] as const;
+export const DEMO_PRESENTATION_ROLES = ["admin", "priest", "organist"] as const;
 
 export type DemoPresentationRole = (typeof DEMO_PRESENTATION_ROLES)[number];
 
