@@ -6,6 +6,7 @@ import {
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
   guideAccountContext,
+  guidePracticalContext,
   guideEnvironmentCopy,
   guideSections,
   guideUi,
@@ -51,6 +52,7 @@ export function GuideWorkspace({ activeRole, experience, demoRolePanel }: { acti
             <strong>{text(guideUi.environment, language)} · {text(guideUi[experience], language)}:</strong>{" "}
             {text(guideEnvironmentCopy[experience], language)}
           </p>
+          <p className="guide-practical-context">{text(guidePracticalContext, language)}</p>
         </div>
         <div className="guide-language" role="group" aria-label={text(guideUi.language, language)}>
           <span>{text(guideUi.language, language)}</span>
@@ -104,12 +106,14 @@ export function GuideWorkspace({ activeRole, experience, demoRolePanel }: { acti
               <h3 id={`${section.id.replaceAll(".", "-")}-title`}>{text(section.title, language)}</h3>
               <p className="guide-summary">{text(section.summary, language)}</p>
 
-              <div className="guide-shared">
-                <strong>{text(guideUi.shared, language)}</strong>
-                <ul>
-                  {section.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
-                </ul>
-              </div>
+              {section.bullets.length > 0 && (
+                <div className="guide-shared">
+                  <strong>{text(guideUi.shared, language)}</strong>
+                  <ul>
+                    {section.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+                  </ul>
+                </div>
+              )}
 
               {experienceBullets.length > 0 && (
                 <div className="guide-experience">
