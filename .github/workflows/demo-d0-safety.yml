@@ -67,6 +67,9 @@ jobs:
       - name: Stage D3 read-only Catalog knowledge contract
         run: npm run test:issue-408
 
+      - name: Stage D4 presentation-only role simulation contract
+        run: npm run test:issue-410
+
       - name: Existing Priest lifecycle regression
         run: npm run test:lifecycle
 
@@ -144,6 +147,8 @@ jobs:
           grep -F ">Plans<" d1-root.html
           grep -F ">History<" d1-root.html
           grep -F ">Catalog<" d1-root.html
+          grep -F "Preview role" d1-root.html
+          grep -F "Presentation only · no sign-in or permissions are granted." d1-root.html
           grep -F "Save working plan" d1-root.html
           grep -F "disabled" d1-root.html
 
