@@ -137,7 +137,7 @@ export function PostFinalizeWhatsAppHandoff({ plan, runtimeMode, onClose }: Prop
             )}
             {phoneError && <p className="auth-error" role="alert">{phoneError}</p>}
             <div className="post-finalize-dialog-actions">
-              <button type="submit" disabled={savingPhone}>{savingPhone ? "Saving…" : "Open WhatsApp"}</button>
+              <button type="submit" data-guide-hint="planning.whatsapp" disabled={savingPhone}>{savingPhone ? "Saving…" : "Open WhatsApp"}</button>
               <button type="button" disabled={savingPhone} onClick={() => { setPhonePromptOpen(false); setPhoneError(null); }}>Back</button>
             </div>
           </form>
@@ -153,11 +153,11 @@ export function PostFinalizeWhatsAppHandoff({ plan, runtimeMode, onClose }: Prop
         <p>Inform about the finalized plan via WhatsApp?</p>
         <div className="post-finalize-dialog-actions">
           {phone ? (
-            <a href={buildFinalPlanWhatsAppUrl(plan, phone)} target="_blank" rel="noopener noreferrer" onClick={onClose}>
+            <a href={buildFinalPlanWhatsAppUrl(plan, phone)} target="_blank" rel="noopener noreferrer" data-guide-hint="planning.whatsapp" onClick={onClose}>
               Open WhatsApp
             </a>
           ) : (
-            <button type="button" onClick={openPhonePrompt} disabled={loadingPhone}>
+            <button type="button" data-guide-hint="planning.whatsapp" onClick={openPhonePrompt} disabled={loadingPhone}>
               {loadingPhone ? "Loading…" : "Open WhatsApp"}
             </button>
           )}
