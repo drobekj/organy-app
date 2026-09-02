@@ -15,7 +15,8 @@ assert.match(layer, /if \(!active \|\| content\.length === 0 \|\| \(!enabled && 
 assert.match(layer, /function onClick\(event: MouseEvent\)[\s\S]*?guidePanelHintKeys/, "Panel i click must remain handled independently.");
 assert.match(layer, /\}, \[activeWorkspace\]\);/, "Workspace changes must close any open Guide hint.");
 
-assert.match(planning, /<GuideHintLayer activeRole=\{selectedRole\} activeWorkspace=\{workspace\} \/>/);
+assert.match(planning, /const presentationRole = isDemoExperience \? demoPresentationRole : selectedRole/);
+assert.match(planning, /<GuideHintLayer activeRole=\{presentationRole\} activeWorkspace=\{workspace\} \/>/);
 for (const key of ["planning.service.antiphon", "planning.service.topic", "planning.rows.song"]) {
   assert.ok(planning.includes(`guideHint="${key}"`), `Planning must pass ${key} directly to the lookup component.`);
 }
