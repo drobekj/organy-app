@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GUIDE_LANGUAGE_STORAGE_KEY, guideEnvironmentCopy, guideSections, guideUi } from "../app/guide-content";
+import { GUIDE_LANGUAGE_STORAGE_KEY, guideAccountContext, guideEnvironmentCopy, guideSections, guideUi } from "../app/guide-content";
 
 assert.equal(GUIDE_LANGUAGE_STORAGE_KEY, "organy-guide-language");
 assert.deepEqual(
@@ -32,6 +32,10 @@ assert.match(guideEnvironmentCopy.standard.en, /protected signed-in session/i);
 assert.match(guideEnvironmentCopy.demo.en, /synthetic in-memory data/i);
 assert.match(guideEnvironmentCopy.demo.en, /Preview role/i);
 assert.match(guideEnvironmentCopy.demo.en, /Reset Demo/i);
+assert.equal(guideAccountContext.title.en, "User & Role");
+assert.match(guideAccountContext.summary.en, /top-right corner/i);
+assert.match(guideAccountContext.bullets.map((item) => item.en).join(" "), /Sign Role/);
+assert.match(guideAccountContext.bullets.map((item) => item.en).join(" "), /Manage Accounts/);
 
 const planning = guideSections.find((section) => section.id === "guide.planning");
 assert.ok(planning?.roles, "Planning must contain role-aware guidance");
@@ -70,7 +74,7 @@ assert.match(component, /experience === "demo"[\s\S]*?!section\.standardOnly/);
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 assert.match(client, /const presentationRole = isDemoExperience \? demoPresentationRole : selectedRole/);
-assert.match(client, /<GuideWorkspace activeRole=\{presentationRole\} experience=\{isDemoExperience \? "demo" : "standard"\} \/>/);
+assert.match(client, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRolePanel=/);
 
 const css = readFileSync("app/workspace-shell.css", "utf8");
 assert.match(css, /\.guide-role-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(14rem, 1fr\)\);/);

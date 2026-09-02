@@ -1517,7 +1517,7 @@ Save the correction and mark those plans for revision?`);
               <span>Changes are temporary and are never saved.</span>
               <DemoResetButton />
             </aside>
-            <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} />
+            {workspace !== "guide" && <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} />}
           </>
         )}
         <div className="app-header">
@@ -1553,7 +1553,11 @@ Save the correction and mark those plans for revision?`);
         {demoAdminView === "accounts" && <DemoAccountsWorkspace />}
         {demoAdminView === "audit" && <DemoAuditWorkspace />}
         {!demoAdminView && workspace === "about" && <AboutWorkspace />}
-        {!demoAdminView && workspace === "guide" && <GuideWorkspace activeRole={presentationRole} experience={isDemoExperience ? "demo" : "standard"} />}
+        {!demoAdminView && workspace === "guide" && <GuideWorkspace
+          activeRole={presentationRole}
+          experience={isDemoExperience ? "demo" : "standard"}
+          demoRolePanel={isDemoExperience ? <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} /> : undefined}
+        />}
 
         {!demoAdminView && workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveStateLabel}

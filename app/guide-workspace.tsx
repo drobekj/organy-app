@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { PlanningRole } from "../src/planning-lifecycle";
 import {
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
+  guideAccountContext,
   guideEnvironmentCopy,
   guideSections,
   guideUi,
@@ -22,7 +23,7 @@ function roleLabel(role: GuideRole, language: GuideLanguage): string {
   return text(guideUi[role], language);
 }
 
-export function GuideWorkspace({ activeRole, experience }: { activeRole: PlanningRole; experience: GuideExperience }) {
+export function GuideWorkspace({ activeRole, experience, demoRolePanel }: { activeRole: PlanningRole; experience: GuideExperience; demoRolePanel?: ReactNode }) {
   const [language, setLanguage] = useState<GuideLanguage>("en");
 
   useEffect(() => {
@@ -71,6 +72,20 @@ export function GuideWorkspace({ activeRole, experience }: { activeRole: Plannin
           </button>
         </div>
       </header>
+
+      {experience === "demo" ? (
+        demoRolePanel
+      ) : (
+        <section className="demo-role-simulator guide-account-context" aria-label={text(guideAccountContext.title, language)}>
+          <div className="demo-role-simulator-heading">
+            <strong>{text(guideAccountContext.title, language)}</strong>
+            <span>{text(guideAccountContext.summary, language)}</span>
+          </div>
+          <ul className="guide-context-list">
+            {guideAccountContext.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+          </ul>
+        </section>
+      )}
 
       <div className="guide-sections">
         {visibleSections.map((section) => {

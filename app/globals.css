@@ -205,6 +205,18 @@ select {
   margin: 0;
 }
 
+.guide-account-context {
+  margin: 0;
+}
+
+.guide-context-list {
+  display: grid;
+  gap: 0.35rem;
+  line-height: 1.45;
+  margin: 0;
+  padding-inline-start: 1.2rem;
+}
+
 .demo-melody-protection-panel {
   align-content: start;
 }
