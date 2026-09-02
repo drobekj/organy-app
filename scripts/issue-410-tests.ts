@@ -89,12 +89,14 @@ async function main() {
 
   assert.match(planning, /if \(isDemoExperience\) \{\s*setWorkspace\(\(current\) => current === "development" \? "planning" : current\)/);
   assert.match(planning, />Catalog<\/button>/);
-  assert.match(planning, /\{!isDemoExperience && <button[^>]*>Development<\/button>\}/);
+  assert.ok(planning.includes('{!isDemoExperience && <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>}'), "Development must remain hidden in Demo.");
   assert.match(planning, /readOnlyDemo=\{isDemoExperience\}/);
 
-  assert.match(planning, /\{presentationRole === "admin" && <button[^>]*>Edit Final Plan<\/button>\}/);
+  assert.ok(planning.includes('{presentationRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final"'), "Admin preview must expose the standard Edit Final Plan control.");
   assert.match(planning, /\{isCompletedRecordOpen && presentationRole === "admin" && \(/);
 
+  const formActionsStart = planning.indexOf('<div className="form-actions">');
+  assert.ok(formActionsStart > 0, "Planning lifecycle action area must remain present.");
   for (const label of [
     "Save working plan",
     "Finalize plan",
@@ -104,8 +106,8 @@ async function main() {
     "Save completed changes",
     "Delete completed record",
   ]) {
-    const labelIndex = planning.indexOf(label);
-    assert.ok(labelIndex >= 0, label + " must remain in the shared UI.");
+    const labelIndex = planning.indexOf(label, formActionsStart);
+    assert.ok(labelIndex > formActionsStart, label + " must remain in the shared UI.");
     const buttonStart = planning.lastIndexOf("<button", labelIndex);
     const buttonSource = planning.slice(buttonStart, labelIndex);
     assert.match(buttonSource, /disabled=\{isDemoExperience/, label + " must remain fail-closed in Demo regardless of preview role.");
