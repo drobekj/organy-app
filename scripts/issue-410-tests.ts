@@ -114,7 +114,7 @@ async function main() {
   }
 
   assert.match(page, /if \(experience === "demo"\) \{\s*assertDemoRuntimeConfig\(\);\s*return <DemoD1Shell \/>;/);
-  assert.ok(page.indexOf('if (experience === "demo")') < page.indexOf("resolveProtectedUser"), "Demo must branch before protected authentication.");
+  assert.ok(page.indexOf('if (experience === "demo")') < page.indexOf("await resolveProtectedUser("), "Demo must branch before protected authentication.");
 
   const planningRole = model.match(/export type PlanningRole = ([^;]+);/)?.[1] ?? "";
   assert.doesNotMatch(planningRole, /demo/i);
