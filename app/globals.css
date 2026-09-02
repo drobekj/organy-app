@@ -73,6 +73,57 @@ select {
   color: var(--muted);
 }
 
+.demo-role-simulator {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.demo-role-simulator-heading {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.demo-role-simulator-heading span,
+.demo-role-summary,
+.demo-melody-protection-help {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.demo-role-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.demo-role-options button {
+  min-width: 6rem;
+}
+
+.demo-role-options button[aria-pressed="true"] {
+  background: #eff6ff;
+  box-shadow: inset 0 -2px 0 #2563eb;
+  font-weight: 700;
+}
+
+.demo-role-summary {
+  margin: 0;
+}
+
+.demo-melody-protection-panel {
+  align-content: start;
+}
+
+.demo-melody-protection-help {
+  grid-column: 1 / -1;
+}
+
 .demo-catalog-readonly {
   align-items: center;
   background: #f8fafc;
