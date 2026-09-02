@@ -1804,34 +1804,34 @@ Save the correction and mark those plans for revision?`);
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={isDemoExperience || !canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save working plan
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
+                    <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={isDemoExperience || !canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Finalize plan
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete saved plan
                     </button>
                   </>
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
-                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet}>Edit Final Plan</button>}
-                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet} title={completeDateReason || undefined}>
+                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
+                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>
                       Store Service
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete Saved Plan
                     </button>
                   </>
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={isDemoExperience || !hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save completed changes
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.delete-completed" onClick={deleteCompletedRecord}>Delete completed record</button>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete-completed" onClick={deleteCompletedRecord} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Delete completed record</button>
                   </>
                 )}
               </>
@@ -1847,7 +1847,7 @@ Save the correction and mark those plans for revision?`);
           />
         )}
 
-        {workspace === "catalog" && (
+        {!isDemoExperience && workspace === "catalog" && (
           <CatalogWorkspace
             runtime={runtimeMode}
             actor={activeActor}
@@ -1881,7 +1881,7 @@ Save the correction and mark those plans for revision?`);
             }}
           />
         )}
-        {workspace === "development" && (
+        {!isDemoExperience && workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
             {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong><p>DB runtime identity comes from the protected server session. Role switching is available from the User menu.</p></div>}
