@@ -1553,7 +1553,7 @@ Save the correction and mark those plans for revision?`);
         {demoAdminView === "accounts" && <DemoAccountsWorkspace />}
         {demoAdminView === "audit" && <DemoAuditWorkspace />}
         {!demoAdminView && workspace === "about" && <AboutWorkspace />}
-        {!demoAdminView && workspace === "guide" && <GuideWorkspace activeRole={presentationRole} />}
+        {!demoAdminView && workspace === "guide" && <GuideWorkspace activeRole={presentationRole} experience={isDemoExperience ? "demo" : "standard"} />}
 
         {!demoAdminView && workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveStateLabel}
