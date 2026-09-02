@@ -88,9 +88,9 @@ async function main() {
       assert.match(catalogUi, /persistPreferenceOnDetailExit/);
       assert.match(catalogUi, /saveOwnPreference\(candidate\.songId, score\)/);
       assert.match(catalogUi, /await reloadCandidates\(\)/);
-      assert.match(shellUi, /getOwnPreference=\{\(referenceSongId\) => interactionClient\.getReferenceOwnPreference/);
-      assert.match(shellUi, /saveOwnPreference=\{\(referenceSongId, score\) => interactionClient\.saveReferenceOwnPreference/);
-      assert.match(shellUi, /getPreferenceAggregate=\{\(referenceSongId\) => interactionClient\.getReferencePreferenceAggregate/);
+      assert.match(shellUi, /getOwnPreference=\{\(referenceSongId\) => demoCatalogClient \? demoCatalogClient\.getOwnPreference\(referenceSongId\) : interactionClient\.getReferenceOwnPreference/);
+      assert.match(shellUi, /saveOwnPreference=\{\(referenceSongId, score\) => demoCatalogClient \? demoCatalogClient\.saveOwnPreference\(referenceSongId, score\) : interactionClient\.saveReferenceOwnPreference/);
+      assert.match(shellUi, /getPreferenceAggregate=\{\(referenceSongId\) => demoCatalogClient \? demoCatalogClient\.getPreferenceAggregate\(referenceSongId\) : interactionClient\.getReferencePreferenceAggregate/);
       console.log("Phase 31.6 evidence: separate aggregate contract, admin and all roles, privacy, errors, isolation, refresh staleness, actual route, PostgreSQL, DB client, unchanged own contract, authoritative candidate aggregate projection without candidate-set or candidate-order mutation, and compact in-row UI projection with exit autosave passed.");
     }, async () => { const [terminate, drop] = dropDatabaseSql(name); await control.query(terminate, [name]); await control.query(drop); });
     process.env.DATABASE_URL = guardUrl; assert.equal(await fingerprint(guardUrl), before); assert.equal((await control.query("select 1 from pg_database where datname=$1", [name])).rows.length, 0);
