@@ -1403,6 +1403,7 @@ Save the correction and mark those plans for revision?`);
   }
 
   function navigateWorkspace(nextWorkspace: Workspace) {
+    if (isDemoExperience && (nextWorkspace === "catalog" || nextWorkspace === "development")) return;
     if (nextWorkspace !== workspace && !workspaceLeaveState.allowed) {
       setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before leaving Planning." });
       setSaveState("errors");
@@ -1420,16 +1421,46 @@ Save the correction and mark those plans for revision?`);
     setWorkspace(nextWorkspace);
   }
 
+  const saveStateLabel = isDemoExperience
+    ? saveState === "unsaved"
+      ? "Demo local changes"
+      : saveState === "saved"
+        ? "Demo Working snapshot"
+        : saveState === "finalized"
+          ? "Demo Final snapshot"
+          : saveState === "completed"
+            ? "Demo Completed snapshot"
+            : saveState === "deleted"
+              ? "Demo read-only"
+              : "Service error"
+    : saveState === "unsaved"
+      ? "Unsaved"
+      : saveState === "saved"
+        ? (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")
+        : saveState === "finalized"
+          ? (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")
+          : saveState === "completed"
+            ? (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")
+            : saveState === "deleted"
+              ? (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")
+              : "Service error";
+
   return (
     <main className="shell">
       <section className="card planning-card" aria-labelledby="page-title">
         <p className="eyebrow">Organ Planner workspace</p>
+        {isDemoExperience && (
+          <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
+            <strong>Demo mode</strong>
+            <span>Changes are temporary and are never saved.</span>
+          </aside>
+        )}
         <div className="app-header">
           <div>
             <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
-            <p className="lede">Plan services, review active plans and history, administer the catalog, and keep development tools separate.</p>
+            <p className="lede">{isDemoExperience ? "Explore Planning, active plans and completed-service history using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
           </div>
-          <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>
+          {!isDemoExperience && <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>}
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
           <div className="workspace-nav-section workspace-nav-about">
@@ -1439,8 +1470,8 @@ Save the correction and mark those plans for revision?`);
             <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
             <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
             <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
-            <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
-            <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
+            {!isDemoExperience && <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>}
+            {!isDemoExperience && <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>}
           </div>
           <div className="workspace-nav-section workspace-nav-footer">
             <button type="button" className={workspace === "guide" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("guide")}>Guide</button>
@@ -1452,12 +1483,7 @@ Save the correction and mark those plans for revision?`);
         {workspace === "guide" && <GuideWorkspace activeRole={selectedRole} />}
 
         {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
-          {saveState === "unsaved" && "Unsaved"}
-          {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
-          {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
-          {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
-          {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
-          {saveState === "errors" && "Service error"}
+          {saveStateLabel}
         </div>}
 
         {workspace === "plans" && (
@@ -1487,12 +1513,7 @@ Save the correction and mark those plans for revision?`);
           <div className="planning-context-header">
             <div className="planning-context-info" aria-label="Planning status and opened record">
               <div className={`status status-${saveState}`} role="status">
-                {saveState === "unsaved" && "Unsaved"}
-                {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
-                {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
-                {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
-                {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
-                {saveState === "errors" && "Service error"}
+                {saveStateLabel}
               </div>
               {persistedSet && <p className="saved-summary">Opened {formatPlanningSetSummary(persistedSet)}.</p>}
               {completedRecord && <p className="saved-summary">Opened {formatCompletedRecordSummary(completedRecord)}.</p>}
