@@ -52,7 +52,8 @@ assert.match(component, /data-guide-topic=/);
 assert.match(component, /guide-role-grid/);
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
-assert.match(client, /<GuideWorkspace activeRole=\{selectedRole\} \/>/);
+assert.match(client, /const presentationRole = isDemoExperience \? demoPresentationRole : selectedRole/);
+assert.match(client, /<GuideWorkspace activeRole=\{presentationRole\} \/>/);
 
 const css = readFileSync("app/workspace-shell.css", "utf8");
 assert.match(css, /\.guide-role-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);

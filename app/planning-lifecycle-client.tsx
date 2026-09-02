@@ -67,6 +67,14 @@ import type { ExperienceMode } from "../src/application/demo-safety";
 import { DemoPlanningLifecycleClient } from "../src/demo/d2-planning-client";
 import { DEMO_D2_PEOPLE, DEMO_D2_SONGS, createDemoD2InteractionRepository } from "../src/demo/d2-planning-fixture";
 import { DemoCatalogKnowledgeClient } from "../src/demo/d3-catalog-client";
+import {
+  DEFAULT_DEMO_PRESENTATION_ROLE,
+  demoPresentationCanMutatePlanningEditor,
+  demoPresentationCanPerformPlanningAction,
+  type DemoPresentationRole,
+} from "../src/demo/d4-presentation-role";
+import { DemoRoleSimulator } from "./demo-role-simulator";
+import { DemoMelodyProtectionPanel } from "./demo-melody-protection-panel";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -92,6 +100,7 @@ type PlanningLifecycleClientProps = {
 
 export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole, experience = "standard" }: PlanningLifecycleClientProps) {
   const isDemoExperience = experience === "demo";
+  const [demoPresentationRole, setDemoPresentationRole] = useState<DemoPresentationRole>(DEFAULT_DEMO_PRESENTATION_ROLE);
   const catalogRepository = useMemo(
     () => isDemoExperience
       ? new InMemoryCatalogRepository(DEMO_D2_PEOPLE.map((person) => ({ ...person })), DEMO_D2_SONGS.map((song) => ({ ...song })))
@@ -186,10 +195,15 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const demoUsers = availableUsers.map((user) => ({ id: user.id, label: user.displayName, roles: user.roles }));
   const [selectedUserId, setSelectedUserId] = useState(authenticatedUser?.id ?? "demo-priest-user");
   const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>(initialActiveRole ?? authenticatedUser?.roles[0] ?? "priest");
-  const storedUser = availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0];
-  const effectiveRole = storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0];
+  const storedUser = isDemoExperience
+    ? (memoryUsers.find((user) => user.id === "demo-priest-user") ?? memoryUsers[0])
+    : (availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0]);
+  const effectiveRole = isDemoExperience
+    ? "priest"
+    : (storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0]);
   const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
   const selectedRole = activeActor.role;
+  const presentationRole = isDemoExperience ? demoPresentationRole : selectedRole;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
   const adminMelodyProtectionKey = organistId ?? "__anonymous__";
   const adminCandidateMelodyProtectionMonths = adminMelodyProtectionOverrides[adminMelodyProtectionKey]
@@ -336,7 +350,9 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const hasAntiphonLanguageMismatch = Boolean(referenceAntiphon && !serviceAntiphonMatchesLanguage(referenceAntiphon, serviceLanguage));
   const hasTopicLanguageMismatch = Boolean(referenceTopic && !serviceTopicMatchesLanguage(referenceTopic, serviceLanguage));
   const isFinalSetOpen = persistedSet?.status === "final";
-  const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
+  const canMutateEditor = isDemoExperience
+    ? demoPresentationCanMutatePlanningEditor({ role: demoPresentationRole, isFinalSetOpen, isCompletedRecordOpen })
+    : canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
   const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
   const candidateRecordKeyRef = useRef(serviceContextRecordKey);
@@ -363,17 +379,28 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       void loadDetailEligibility(planningExpansion.rowId);
     }
   }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, referenceTopic?.id, serviceLanguage, serviceDate, lookupTracker, candidateRefreshGeneration]);
-  const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
-    selectedRole,
-    persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
+  const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && (
+    isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet")
+      : canPerformPlanningAction(selectedRole, persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet")
   );
-  const canFinalizeSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(selectedRole, "saveFinalSet");
+  const canFinalizeSet = !isCompletedRecordOpen && !isFinalSetOpen && (
+    isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, "saveFinalSet")
+      : canPerformPlanningAction(selectedRole, "saveFinalSet")
+  );
   const completeDateReason = persistedSet?.status === "final" && isFuturePragueDate(persistedSet.serviceContext.serviceDate) ? "Future service cannot be completed before its date in Europe/Prague." : "";
-  const canCompleteSet = !isCompletedRecordOpen && canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord") && !completeDateReason;
+  const canCompleteSet = !isCompletedRecordOpen && (
+    isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, "convertFinalSetToCompletedServiceRecord")
+      : canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord")
+  ) && !completeDateReason;
   const canDeleteCurrentSet = !isCompletedRecordOpen && persistedSet
-    ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
+    ? (isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
+      : canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet"))
     : false;
-  const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
+  const canEditCompletedRecord = isCompletedRecordOpen && (isDemoExperience ? demoPresentationRole === "admin" : selectedRole === "admin");
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
   const rowLookupStates = rows.map(getPlanningCandidateRowLookupState);
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
@@ -546,8 +573,12 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     };
   }, [candidateAvailabilityKey, interactionClient, candidateAvailabilityApplies]);
   useEffect(() => {
+    if (isDemoExperience) {
+      setWorkspace((current) => current === "development" ? "planning" : current);
+      return;
+    }
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
-  }, [selectedRole]);
+  }, [selectedRole, isDemoExperience]);
 
 
   async function getEligibleDraftPeopleDefaults(records: CompletedServiceRecord[]): Promise<DraftPeopleDefaults> {
@@ -1452,10 +1483,13 @@ Save the correction and mark those plans for revision?`);
       <section className="card planning-card" aria-labelledby="page-title">
         <p className="eyebrow">Organ Planner workspace</p>
         {isDemoExperience && (
-          <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
-            <strong>Demo mode</strong>
-            <span>Changes are temporary and are never saved.</span>
-          </aside>
+          <>
+            <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
+              <strong>Demo mode</strong>
+              <span>Changes are temporary and are never saved.</span>
+            </aside>
+            <DemoRoleSimulator role={demoPresentationRole} onChange={setDemoPresentationRole} />
+          </>
         )}
         <div className="app-header">
           <div>
@@ -1482,7 +1516,7 @@ Save the correction and mark those plans for revision?`);
         </nav>
 
         {workspace === "about" && <AboutWorkspace />}
-        {workspace === "guide" && <GuideWorkspace activeRole={selectedRole} />}
+        {workspace === "guide" && <GuideWorkspace activeRole={presentationRole} />}
 
         {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveStateLabel}
@@ -1527,34 +1561,19 @@ Save the correction and mark those plans for revision?`);
               )}
             </div>
             <div className="planning-melody-protection-slot" aria-label="Melody Protection reserved area">
-              {(selectedRole === "priest" || selectedRole === "organist" || selectedRole === "admin") && (
-                <NonRepetitionPeriodPanel
-                  runtimeMode={runtimeMode}
-                  actor={activeActor}
+              {isDemoExperience ? (
+                <DemoMelodyProtectionPanel
+                  role={demoPresentationRole}
                   selectedOrganistPersonId={organistId}
-                  effectiveMonths={selectedRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
-                  disabled={selectedRole === "priest" && isEditorLocked}
-                  memoryInteractionRepository={interactionRepository}
-                  memoryPlanningSets={repositories.planningSets}
-                  onMinimumLoaded={(minimum) => {
-                    if (selectedRole === "admin") {
-                      setAdminMelodyProtectionMinimums((current) => ({ ...current, [adminMelodyProtectionKey]: minimum }));
-                    } else {
-                      setMelodyProtectionMonths((current) => Math.max(current, minimum));
-                    }
-                  }}
+                  effectiveMonths={demoPresentationRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
+                  disabled={demoPresentationRole === "priest" && isEditorLocked}
                   onEffectiveChange={(months) => {
-                    if (selectedRole === "admin") {
+                    if (demoPresentationRole === "admin") {
                       setAdminMelodyProtectionOverrides((current) => ({ ...current, [adminMelodyProtectionKey]: months }));
-                    } else if (selectedRole === "priest") {
-                      guardedEditorUpdate(() => setMelodyProtectionMonths(months));
-                    } else if (!isEditorLocked) {
                       setMelodyProtectionMonths(months);
-                      setSaveState("unsaved");
-                      setServiceError(null);
+                    } else {
+                      setMelodyProtectionMonths(months);
                     }
-                  }}
-                  onSaved={() => {
                     lookupTracker.invalidatePrefix("song:");
                     setCandidateResults({});
                     setCandidateLoading({});
@@ -1562,6 +1581,43 @@ Save the correction and mark those plans for revision?`);
                     setCandidateRefreshGeneration((generation) => generation + 1);
                   }}
                 />
+              ) : (
+                (selectedRole === "priest" || selectedRole === "organist" || selectedRole === "admin") && (
+                  <NonRepetitionPeriodPanel
+                    runtimeMode={runtimeMode}
+                    actor={activeActor}
+                    selectedOrganistPersonId={organistId}
+                    effectiveMonths={selectedRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
+                    disabled={selectedRole === "priest" && isEditorLocked}
+                    memoryInteractionRepository={interactionRepository}
+                    memoryPlanningSets={repositories.planningSets}
+                    onMinimumLoaded={(minimum) => {
+                      if (selectedRole === "admin") {
+                        setAdminMelodyProtectionMinimums((current) => ({ ...current, [adminMelodyProtectionKey]: minimum }));
+                      } else {
+                        setMelodyProtectionMonths((current) => Math.max(current, minimum));
+                      }
+                    }}
+                    onEffectiveChange={(months) => {
+                      if (selectedRole === "admin") {
+                        setAdminMelodyProtectionOverrides((current) => ({ ...current, [adminMelodyProtectionKey]: months }));
+                      } else if (selectedRole === "priest") {
+                        guardedEditorUpdate(() => setMelodyProtectionMonths(months));
+                      } else if (!isEditorLocked) {
+                        setMelodyProtectionMonths(months);
+                        setSaveState("unsaved");
+                        setServiceError(null);
+                      }
+                    }}
+                    onSaved={() => {
+                      lookupTracker.invalidatePrefix("song:");
+                      setCandidateResults({});
+                      setCandidateLoading({});
+                      setCandidateErrors({});
+                      setCandidateRefreshGeneration((generation) => generation + 1);
+                    }}
+                  />
+                )
               )}
             </div>
           </div>
@@ -1819,7 +1875,7 @@ Save the correction and mark those plans for revision?`);
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
-                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
+                    {presentationRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
                     <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>
                       Store Service
                     </button>
@@ -1828,7 +1884,7 @@ Save the correction and mark those plans for revision?`);
                     </button>
                   </>
                 )}
-                {isCompletedRecordOpen && selectedRole === "admin" && (
+                {isCompletedRecordOpen && presentationRole === "admin" && (
                   <>
                     <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={isDemoExperience || !hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save completed changes
@@ -1918,7 +1974,7 @@ Save the correction and mark those plans for revision?`);
           </p>
         )}
       </section>
-      <GuideHintLayer activeRole={selectedRole} activeWorkspace={workspace} />
+      <GuideHintLayer activeRole={presentationRole} activeWorkspace={workspace} />
     </main>
   );
 }
