@@ -67,6 +67,14 @@ import type { ExperienceMode } from "../src/application/demo-safety";
 import { DemoPlanningLifecycleClient } from "../src/demo/d2-planning-client";
 import { DEMO_D2_PEOPLE, DEMO_D2_SONGS, createDemoD2InteractionRepository } from "../src/demo/d2-planning-fixture";
 import { DemoCatalogKnowledgeClient } from "../src/demo/d3-catalog-client";
+import {
+  DEFAULT_DEMO_PRESENTATION_ROLE,
+  demoPresentationCanMutatePlanningEditor,
+  demoPresentationCanPerformPlanningAction,
+  type DemoPresentationRole,
+} from "../src/demo/d4-presentation-role";
+import { DemoRoleSimulator } from "./demo-role-simulator";
+import { DemoMelodyProtectionPanel } from "./demo-melody-protection-panel";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -92,6 +100,7 @@ type PlanningLifecycleClientProps = {
 
 export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole, experience = "standard" }: PlanningLifecycleClientProps) {
   const isDemoExperience = experience === "demo";
+  const [demoPresentationRole, setDemoPresentationRole] = useState<DemoPresentationRole>(DEFAULT_DEMO_PRESENTATION_ROLE);
   const catalogRepository = useMemo(
     () => isDemoExperience
       ? new InMemoryCatalogRepository(DEMO_D2_PEOPLE.map((person) => ({ ...person })), DEMO_D2_SONGS.map((song) => ({ ...song })))
@@ -190,6 +199,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const effectiveRole = storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0];
   const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
   const selectedRole = activeActor.role;
+  const presentationRole = isDemoExperience ? demoPresentationRole : selectedRole;
   const activeUser = { id: activeActor.userId, label: activeActor.displayName, role: activeActor.role };
   const adminMelodyProtectionKey = organistId ?? "__anonymous__";
   const adminCandidateMelodyProtectionMonths = adminMelodyProtectionOverrides[adminMelodyProtectionKey]
@@ -336,7 +346,9 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const hasAntiphonLanguageMismatch = Boolean(referenceAntiphon && !serviceAntiphonMatchesLanguage(referenceAntiphon, serviceLanguage));
   const hasTopicLanguageMismatch = Boolean(referenceTopic && !serviceTopicMatchesLanguage(referenceTopic, serviceLanguage));
   const isFinalSetOpen = persistedSet?.status === "final";
-  const canMutateEditor = canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
+  const canMutateEditor = isDemoExperience
+    ? demoPresentationCanMutatePlanningEditor({ role: demoPresentationRole, isFinalSetOpen, isCompletedRecordOpen })
+    : canMutatePlanningEditor({ isFinalSetOpen, isCompletedRecordOpen, selectedRole });
   const isEditorLocked = !canMutateEditor;
   const serviceContextRecordKey = `${serviceContextGeneration}:${completedRecord ? `completed:${completedRecord.id}` : persistedSet ? `set:${persistedSet.id}:${persistedSet.status}` : "new"}`;
   const candidateRecordKeyRef = useRef(serviceContextRecordKey);
@@ -363,17 +375,28 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       void loadDetailEligibility(planningExpansion.rowId);
     }
   }, [runtimeMode, serviceContextRecordKey, organistId, referenceAntiphon?.id, referenceTopic?.id, serviceLanguage, serviceDate, lookupTracker, candidateRefreshGeneration]);
-  const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(
-    selectedRole,
-    persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet",
+  const canSaveWorkingSet = !isCompletedRecordOpen && !isFinalSetOpen && (
+    isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet")
+      : canPerformPlanningAction(selectedRole, persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet")
   );
-  const canFinalizeSet = !isCompletedRecordOpen && !isFinalSetOpen && canPerformPlanningAction(selectedRole, "saveFinalSet");
+  const canFinalizeSet = !isCompletedRecordOpen && !isFinalSetOpen && (
+    isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, "saveFinalSet")
+      : canPerformPlanningAction(selectedRole, "saveFinalSet")
+  );
   const completeDateReason = persistedSet?.status === "final" && isFuturePragueDate(persistedSet.serviceContext.serviceDate) ? "Future service cannot be completed before its date in Europe/Prague." : "";
-  const canCompleteSet = !isCompletedRecordOpen && canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord") && !completeDateReason;
+  const canCompleteSet = !isCompletedRecordOpen && (
+    isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, "convertFinalSetToCompletedServiceRecord")
+      : canPerformPlanningAction(selectedRole, "convertFinalSetToCompletedServiceRecord")
+  ) && !completeDateReason;
   const canDeleteCurrentSet = !isCompletedRecordOpen && persistedSet
-    ? canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
+    ? (isDemoExperience
+      ? demoPresentationCanPerformPlanningAction(demoPresentationRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet")
+      : canPerformPlanningAction(selectedRole, persistedSet.status === "working" ? "deleteWorkingSet" : "deleteFinalSet"))
     : false;
-  const canEditCompletedRecord = isCompletedRecordOpen && selectedRole === "admin";
+  const canEditCompletedRecord = isCompletedRecordOpen && (isDemoExperience ? demoPresentationRole === "admin" : selectedRole === "admin");
   const canEditRows = canMutateEditor && (canEditCompletedRecord || (!isCompletedRecordOpen && !isFinalSetOpen && (!persistedSet || persistedSet.status === "working" ? canSaveWorkingSet : false)));
   const rowLookupStates = rows.map(getPlanningCandidateRowLookupState);
   const hasInvalidLookupState = !canAddOrPersistRows(rowLookupStates);
@@ -546,8 +569,12 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     };
   }, [candidateAvailabilityKey, interactionClient, candidateAvailabilityApplies]);
   useEffect(() => {
+    if (isDemoExperience) {
+      setWorkspace((current) => current === "development" ? "planning" : current);
+      return;
+    }
     setWorkspace((current) => getSafeWorkspace(current, selectedRole));
-  }, [selectedRole]);
+  }, [selectedRole, isDemoExperience]);
 
 
   async function getEligibleDraftPeopleDefaults(records: CompletedServiceRecord[]): Promise<DraftPeopleDefaults> {
@@ -1452,10 +1479,13 @@ Save the correction and mark those plans for revision?`);
       <section className="card planning-card" aria-labelledby="page-title">
         <p className="eyebrow">Organ Planner workspace</p>
         {isDemoExperience && (
-          <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
-            <strong>Demo mode</strong>
-            <span>Changes are temporary and are never saved.</span>
-          </aside>
+          <>
+            <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
+              <strong>Demo mode</strong>
+              <span>Changes are temporary and are never saved.</span>
+            </aside>
+            <DemoRoleSimulator role={demoPresentationRole} onChange={setDemoPresentationRole} />
+          </>
         )}
         <div className="app-header">
           <div>
@@ -1482,7 +1512,7 @@ Save the correction and mark those plans for revision?`);
         </nav>
 
         {workspace === "about" && <AboutWorkspace />}
-        {workspace === "guide" && <GuideWorkspace activeRole={selectedRole} />}
+        {workspace === "guide" && <GuideWorkspace activeRole={presentationRole} />}
 
         {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveStateLabel}
@@ -1918,7 +1948,7 @@ Save the correction and mark those plans for revision?`);
           </p>
         )}
       </section>
-      <GuideHintLayer activeRole={selectedRole} activeWorkspace={workspace} />
+      <GuideHintLayer activeRole={presentationRole} activeWorkspace={workspace} />
     </main>
   );
 }
