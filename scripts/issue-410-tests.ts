@@ -67,7 +67,8 @@ async function main() {
   assert.doesNotMatch(demoMelody, /fetch\s*\(|\/api\/|ActorIdentity|callMelodyProtectionApi|setOwnMelodyProtection|document\.cookie|localStorage|sessionStorage/);
 
   assert.match(planning, /const \[demoPresentationRole, setDemoPresentationRole\] = useState<DemoPresentationRole>\(DEFAULT_DEMO_PRESENTATION_ROLE\)/);
-  assert.match(planning, /<DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{setDemoPresentationRole\} \/>/);
+  assert.match(planning, /function changeDemoPresentationRole\(role: DemoPresentationRole\) \{\s*setDemoPresentationRole\(role\)/);
+  assert.match(planning, /<DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{changeDemoPresentationRole\} \/>/);
   assert.match(planning, /const presentationRole = isDemoExperience \? demoPresentationRole : selectedRole/);
 
   assert.match(
