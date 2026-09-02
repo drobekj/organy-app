@@ -1556,7 +1556,7 @@ Save the correction and mark those plans for revision?`);
         {!demoAdminView && workspace === "guide" && <GuideWorkspace
           activeRole={presentationRole}
           experience={isDemoExperience ? "demo" : "standard"}
-          demoRolePanel={isDemoExperience ? <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} /> : undefined}
+          demoRolePanel={isDemoExperience ? <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} guideContext /> : undefined}
         />}
 
         {!demoAdminView && workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
