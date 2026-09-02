@@ -195,8 +195,12 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const demoUsers = availableUsers.map((user) => ({ id: user.id, label: user.displayName, roles: user.roles }));
   const [selectedUserId, setSelectedUserId] = useState(authenticatedUser?.id ?? "demo-priest-user");
   const [selectedAssignedRole, setSelectedAssignedRole] = useState<PlanningRole>(initialActiveRole ?? authenticatedUser?.roles[0] ?? "priest");
-  const storedUser = availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0];
-  const effectiveRole = storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0];
+  const storedUser = isDemoExperience
+    ? (memoryUsers.find((user) => user.id === "demo-priest-user") ?? memoryUsers[0])
+    : (availableUsers.find((user) => user.id === selectedUserId) ?? availableUsers[0] ?? memoryUsers[0]);
+  const effectiveRole = isDemoExperience
+    ? "priest"
+    : (storedUser.roles.includes(selectedAssignedRole) ? selectedAssignedRole : storedUser.roles[0]);
   const activeActor: ActorIdentity = { userId: storedUser.id, displayName: storedUser.displayName, role: effectiveRole, ...(storedUser.personId ? { personId: storedUser.personId } : {}) };
   const selectedRole = activeActor.role;
   const presentationRole = isDemoExperience ? demoPresentationRole : selectedRole;
@@ -1566,6 +1570,7 @@ Save the correction and mark those plans for revision?`);
                   onEffectiveChange={(months) => {
                     if (demoPresentationRole === "admin") {
                       setAdminMelodyProtectionOverrides((current) => ({ ...current, [adminMelodyProtectionKey]: months }));
+                      setMelodyProtectionMonths(months);
                     } else {
                       setMelodyProtectionMonths(months);
                     }
