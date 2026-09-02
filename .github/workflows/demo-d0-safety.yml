@@ -61,6 +61,9 @@ jobs:
       - name: Stage D1 isolated runtime contract
         run: npm run test:issue-404
 
+      - name: Stage D2 read-only Planning contract
+        run: npm run test:issue-406
+
       - name: Existing Priest lifecycle regression
         run: npm run test:lifecycle
 
@@ -133,11 +136,15 @@ jobs:
             sleep 1
           done
 
-          grep -F "Stage D1 safety shell" d1-root.html
-          grep -F "synthetic in-memory data" d1-root.html
+          grep -F "Changes are temporary and are never saved." d1-root.html
+          grep -F ">Planning<" d1-root.html
+          grep -F ">Plans<" d1-root.html
+          grep -F ">History<" d1-root.html
+          grep -F "Save working plan" d1-root.html
+          grep -F "disabled" d1-root.html
 
           if grep -qE 'Sign in|/api/' d1-root.html; then
-            echo "D1 shell leaked protected-auth or API dependency markup."
+            echo "Demo shell leaked protected-auth or API dependency markup."
             exit 1
           fi
 
