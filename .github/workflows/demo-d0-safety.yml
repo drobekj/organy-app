@@ -64,6 +64,9 @@ jobs:
       - name: Stage D2 read-only Planning contract
         run: npm run test:issue-406
 
+      - name: Stage D3 read-only Catalog knowledge contract
+        run: npm run test:issue-408
+
       - name: Existing Priest lifecycle regression
         run: npm run test:lifecycle
 
@@ -140,6 +143,7 @@ jobs:
           grep -F ">Planning<" d1-root.html
           grep -F ">Plans<" d1-root.html
           grep -F ">History<" d1-root.html
+          grep -F ">Catalog<" d1-root.html
           grep -F "Save working plan" d1-root.html
           grep -F "disabled" d1-root.html
 
