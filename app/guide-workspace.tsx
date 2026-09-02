@@ -5,8 +5,10 @@ import type { PlanningRole } from "../src/planning-lifecycle";
 import {
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
+  guideEnvironmentCopy,
   guideSections,
   guideUi,
+  type GuideExperience,
   type GuideLanguage,
   type GuideRole,
   type LocalizedText,
@@ -20,7 +22,7 @@ function roleLabel(role: GuideRole, language: GuideLanguage): string {
   return text(guideUi[role], language);
 }
 
-export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
+export function GuideWorkspace({ activeRole, experience }: { activeRole: PlanningRole; experience: GuideExperience }) {
   const [language, setLanguage] = useState<GuideLanguage>("en");
 
   useEffect(() => {
@@ -34,6 +36,9 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
     window.dispatchEvent(new Event(GUIDE_LANGUAGE_CHANGED_EVENT));
   }
 
+  const visibleSections = experience === "demo"
+    ? guideSections.filter((section) => !section.standardOnly)
+    : guideSections;
 
   return (
     <section className="guide-workspace" aria-labelledby="guide-workspace-title">
@@ -41,6 +46,10 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
         <div>
           <h2 id="guide-workspace-title">{text(guideUi.title, language)}</h2>
           <p>{text(guideUi.intro, language)}</p>
+          <p className="guide-environment">
+            <strong>{text(guideUi.environment, language)} · {text(guideUi[experience], language)}:</strong>{" "}
+            {text(guideEnvironmentCopy[experience], language)}
+          </p>
         </div>
         <div className="guide-language" role="group" aria-label={text(guideUi.language, language)}>
           <span>{text(guideUi.language, language)}</span>
@@ -64,48 +73,64 @@ export function GuideWorkspace({ activeRole }: { activeRole: PlanningRole }) {
       </header>
 
       <div className="guide-sections">
-        {guideSections.map((section) => (
-          <section
-            key={section.id}
-            id={section.id.replaceAll(".", "-")}
-            data-guide-topic={section.id}
-            className="guide-section"
-            aria-labelledby={`${section.id.replaceAll(".", "-")}-title`}
-          >
-            <h3 id={`${section.id.replaceAll(".", "-")}-title`}>{text(section.title, language)}</h3>
-            <p className="guide-summary">{text(section.summary, language)}</p>
+        {visibleSections.map((section) => {
+          const experienceBullets = section.experience?.[experience] ?? [];
+          const sectionRoles = (["admin", "priest", "organist"] as const)
+            .filter((role) => (section.roles?.[role]?.length ?? 0) > 0);
 
-            <div className="guide-shared">
-              <strong>{text(guideUi.shared, language)}</strong>
-              <ul>
-                {section.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
-              </ul>
-            </div>
+          return (
+            <section
+              key={section.id}
+              id={section.id.replaceAll(".", "-")}
+              data-guide-topic={section.id}
+              className="guide-section"
+              aria-labelledby={`${section.id.replaceAll(".", "-")}-title`}
+            >
+              <h3 id={`${section.id.replaceAll(".", "-")}-title`}>{text(section.title, language)}</h3>
+              <p className="guide-summary">{text(section.summary, language)}</p>
 
-            {section.roles && (
-              <div className="guide-role-grid">
-                {(["priest", "organist"] as const).map((role) => {
-                  const isCurrent = activeRole === role;
-                  return (
-                    <section
-                      key={role}
-                      className={`guide-role-card${isCurrent ? " guide-role-current" : ""}`}
-                      aria-label={roleLabel(role, language)}
-                    >
-                      <h4>
-                        {roleLabel(role, language)}
-                        {isCurrent && <span className="guide-current-role"> · {text(guideUi.currentRole, language)}</span>}
-                      </h4>
-                      <ul>
-                        {section.roles![role].map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
-                      </ul>
-                    </section>
-                  );
-                })}
+              <div className="guide-shared">
+                <strong>{text(guideUi.shared, language)}</strong>
+                <ul>
+                  {section.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+                </ul>
               </div>
-            )}
-          </section>
-        ))}
+
+              {experienceBullets.length > 0 && (
+                <div className="guide-experience">
+                  <strong>{text(guideUi[experience], language)}</strong>
+                  <ul>
+                    {experienceBullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {sectionRoles.length > 0 && (
+                <div className="guide-role-grid">
+                  {sectionRoles.map((role) => {
+                    const isCurrent = activeRole === role;
+                    const bullets = section.roles?.[role] ?? [];
+                    return (
+                      <section
+                        key={role}
+                        className={`guide-role-card${isCurrent ? " guide-role-current" : ""}`}
+                        aria-label={roleLabel(role, language)}
+                      >
+                        <h4>
+                          {roleLabel(role, language)}
+                          {isCurrent && <span className="guide-current-role"> · {text(guideUi.currentRole, language)}</span>}
+                        </h4>
+                        <ul>
+                          {bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+                        </ul>
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          );
+        })}
       </div>
     </section>
   );
