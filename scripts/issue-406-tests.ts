@@ -85,7 +85,7 @@ async function main() {
   assert.match(shell, /PlanningLifecycleClient runtimeMode="memory" experience="demo"/);
   assert.match(planning, /experience\?: ExperienceMode/);
   assert.match(planning, /experience = "standard"/);
-  assert.match(planning, /isDemoExperience \? new DemoPlanningLifecycleClient\(\)/);
+  assert.match(planning, /isDemoExperience\s*\?\s*new DemoPlanningLifecycleClient\(\)/);
   assert.match(planning, /Changes are temporary and are never saved\./);
 
   assert.match(planning, /!isDemoExperience && <button[^>]*>Catalog<\/button>/);
