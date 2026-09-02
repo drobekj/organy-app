@@ -36,8 +36,8 @@ assert.match(workspace, /guideAccountContext\.title/);
 assert.match(workspace, /guideAccountContext\.bullets/);
 
 assert.match(planning, /\{workspace !== "guide" && <DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{changeDemoPresentationRole\} \/>\}/);
-assert.match(planning, /demoRolePanel=\{isDemoExperience \? <DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{changeDemoPresentationRole\} \/> : undefined\}/);
-assert.equal((planning.match(/<DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{changeDemoPresentationRole\} \/>/g) ?? []).length, 2);
+assert.match(planning, /demoRolePanel=\{isDemoExperience \? <DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{changeDemoPresentationRole\} guideContext \/> : undefined\}/);
+assert.equal((planning.match(/<DemoRoleSimulator role=\{demoPresentationRole\} onChange=\{changeDemoPresentationRole\}/g) ?? []).length, 2);
 assert.match(simulator, /Preview role/);
 assert.match(simulator, /Presentation only · no sign-in or permissions are granted\./);
 assert.match(simulator, /onClick=\{\(\) => onChange\(candidate\)\}/);

@@ -9,9 +9,11 @@ import {
 export function DemoRoleSimulator({
   role,
   onChange,
+  guideContext = false,
 }: {
   role: DemoPresentationRole;
   onChange: (role: DemoPresentationRole) => void;
+  guideContext?: boolean;
 }) {
   return (
     <section className="demo-role-simulator" aria-label="Demo role simulator">
@@ -34,6 +36,7 @@ export function DemoRoleSimulator({
       <p className="demo-role-summary" role="status">
         <strong>{DEMO_PRESENTATION_ROLE_COPY[role].label}:</strong>{" "}
         {DEMO_PRESENTATION_ROLE_COPY[role].summary}
+        {guideContext && <> Role-specific Guide blocks follow this preview role.</>}
       </p>
     </section>
   );
