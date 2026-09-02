@@ -1,4 +1,4 @@
-name: Demo D0 safety foundation acceptance
+name: Demo safety foundation acceptance
 
 on:
   pull_request:
@@ -26,10 +26,11 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
+
     env:
       DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
       ORGANY_RUNTIME: db
-      BETTER_AUTH_SECRET: demo-d0-ci-secret-long-enough-for-protected-runtime-acceptance
+      BETTER_AUTH_SECRET: demo-safety-ci-secret-long-enough-for-protected-runtime-acceptance
       BETTER_AUTH_URL: http://127.0.0.1:3000
       ORGANY_BOOTSTRAP_ADMIN_PASSWORD: DemoD0Admin!2026
       ORGANY_BOOTSTRAP_PRIEST_PASSWORD: DemoD0Priest!2026
@@ -57,6 +58,9 @@ jobs:
       - name: Stage D0 protected API and write boundaries
         run: npm run test:issue-402:db
 
+      - name: Stage D1 isolated runtime contract
+        run: npm run test:issue-404
+
       - name: Existing Priest lifecycle regression
         run: npm run test:lifecycle
 
@@ -69,10 +73,10 @@ jobs:
       - name: Complete tests
         run: npm test
 
-      - name: Production build
+      - name: Standard Production build
         run: npm run build
 
-      - name: Production root still requires authentication
+      - name: Standard Production root still requires authentication
         shell: bash
         run: |
           set -euo pipefail
@@ -97,29 +101,65 @@ jobs:
               ;;
           esac
 
-          if ! tr -d '\r' < d0-root.headers | grep -qiE '^location: (https?://[^/]+)?/sign-in
+          if ! tr -d '\r' < d0-root.headers | grep -qiE '^location: (https?://[^/]+)?/sign-in$'; then
             echo "Production root did not redirect to /sign-in"
             cat d0-root.headers
             exit 1
           fi
 
-      - name: Upload D0 server log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: demo-d0-server-log
-          path: d0-next.log
-          if-no-files-found: ignore
-; then
-            echo "Production root did not redirect to /sign-in"
-            cat d0-root.headers
+          kill "$server_pid"
+          wait "$server_pid" 2>/dev/null || true
+          trap - EXIT
+
+      - name: Stage D1 secret-free Demo build
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .next
+          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run build
+
+      - name: Stage D1 public Demo boot without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run start -- --hostname 127.0.0.1 --port 3100 > d1-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:3100/ -o d1-root.html; then
+              break
+            fi
+            sleep 1
+          done
+
+          grep -F "Stage D1 safety shell" d1-root.html
+          grep -F "synthetic in-memory data" d1-root.html
+
+          if grep -qE 'Sign in|/api/' d1-root.html; then
+            echo "D1 shell leaked protected-auth or API dependency markup."
             exit 1
           fi
 
-      - name: Upload D0 server log
+          api_status="$(curl -sS -o d1-api.json -w '%{http_code}'             -H 'content-type: application/json'             -d '{"action":"listPeople","input":{},"actor":{"role":"admin"}}'             http://127.0.0.1:3100/api/catalog)"
+
+          if [ "$api_status" != "400" ]; then
+            echo "Expected Demo runtime protected DB API to remain disabled, got HTTP $api_status"
+            cat d1-api.json
+            exit 1
+          fi
+
+          grep -F "Catalog DB runtime is not enabled." d1-api.json
+
+      - name: Upload Demo safety server logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: demo-d0-server-log
-          path: d0-next.log
+          name: demo-safety-server-logs
+          path: |
+            d0-next.log
+            d0-root.headers
+            d1-next.log
+            d1-root.html
+            d1-api.json
           if-no-files-found: ignore
