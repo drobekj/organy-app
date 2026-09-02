@@ -1,5 +1,6 @@
 export type GuideLanguage = "en" | "cz";
-export type GuideRole = "priest" | "organist";
+export type GuideRole = "admin" | "priest" | "organist";
+export type GuideExperience = "standard" | "demo";
 
 export type LocalizedText = Record<GuideLanguage, string>;
 
@@ -8,7 +9,9 @@ export type GuideSection = {
   title: LocalizedText;
   summary: LocalizedText;
   bullets: LocalizedText[];
-  roles?: Record<GuideRole, LocalizedText[]>;
+  roles?: Partial<Record<GuideRole, LocalizedText[]>>;
+  experience?: Partial<Record<GuideExperience, LocalizedText[]>>;
+  standardOnly?: boolean;
 };
 
 export const GUIDE_LANGUAGE_STORAGE_KEY = "organy-guide-language";
@@ -19,15 +22,30 @@ export const GUIDE_LANGUAGE_CHANGED_EVENT = "organy:guide-language-changed";
 export const guideUi = {
   title: { en: "Practical guide", cz: "Praktický průvodce" },
   intro: {
-    en: "Use the same section names as the main menu. Shared steps are shown once; role-specific actions are shown separately for Priest and Organist.",
-    cz: "Průvodce používá stejné názvy částí jako hlavní menu. Společné kroky jsou uvedeny jednou; odlišné pravomoci jsou zvlášť pro Priest a Organist.",
+    en: "The Guide follows the main workspaces, explains Production/Demo differences and separates role-specific actions for Admin, Priest and Organist.",
+    cz: "Guide navazuje na hlavní pracovní části, vysvětluje rozdíly Production/Demo a odděluje pravomoci rolí Admin, Priest a Organist.",
   },
   language: { en: "Language", cz: "Jazyk" },
   shared: { en: "Shared", cz: "Společné" },
+  environment: { en: "This environment", cz: "Toto prostředí" },
+  standard: { en: "Production", cz: "Production" },
+  demo: { en: "Demo", cz: "Demo" },
+  admin: { en: "Admin", cz: "Admin" },
   priest: { en: "Priest", cz: "Kněz" },
   organist: { en: "Organist", cz: "Varhaník" },
   currentRole: { en: "current role", cz: "aktuální role" },
 } satisfies Record<string, LocalizedText>;
+
+export const guideEnvironmentCopy = {
+  standard: {
+    en: "Production uses a protected signed-in session and persistent application data. Changes are stored only when the active role is authorized to perform them.",
+    cz: "Production používá chráněnou přihlášenou session a perzistentní data aplikace. Změny se ukládají pouze tehdy, když je aktivní role oprávněna danou akci provést.",
+  },
+  demo: {
+    en: "Demo uses synthetic in-memory data only. Changes are temporary and are never saved. Preview role changes presentation only; it does not sign you in or grant real permissions. Reset Demo restores the original synthetic fixture.",
+    cz: "Demo používá pouze syntetická data v paměti. Změny jsou dočasné a nikdy se neukládají. Preview role mění pouze prezentaci; nepřihlašuje uživatele ani neuděluje skutečná oprávnění. Reset Demo obnoví původní syntetická data.",
+  },
+} satisfies Record<GuideExperience, LocalizedText>;
 
 export const guideSections: GuideSection[] = [
   {
@@ -68,20 +86,50 @@ export const guideSections: GuideSection[] = [
         en: "Candidate availability, language, melody collisions and other validation messages must be resolved before the corresponding save/finalize action becomes available.",
         cz: "Před příslušným uložením nebo finalizací je třeba vyřešit hlášení o dostupnosti kandidátů, jazyku, kolizích melodií a další validační chyby.",
       },
+      {
+        en: "Melody Protection is part of the service context: its month window suppresses recently used melody classes from normal candidate selection and is used by repetition/conflict checks.",
+        cz: "Melody Protection je součástí kontextu bohoslužby: období v měsících potlačuje nedávno použité třídy melodií z běžného výběru kandidátů a používá se při kontrolách opakování a konfliktů.",
+      },
     ],
+    experience: {
+      demo: [
+        {
+          en: "Demo Planning uses synthetic data. Role capabilities can be previewed, but persistent lifecycle mutations remain disabled and Reset Demo discards local changes.",
+          cz: "Demo Planning používá syntetická data. Pravomoci rolí lze prohlížet, ale perzistentní lifecycle změny zůstávají zakázané a Reset Demo zahodí lokální změny.",
+        },
+      ],
+    },
     roles: {
+      admin: [
+        {
+          en: "Has the Working/Final lifecycle capabilities and may also perform Admin operations on completed History records where those controls are available.",
+          cz: "Má pravomoci pro Working/Final lifecycle a tam, kde jsou příslušné ovládací prvky dostupné, může provádět také Admin operace nad dokončenými záznamy History.",
+        },
+        {
+          en: "For a selected Organist, Melody Protection is an unrestricted temporary 0–12 month session override. It does not overwrite the Organist's stored setting.",
+          cz: "Pro zvoleného Organista je Melody Protection neomezený dočasný session override v rozsahu 0–12 měsíců. Nepřepisuje uložené nastavení Organista.",
+        },
+        {
+          en: "After Finalize, the optional WhatsApp handoff can open a prepared message. A protected Admin account may save the phone for later use.",
+          cz: "Po Finalize lze volitelně otevřít WhatsApp s připravenou zprávou. Protected Admin account může telefon uložit pro další použití.",
+        },
+      ],
       priest: [
         {
           en: "Can create, edit, save and delete Working plans.",
           cz: "Může vytvářet, upravovat, ukládat a mazat Working plány.",
         },
         {
-          en: "Can finalize a saved Working plan. A Final plan can then be stored as a completed service once its service date is not in the future.",
-          cz: "Může finalizovat uložený Working plán. Final plán lze následně uložit jako dokončenou bohoslužbu, jakmile datum bohoslužby není v budoucnosti.",
+          en: "Can finalize a saved Working plan, delete a Final plan and store an eligible Final plan as a completed service once its service date is not in the future.",
+          cz: "Může finalizovat uložený Working plán, smazat Final plán a uložit způsobilý Final plán jako dokončenou bohoslužbu, jakmile datum bohoslužby není v budoucnosti.",
         },
         {
-          en: "Can delete a Final plan; completed History records remain read-only for Priest.",
-          cz: "Může smazat Final plán; dokončené záznamy v History zůstávají pro roli Priest jen ke čtení.",
+          en: "Melody Protection starts at the selected Organist's own minimum. Priest may increase it for the plan but cannot choose a lower value; lower options are disabled. Anonymous Organist has a 0-month minimum. This does not change the Organist's stored setting.",
+          cz: "Melody Protection vychází z vlastního minima zvoleného Organista. Priest jej může pro daný plán zvýšit, ale nemůže zvolit nižší hodnotu; nižší možnosti jsou zakázané. Anonymous Organist má minimum 0 měsíců. Tím se nemění uložené nastavení Organista.",
+        },
+        {
+          en: "After Finalize, the optional WhatsApp handoff can open a prepared message. Without a saved phone, enter one for this use only or save it to the protected account for next time.",
+          cz: "Po Finalize lze volitelně otevřít WhatsApp s připravenou zprávou. Není-li telefon uložený, lze jej zadat jen pro toto použití nebo uložit do protected account pro příště.",
         },
       ],
       organist: [
@@ -90,8 +138,12 @@ export const guideSections: GuideSection[] = [
           cz: "Může vytvářet, upravovat, ukládat a mazat Working plány.",
         },
         {
-          en: "Cannot finalize a Working plan or store/delete a Final plan; those lifecycle actions belong to Priest (or Admin).",
-          cz: "Nemůže finalizovat Working plán ani uložit/smazat Final plán; tyto lifecycle akce patří roli Priest (nebo Admin).",
+          en: "Cannot finalize a Working plan or store/delete a Final plan; those lifecycle actions belong to Priest or Admin.",
+          cz: "Nemůže finalizovat Working plán ani uložit/smazat Final plán; tyto lifecycle akce patří roli Priest nebo Admin.",
+        },
+        {
+          en: "Owns the persistent Melody Protection setting for the Organist identity. It can be set from 0 to 12 months; when no stored value exists, the default is 2 months.",
+          cz: "Vlastní perzistentní nastavení Melody Protection pro identitu Organista. Lze nastavit 0 až 12 měsíců; pokud ještě není uložena žádná hodnota, výchozí jsou 2 měsíce.",
         },
       ],
     },
@@ -114,6 +166,12 @@ export const guideSections: GuideSection[] = [
       },
     ],
     roles: {
+      admin: [
+        {
+          en: "May continue Working plans and use the Final-plan lifecycle actions available to Admin in Planning.",
+          cz: "Může pokračovat v Working plánech a v Planning použít lifecycle akce Final plánu dostupné Adminovi.",
+        },
+      ],
       priest: [
         {
           en: "May continue Working plans and perform the Final-plan lifecycle actions available in Planning.",
@@ -145,7 +203,21 @@ export const guideSections: GuideSection[] = [
         cz: "Zvýraznění konfliktu znamená, že dokončená bohoslužba koliduje s aktivními plány.",
       },
     ],
+    experience: {
+      demo: [
+        {
+          en: "Demo History contains synthetic records only. Admin preview may demonstrate editing semantics, but no completed-service change is persisted.",
+          cz: "Demo History obsahuje pouze syntetické záznamy. Admin preview může demonstrovat editační chování, ale žádná změna dokončené bohoslužby se neukládá.",
+        },
+      ],
+    },
     roles: {
+      admin: [
+        {
+          en: "In Production, Admin may edit or delete completed records through the available Admin lifecycle controls.",
+          cz: "V Production může Admin upravovat nebo mazat dokončené záznamy prostřednictvím dostupných Admin lifecycle ovládacích prvků.",
+        },
+      ],
       priest: [
         {
           en: "History is read-only; editing or deleting completed records is an Admin operation.",
@@ -164,8 +236,8 @@ export const guideSections: GuideSection[] = [
     id: "guide.catalog",
     title: { en: "Catalog", cz: "Catalog" },
     summary: {
-      en: "Browse songs and melody classes in a chosen service context and maintain personal preference information.",
-      cz: "Procházení písní a tříd melodií ve zvoleném kontextu bohoslužby a správa osobních preferencí.",
+      en: "Browse songs and melody classes in a chosen service context and inspect preference/repertoire information.",
+      cz: "Procházení písní a tříd melodií ve zvoleném kontextu bohoslužby a kontrola preferencí a repertoáru.",
     },
     bullets: [
       {
@@ -173,37 +245,49 @@ export const guideSections: GuideSection[] = [
         cz: "Filtrujte podle varhaníka, jazyka, Antiphon a Topic; přepínejte Available/Unavailable a Songs/Melodies.",
       },
       {
-        en: "Open Detail to inspect the melody class, equivalent songs, availability and personal preference.",
-        cz: "Otevřete Detail pro zobrazení třídy melodie, ekvivalentních písní, dostupnosti a osobní preference.",
-      },
-      {
-        en: "A changed staff preference is saved when you leave the song Detail.",
-        cz: "Změněná preference pracovníka se uloží při opuštění Detailu písně.",
-      },
-      {
-        en: "People without a protected account vote from the Sign-in page via Congregation preferences: enter a nickname (no password/email), find a song and choose 0 or 1. The nickname is deliberately unverified and controls only that nickname profile.",
-        cz: "Lidé bez protected account hlasují ze stránky Sign in přes Congregation preferences: zadají přezdívku (bez hesla/e-mailu), vyhledají píseň a zvolí 0 nebo 1. Přezdívka je záměrně neověřená a ovládá pouze svůj vlastní profil.",
+        en: "Open Detail to inspect the melody class, equivalent songs, availability and any personal preference information.",
+        cz: "Otevřete Detail pro zobrazení třídy melodie, ekvivalentních písní, dostupnosti a případných informací o osobní preferenci.",
       },
     ],
+    experience: {
+      standard: [
+        {
+          en: "In Production, a changed staff preference is saved when you leave song Detail. People without a protected account can use Congregation preferences from Sign in with an unverified nickname and values 0 or 1.",
+          cz: "V Production se změněná preference pracovníka uloží při opuštění Detailu písně. Lidé bez protected account mohou ze Sign in použít Congregation preferences s neověřenou přezdívkou a hodnotami 0 nebo 1.",
+        },
+      ],
+      demo: [
+        {
+          en: "Demo Catalog is read-only and uses synthetic data. Filters and Detail can be explored, but preference, repertoire and Melody Edge mutations are not persisted.",
+          cz: "Demo Catalog je pouze ke čtení a používá syntetická data. Filtry a Detail lze procházet, ale změny preferencí, repertoáru ani Melody Edges se neukládají.",
+        },
+      ],
+    },
     roles: {
+      admin: [
+        {
+          en: "In Production, Admin may maintain catalog-wide knowledge such as Melody Edges where the corresponding Admin controls are available.",
+          cz: "V Production může Admin spravovat katalogové znalosti, například Melody Edges, pokud jsou příslušné Admin ovládací prvky dostupné.",
+        },
+      ],
       priest: [
         {
-          en: "Personal song preference uses values 0–3.",
-          cz: "Osobní preference písně používá hodnoty 0–3.",
+          en: "In Production, personal song preference uses values 0–3.",
+          cz: "V Production používá osobní preference písně hodnoty 0–3.",
         },
         {
-          en: "Priest does not add or remove an organist's repertoire membership.",
-          cz: "Priest nepřidává ani neodebírá položky z repertoáru varhaníka.",
+          en: "Priest does not add or remove an Organist's repertoire membership.",
+          cz: "Priest nepřidává ani neodebírá položky z repertoáru Organista.",
         },
       ],
       organist: [
         {
-          en: "Personal song preference uses values 0–2.",
-          cz: "Osobní preference písně používá hodnoty 0–2.",
+          en: "In Production, personal song preference uses values 0–2.",
+          cz: "V Production používá osobní preference písně hodnoty 0–2.",
         },
         {
-          en: "For your own organist identity, you can add an unavailable song to your repertoire or remove the current repertoire pivot from an available melody class.",
-          cz: "Pro vlastní identitu varhaníka můžete přidat nedostupnou píseň do svého repertoáru nebo odebrat aktuální repertoárový pivot z dostupné třídy melodie.",
+          en: "In Production, for your own Organist identity you can add an unavailable song to your repertoire or remove the current repertoire pivot from an available melody class.",
+          cz: "V Production můžete pro vlastní identitu Organista přidat nedostupnou píseň do svého repertoáru nebo odebrat aktuální repertoárový pivot z dostupné třídy melodie.",
         },
       ],
     },
@@ -212,19 +296,24 @@ export const guideSections: GuideSection[] = [
     id: "guide.development",
     title: { en: "Development", cz: "Development" },
     summary: {
-      en: "Runtime and diagnostic information; not required for ordinary service planning.",
-      cz: "Informace o runtime a diagnostice; pro běžné plánování bohoslužby nejsou potřeba.",
+      en: "Production maintenance and diagnostic information; not part of the public Demo or ordinary service planning.",
+      cz: "Údržba a diagnostika Production; není součástí veřejného Demo ani běžného plánování bohoslužby.",
     },
+    standardOnly: true,
     bullets: [
       {
-        en: "In Production, identity comes from the protected server session. If your account owns more than one role, switch the active role from the User menu.",
-        cz: "V Production pochází identita z chráněné serverové session. Pokud váš účet vlastní více rolí, aktivní roli přepněte v User menu.",
-      },
-      {
-        en: "Local DB verification and development controls are maintenance tools; normal Priest/Organist work does not require them.",
-        cz: "Lokální DB verification a vývojové ovládací prvky jsou nástroje údržby; běžná práce Priest/Organist je nepotřebuje.",
+        en: "Production identity comes from the protected server session. Ordinary Priest/Organist work does not require Development or Admin maintenance controls.",
+        cz: "V Production pochází identita z chráněné serverové session. Běžná práce Priest/Organist nevyžaduje Development ani Admin nástroje údržby.",
       },
     ],
+    roles: {
+      admin: [
+        {
+          en: "The protected Admin Role menu exposes Manage Accounts, Audit History and Verify DB. Verify DB creates a local offline copy for inspection; these are maintenance tools, not planning steps.",
+          cz: "Protected Admin Role menu zpřístupňuje Manage Accounts, Audit History a Verify DB. Verify DB vytváří lokální offline kopii pro kontrolu; jde o nástroje údržby, nikoli o kroky plánování.",
+        },
+      ],
+    },
   },
   {
     id: "guide.guide",
@@ -239,13 +328,34 @@ export const guideSections: GuideSection[] = [
         cz: "Nahoře na této stránce přepínejte EN/CZ. Volba se pamatuje pouze v tomto prohlížeči.",
       },
       {
-        en: "Role-specific blocks are intentionally shown in parallel so differences are visible without duplicating the whole manual.",
-        cz: "Role-specific bloky jsou záměrně zobrazeny paralelně, aby byly rozdíly vidět bez duplikování celého manuálu.",
+        en: "Use panel i buttons for grouped contextual help. When Guide Hints are enabled, hovering or focusing supported controls shows control-specific help.",
+        cz: "Pro souhrnnou kontextovou nápovědu použijte tlačítka i na panelech. Když jsou Guide Hints zapnuté, najetí myší nebo focus na podporovaném prvku zobrazí nápovědu k danému ovládacímu prvku.",
+      },
+      {
+        en: "Role-specific blocks are shown in parallel so Admin, Priest and Organist differences remain visible without duplicating the whole manual.",
+        cz: "Role-specific bloky jsou zobrazeny paralelně, aby byly rozdíly mezi Admin, Priest a Organist vidět bez duplikování celého manuálu.",
       },
     ],
+    experience: {
+      standard: [
+        {
+          en: "In Production, the User menu contains Sign Role for assigned roles, the Guide Hints switch, Change Password and Sign Out. After a Priest/Admin saves a WhatsApp phone from the post-Finalize prompt, Phone Setting appears there to change or forget it.",
+          cz: "V Production obsahuje User menu Sign Role pro přiřazené role, přepínač Guide Hints, Change Password a Sign Out. Jakmile Priest/Admin uloží telefon z WhatsApp dialogu po Finalize, objeví se zde Phone Setting pro jeho změnu nebo zapomenutí.",
+        },
+        {
+          en: "Turning Guide Hints off disables automatic control hover/focus hints; panel i summaries remain available.",
+          cz: "Vypnutí Guide Hints zakáže automatické nápovědy při hover/focus na ovládacích prvcích; souhrny přes tlačítko i zůstávají dostupné.",
+        },
+      ],
+      demo: [
+        {
+          en: "Demo has no protected account menu. Preview role is presentation-only, and Reset Demo discards temporary local state and restores the synthetic fixture.",
+          cz: "Demo nemá protected account menu. Preview role slouží pouze k prezentaci a Reset Demo zahodí dočasný lokální stav a obnoví syntetická data.",
+        },
+      ],
+    },
   },
 ];
-
 
 export type GuideHint = {
   sectionId: GuideSection["id"];
@@ -279,6 +389,10 @@ export const guideHints = {
       cz: "Save ponechá plán jako Working. Finalize převede způsobilý uložený Working plán na Final. Store Service uloží způsobilý Final plán do History.",
     },
     roles: {
+      admin: {
+        en: "Admin has the Final lifecycle capabilities and may also use completed-record Admin actions where available.",
+        cz: "Admin má pravomoci Final lifecycle a tam, kde jsou dostupné, může používat také Admin akce nad dokončenými záznamy.",
+      },
       priest: {
         en: "Priest can finalize and store eligible plans.",
         cz: "Priest může způsobilé plány finalizovat a ukládat jako dokončené.",
@@ -293,8 +407,30 @@ export const guideHints = {
     sectionId: "guide.planning",
     title: { en: "Melody Protection", cz: "Melody Protection" },
     copy: {
-      en: "The configured month window suppresses recently used melody classes from normal candidate selection and protects plans against repetition conflicts.",
-      cz: "Nastavené období v měsících potlačuje nedávno použité třídy melodií z běžného výběru kandidátů a chrání plány před konflikty opakování.",
+      en: "The month window suppresses recently used melody classes from normal candidate selection and is used by repetition/conflict checks.",
+      cz: "Období v měsících potlačuje nedávno použité třídy melodií z běžného výběru kandidátů a používá se při kontrolách opakování a konfliktů.",
+    },
+    roles: {
+      admin: {
+        en: "Admin may set a temporary 0–12 month value for the selected Organist. The override is session-only and does not overwrite the Organist's stored setting.",
+        cz: "Admin může pro zvoleného Organista nastavit dočasnou hodnotu 0–12 měsíců. Override platí jen pro session a nepřepisuje uložené nastavení Organista.",
+      },
+      priest: {
+        en: "Priest starts at the selected Organist minimum and may only increase it for the plan. Lower options are disabled; Anonymous Organist has a 0-month minimum.",
+        cz: "Priest vychází z minima zvoleného Organista a pro plán jej může pouze zvýšit. Nižší možnosti jsou zakázané; Anonymous Organist má minimum 0 měsíců.",
+      },
+      organist: {
+        en: "Organist owns the persistent 0–12 month setting. If no value has been stored yet, the default is 2 months.",
+        cz: "Organist vlastní perzistentní nastavení 0–12 měsíců. Pokud ještě žádná hodnota uložena není, výchozí jsou 2 měsíce.",
+      },
+    },
+  },
+  "planning.whatsapp": {
+    sectionId: "guide.planning",
+    title: { en: "WhatsApp handoff", cz: "Předání do WhatsApp" },
+    copy: {
+      en: "After a successful Finalize, Priest or Admin can optionally open WhatsApp with a prepared message. Without a saved phone, enter one for this use only or save it to the protected account.",
+      cz: "Po úspěšném Finalize může Priest nebo Admin volitelně otevřít WhatsApp s připravenou zprávou. Není-li telefon uložený, lze jej zadat jen pro toto použití nebo uložit do protected account.",
     },
   },
   "plans.records": {
@@ -333,20 +469,20 @@ export const guideHints = {
     sectionId: "guide.catalog",
     title: { en: "Personal preference", cz: "Osobní preference" },
     copy: {
-      en: "This is your own staff preference for the selected song. A changed value is saved when you leave the song Detail.",
-      cz: "Jde o vaši vlastní preferenci vybrané písně. Změněná hodnota se uloží při opuštění Detailu písně.",
+      en: "Shows the staff preference for the selected song. In Production, an authorized changed value is saved when you leave song Detail; Demo Catalog is read-only.",
+      cz: "Zobrazuje preferenci pracovníka pro vybranou píseň. V Production se oprávněně změněná hodnota uloží při opuštění Detailu písně; Demo Catalog je pouze ke čtení.",
     },
     roles: {
-      priest: { en: "Priest uses values 0–3.", cz: "Priest používá hodnoty 0–3." },
-      organist: { en: "Organist uses values 0–2.", cz: "Organist používá hodnoty 0–2." },
+      priest: { en: "Priest uses values 0–3 in Production.", cz: "Priest používá v Production hodnoty 0–3." },
+      organist: { en: "Organist uses values 0–2 in Production.", cz: "Organist používá v Production hodnoty 0–2." },
     },
   },
   "development.runtime": {
     sectionId: "guide.development",
     title: { en: "Development", cz: "Development" },
     copy: {
-      en: "This area exposes runtime and maintenance information. Ordinary Priest/Organist work does not require these controls.",
-      cz: "Tato část zobrazuje informace o runtime a údržbě. Běžná práce Priest/Organist tyto ovládací prvky nepotřebuje.",
+      en: "Production maintenance area. Ordinary Priest/Organist work and the public Demo do not require or expose these controls.",
+      cz: "Oblast údržby Production. Běžná práce Priest/Organist ani veřejné Demo tyto ovládací prvky nepotřebují ani nezpřístupňují.",
     },
   },
 } satisfies Record<string, GuideHint>;
@@ -359,7 +495,7 @@ export function isGuideHintKey(value: string): value is GuideHintKey {
 
 export function guideHintCopy(key: GuideHintKey, language: GuideLanguage, role: PlanningRoleLike): { title: string; copy: string; roleCopy?: string } {
   const hint: GuideHint = guideHints[key];
-  const guideRole = role === "priest" || role === "organist" ? role : undefined;
+  const guideRole = role === "admin" || role === "priest" || role === "organist" ? role : undefined;
   return {
     title: hint.title[language],
     copy: hint.copy[language],
@@ -367,4 +503,4 @@ export function guideHintCopy(key: GuideHintKey, language: GuideLanguage, role: 
   };
 }
 
-type PlanningRoleLike = GuideRole | "admin" | "congregationMember";
+type PlanningRoleLike = GuideRole | "congregationMember";
