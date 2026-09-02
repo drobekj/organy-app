@@ -1557,34 +1557,18 @@ Save the correction and mark those plans for revision?`);
               )}
             </div>
             <div className="planning-melody-protection-slot" aria-label="Melody Protection reserved area">
-              {(selectedRole === "priest" || selectedRole === "organist" || selectedRole === "admin") && (
-                <NonRepetitionPeriodPanel
-                  runtimeMode={runtimeMode}
-                  actor={activeActor}
+              {isDemoExperience ? (
+                <DemoMelodyProtectionPanel
+                  role={demoPresentationRole}
                   selectedOrganistPersonId={organistId}
-                  effectiveMonths={selectedRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
-                  disabled={selectedRole === "priest" && isEditorLocked}
-                  memoryInteractionRepository={interactionRepository}
-                  memoryPlanningSets={repositories.planningSets}
-                  onMinimumLoaded={(minimum) => {
-                    if (selectedRole === "admin") {
-                      setAdminMelodyProtectionMinimums((current) => ({ ...current, [adminMelodyProtectionKey]: minimum }));
-                    } else {
-                      setMelodyProtectionMonths((current) => Math.max(current, minimum));
-                    }
-                  }}
+                  effectiveMonths={demoPresentationRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
+                  disabled={demoPresentationRole === "priest" && isEditorLocked}
                   onEffectiveChange={(months) => {
-                    if (selectedRole === "admin") {
+                    if (demoPresentationRole === "admin") {
                       setAdminMelodyProtectionOverrides((current) => ({ ...current, [adminMelodyProtectionKey]: months }));
-                    } else if (selectedRole === "priest") {
-                      guardedEditorUpdate(() => setMelodyProtectionMonths(months));
-                    } else if (!isEditorLocked) {
+                    } else {
                       setMelodyProtectionMonths(months);
-                      setSaveState("unsaved");
-                      setServiceError(null);
                     }
-                  }}
-                  onSaved={() => {
                     lookupTracker.invalidatePrefix("song:");
                     setCandidateResults({});
                     setCandidateLoading({});
@@ -1592,6 +1576,43 @@ Save the correction and mark those plans for revision?`);
                     setCandidateRefreshGeneration((generation) => generation + 1);
                   }}
                 />
+              ) : (
+                (selectedRole === "priest" || selectedRole === "organist" || selectedRole === "admin") && (
+                  <NonRepetitionPeriodPanel
+                    runtimeMode={runtimeMode}
+                    actor={activeActor}
+                    selectedOrganistPersonId={organistId}
+                    effectiveMonths={selectedRole === "admin" ? adminCandidateMelodyProtectionMonths : melodyProtectionMonths}
+                    disabled={selectedRole === "priest" && isEditorLocked}
+                    memoryInteractionRepository={interactionRepository}
+                    memoryPlanningSets={repositories.planningSets}
+                    onMinimumLoaded={(minimum) => {
+                      if (selectedRole === "admin") {
+                        setAdminMelodyProtectionMinimums((current) => ({ ...current, [adminMelodyProtectionKey]: minimum }));
+                      } else {
+                        setMelodyProtectionMonths((current) => Math.max(current, minimum));
+                      }
+                    }}
+                    onEffectiveChange={(months) => {
+                      if (selectedRole === "admin") {
+                        setAdminMelodyProtectionOverrides((current) => ({ ...current, [adminMelodyProtectionKey]: months }));
+                      } else if (selectedRole === "priest") {
+                        guardedEditorUpdate(() => setMelodyProtectionMonths(months));
+                      } else if (!isEditorLocked) {
+                        setMelodyProtectionMonths(months);
+                        setSaveState("unsaved");
+                        setServiceError(null);
+                      }
+                    }}
+                    onSaved={() => {
+                      lookupTracker.invalidatePrefix("song:");
+                      setCandidateResults({});
+                      setCandidateLoading({});
+                      setCandidateErrors({});
+                      setCandidateRefreshGeneration((generation) => generation + 1);
+                    }}
+                  />
+                )
               )}
             </div>
           </div>
@@ -1849,7 +1870,7 @@ Save the correction and mark those plans for revision?`);
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
-                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
+                    {presentationRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
                     <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>
                       Store Service
                     </button>
@@ -1858,7 +1879,7 @@ Save the correction and mark those plans for revision?`);
                     </button>
                   </>
                 )}
-                {isCompletedRecordOpen && selectedRole === "admin" && (
+                {isCompletedRecordOpen && presentationRole === "admin" && (
                   <>
                     <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={isDemoExperience || !hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save completed changes
