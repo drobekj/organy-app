@@ -63,6 +63,9 @@ import { HistoryRecordWorkspace, PlansRecordWorkspace } from "./plan-history-rec
 import { AboutWorkspace } from "./information-workspaces";
 import { GuideWorkspace } from "./guide-workspace";
 import { GuideHintLayer } from "./guide-hint-layer";
+import type { ExperienceMode } from "../src/application/demo-safety";
+import { DemoPlanningLifecycleClient } from "../src/demo/d2-planning-client";
+import { DEMO_D2_PEOPLE, DEMO_D2_SONGS, createDemoD2InteractionRepository } from "../src/demo/d2-planning-fixture";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -83,11 +86,21 @@ type PlanningLifecycleClientProps = {
   runtimeMode: RuntimeMode;
   authenticatedUser?: AppUser;
   initialActiveRole?: PlanningRole;
+  experience?: ExperienceMode;
 };
 
-export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole }: PlanningLifecycleClientProps) {
-  const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
-  const interactionRepository = useMemo(() => new InMemoryInteractionRepository(), []);
+export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole, experience = "standard" }: PlanningLifecycleClientProps) {
+  const isDemoExperience = experience === "demo";
+  const catalogRepository = useMemo(
+    () => isDemoExperience
+      ? new InMemoryCatalogRepository(DEMO_D2_PEOPLE.map((person) => ({ ...person })), DEMO_D2_SONGS.map((song) => ({ ...song })))
+      : new InMemoryCatalogRepository(),
+    [isDemoExperience],
+  );
+  const interactionRepository = useMemo(
+    () => isDemoExperience ? createDemoD2InteractionRepository() : new InMemoryInteractionRepository(),
+    [isDemoExperience],
+  );
   const repositories = useMemo<PlanningRepositories>(() => {
     const planningSets = new InMemoryPlanningSetRepository();
     return { planningSets, completedServiceRecords: new InMemoryCompletedServiceRecordRepository(planningSets) };
@@ -96,14 +109,16 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     () =>
       runtimeMode === "db"
         ? new DbPlanningLifecycleClient()
-        : new PlanningLifecycleService({
-            planningSets: repositories.planningSets,
-            completedServiceRecords: repositories.completedServiceRecords,
-            catalog: catalogRepository,
-            referenceAntiphons: new MemoryReferenceAntiphonProvider(),
-            referenceTopics: new MemoryReferenceThematicSectionProvider(),
-          }),
-    [repositories, runtimeMode, catalogRepository],
+        : isDemoExperience
+          ? new DemoPlanningLifecycleClient()
+          : new PlanningLifecycleService({
+              planningSets: repositories.planningSets,
+              completedServiceRecords: repositories.completedServiceRecords,
+              catalog: catalogRepository,
+              referenceAntiphons: new MemoryReferenceAntiphonProvider(),
+              referenceTopics: new MemoryReferenceThematicSectionProvider(),
+            }),
+    [repositories, runtimeMode, catalogRepository, isDemoExperience],
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
   const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
