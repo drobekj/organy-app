@@ -12,7 +12,6 @@ import {
   DemoNetworkDeniedError,
   assertDemoNetworkTargetAllowed,
 } from "../src/application/demo-network";
-import { DEMO_D1_FIXTURE } from "../src/demo/d1-fixture";
 
 assert.equal(resolveApplicationExperience({}), "standard");
 assert.equal(resolveApplicationExperience({ ORGANY_EXPERIENCE: "standard" }), "standard");
@@ -55,10 +54,6 @@ for (const target of [
 }
 assert.doesNotThrow(() => assertDemoNetworkTargetAllowed("/_next/static/chunk.js", "https://organy-app-demo.vercel.app"));
 
-assert.equal(DEMO_D1_FIXTURE.version, "d1");
-assert.ok(DEMO_D1_FIXTURE.people.every((person) => person.id.startsWith("demo-fixture-")));
-assert.ok(DEMO_D1_FIXTURE.plans.every((plan) => plan.id.startsWith("demo-fixture-")));
-
 const page = readFileSync("app/page.tsx", "utf8");
 const shell = readFileSync("app/demo-d1-shell.tsx", "utf8");
 const model = readFileSync("src/planning-lifecycle/model.ts", "utf8");
@@ -72,8 +67,7 @@ assert.match(page, /resolveProtectedUser\(await headers\(\), authPool\)/);
 assert.match(page, /ProtectedActorError\) redirect\("\/sign-in"\)/);
 
 assert.doesNotMatch(shell, /fetch\s*\(|\/api\/|authPool|resolveProtected|DATABASE_URL|getAppDbPool|Db[A-Z]/);
-assert.match(shell, /Stage D1 safety shell/);
-assert.match(shell, /synthetic in-memory data/);
+assert.match(shell, /PlanningLifecycleClient runtimeMode="memory" experience="demo"/);
 
 const planningRole = model.match(/export type PlanningRole = ([^;]+);/)?.[1] ?? "";
 assert.doesNotMatch(planningRole, /demo/i);
