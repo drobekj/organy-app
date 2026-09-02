@@ -42,6 +42,7 @@ export type CatalogWorkspaceProps = {
   removeMelodyEdge: (referenceSongId: string, otherReferenceSongId: string) => Promise<PreferenceResult<ReferenceMelodyClass>>;
   onAntiphonRecommendationChanged?: () => void;
   onMelodyStructureChanged?: () => void;
+  readOnlyDemo?: boolean;
 };
 
 export function CatalogWorkspace({
@@ -58,6 +59,7 @@ export function CatalogWorkspace({
   removeMelodyEdge,
   onAntiphonRecommendationChanged,
   onMelodyStructureChanged,
+  readOnlyDemo = false,
 }: CatalogWorkspaceProps) {
   const [language, setLanguage] = useState<ServiceLanguage>(() => getDefaultServiceLanguage(getNearestSunday(new Date())));
   const [organistPersonId, setOrganistPersonId] = useState(() => actor.role === "organist" ? (actor.personId ?? "") : "");
@@ -85,10 +87,10 @@ export function CatalogWorkspace({
   const visibleCandidates = useMemo(() => candidatesForView(candidates, viewMode), [candidates, viewMode]);
   const selectedOrganist = organists.find((person) => person.id === organistPersonId);
   const recommendationClient = useMemo(
-    () => runtime === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: actor.userId, role: actor.role }) : null,
-    [runtime, actor.userId, actor.role],
+    () => !readOnlyDemo && runtime === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: actor.userId, role: actor.role }) : null,
+    [runtime, actor.userId, actor.role, readOnlyDemo],
   );
-  const canManageRepertoire = runtime === "db" && Boolean(organistPersonId) && (
+  const canManageRepertoire = !readOnlyDemo && runtime === "db" && Boolean(organistPersonId) && (
     actor.role === "admin"
     || (actor.role === "organist" && actor.personId === organistPersonId)
   );
@@ -163,7 +165,8 @@ export function CatalogWorkspace({
     setPreferenceError(undefined);
 
     if (
-      runtime !== "db"
+      readOnlyDemo
+      || runtime !== "db"
       || !selectedDetail
       || (actor.role !== "organist" && actor.role !== "priest")
     ) return;
@@ -183,14 +186,14 @@ export function CatalogWorkspace({
     return () => {
       if (preferenceRequest.current === token) preferenceRequest.current += 1;
     };
-  }, [runtime, selectedDetail?.songId, actor.userId, actor.role, getOwnPreference]);
+  }, [runtime, selectedDetail?.songId, actor.userId, actor.role, getOwnPreference, readOnlyDemo]);
 
   async function persistPreferenceOnDetailExit(
     candidate: CandidateQueryResult | undefined,
     preference: ReferenceOwnPreference | undefined,
     draft: string,
   ) {
-    if (runtime !== "db" || !candidate || !preference) return;
+    if (readOnlyDemo || runtime !== "db" || !candidate || !preference) return;
     const trimmed = draft.trim();
     if (!trimmed) return;
     const score = Number(trimmed);
@@ -290,6 +293,12 @@ export function CatalogWorkspace({
   }
 
   return <section className="catalog-workspace" aria-label="Catalog">
+    {readOnlyDemo && (
+      <aside className="demo-catalog-readonly" role="status" aria-label="Demo Catalog read-only">
+        <strong>Read-only Catalog Demo</strong>
+        <span>Filters, views and melody details are interactive. Catalog and knowledge changes are disabled.</span>
+      </aside>
+    )}
     <fieldset className="field-group catalog-context" data-guide-hint-scope="catalog.context">
       <GuidePanelHelpButton scope="catalog.context" label="Catalog context help" />
       <legend>Catalog context</legend>
@@ -327,7 +336,7 @@ export function CatalogWorkspace({
             recommendationLoading={antiphonRecommendationLoading}
             recommendationError={antiphonRecommendationError}
             recommendationClient={recommendationClient ?? undefined}
-            canEditRecommendation={runtime === "db" && actor.role === "admin"}
+            canEditRecommendation={!readOnlyDemo && runtime === "db" && actor.role === "admin"}
             onRecommendationChanged={async (value) => {
               if (antiphon?.id === value.antiphonId) {
                 recommendationRequest.current += 1;
@@ -425,7 +434,7 @@ export function CatalogWorkspace({
       </div>}
     </fieldset>
 
-    {runtime === "db" && actor.role === "admin" && <ReferenceMelodyEdgeEditor
+    {!readOnlyDemo && runtime === "db" && actor.role === "admin" && <ReferenceMelodyEdgeEditor
       getMelodyClass={getMelodyClass}
       getMelodyEdge={getMelodyEdge}
       addMelodyEdge={addMelodyEdge}

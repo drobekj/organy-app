@@ -20,7 +20,7 @@ for (const required of [
 
 assert.ok(!workspace.includes('disabled={actor.role === "organist"}'), "Organists must be able to inspect another organist read-only.");
 assert.ok(!workspace.includes('Selected organist"} · ${availabilityMode}'), "Catalog must not show the organist/availability info string.");
-assert.ok(shell.includes("setRepertoireMembership={(referenceSongId, organistPersonId, active) => interactionClient.setReferenceRepertoireMembership"));
+assert.ok(shell.includes("setRepertoireMembership={(referenceSongId, organistPersonId, active) => demoCatalogClient ? demoCatalogClient.setRepertoireMembership") && shell.includes(": interactionClient.setReferenceRepertoireMembership"), "Production repertoire mutation path must remain the fallback while Demo is read-only.");
 assert.ok(!workspace.includes("setReferenceMelody"), "Step 3 must not expose melody-edge mutation.");
 assert.ok(!workspace.includes("mergeReferenceMelodyClasses"), "Step 3 must not expose melody merge mutation.");
 assert.ok(!workspace.includes("serviceDate"), "Catalog repertoire management must stay independent of Planning date.");

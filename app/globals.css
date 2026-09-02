@@ -73,6 +73,26 @@ select {
   color: var(--muted);
 }
 
+.demo-catalog-readonly {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.demo-catalog-readonly strong {
+  color: var(--foreground);
+}
+
+.demo-catalog-readonly span {
+  color: var(--muted);
+}
+
 .eyebrow {
   margin: 0;
   color: var(--muted);

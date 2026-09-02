@@ -8,7 +8,7 @@ const lookup = readFileSync("app/reference-song-lookup-field.tsx", "utf8");
 const route = readFileSync("app/api/interaction/route.ts", "utf8");
 
 assert.match(catalog, /recommendationClient=\{recommendationClient \?\? undefined\}/);
-assert.match(catalog, /canEditRecommendation=\{runtime === "db" && actor\.role === "admin"\}/);
+assert.match(catalog, /canEditRecommendation=\{!readOnlyDemo && runtime === "db" && actor\.role === "admin"\}/);
 assert.match(catalog, /onRecommendationChanged=\{async \(value\) => \{/);
 assert.match(catalog, /await reloadCandidates\(\)/);
 assert.match(catalog, /onAntiphonRecommendationChanged\?\.\(\)/);

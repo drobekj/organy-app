@@ -66,6 +66,7 @@ import { GuideHintLayer } from "./guide-hint-layer";
 import type { ExperienceMode } from "../src/application/demo-safety";
 import { DemoPlanningLifecycleClient } from "../src/demo/d2-planning-client";
 import { DEMO_D2_PEOPLE, DEMO_D2_SONGS, createDemoD2InteractionRepository } from "../src/demo/d2-planning-fixture";
+import { DemoCatalogKnowledgeClient } from "../src/demo/d3-catalog-client";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -122,6 +123,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
   const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
+  const demoCatalogClient = useMemo(() => isDemoExperience ? new DemoCatalogKnowledgeClient() : null, [isDemoExperience]);
   const lookupTracker = useMemo(() => new CatalogLookupRequestTracker(), []);
   const initialServiceSunday = useMemo(() => getNearestSunday(new Date()), []);
   const initialServiceDate = useMemo(() => formatDateInputValue(initialServiceSunday), [initialServiceSunday]);
@@ -1403,7 +1405,7 @@ Save the correction and mark those plans for revision?`);
   }
 
   function navigateWorkspace(nextWorkspace: Workspace) {
-    if (isDemoExperience && (nextWorkspace === "catalog" || nextWorkspace === "development")) return;
+    if (isDemoExperience && nextWorkspace === "development") return;
     if (nextWorkspace !== workspace && !workspaceLeaveState.allowed) {
       setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before leaving Planning." });
       setSaveState("errors");
@@ -1458,7 +1460,7 @@ Save the correction and mark those plans for revision?`);
         <div className="app-header">
           <div>
             <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
-            <p className="lede">{isDemoExperience ? "Explore Planning, active plans and completed-service history using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
+            <p className="lede">{isDemoExperience ? "Explore Planning, active plans, completed-service history and the read-only Catalog using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
           </div>
           {!isDemoExperience && <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>}
         </div>
@@ -1470,7 +1472,7 @@ Save the correction and mark those plans for revision?`);
             <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
             <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
             <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
-            {!isDemoExperience && <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>}
+            <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
             {!isDemoExperience && <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>}
           </div>
           <div className="workspace-nav-section workspace-nav-footer">
@@ -1847,20 +1849,21 @@ Save the correction and mark those plans for revision?`);
           />
         )}
 
-        {!isDemoExperience && workspace === "catalog" && (
+        {workspace === "catalog" && (
           <CatalogWorkspace
             runtime={runtimeMode}
             actor={activeActor}
             organists={organistResults}
-            queryCandidates={(input) => interactionClient.queryCatalogCandidates(input)}
-            getOwnPreference={(referenceSongId) => interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceSongId })}
-            saveOwnPreference={(referenceSongId, score) => interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
-            getPreferenceAggregate={(referenceSongId) => interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
-            setRepertoireMembership={(referenceSongId, organistPersonId, active) => interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId, ...(organistPersonId ? { organistPersonId } : {}), active })}
-            getMelodyClass={(referenceSongId) => interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId })}
-            getMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.getReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
-            addMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.addReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
-            removeMelodyEdge={(referenceSongId, otherReferenceSongId) => interactionClient.removeReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            readOnlyDemo={isDemoExperience}
+            queryCandidates={(input) => demoCatalogClient ? demoCatalogClient.queryCandidates(input) : interactionClient.queryCatalogCandidates(input)}
+            getOwnPreference={(referenceSongId) => demoCatalogClient ? demoCatalogClient.getOwnPreference(referenceSongId) : interactionClient.getReferenceOwnPreference({ actor: activeActor, referenceSongId })}
+            saveOwnPreference={(referenceSongId, score) => demoCatalogClient ? demoCatalogClient.saveOwnPreference(referenceSongId, score) : interactionClient.saveReferenceOwnPreference({ actor: activeActor, referenceSongId, score })}
+            getPreferenceAggregate={(referenceSongId) => demoCatalogClient ? demoCatalogClient.getPreferenceAggregate(referenceSongId) : interactionClient.getReferencePreferenceAggregate({ actor: activeActor, referenceSongId })}
+            setRepertoireMembership={(referenceSongId, organistPersonId, active) => demoCatalogClient ? demoCatalogClient.setRepertoireMembership(referenceSongId, organistPersonId, active) : interactionClient.setReferenceRepertoireMembership({ actor: activeActor, referenceSongId, ...(organistPersonId ? { organistPersonId } : {}), active })}
+            getMelodyClass={(referenceSongId) => demoCatalogClient ? demoCatalogClient.getMelodyClass(referenceSongId) : interactionClient.getReferenceMelodyClass({ actor: activeActor, referenceSongId })}
+            getMelodyEdge={(referenceSongId, otherReferenceSongId) => demoCatalogClient ? demoCatalogClient.getMelodyEdge(referenceSongId, otherReferenceSongId) : interactionClient.getReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            addMelodyEdge={(referenceSongId, otherReferenceSongId) => demoCatalogClient ? demoCatalogClient.addMelodyEdge(referenceSongId, otherReferenceSongId) : interactionClient.addReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
+            removeMelodyEdge={(referenceSongId, otherReferenceSongId) => demoCatalogClient ? demoCatalogClient.removeMelodyEdge(referenceSongId, otherReferenceSongId) : interactionClient.removeReferenceMelodyEdge({ actor: activeActor, referenceSongId, otherReferenceSongId })}
             onAntiphonRecommendationChanged={() => {
               setAntiphonRecommendationGeneration((generation) => generation + 1);
               lookupTracker.invalidatePrefix("song:");
