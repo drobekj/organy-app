@@ -1460,7 +1460,7 @@ Save the correction and mark those plans for revision?`);
         <div className="app-header">
           <div>
             <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
-            <p className="lede">{isDemoExperience ? "Explore Planning, active plans and completed-service history using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
+            <p className="lede">{isDemoExperience ? "Explore Planning, active plans, completed-service history and the read-only Catalog using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
           </div>
           {!isDemoExperience && <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>}
         </div>
