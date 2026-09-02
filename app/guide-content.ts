@@ -44,8 +44,8 @@ export const guideAccountContext = {
   },
   bullets: [
     {
-      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, manage Phone Setting when a WhatsApp phone has been saved, change the password or sign out.",
-      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu, změnit heslo nebo se odhlásit.",
+      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, manage Phone Setting when a WhatsApp phone has been saved, use Change Password or Sign Out.",
+      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu a použít Change Password nebo Sign Out.",
     },
     {
       en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
