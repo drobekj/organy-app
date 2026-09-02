@@ -10,7 +10,7 @@ const css = readFileSync("app/globals.css", "utf8");
 assert.match(catalog, /useState<ServiceLanguage>\(\(\) => getDefaultServiceLanguage\(getNearestSunday\(new Date\(\)\)\)\)/);
 assert.match(catalog, /className="service-antiphon-topic-row catalog-antiphon-topic-row"/);
 assert.match(catalog, /recommendationClient=\{recommendationClient \?\? undefined\}/);
-assert.match(catalog, /canEditRecommendation=\{runtime === "db" && actor\.role === "admin"\}/);
+assert.match(catalog, /canEditRecommendation=\{!readOnlyDemo && runtime === "db" && actor\.role === "admin"\}/);
 
 const closedStart = antiphon.indexOf('<div className={\`service-antiphon-control');
 const listStart = antiphon.indexOf('{props.open && <div id="service-antiphon-listbox"');
