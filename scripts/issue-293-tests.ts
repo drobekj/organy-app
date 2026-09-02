@@ -52,7 +52,7 @@ assert.equal((editor.match(/>Remove<\/button>/g) ?? []).length, 1, "Remove must 
 assert.match(editor, /cannot connect a song to itself/);
 
 assert.match(editor, /await Promise\.all\(\[refreshEditorState\(\), onChanged\(\)\]\)/);
-assert.match(catalog, /runtime === "db" && actor\.role === "admin" && <ReferenceMelodyEdgeEditor/);
+assert.match(catalog, /!readOnlyDemo && runtime === "db" && actor\.role === "admin" && <ReferenceMelodyEdgeEditor/);
 assert.match(catalog, /await reloadCandidates\(\);\s*onMelodyStructureChanged\?\.\(\)/);
 
 const planningRefreshStart = planning.indexOf("onMelodyStructureChanged={() => {");
