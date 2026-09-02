@@ -63,6 +63,9 @@ import { HistoryRecordWorkspace, PlansRecordWorkspace } from "./plan-history-rec
 import { AboutWorkspace } from "./information-workspaces";
 import { GuideWorkspace } from "./guide-workspace";
 import { GuideHintLayer } from "./guide-hint-layer";
+import type { ExperienceMode } from "../src/application/demo-safety";
+import { DemoPlanningLifecycleClient } from "../src/demo/d2-planning-client";
+import { DEMO_D2_PEOPLE, DEMO_D2_SONGS, createDemoD2InteractionRepository } from "../src/demo/d2-planning-fixture";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -83,11 +86,21 @@ type PlanningLifecycleClientProps = {
   runtimeMode: RuntimeMode;
   authenticatedUser?: AppUser;
   initialActiveRole?: PlanningRole;
+  experience?: ExperienceMode;
 };
 
-export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole }: PlanningLifecycleClientProps) {
-  const catalogRepository = useMemo(() => new InMemoryCatalogRepository(), []);
-  const interactionRepository = useMemo(() => new InMemoryInteractionRepository(), []);
+export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole, experience = "standard" }: PlanningLifecycleClientProps) {
+  const isDemoExperience = experience === "demo";
+  const catalogRepository = useMemo(
+    () => isDemoExperience
+      ? new InMemoryCatalogRepository(DEMO_D2_PEOPLE.map((person) => ({ ...person })), DEMO_D2_SONGS.map((song) => ({ ...song })))
+      : new InMemoryCatalogRepository(),
+    [isDemoExperience],
+  );
+  const interactionRepository = useMemo(
+    () => isDemoExperience ? createDemoD2InteractionRepository() : new InMemoryInteractionRepository(),
+    [isDemoExperience],
+  );
   const repositories = useMemo<PlanningRepositories>(() => {
     const planningSets = new InMemoryPlanningSetRepository();
     return { planningSets, completedServiceRecords: new InMemoryCompletedServiceRecordRepository(planningSets) };
@@ -96,14 +109,16 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     () =>
       runtimeMode === "db"
         ? new DbPlanningLifecycleClient()
-        : new PlanningLifecycleService({
-            planningSets: repositories.planningSets,
-            completedServiceRecords: repositories.completedServiceRecords,
-            catalog: catalogRepository,
-            referenceAntiphons: new MemoryReferenceAntiphonProvider(),
-            referenceTopics: new MemoryReferenceThematicSectionProvider(),
-          }),
-    [repositories, runtimeMode, catalogRepository],
+        : isDemoExperience
+          ? new DemoPlanningLifecycleClient()
+          : new PlanningLifecycleService({
+              planningSets: repositories.planningSets,
+              completedServiceRecords: repositories.completedServiceRecords,
+              catalog: catalogRepository,
+              referenceAntiphons: new MemoryReferenceAntiphonProvider(),
+              referenceTopics: new MemoryReferenceThematicSectionProvider(),
+            }),
+    [repositories, runtimeMode, catalogRepository, isDemoExperience],
   );
   const catalogClient = useMemo<CatalogClient>(() => runtimeMode === "db" ? new DbCatalogClient() : new CatalogService(catalogRepository), [runtimeMode, catalogRepository]);
   const interactionClient = useMemo<InteractionClient>(() => runtimeMode === "db" ? new DbInteractionClient() : new MemoryInteractionClient(interactionRepository, catalogClient), [runtimeMode, interactionRepository, catalogClient]);
@@ -1388,6 +1403,7 @@ Save the correction and mark those plans for revision?`);
   }
 
   function navigateWorkspace(nextWorkspace: Workspace) {
+    if (isDemoExperience && (nextWorkspace === "catalog" || nextWorkspace === "development")) return;
     if (nextWorkspace !== workspace && !workspaceLeaveState.allowed) {
       setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before leaving Planning." });
       setSaveState("errors");
@@ -1405,16 +1421,46 @@ Save the correction and mark those plans for revision?`);
     setWorkspace(nextWorkspace);
   }
 
+  const saveStateLabel = isDemoExperience
+    ? saveState === "unsaved"
+      ? "Demo local changes"
+      : saveState === "saved"
+        ? "Demo Working snapshot"
+        : saveState === "finalized"
+          ? "Demo Final snapshot"
+          : saveState === "completed"
+            ? "Demo Completed snapshot"
+            : saveState === "deleted"
+              ? "Demo read-only"
+              : "Service error"
+    : saveState === "unsaved"
+      ? "Unsaved"
+      : saveState === "saved"
+        ? (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")
+        : saveState === "finalized"
+          ? (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")
+          : saveState === "completed"
+            ? (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")
+            : saveState === "deleted"
+              ? (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")
+              : "Service error";
+
   return (
     <main className="shell">
       <section className="card planning-card" aria-labelledby="page-title">
         <p className="eyebrow">Organ Planner workspace</p>
+        {isDemoExperience && (
+          <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
+            <strong>Demo mode</strong>
+            <span>Changes are temporary and are never saved.</span>
+          </aside>
+        )}
         <div className="app-header">
           <div>
             <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
-            <p className="lede">Plan services, review active plans and history, administer the catalog, and keep development tools separate.</p>
+            <p className="lede">{isDemoExperience ? "Explore Planning, active plans and completed-service history using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
           </div>
-          <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>
+          {!isDemoExperience && <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>}
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
           <div className="workspace-nav-section workspace-nav-about">
@@ -1424,8 +1470,8 @@ Save the correction and mark those plans for revision?`);
             <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
             <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
             <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
-            <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
-            <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>
+            {!isDemoExperience && <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>}
+            {!isDemoExperience && <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>}
           </div>
           <div className="workspace-nav-section workspace-nav-footer">
             <button type="button" className={workspace === "guide" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("guide")}>Guide</button>
@@ -1437,12 +1483,7 @@ Save the correction and mark those plans for revision?`);
         {workspace === "guide" && <GuideWorkspace activeRole={selectedRole} />}
 
         {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
-          {saveState === "unsaved" && "Unsaved"}
-          {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
-          {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
-          {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
-          {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
-          {saveState === "errors" && "Service error"}
+          {saveStateLabel}
         </div>}
 
         {workspace === "plans" && (
@@ -1472,12 +1513,7 @@ Save the correction and mark those plans for revision?`);
           <div className="planning-context-header">
             <div className="planning-context-info" aria-label="Planning status and opened record">
               <div className={`status status-${saveState}`} role="status">
-                {saveState === "unsaved" && "Unsaved"}
-                {saveState === "saved" && (runtimeMode === "db" ? "Saved to DB" : "Saved in memory")}
-                {saveState === "finalized" && (runtimeMode === "db" ? "Finalized in DB" : "Finalized in memory")}
-                {saveState === "completed" && (runtimeMode === "db" ? "Completed in DB" : "Completed in memory")}
-                {saveState === "deleted" && (runtimeMode === "db" ? "Deleted from DB" : "Deleted from memory")}
-                {saveState === "errors" && "Service error"}
+                {saveStateLabel}
               </div>
               {persistedSet && <p className="saved-summary">Opened {formatPlanningSetSummary(persistedSet)}.</p>}
               {completedRecord && <p className="saved-summary">Opened {formatCompletedRecordSummary(completedRecord)}.</p>}
@@ -1768,34 +1804,34 @@ Save the correction and mark those plans for revision?`);
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
-                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={!canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={isDemoExperience || !canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save working plan
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={!canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch}>
+                    <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={isDemoExperience || !canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Finalize plan
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete saved plan
                     </button>
                   </>
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
-                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet}>Edit Final Plan</button>}
-                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={!canCompleteSet || !persistedSet} title={completeDateReason || undefined}>
+                    {selectedRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
+                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>
                       Store Service
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={!canDeleteCurrentSet || !persistedSet}>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete Saved Plan
                     </button>
                   </>
                 )}
                 {isCompletedRecordOpen && selectedRole === "admin" && (
                   <>
-                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={!hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}>
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save-completed" onClick={saveCompletedChanges} disabled={isDemoExperience || !hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save completed changes
                     </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.delete-completed" onClick={deleteCompletedRecord}>Delete completed record</button>
+                    <button type="button" data-guide-hint="planning.lifecycle.delete-completed" onClick={deleteCompletedRecord} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Delete completed record</button>
                   </>
                 )}
               </>
@@ -1811,7 +1847,7 @@ Save the correction and mark those plans for revision?`);
           />
         )}
 
-        {workspace === "catalog" && (
+        {!isDemoExperience && workspace === "catalog" && (
           <CatalogWorkspace
             runtime={runtimeMode}
             actor={activeActor}
@@ -1845,7 +1881,7 @@ Save the correction and mark those plans for revision?`);
             }}
           />
         )}
-        {workspace === "development" && (
+        {!isDemoExperience && workspace === "development" && (
           <section className="release-guidance" aria-label="Development workspace">
             <div><span className="guidance-label">Runtime mode</span><strong>{runtimeMode === "db" ? "Local DB opt-in" : "Local in-memory only"}</strong><p>{runtimeMode === "db" ? "Planning Lifecycle actions use the local database service selected by ORGANY_RUNTIME=db." : "Data is kept only in the current browser runtime and is not durable across refreshes or restarts."}</p></div>
             {runtimeMode === "memory" ? <div><span className="guidance-label">Deterministic test user</span><strong>{activeUser.label} ({activeUser.id})</strong><label>Change user<select value={selectedUserId} onChange={(event) => { const user = demoUsers.find((candidate) => candidate.id === event.target.value); if (user) { setSelectedUserId(user.id); setSelectedAssignedRole(user.roles[0]); } }}>{demoUsers.map((user) => <option key={user.id} value={user.id}>{user.label}</option>)}</select></label><label>Assigned role<select value={effectiveRole} onChange={(event) => selectAssignedRole(event.target.value as PlanningRole)}>{storedUser.roles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label><p>Memory development switches deterministic seeded users and roles.</p></div> : <div><span className="guidance-label">Authenticated user</span><strong>{activeUser.label} ({activeUser.id})</strong><p>DB runtime identity comes from the protected server session. Role switching is available from the User menu.</p></div>}
