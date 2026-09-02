@@ -46,7 +46,7 @@ assert.match(antiphon, /editableRecommendation: Boolean\(canEditRecommendation &
 assert.match(antiphon, /<ReferenceSongLookupField/);
 assert.match(lookup, /<strong>none<\/strong>/);
 assert.match(catalog, /recommendationClient=\{recommendationClient \?\? undefined\}/);
-assert.match(catalog, /canEditRecommendation=\{runtime === "db" && actor\.role === "admin"\}/);
+assert.match(catalog, /canEditRecommendation=\{!readOnlyDemo && runtime === "db" && actor\.role === "admin"\}/);
 assert.match(catalog, /onRecommendationChanged=\{async \(value\) => \{/);
 assert.match(catalog, /await reloadCandidates\(\)/);
 assert.match(catalog, /onAntiphonRecommendationChanged\?\.\(\)/);
