@@ -6,11 +6,19 @@ import { ProtectedActorError, resolveProtectedUser } from "../src/application/pr
 import { ACTIVE_ROLE_COOKIE_NAME, resolveOwnedActiveRole } from "../src/application/active-role";
 import { getUnresolvedAuditRetentionIncident } from "../src/application/audit-retention-maintenance";
 import { resolveApplicationRuntimeMode } from "../src/config/production-runtime";
+import { assertDemoRuntimeConfig, resolveApplicationExperience } from "../src/config/application-experience";
 import { authPool } from "../src/auth/server";
+import { DemoD1Shell } from "./demo-d1-shell";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const experience = resolveApplicationExperience();
+  if (experience === "demo") {
+    assertDemoRuntimeConfig();
+    return <DemoD1Shell />;
+  }
+
   const runtimeMode: RuntimeMode = resolveApplicationRuntimeMode();
   if (runtimeMode === "memory") return <PlanningLifecycleClient runtimeMode="memory" />;
 
