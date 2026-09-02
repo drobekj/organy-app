@@ -93,6 +93,8 @@ async function main() {
   assert.match(planning, /!isDemoExperience && workspace === "catalog"/);
   assert.match(planning, /!isDemoExperience && workspace === "development"/);
 
+  const formActionsStart = planning.indexOf('<div className="form-actions">');
+  assert.ok(formActionsStart > 0, "Planning lifecycle action area must remain present.");
   for (const label of [
     "Save working plan",
     "Finalize plan",
@@ -102,15 +104,15 @@ async function main() {
     "Save completed changes",
     "Delete completed record",
   ]) {
-    const labelIndex = planning.indexOf(label);
-    assert.ok(labelIndex > 0, `${label} must remain visible in the shared Planning UI.`);
+    const labelIndex = planning.indexOf(label, formActionsStart);
+    assert.ok(labelIndex > formActionsStart, `${label} must remain visible in the shared Planning UI.`);
     const buttonStart = planning.lastIndexOf("<button", labelIndex);
     const buttonSource = planning.slice(buttonStart, labelIndex);
     assert.match(buttonSource, /disabled=\{isDemoExperience/, `${label} must be disabled by the Demo boundary.`);
   }
 
   assert.match(planning, /Edit Final Plan/);
-  const editFinalIndex = planning.indexOf("Edit Final Plan");
+  const editFinalIndex = planning.indexOf("Edit Final Plan", formActionsStart);
   assert.match(planning.slice(planning.lastIndexOf("<button", editFinalIndex), editFinalIndex), /disabled=\{isDemoExperience\}/);
 
   assert.doesNotMatch(demoClient, /fetch\s*\(|\/api\/|DATABASE_URL|authPool|DbPlanningLifecycleClient/);
