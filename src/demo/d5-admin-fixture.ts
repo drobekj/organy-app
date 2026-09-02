@@ -135,7 +135,7 @@ export const DEMO_D5_AUDIT_EVENTS: readonly AuditEventRecord[] = Object.freeze([
     actorPersonId: null,
     action: "account.role.update",
     objectKind: "protectedAccount",
-    objectRef: "demo.account",
+    objectRef: "demo-account-multi",
     beforeState: { roles: ["organist"] },
     afterState: { roles: ["priest", "organist"] },
   },
