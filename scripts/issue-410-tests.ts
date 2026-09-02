@@ -61,7 +61,7 @@ async function main() {
   assert.doesNotMatch(simulator, /fetch\s*\(|\/api\/|document\.cookie|localStorage|sessionStorage|serializeActiveRoleCookie|ActorIdentity/);
 
   assert.match(demoMelody, /role === "priest" && months < minimumMonths/);
-  assert.match(demoMelody, /role === "organist"/);
+  assert.match(demoMelody, /Simulated own Organist setting/);
   assert.match(demoMelody, /role === "admin"/);
   assert.match(demoMelody, /Changes affect this Demo session only/);
   assert.doesNotMatch(demoMelody, /fetch\s*\(|\/api\/|ActorIdentity|callMelodyProtectionApi|setOwnMelodyProtection|document\.cookie|localStorage|sessionStorage/);
