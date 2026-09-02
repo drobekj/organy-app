@@ -36,6 +36,11 @@ export const guideUi = {
   currentRole: { en: "current role", cz: "aktuální role" },
 } satisfies Record<string, LocalizedText>;
 
+export const guidePracticalContext = {
+  en: "Switch EN/CZ here; the choice is remembered only in this browser. Use panel i buttons for grouped contextual help and supported control hints while working.",
+  cz: "Zde přepínejte EN/CZ; volba se pamatuje pouze v tomto prohlížeči. Pro souhrnnou kontextovou nápovědu používejte tlačítka i na panelech a nápovědu podporovaných ovládacích prvků.",
+} satisfies LocalizedText;
+
 export const guideAccountContext = {
   title: { en: "User & Role", cz: "User & Role" },
   summary: {
@@ -44,12 +49,12 @@ export const guideAccountContext = {
   },
   bullets: [
     {
-      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, manage Phone Setting when a WhatsApp phone has been saved, use Change Password or Sign Out.",
-      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu a použít Change Password nebo Sign Out.",
+      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, manage Phone Setting when a WhatsApp phone has been saved, use Change Password or Sign Out. Guide Hints controls automatic hover/focus help; panel i summaries remain available.",
+      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu a použít Change Password nebo Sign Out. Guide Hints řídí automatickou nápovědu při hover/focus; souhrny přes tlačítko i zůstávají dostupné.",
     },
     {
-      en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
-      cz: "Role zobrazuje aktivní roli. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
+      en: "Role shows the active role, and role-specific Guide blocks follow that active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
+      cz: "Role zobrazuje aktivní roli a role-specific bloky Guide tuto aktivní roli následují. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
     },
   ],
 } satisfies { title: LocalizedText; summary: LocalizedText; bullets: LocalizedText[] };
@@ -340,20 +345,7 @@ export const guideSections: GuideSection[] = [
       en: "In-app help for normal work; opening or reading the Guide does not change application data.",
       cz: "Nápověda uvnitř aplikace pro běžnou práci; otevření ani čtení Guide nemění data aplikace.",
     },
-    bullets: [
-      {
-        en: "Switch EN/CZ at the top of this page. The choice is remembered only in this browser.",
-        cz: "Nahoře na této stránce přepínejte EN/CZ. Volba se pamatuje pouze v tomto prohlížeči.",
-      },
-      {
-        en: "Use panel i buttons for grouped contextual help. When Guide Hints are enabled, hovering or focusing supported controls shows control-specific help.",
-        cz: "Pro souhrnnou kontextovou nápovědu použijte tlačítka i na panelech. Když jsou Guide Hints zapnuté, najetí myší nebo focus na podporovaném prvku zobrazí nápovědu k danému ovládacímu prvku.",
-      },
-      {
-        en: "Role-specific blocks are shown in parallel so Admin, Priest and Organist differences remain visible without duplicating the whole manual.",
-        cz: "Role-specific bloky jsou zobrazeny paralelně, aby byly rozdíly mezi Admin, Priest a Organist vidět bez duplikování celého manuálu.",
-      },
-    ],
+    bullets: [],
   },
 ];
 
