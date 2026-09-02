@@ -73,6 +73,95 @@ select {
   color: var(--muted);
 }
 
+.demo-reset-button {
+  margin-left: auto;
+}
+
+.demo-admin-workspace {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.demo-admin-intro {
+  align-items: baseline;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.demo-admin-intro span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.demo-account-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.demo-account-card {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.demo-account-card > div:first-child {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.7rem;
+}
+
+.demo-account-card dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.demo-account-card dl > div {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 7rem minmax(0, 1fr);
+}
+
+.demo-account-card dt {
+  color: var(--muted);
+}
+
+.demo-account-card dd {
+  margin: 0;
+}
+
+.demo-account-disabled-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.demo-audit-fields {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem 0.65rem;
+}
+
+@media (max-width: 720px) {
+  .demo-reset-button {
+    margin-left: 0;
+  }
+
+  .demo-account-card dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.05rem;
+  }
+}
+
 .demo-role-simulator {
   background: #f8fafc;
   border: 1px solid var(--border);

@@ -88,7 +88,7 @@ async function main() {
   assert.match(planning, /isDemoExperience\s*\?\s*new DemoPlanningLifecycleClient\(\)/);
   assert.match(planning, /Changes are temporary and are never saved\./);
 
-  assert.ok(planning.includes('<button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>'), "Later Demo stages may expose Catalog while preserving D2 Planning.");
+  assert.ok(planning.includes('<button type="button" className={!demoAdminView && workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>'), "Later Demo stages may decorate Catalog navigation while preserving D2 Planning.");
   assert.ok(planning.includes('{!isDemoExperience && <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>}'), "Development navigation must remain hidden in Demo.");
   assert.match(planning, /workspace === "catalog"/);
   assert.match(planning, /!isDemoExperience && workspace === "development"/);

@@ -75,6 +75,12 @@ import {
 } from "../src/demo/d4-presentation-role";
 import { DemoRoleSimulator } from "./demo-role-simulator";
 import { DemoMelodyProtectionPanel } from "./demo-melody-protection-panel";
+import {
+  DemoAccountsWorkspace,
+  DemoAuditWorkspace,
+  DemoResetButton,
+  type DemoAdminView,
+} from "./demo-admin-workspaces";
 export { DbInteractionClient, MemoryInteractionClient } from "./planning-runtime-clients";
 export type { InteractionTransport } from "./planning-runtime-clients";
 
@@ -101,6 +107,7 @@ type PlanningLifecycleClientProps = {
 export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser, initialActiveRole, experience = "standard" }: PlanningLifecycleClientProps) {
   const isDemoExperience = experience === "demo";
   const [demoPresentationRole, setDemoPresentationRole] = useState<DemoPresentationRole>(DEFAULT_DEMO_PRESENTATION_ROLE);
+  const [demoAdminView, setDemoAdminView] = useState<DemoAdminView | null>(null);
   const catalogRepository = useMemo(
     () => isDemoExperience
       ? new InMemoryCatalogRepository(DEMO_D2_PEOPLE.map((person) => ({ ...person })), DEMO_D2_SONGS.map((song) => ({ ...song })))
@@ -1435,12 +1442,12 @@ Save the correction and mark those plans for revision?`);
     setSaveState("deleted");
   }
 
-  function navigateWorkspace(nextWorkspace: Workspace) {
-    if (isDemoExperience && nextWorkspace === "development") return;
+  function navigateWorkspace(nextWorkspace: Workspace): boolean {
+    if (isDemoExperience && nextWorkspace === "development") return false;
     if (nextWorkspace !== workspace && !workspaceLeaveState.allowed) {
       setServiceError({ code: "invalidInput", message: workspaceLeaveState.reason ?? "Select a candidate or cancel the active lookup before leaving Planning." });
       setSaveState("errors");
-      return;
+      return false;
     }
     if (nextWorkspace !== workspace && workspace === "planning") {
       lookupTracker.invalidatePrefix("song:");
@@ -1451,8 +1458,29 @@ Save the correction and mark those plans for revision?`);
       setCandidateErrors({});
       setRows((currentRows) => currentRows.map((row) => row.lookupOpen ? planningCandidateRowReducer(row, { type: "lookupCancelled" }) : row));
     }
+    setDemoAdminView(null);
     setWorkspace(nextWorkspace);
+    return true;
   }
+
+  function navigateDemoAdmin(nextView: DemoAdminView) {
+    if (!isDemoExperience || demoPresentationRole !== "admin") return;
+    if (navigateWorkspace("about")) setDemoAdminView(nextView);
+  }
+
+  function changeDemoPresentationRole(role: DemoPresentationRole) {
+    setDemoPresentationRole(role);
+    if (role !== "admin" && demoAdminView) {
+      setDemoAdminView(null);
+      setWorkspace("planning");
+    }
+  }
+
+  const visibleWorkspaceLabel = demoAdminView === "accounts"
+    ? "Accounts"
+    : demoAdminView === "audit"
+      ? "Audit History"
+      : getWorkspaceLabel(workspace);
 
   const saveStateLabel = isDemoExperience
     ? saveState === "unsaved"
@@ -1487,38 +1515,47 @@ Save the correction and mark those plans for revision?`);
             <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
               <strong>Demo mode</strong>
               <span>Changes are temporary and are never saved.</span>
+              <DemoResetButton />
             </aside>
-            <DemoRoleSimulator role={demoPresentationRole} onChange={setDemoPresentationRole} />
+            <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} />
           </>
         )}
         <div className="app-header">
           <div>
-            <h1 id="page-title">{getWorkspaceLabel(workspace)}</h1>
-            <p className="lede">{isDemoExperience ? "Explore Planning, active plans, completed-service history and the read-only Catalog using synthetic in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
+            <h1 id="page-title">{visibleWorkspaceLabel}</h1>
+            <p className="lede">{isDemoExperience ? "Explore Planning, active plans, completed-service history, read-only Catalog and synthetic Admin views using in-memory data." : "Plan services, review active plans and history, administer the catalog, and keep development tools separate."}</p>
           </div>
           {!isDemoExperience && <div className="role-pill" aria-label="Current simulated user">User: <strong>{activeUser.label}</strong> · Role: <strong>{selectedRole}</strong></div>}
         </div>
         <nav className="workspace-nav" aria-label="Application workspaces">
           <div className="workspace-nav-section workspace-nav-about">
-            <button type="button" className={workspace === "about" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("about")}>About</button>
+            <button type="button" className={!demoAdminView && workspace === "about" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("about")}>About</button>
           </div>
           <div className="workspace-nav-section workspace-nav-main">
-            <button type="button" className={workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
-            <button type="button" className={workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
-            <button type="button" className={workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
-            <button type="button" className={workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
+            <button type="button" className={!demoAdminView && workspace === "planning" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("planning")}>Planning</button>
+            <button type="button" className={!demoAdminView && workspace === "plans" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("plans")}>Plans</button>
+            <button type="button" className={!demoAdminView && workspace === "history" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("history")}>History</button>
+            <button type="button" className={!demoAdminView && workspace === "catalog" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("catalog")}>Catalog</button>
+            {isDemoExperience && demoPresentationRole === "admin" && (
+              <>
+                <button type="button" className={demoAdminView === "accounts" ? "active-workspace" : undefined} onClick={() => navigateDemoAdmin("accounts")}>Accounts</button>
+                <button type="button" className={demoAdminView === "audit" ? "active-workspace" : undefined} onClick={() => navigateDemoAdmin("audit")}>Audit</button>
+              </>
+            )}
             {!isDemoExperience && <button type="button" className={workspace === "development" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("development")}>Development</button>}
           </div>
           <div className="workspace-nav-section workspace-nav-footer">
-            <button type="button" className={workspace === "guide" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("guide")}>Guide</button>
+            <button type="button" className={!demoAdminView && workspace === "guide" ? "active-workspace" : undefined} onClick={() => navigateWorkspace("guide")}>Guide</button>
             <span className="workspace-copyright">© {new Date().getFullYear()} DrSoft</span>
           </div>
         </nav>
 
-        {workspace === "about" && <AboutWorkspace />}
-        {workspace === "guide" && <GuideWorkspace activeRole={presentationRole} />}
+        {demoAdminView === "accounts" && <DemoAccountsWorkspace />}
+        {demoAdminView === "audit" && <DemoAuditWorkspace />}
+        {!demoAdminView && workspace === "about" && <AboutWorkspace />}
+        {!demoAdminView && workspace === "guide" && <GuideWorkspace activeRole={presentationRole} />}
 
-        {workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
+        {!demoAdminView && workspace !== "planning" && workspace !== "about" && workspace !== "guide" && <div className={`status status-${saveState}`} role="status">
           {saveStateLabel}
         </div>}
 
