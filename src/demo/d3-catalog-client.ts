@@ -141,7 +141,7 @@ export class DemoCatalogKnowledgeClient {
       value: {
         referenceSongId,
         category: "organist",
-        score: DEMO_D3_PREFERENCE_SCORE[referenceSongId] ?? null,
+        score: Math.min(2, DEMO_D3_PREFERENCE_SCORE[referenceSongId] ?? 0),
         limit: 2,
       },
     };
