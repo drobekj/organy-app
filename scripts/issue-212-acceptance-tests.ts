@@ -29,6 +29,6 @@ const completedBody = source.slice(completedStart, completedEnd);
 assert(!completedBody.includes("hasCandidateAvailabilityBlock"), "Completed save must not be blocked by planning availability.");
 assert(!completedBody.includes("Every candidate must be available."), "Completed save must not emit planning availability errors.");
 assert(!completedBody.includes("hasValidationErrors"), "Historical-truth Completed save must not depend on Planning row validation.");
-assert(source.includes('onClick={saveCompletedChanges} disabled={!hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}'), "Completed save button must bypass Planning availability and row validation.");
+assert(source.includes('onClick={saveCompletedChanges} disabled={isDemoExperience || !hasServiceContext || hasInvalidLookupState || hasAntiphonLanguageMismatch}'), "Completed save button must bypass Planning availability and row validation in standard mode while remaining disabled in Demo.");
 
 console.log("Issue #212 acceptance regression checks passed.");
