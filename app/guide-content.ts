@@ -36,6 +36,24 @@ export const guideUi = {
   currentRole: { en: "current role", cz: "aktuální role" },
 } satisfies Record<string, LocalizedText>;
 
+export const guideAccountContext = {
+  title: { en: "User & Role", cz: "User & Role" },
+  summary: {
+    en: "The controls in the top-right corner identify the protected signed-in account and the currently active application role.",
+    cz: "Ovládací prvky vpravo nahoře identifikují protected přihlášený účet a právě aktivní roli aplikace.",
+  },
+  bullets: [
+    {
+      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, manage Phone Setting when a WhatsApp phone has been saved, change the password or sign out.",
+      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu, změnit heslo nebo se odhlásit.",
+    },
+    {
+      en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
+      cz: "Role zobrazuje aktivní roli. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
+    },
+  ],
+} satisfies { title: LocalizedText; summary: LocalizedText; bullets: LocalizedText[] };
+
 export const guideEnvironmentCopy = {
   standard: {
     en: "Production uses a protected signed-in session and persistent application data. Changes are stored only when the active role is authorized to perform them.",
@@ -336,24 +354,6 @@ export const guideSections: GuideSection[] = [
         cz: "Role-specific bloky jsou zobrazeny paralelně, aby byly rozdíly mezi Admin, Priest a Organist vidět bez duplikování celého manuálu.",
       },
     ],
-    experience: {
-      standard: [
-        {
-          en: "In Production, the User menu contains Sign Role for assigned roles, the Guide Hints switch, Change Password and Sign Out. After a Priest/Admin saves a WhatsApp phone from the post-Finalize prompt, Phone Setting appears there to change or forget it.",
-          cz: "V Production obsahuje User menu Sign Role pro přiřazené role, přepínač Guide Hints, Change Password a Sign Out. Jakmile Priest/Admin uloží telefon z WhatsApp dialogu po Finalize, objeví se zde Phone Setting pro jeho změnu nebo zapomenutí.",
-        },
-        {
-          en: "Turning Guide Hints off disables automatic control hover/focus hints; panel i summaries remain available.",
-          cz: "Vypnutí Guide Hints zakáže automatické nápovědy při hover/focus na ovládacích prvcích; souhrny přes tlačítko i zůstávají dostupné.",
-        },
-      ],
-      demo: [
-        {
-          en: "Demo has no protected account menu. Preview role is presentation-only, and Reset Demo discards temporary local state and restores the synthetic fixture.",
-          cz: "Demo nemá protected account menu. Preview role slouží pouze k prezentaci a Reset Demo zahodí dočasný lokální stav a obnoví syntetická data.",
-        },
-      ],
-    },
   },
 ];
 
