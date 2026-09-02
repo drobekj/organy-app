@@ -22,7 +22,7 @@ assert.match(guide, /"planning\.melody-protection"[\s\S]*?session-only[\s\S]*?An
 assert.match(guide, /Demo Catalog is read-only and uses synthetic data/);
 assert.match(guide, /preference, repertoire and Melody Edge mutations are not persisted/);
 assert.match(guide, /id: "guide\.development"[\s\S]*?standardOnly: true/);
-assert.match(guide, /id: "guide\.guide"[\s\S]*?Guide Hints[\s\S]*?Sign Role[\s\S]*?Phone Setting/);
+assert.match(guide, /export const guideAccountContext = \{[\s\S]*?User & Role[\s\S]*?Sign Role[\s\S]*?Phone Setting[\s\S]*?Role Admin[\s\S]*?Manage Accounts[\s\S]*?Audit History[\s\S]*?Verify DB/);
 assert.match(guide, /"planning\.whatsapp"[\s\S]*?prepared message[\s\S]*?protected account/);
 
 assert.match(workspace, /experience: GuideExperience/);
@@ -30,8 +30,9 @@ assert.match(workspace, /experience === "demo"[\s\S]*?filter\(\(section\) => !se
 assert.match(workspace, /\["admin", "priest", "organist"\]/);
 assert.match(workspace, /guideEnvironmentCopy\[experience\]/);
 assert.match(workspace, /section\.experience\?\.\[experience\]/);
+assert.match(workspace, /experience === "demo" \? \([\s\S]*?demoRolePanel[\s\S]*?: \([\s\S]*?guide-account-context/);
 
-assert.match(planning, /<GuideWorkspace activeRole=\{presentationRole\} experience=\{isDemoExperience \? "demo" : "standard"\} \/>/);
+assert.match(planning, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRolePanel=/);
 assert.match(controlHints, /role === "admin" \|\| role === "priest" \|\| role === "organist"/);
 assert.match(controlHints, /Demo Catalog is read-only/);
 assert.equal((whatsapp.match(/data-guide-hint="planning\.whatsapp"/g) ?? []).length, 3);
