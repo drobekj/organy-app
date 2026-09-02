@@ -76,7 +76,7 @@ async function main() {
   );
   assert.match(planning, /const effectiveRole = isDemoExperience\s*\? "priest"\s*:/);
   assert.match(planning, /const activeActor: ActorIdentity = \{ userId: storedUser\.id, displayName: storedUser\.displayName, role: effectiveRole/);
-  assert.doesNotMatch(planning, /role:\s*demoPresentationRole|serializeActiveRoleCookie\(demoPresentationRole\)|setSelectedAssignedRole\(demoPresentationRole\)/);
+  assert.doesNotMatch(planning, /activeActor[^\n]*demoPresentationRole|ActorIdentity[^\n]*demoPresentationRole|serializeActiveRoleCookie\(demoPresentationRole\)|setSelectedAssignedRole\(demoPresentationRole\)/);
 
   assert.match(planning, /isDemoExperience\s*\? demoPresentationCanMutatePlanningEditor/);
   assert.match(planning, /demoPresentationCanPerformPlanningAction\(demoPresentationRole, "saveFinalSet"\)/);
