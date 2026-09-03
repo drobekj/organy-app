@@ -5,7 +5,8 @@ import type { CongregationPreferenceAdminLanguage } from "../../../src/applicati
 
 export function PreferenceLanguageFilter({ language }: { language: CongregationPreferenceAdminLanguage }) {
   function changeLanguage(event: ChangeEvent<HTMLSelectElement>) {
-    const next = event.target.value === "polish" ? "polish" : "czech";
+    const next: CongregationPreferenceAdminLanguage =
+      event.target.value === "polish" ? "polish" : event.target.value === "mixed" ? "mixed" : "czech";
     window.location.assign(`/admin/preferences?language=${next}`);
   }
 
@@ -17,6 +18,7 @@ export function PreferenceLanguageFilter({ language }: { language: CongregationP
         <select aria-label="Preference language" value={language} onChange={changeLanguage}>
           <option value="czech">czech</option>
           <option value="polish">polish</option>
+          <option value="mixed">mixed</option>
         </select>
       </label>
     </fieldset>
