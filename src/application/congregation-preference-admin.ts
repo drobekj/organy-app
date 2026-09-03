@@ -159,6 +159,9 @@ export class PostgresCongregationPreferenceAdminService {
       await serializeAdminMutation(client);
       const target = await this.requirePreferenceTarget(client, profileId, referenceSongId, true);
       const beforeScore = Number(target.score);
+      if (beforeScore !== 1) {
+        throw new CongregationPreferenceAdminError("conflict", "Only a non-zero congregation preference can be removed here.");
+      }
       await client.query(
         "delete from reference_song_preferences where profile_id = $1 and reference_song_id = $2",
         [profileId, referenceSongId],
