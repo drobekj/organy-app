@@ -68,10 +68,10 @@ export class CongregationVoterError extends Error {
 
 export function normalizeCongregationNickname(value: unknown): { display: string; normalized: string } {
   if (typeof value !== "string") throw new CongregationVoterError("invalidInput", "Nickname is required.");
-  const display = value.trim();
+  const display = value.trim().normalize("NFC");
   if (!display) throw new CongregationVoterError("invalidInput", "Nickname must not be empty.");
   if (display.length > 64) throw new CongregationVoterError("invalidInput", "Nickname must contain at most 64 characters.");
-  return { display, normalized: display.toLocaleLowerCase("cs-CZ") };
+  return { display, normalized: display.toLocaleLowerCase("cs-CZ").normalize("NFC") };
 }
 
 export function normalizeCongregationEmail(value: unknown): { display: string; normalized: string } {
