@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { getAppDbPool } from "../../src/db/app-pool";
 import { CongregationVoterError, PostgresCongregationPreferenceService } from "../../src/application/congregation-preference-voter";
 import { PostgresReferenceCatalogProvider } from "../../src/application/postgres-reference-catalog";
+import { CongregationPreferenceWorkspace } from "./congregation-preference-workspace";
 
 const CONTEXT_COOKIE = "organy_congregation_voter";
 
@@ -10,9 +11,13 @@ type PageProps = {
 };
 
 export default async function CongregationPreferencesPage({ searchParams }: PageProps) {
-  if (process.env.ORGANY_RUNTIME !== "db") return configurationMessage("Congregation preferences are available in DB runtime.");
+  if (process.env.ORGANY_RUNTIME !== "db") {
+    return configurationMessage("Congregation preferences are available in DB runtime.");
+  }
   const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) return configurationMessage("DATABASE_URL is required for congregation preferences.");
+  if (!databaseUrl) {
+    return configurationMessage("DATABASE_URL is required for congregation preferences.");
+  }
 
   const params = await searchParams;
   if (first(params.entry) === "1") return nicknameEntry();
@@ -21,80 +26,50 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   const token = cookieStore.get(CONTEXT_COOKIE)?.value;
   if (!token) return nicknameEntry();
 
-  const search = first(params.q) ?? "";
-  const selectedId = first(params.song);
-  const saved = first(params.saved) === "1";
   const pool = getAppDbPool(databaseUrl);
   const service = new PostgresCongregationPreferenceService(pool);
-    let voter;
-    try {
-      voter = await service.resolveContext(token);
-    } catch (error) {
-      if (error instanceof CongregationVoterError && error.code === "unauthenticated") return nicknameEntry(error.message);
-      throw error;
+
+  let voter;
+  try {
+    voter = await service.resolveContext(token);
+  } catch (error) {
+    if (error instanceof CongregationVoterError && error.code === "unauthenticated") {
+      return nicknameEntry(error.message);
     }
+    throw error;
+  }
 
-    const catalog = new PostgresReferenceCatalogProvider(pool);
-    const page = await catalog.list({ language: "all", search, page: 0, pageSize: 25 });
-    const selected = selectedId ? await catalog.getById(selectedId) : undefined;
-    const preference = selected ? await service.getOwnReferencePreference(token, selected.id) : undefined;
+  const catalog = new PostgresReferenceCatalogProvider(pool);
+  const [records, preferences] = await Promise.all([
+    catalog.listAll("all"),
+    service.listOwnReferencePreferences(token),
+  ]);
 
-    return (
-      <main className="shell">
-        <section className="card planning-form congregation-preferences-card" aria-label="Congregation preference voting">
-          <div className="app-header">
-            <div>
-              <p className="eyebrow">Congregation preference</p>
-              <h1>{voter.nickname}</h1>
-            </div>
-            <div className="form-actions">
-              <form action="/api/congregation-preferences" method="post">
-                <input type="hidden" name="action" value="clearNickname" />
-                <button type="submit">Change nickname</button>
-              </form>
-              <a href="/sign-in">Staff sign in</a>
-            </div>
+  return (
+    <main className="shell">
+      <section className="card planning-form congregation-preferences-card" aria-label="Congregation preference voting">
+        <div className="app-header">
+          <div>
+            <p className="eyebrow">Congregation preference</p>
+            <h1>{voter.nickname}</h1>
           </div>
+          <div className="form-actions">
+            <form action="/api/congregation-preferences" method="post">
+              <input type="hidden" name="action" value="clearNickname" />
+              <button type="submit">Change nickname</button>
+            </form>
+            <a href="/sign-in">Staff sign in</a>
+          </div>
+        </div>
 
-          <p className="field-help">This nickname is deliberately unverified. It can change only this nickname profile's congregation preferences.</p>
+        <p className="field-help">
+          This nickname is deliberately unverified. It can change only this nickname profile&apos;s congregation preferences.
+        </p>
 
-          <form method="get" className="form-actions">
-            <label>
-              Find song
-              <input name="q" defaultValue={search} placeholder="Number or title" />
-            </label>
-            <button type="submit">Search</button>
-          </form>
-
-          <p className="field-help">Showing {page.records.length} of {page.total} matching songs.</p>
-          <ul className="saved-set-list" aria-label="Reference songs">
-            {page.records.map((record) => (
-              <li key={record.id} className={selected?.id === record.id ? "selected-record" : undefined}>
-                <a href={songHref(record.id, search)}>
-                  <strong>{record.displayNumber}</strong> · {record.title} <span className="field-help">({record.language})</span>
-                </a>
-              </li>
-            ))}
-          </ul>
-
-          {page.records.length === 0 && <p className="field-help">No songs found.</p>}
-
-          {selected && preference && (
-            <section className="detail-panel" aria-label="Selected congregation preference">
-              <h2>{selected.displayNumber} · {selected.title}</h2>
-              <p className="field-help">Current preference: <strong>{preference.score === null ? "not set" : preference.score}</strong>. Allowed values: 0 or 1.</p>
-              <form action="/api/congregation-preferences" method="post" className="form-actions">
-                <input type="hidden" name="action" value="saveOwnPreference" />
-                <input type="hidden" name="referenceSongId" value={selected.id} />
-                <button type="submit" name="score" value="0">Set 0</button>
-                <button type="submit" name="score" value="1">Set 1</button>
-                {saved && <span className="saved-summary" role="status">Saved.</span>}
-              </form>
-            </section>
-          )}
-        </section>
-      </main>
-    );
+        <CongregationPreferenceWorkspace records={records} preferences={preferences} />
+      </section>
+    </main>
+  );
 }
 
 function nicknameEntry(message?: string) {
@@ -117,15 +92,17 @@ function nicknameEntry(message?: string) {
 }
 
 function configurationMessage(message: string) {
-  return <main className="auth-shell"><div className="auth-card"><h1>Congregation preferences</h1><p>{message}</p><a href="/">Back</a></div></main>;
+  return (
+    <main className="auth-shell">
+      <div className="auth-card">
+        <h1>Congregation preferences</h1>
+        <p>{message}</p>
+        <a href="/">Back</a>
+      </div>
+    </main>
+  );
 }
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function songHref(songId: string, search: string): string {
-  const params = new URLSearchParams({ song: songId });
-  if (search) params.set("q", search);
-  return `/congregation-preferences?${params.toString()}`;
 }
