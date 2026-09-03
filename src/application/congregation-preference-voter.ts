@@ -21,6 +21,11 @@ export type CongregationOwnPreference = {
   limit: 1;
 };
 
+export type CongregationOwnPreferenceEntry = {
+  referenceSongId: string;
+  score: 0 | 1;
+};
+
 export class CongregationVoterError extends Error {
   constructor(
     readonly code: "invalidInput" | "permissionDenied" | "notFound" | "unauthenticated",
@@ -111,6 +116,25 @@ export class PostgresCongregationPreferenceService {
       throw new CongregationVoterError("permissionDenied", "Congregation preference profile contains an invalid score.");
     }
     return { nickname: context.nickname, referenceSongId: songId, score, limit: 1 };
+  }
+
+  async listOwnReferencePreferences(token: unknown): Promise<CongregationOwnPreferenceEntry[]> {
+    const context = await this.resolveContext(token);
+    const result = await this.pool.query(
+      `select rsp.reference_song_id, rsp.score
+         from reference_song_preferences rsp
+         join reference_catalog_songs rcs on rcs.id = rsp.reference_song_id
+        where rsp.profile_id = $1
+        order by rsp.reference_song_id`,
+      [context.profileId],
+    );
+    return result.rows.map((row) => {
+      const score = Number(row.score);
+      if (score !== 0 && score !== 1) {
+        throw new CongregationVoterError("permissionDenied", "Congregation preference profile contains an invalid score.");
+      }
+      return { referenceSongId: String(row.reference_song_id), score };
+    });
   }
 
   async saveOwnReferencePreference(token: unknown, referenceSongId: unknown, rawScore: unknown): Promise<CongregationOwnPreference> {
