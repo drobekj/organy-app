@@ -66,8 +66,8 @@ export const guideAccountContext = {
       cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu a použít Change Password nebo Sign Out. Guide Hints řídí automatickou nápovědu při hover/focus; souhrny přes tlačítko i zůstávají dostupné.",
     },
     {
-      en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
-      cz: "Role zobrazuje aktivní roli. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
+      en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Manage Preferences, Audit History and Verify DB; for other roles it remains a compact role label.",
+      cz: "Role zobrazuje aktivní roli. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Manage Preferences, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
     },
   ],
 } satisfies { title: LocalizedText; summary: LocalizedText; bullets: LocalizedText[] };
@@ -345,8 +345,8 @@ export const guideSections: GuideSection[] = [
     roles: {
       admin: [
         {
-          en: "The protected Admin Role menu exposes Manage Accounts, Audit History and Verify DB. Verify DB creates a local offline copy for inspection; these are maintenance tools, not planning steps.",
-          cz: "Protected Admin Role menu zpřístupňuje Manage Accounts, Audit History a Verify DB. Verify DB vytváří lokální offline kopii pro kontrolu; jde o nástroje údržby, nikoli o kroky plánování.",
+          en: "The protected Admin Role menu exposes Manage Accounts, Manage Preferences, Audit History and Verify DB. Manage Preferences administers congregation nickname votes; Verify DB creates a local offline copy for inspection.",
+          cz: "Protected Admin Role menu zpřístupňuje Manage Accounts, Manage Preferences, Audit History a Verify DB. Manage Preferences spravuje hlasy congregation nickname profilů; Verify DB vytváří lokální offline kopii pro kontrolu.",
         },
       ],
     },

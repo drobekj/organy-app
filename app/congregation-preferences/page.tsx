@@ -39,7 +39,7 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
 
     return (
       <main className="shell">
-        <section className="card planning-form" aria-label="Congregation preference voting">
+        <section className="card planning-form congregation-preferences-card" aria-label="Congregation preference voting">
           <div className="app-header">
             <div>
               <p className="eyebrow">Congregation preference</p>
