@@ -41,6 +41,19 @@ export const guidePracticalContext = {
   cz: "Zde přepínejte EN/CZ; volba se pamatuje pouze v tomto prohlížeči. Pro souhrnnou kontextovou nápovědu používejte tlačítka i na panelech a nápovědu podporovaných ovládacích prvků.",
 } satisfies LocalizedText;
 
+export const guideRoleContextShared = {
+  en: "Role-specific Guide blocks follow the role represented by this panel.",
+  cz: "Role-specific bloky Guide následují roli reprezentovanou tímto panelem.",
+} satisfies LocalizedText;
+
+export const guidePreviewRoleContext = {
+  title: { en: "Preview role", cz: "Preview role" },
+  summary: {
+    en: "Choose which application role is presented in Demo.",
+    cz: "Zvolte, která aplikační role se má v Demo zobrazovat.",
+  },
+} satisfies { title: LocalizedText; summary: LocalizedText };
+
 export const guideAccountContext = {
   title: { en: "User & Role", cz: "User & Role" },
   summary: {
@@ -53,8 +66,8 @@ export const guideAccountContext = {
       cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu a použít Change Password nebo Sign Out. Guide Hints řídí automatickou nápovědu při hover/focus; souhrny přes tlačítko i zůstávají dostupné.",
     },
     {
-      en: "Role shows the active role, and role-specific Guide blocks follow that active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
-      cz: "Role zobrazuje aktivní roli a role-specific bloky Guide tuto aktivní roli následují. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
+      en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Audit History and Verify DB; for other roles it remains a compact role label.",
+      cz: "Role zobrazuje aktivní roli. Je-li aktivní Admin, Role Admin … zpřístupní Manage Accounts, Audit History a Verify DB; u ostatních rolí zůstává kompaktním označením role.",
     },
   ],
 } satisfies { title: LocalizedText; summary: LocalizedText; bullets: LocalizedText[] };
