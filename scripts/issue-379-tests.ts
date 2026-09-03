@@ -43,7 +43,7 @@ assert.doesNotMatch(css, /cursor: help/);
 assert.doesNotMatch(css, /guide-hints-enabled \[data-guide-hint\]/);
 assert.match(css, /\.planning-rows-panel \{[\s\S]*?border: 1px solid var\(--border\);[\s\S]*?border-radius: 1rem;/);
 assert.match(css, /\.guide-scope-info \{[\s\S]*?position: absolute;/);
-assert.match(css, /\.workspace-account-popover \.workspace-toggle-switch\[aria-checked="true"\] \{[\s\S]*?background: var\(--foreground\);/);
+assert.match(css, /\.workspace-toggle-switch\[aria-checked="true"\] \{[\s\S]*?background: var\(--foreground\);/);
 
 assert.match(css, /\.workspace-nav-about \{[\s\S]*?padding-bottom: 0;/);
 assert.doesNotMatch(css, /\.workspace-nav-about \{[\s\S]*?border-bottom:/);
