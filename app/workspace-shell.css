@@ -513,6 +513,30 @@ button.workspace-action-pending {
   max-width: 44rem;
 }
 
+.guide-meta-block {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+
+.guide-meta-block p {
+  margin: 0;
+}
+
+.guide-meta-divider {
+  border-top: 1px solid var(--border);
+  margin-top: 0.7rem;
+}
+
+.guide-role-context-panel .guide-meta-block,
+.guide-role-context-panel .guide-meta-divider {
+  margin-top: 0;
+}
+
+.guide-role-environment {
+  gap: 0.55rem;
+}
+
 .guide-language {
   align-items: center;
   display: flex;
