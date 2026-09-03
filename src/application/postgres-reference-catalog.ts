@@ -48,6 +48,21 @@ export class PostgresReferenceCatalogProvider {
     return { records: rows.map(mapRecord), total, page, pageSize, pageCount, counts: await this.counts() };
   }
 
+  async listAll(language: ReferenceCatalogQuery["language"] = "all"): Promise<ReferenceCatalogRecord[]> {
+    const values: unknown[] = [];
+    const where = language && language !== "all"
+      ? (values.push(language), `WHERE language = ${values.length}`)
+      : "";
+    const rows = (await this.pool.query(
+      `SELECT id, language, canonical_number, title, source_url
+         FROM reference_catalog_songs
+         ${where}
+        ORDER BY ${ORDER_BY_NATURAL_NUMBER}`,
+      values,
+    )).rows as DatabaseRow[];
+    return rows.map(mapRecord);
+  }
+
   async getById(id: string): Promise<ReferenceCatalogRecord | undefined> {
     const rows = (await this.pool.query("SELECT id, language, canonical_number, title, source_url FROM reference_catalog_songs WHERE id = $1", [id])).rows as DatabaseRow[];
     return rows[0] ? mapRecord(rows[0]) : undefined;
