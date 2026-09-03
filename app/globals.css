@@ -1478,27 +1478,35 @@ textarea {
   width: min(100%, 78rem);
 }
 
-.preference-admin-toolbar {
-  display: flex;
-  justify-content: flex-end;
+.preference-admin-context-header {
+  width: 100%;
+}
+
+.preference-language-slot {
+  min-width: 0;
 }
 
 .preference-language-panel {
-  flex: 0 0 auto;
-  height: 4.75rem;
-  min-width: 12rem;
-  width: calc(33.333333% + 0.066667rem + 1.333333px);
+  height: 100%;
+  min-width: 0;
+  width: 100%;
 }
 
 .preference-admin-feedback {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
+  align-content: start;
+  display: grid;
+  gap: 0.35rem;
+  height: 100%;
+  min-width: 0;
+  overflow: auto;
+  padding-top: 0.35rem;
 }
 
-.preference-admin-feedback .saved-summary {
+.preference-admin-feedback .saved-summary,
+.preference-admin-feedback .auth-error {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .preference-admin-list {
@@ -1624,14 +1632,6 @@ textarea {
 }
 
 @media (max-width: 720px) {
-  .preference-admin-toolbar {
-    justify-content: stretch;
-  }
-
-  .preference-language-panel {
-    width: 100%;
-  }
-
   .preference-admin-row {
     align-items: stretch;
     grid-template-columns: 1fr;
