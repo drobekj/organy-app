@@ -383,6 +383,7 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
           </summary>
           <div className="workspace-account-popover">
             <a href="/admin/accounts">Manage Accounts</a>
+            <a href="/admin/preferences">Manage Preferences</a>
             <a href="/admin/audit-history">Audit History</a>
             <button
               type="button"
