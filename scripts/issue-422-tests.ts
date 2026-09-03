@@ -13,7 +13,7 @@ const css = readFileSync("app/globals.css", "utf8");
 
 assert.match(
   planning,
-  /Changes are temporary and are never saved\. But at least, you can set your song preferences <a href="https:\/\/organy-app\.vercel\.app\/congregation-preferences" target="_blank" rel="noopener noreferrer">here<\/a>\./,
+  /Changes are temporary and are never saved\. But at least, you can set your song preferences <a href="https:\/\/organy-app\.vercel\.app\/congregation-preferences\?entry=1" target="_blank" rel="noopener noreferrer">here<\/a>\./,
 );
 assert.match(voterPage, /className="card planning-form congregation-preferences-card"/);
 assert.match(css, /\.congregation-preferences-card,[\s\S]*?width: min\(100%, 78rem\);/);
@@ -25,24 +25,25 @@ assert.match(languageFilter, /className="melody-protection-panel preference-lang
 assert.match(languageFilter, /className="melody-protection-control"/);
 assert.match(languageFilter, /<option value="czech">czech<\/option>/);
 assert.match(languageFilter, /<option value="polish">polish<\/option>/);
+assert.match(languageFilter, /<option value="mixed">mixed<\/option>/);
 assert.match(css, /\.preference-admin-toolbar \{[\s\S]*?justify-content: flex-end;/);
 assert.match(css, /\.preference-language-panel \{[\s\S]*?height: 4\.75rem;[\s\S]*?width: calc\(33\.333333% \+ 0\.066667rem \+ 1\.333333px\);/);
 
 assert.match(adminPage, /<h1>Manage Preferences<\/h1>/);
-assert.match(adminPage, /Only current non-zero congregation preferences are listed\./);
+assert.match(adminPage, /Current positive preferences and Admin-set zero preferences are listed\./);
 assert.match(adminPage, /<span>Songs<\/span>/);
 assert.match(adminPage, /className="preference-song-popover"/);
-assert.match(adminPage, /<button type="submit">Set 0<\/button>/);
+assert.match(adminPage, /song\.adminZero \? "Undo to 1" : "Set 0"/);
 assert.match(adminPage, /<button type="submit">Remove<\/button>/);
 assert.match(adminPage, /Undo to 1/);
 assert.match(adminPage, /Delete nickname/);
 assert.match(adminPage, /voter\.songs\.length > 0/);
 assert.match(adminPage, /Songs <span className="preference-song-count">0<\/span>/);
 
-assert.match(service, /left join reference_song_preferences rsp[\s\S]*?rsp\.score > 0/);
-assert.match(service, /selected_song\.language = \$1/);
+assert.match(service, /left join lateral \([\s\S]*?rsp\.score > 0[\s\S]*?preference\.congregation\.admin\.set/);
+assert.match(service, /\$1 = 'mixed' or rcs\.language::text = \$1/);
 assert.match(service, /if \(row\.reference_song_id === null \|\| row\.reference_song_id === undefined\) continue;/);
-assert.match(service, /beforeScore !== 1[\s\S]*?Only a non-zero congregation preference can be removed here/);
+assert.match(service, /beforeScore !== 1[\s\S]*?target\.adminZero[\s\S]*?Only a visible congregation preference can be removed here/);
 assert.match(service, /preference\.congregation\.admin\.set/);
 assert.match(service, /preference\.congregation\.admin\.remove/);
 assert.match(service, /preference\.congregation\.admin\.nickname\.delete/);
@@ -53,8 +54,6 @@ assert.match(service, /other_roles\.role <> 'congregation_member'/);
 assert.match(adminRoute, /action === "setScore"/);
 assert.match(adminRoute, /action === "removePreference"/);
 assert.match(adminRoute, /action === "deleteNickname"/);
-assert.match(adminRoute, /undoProfileId/);
-assert.match(adminRoute, /undoSongId/);
 assert.match(adminRoute, /target\.searchParams\.set\("language", language\)/);
 
 console.log("Issue 422 Demo preference CTA and Manage Preferences acceptance passed.");
