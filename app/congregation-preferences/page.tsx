@@ -58,7 +58,6 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
               <input type="hidden" name="action" value="clearNickname" />
               <button type="submit">Change nickname</button>
             </form>
-            <a href="/sign-in">Staff sign in</a>
           </div>
         </div>
 
