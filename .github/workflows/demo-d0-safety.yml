@@ -132,13 +132,13 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .next
-          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run build
+          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             -u RESEND_API_KEY             -u CONGREGATION_EMAIL_FROM             -u CONGREGATION_BASE_URL             -u CONGREGATION_SECURITY_SECRET             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run build
 
       - name: Stage D1 public Demo boot without secrets
         shell: bash
         run: |
           set -euo pipefail
-          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run start -- --hostname 127.0.0.1 --port 3100 > d1-next.log 2>&1 &
+          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             -u RESEND_API_KEY             -u CONGREGATION_EMAIL_FROM             -u CONGREGATION_BASE_URL             -u CONGREGATION_SECURITY_SECRET             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run start -- --hostname 127.0.0.1 --port 3100 > d1-next.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 

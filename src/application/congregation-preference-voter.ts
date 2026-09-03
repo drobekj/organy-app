@@ -258,7 +258,7 @@ export class PostgresCongregationPreferenceService {
         return { kind: "alreadyConfirmed" };
       }
       const now = this.now();
-      if (new Date(String(row.expires_at)).getTime() <= now.getTime()) {
+      if (databaseTimestamp(row.expires_at).getTime() <= now.getTime()) {
         await client.query("commit");
         return { kind: "expired", nickname: String(row.nickname) };
       }
@@ -466,7 +466,7 @@ export class PostgresCongregationPreferenceService {
     const countResult = await client.query("select count(*)::integer count from congregation_voter_accounts where status = 'active' and is_new_registration = true");
     const activeCount = Number(countResult.rows[0].count);
     if (activeCount < BOOTSTRAP_REGISTRATION_LIMIT) return { completesBootstrap: activeCount + 1 === BOOTSTRAP_REGISTRATION_LIMIT };
-    const completedAt = control.rows[0].bootstrap_completed_at ? new Date(String(control.rows[0].bootstrap_completed_at)) : now;
+    const completedAt = control.rows[0].bootstrap_completed_at ? databaseTimestamp(control.rows[0].bootstrap_completed_at) : now;
     if (!control.rows[0].bootstrap_completed_at) {
       await client.query("update congregation_registration_control set bootstrap_completed_at = $1, updated_at = $1 where id = 'global'", [now]);
     }
@@ -533,6 +533,10 @@ export class PostgresCongregationPreferenceService {
     const result = await this.pool.query("select 1 from reference_catalog_songs where id = $1 limit 1", [referenceSongId]);
     if (result.rows.length !== 1) throw new CongregationVoterError("notFound", "Reference song was not found.");
   }
+}
+
+function databaseTimestamp(value: unknown): Date {
+  return value instanceof Date ? new Date(value.getTime()) : new Date(String(value));
 }
 
 function hashToken(token: string): string { return createHash("sha256").update(token, "utf8").digest("hex"); }

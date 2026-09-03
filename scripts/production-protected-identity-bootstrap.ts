@@ -13,6 +13,11 @@ const EXPECTED_PUBLIC_TABLES = [
   "auth_verifications",
   "catalog_persons",
   "catalog_songs",
+  "congregation_confirmation_tokens",
+  "congregation_rate_limit_buckets",
+  "congregation_registration_control",
+  "congregation_voter_accounts",
+  "congregation_voter_sessions",
   "completed_service_rows",
   "completed_services",
   "liturgical_season_mappings",
@@ -78,13 +83,21 @@ const IDENTITY_TABLES = new Set([
   "protected_account_actor_links",
 ]);
 
+const CONGREGATION_TABLES = new Set([
+  "congregation_confirmation_tokens",
+  "congregation_rate_limit_buckets",
+  "congregation_registration_control",
+  "congregation_voter_accounts",
+  "congregation_voter_sessions",
+  "preference_profiles",
+  "reference_song_preferences",
+]);
+
 const MUST_REMAIN_EMPTY = new Set([
   "audit_events",
   "auth_sessions",
   "auth_verifications",
-  "preference_profiles",
   "song_preferences",
-  "reference_song_preferences",
   "reference_melody_edges",
   "organist_repertoire",
   "reference_organist_repertoire",
@@ -253,7 +266,7 @@ async function assertProviderAndReferenceBoundary(db: Queryable): Promise<void> 
   if (!exactReference) throw new Error("Protected Production identity bootstrap requires the exact accepted Production Reference snapshot.");
 
   for (const table of tables) {
-    if (REFERENCE_NON_EMPTY_TABLES.has(table) || IDENTITY_TABLES.has(table)) continue;
+    if (REFERENCE_NON_EMPTY_TABLES.has(table) || IDENTITY_TABLES.has(table) || CONGREGATION_TABLES.has(table)) continue;
     const count = Number((await db.query(`select count(*)::int n from public.${quoteIdentifier(table)}`)).rows[0]?.n ?? 0);
     if (count !== 0) throw new Error("Protected Production identity bootstrap refuses unrelated operational data.");
   }
@@ -265,15 +278,78 @@ async function assertProviderAndReferenceBoundary(db: Queryable): Promise<void> 
   }
 }
 
+async function assertCongregationBoundary(db: Queryable): Promise<void> {
+  const anomalies = (await db.query(`
+    select
+      (select count(*)::int from congregation_registration_control) control_count,
+      (select count(*)::int from congregation_registration_control where id <> 'global') invalid_controls,
+      (select count(*)::int
+         from congregation_voter_accounts a
+         join app_users u on u.id=a.user_id
+         left join protected_account_actor_links l on l.app_user_id=u.id
+        where a.user_id is not null
+          and (not u.active or u.person_id is not null or u.id not like 'congregation-voter:%' or l.app_user_id is not null)) invalid_congregation_actors,
+      (select count(*)::int
+         from congregation_voter_accounts a
+        where a.user_id is not null
+          and (select count(*) from app_user_roles r where r.user_id=a.user_id) <> 1) bad_congregation_role_cardinality,
+      (select count(*)::int
+         from congregation_voter_accounts a
+        where a.user_id is not null
+          and not exists(select 1 from app_user_roles r where r.user_id=a.user_id and r.role='congregation_member')) bad_congregation_role,
+      (select count(*)::int
+         from app_user_roles r
+        where r.role='congregation_member'
+          and not exists(select 1 from congregation_voter_accounts a where a.user_id=r.user_id)) orphan_congregation_roles,
+      (select count(*)::int
+         from preference_profiles p
+        where p.category <> 'congregation_member'
+           or not exists(select 1 from congregation_voter_accounts a where a.user_id=p.user_id)) foreign_preference_profiles,
+      (select count(*)::int
+         from congregation_voter_accounts a
+        where a.user_id is not null
+          and (select count(*) from preference_profiles p where p.user_id=a.user_id and p.category='congregation_member') <> 1) bad_congregation_profile_cardinality,
+      (select count(*)::int
+         from reference_song_preferences rsp
+        where not exists(
+          select 1
+            from preference_profiles p
+            join congregation_voter_accounts a on a.user_id=p.user_id
+           where p.id=rsp.profile_id and p.category='congregation_member'
+        )) foreign_reference_preferences
+  `)).rows[0];
+
+  const controlCount = Number(anomalies?.control_count ?? 0);
+  const invalid = Object.entries(anomalies ?? {})
+    .some(([key, value]) => key !== "control_count" && Number(value) !== 0);
+  if (controlCount !== 1 || invalid) {
+    throw new Error("Protected Production identity bootstrap refuses invalid congregation identity state.");
+  }
+}
+
 async function assertIdentityBoundary(db: Queryable): Promise<void> {
   const anomalies = (await db.query(`
     select
-      (select count(*)::int from app_users u left join protected_account_actor_links l on l.app_user_id=u.id where l.app_user_id is null) unlinked_actors,
+      (select count(*)::int
+         from app_users u
+         left join protected_account_actor_links l on l.app_user_id=u.id
+         left join congregation_voter_accounts c on c.user_id=u.id
+        where (l.app_user_id is null and c.user_id is null)
+           or (l.app_user_id is not null and c.user_id is not null)) invalid_actor_linkage,
       (select count(*)::int from auth_users au left join protected_account_actor_links l on l.auth_user_id=au.id where l.auth_user_id is null) unlinked_auth_users,
-      (select count(*)::int from app_user_roles r where r.role not in ('admin','priest','organist')) non_protected_roles,
+      (select count(*)::int
+         from app_user_roles r
+         join protected_account_actor_links l on l.app_user_id=r.user_id
+        where r.role not in ('admin','priest','organist')) non_protected_roles,
+      (select count(*)::int
+         from protected_account_actor_links l
+        where not exists(select 1 from app_user_roles r where r.user_id=l.app_user_id and r.role in ('admin','priest','organist'))) protected_actors_without_roles,
       (select count(*)::int from auth_accounts aa where aa.provider_id <> 'credential' or aa.password is null) non_credential_accounts,
       (select count(*)::int from auth_users au where (select count(*) from auth_accounts aa where aa.user_id=au.id and aa.provider_id='credential' and aa.password is not null) <> 1) bad_credential_cardinality,
-      (select count(*)::int from app_users where id like 'congregation-voter:%') nickname_actors,
+      (select count(*)::int
+         from app_users u
+         join protected_account_actor_links l on l.app_user_id=u.id
+        where u.id like 'congregation-voter:%') protected_nickname_actors,
       (select count(*)::int from auth_sessions) sessions,
       (select count(*)::int from auth_verifications) verifications,
       (select count(*)::int from catalog_persons p where not exists(select 1 from app_users u where u.person_id=p.id)) orphan_persons,
@@ -346,6 +422,7 @@ async function createIdentity(client: PoolClient, pool: Pool, directUrl: string,
   try {
     await client.query("select pg_advisory_xact_lock(hashtext('organy-production-protected-identity-bootstrap'))");
     await assertProviderAndReferenceBoundary(client);
+    await assertCongregationBoundary(client);
     await assertIdentityBoundary(client);
     const state = await classifyIdentity(client, input);
     if (state === "exact") {
@@ -431,6 +508,7 @@ async function main(): Promise<void> {
 
     pool = new Pool({ connectionString: directUrl, max: 2 });
     await assertProviderAndReferenceBoundary(pool);
+    await assertCongregationBoundary(pool);
     await assertIdentityBoundary(pool);
     const before = await classifyIdentity(pool, input);
 
@@ -448,6 +526,7 @@ async function main(): Promise<void> {
     }
 
     await assertProviderAndReferenceBoundary(pool);
+    await assertCongregationBoundary(pool);
     await assertIdentityBoundary(pool);
     const after = await classifyIdentity(pool, input);
     if (after !== "exact") throw new Error("Protected Production identity bootstrap did not produce the exact requested identity state.");
