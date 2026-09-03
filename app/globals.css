@@ -205,6 +205,12 @@ select {
   margin: 0;
 }
 
+.demo-role-simulator-embedded {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.guide-role-context-panel,
 .guide-account-context {
   margin: 0;
 }
