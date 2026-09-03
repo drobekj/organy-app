@@ -38,7 +38,7 @@ assert.match(
   /rsp\.score > 0[\s\S]*?rsp\.score = 0[\s\S]*?latest\.action = 'preference\.congregation\.admin\.set'[\s\S]*?latest\.after_state ->> 'score' = '0'/,
 );
 assert.match(service, /ae\.action in \('preference\.congregation\.admin\.set', 'preference\.reference\.save'\)/);
-assert.match(service, /adminZero: Boolean\(row\.admin_zero\)/);
+assert.match(service, /const adminZero = Boolean\(row\.admin_zero\);[\s\S]*?adminZero,/);
 assert.match(adminPage, /song\.adminZero && <span className="preference-song-state">Admin 0<\/span>/);
 assert.match(adminPage, /value=\{song\.adminZero \? "1" : "0"\}/);
 assert.match(adminPage, /\{song\.adminZero \? "Undo to 1" : "Set 0"\}/);
