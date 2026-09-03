@@ -21,6 +21,11 @@ const EXPECTED_PUBLIC_TABLES = [
   "catalog_songs",
   "completed_service_rows",
   "completed_services",
+  "congregation_confirmation_tokens",
+  "congregation_rate_limit_buckets",
+  "congregation_registration_control",
+  "congregation_voter_accounts",
+  "congregation_voter_sessions",
   "liturgical_season_mappings",
   "melody_equivalence_classes",
   "melody_non_repetition_config",
@@ -46,6 +51,7 @@ const EXPECTED_PUBLIC_TABLES = [
 ].sort();
 const EXPECTED_NON_EMPTY = [
   CONFIG_TABLE,
+  "congregation_registration_control",
   "reference_antiphons",
   "reference_catalog_songs",
   "reference_melody_classes",
@@ -169,15 +175,15 @@ async function main(): Promise<void> {
 
     const migration = run(MIGRATION_SCRIPT, ["--apply"], LOCAL_DIRECT_URL);
     assert.equal(migration.status, 0, `Phase 31.38 schema setup must pass: ${redactedOutput(migration, LOCAL_DIRECT_URL)}`);
-    assert.deepEqual(await publicTables(pool), EXPECTED_PUBLIC_TABLES, "Phase 31.39 must start from the exact reviewed 34-table schema including audit_events and reference_melody_edges");
-    assert.deepEqual(await nonEmptyPublicTables(pool), [CONFIG_TABLE]);
+    assert.deepEqual(await publicTables(pool), EXPECTED_PUBLIC_TABLES, "Phase 31.39 must start from the exact reviewed 39-table schema including voter identity, audit_events and reference_melody_edges");
+    assert.deepEqual(await nonEmptyPublicTables(pool), ["congregation_registration_control", CONFIG_TABLE]);
 
     const preflight = run(SCRIPT, [], LOCAL_DIRECT_URL);
     assert.equal(preflight.status, 0, `read-only Phase 31.39 preflight must pass: ${redactedOutput(preflight, LOCAL_DIRECT_URL)}`);
     assert.match(preflight.stdout, /preflight: PASS/);
     assert.match(preflight.stdout, /no data was synchronized/);
     assert.ok(!output(preflight).includes(LOCAL_DIRECT_URL));
-    assert.deepEqual(await nonEmptyPublicTables(pool), [CONFIG_TABLE], "preflight must not write reference data");
+    assert.deepEqual(await nonEmptyPublicTables(pool), ["congregation_registration_control", CONFIG_TABLE], "preflight must not write reference data");
 
     await pool.query("insert into app_users(id, display_name) values ('unexpected-phase-31-39-user','Unexpected')");
     const contaminated = run(SCRIPT, [], LOCAL_DIRECT_URL);
@@ -203,6 +209,8 @@ async function main(): Promise<void> {
 
     const config = (await pool.query("select id, months from melody_non_repetition_config order by id")).rows;
     assert.deepEqual(config.map((row) => ({ id: String(row.id), months: Number(row.months) })), [{ id: "global", months: 2 }]);
+    const registrationConfig = (await pool.query("select id, registration_frozen, bootstrap_completed_at from congregation_registration_control order by id")).rows;
+    assert.deepEqual(registrationConfig, [{ id: "global", registration_frozen: false, bootstrap_completed_at: null }]);
     assert.equal(Number((await pool.query("select count(*)::int n from auth_users")).rows[0].n), 0);
     assert.equal(Number((await pool.query("select count(*)::int n from auth_accounts")).rows[0].n), 0);
     assert.equal(Number((await pool.query("select count(*)::int n from auth_sessions")).rows[0].n), 0);

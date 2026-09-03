@@ -28,6 +28,11 @@ const EXPECTED_PUBLIC_TABLES = [
   "catalog_songs",
   "completed_service_rows",
   "completed_services",
+  "congregation_confirmation_tokens",
+  "congregation_rate_limit_buckets",
+  "congregation_registration_control",
+  "congregation_voter_accounts",
+  "congregation_voter_sessions",
   "liturgical_season_mappings",
   "melody_equivalence_classes",
   "melody_non_repetition_config",
@@ -52,8 +57,11 @@ const EXPECTED_PUBLIC_TABLES = [
   "song_preferences",
 ].sort();
 const CONFIG_TABLE = "melody_non_repetition_config";
+const REGISTRATION_CONFIG_TABLE = "congregation_registration_control";
+const BASELINE_NON_EMPTY_TABLES = [CONFIG_TABLE, REGISTRATION_CONFIG_TABLE].sort();
 const FINAL_NON_EMPTY_TABLES = [
   CONFIG_TABLE,
+  REGISTRATION_CONFIG_TABLE,
   "reference_antiphons",
   "reference_catalog_songs",
   "reference_melody_classes",
@@ -156,6 +164,12 @@ async function assertReviewedConfig(pool: Pool): Promise<void> {
     `select id, months from public.${quoteIdentifier(CONFIG_TABLE)} order by id`,
   )).rows as Array<{ id: string; months: number }>;
   if (rows.length !== 1 || rows[0]?.id !== "global" || Number(rows[0]?.months) !== 2) {
+    throw new Error("Reviewed migration-owned configuration singleton is missing or has unexpected contents.");
+  }
+  const registrationRows = (await pool.query(
+    `select id, registration_frozen, bootstrap_completed_at from public.${quoteIdentifier(REGISTRATION_CONFIG_TABLE)} order by id`,
+  )).rows as Array<{ id: string; registration_frozen: boolean; bootstrap_completed_at: Date | null }>;
+  if (registrationRows.length !== 1 || registrationRows[0]?.id !== "global" || Boolean(registrationRows[0]?.registration_frozen) || registrationRows[0]?.bootstrap_completed_at !== null) {
     throw new Error("Reviewed migration-owned configuration singleton is missing or has unexpected contents.");
   }
 }
@@ -354,7 +368,7 @@ async function classifyTarget(pool: Pool): Promise<TargetState> {
   }
   await assertReviewedConfig(pool);
 
-  if (sameStrings(boundary.nonEmptyPublicTables, [CONFIG_TABLE])) return "baseline";
+  if (sameStrings(boundary.nonEmptyPublicTables, BASELINE_NON_EMPTY_TABLES)) return "baseline";
   if (sameStrings(boundary.nonEmptyPublicTables, FINAL_NON_EMPTY_TABLES)) {
     await assertExactFinalSnapshot(pool);
     return "final";

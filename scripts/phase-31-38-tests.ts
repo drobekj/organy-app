@@ -8,6 +8,7 @@ const SCRIPT = "scripts/production-first-migrate.ts";
 const LOCAL_DIRECT_URL = process.env.DATABASE_URL_UNPOOLED;
 const SENSITIVE_URL = "postgres://private-user:private-password@private-pooler.example.test/private-db";
 const CONFIG_TABLE = "melody_non_repetition_config";
+const REGISTRATION_CONFIG_TABLE = "congregation_registration_control";
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 function run(args: string[], directUrl: string | undefined) {
@@ -49,9 +50,11 @@ async function assertOnlyReviewedMigrationData(pool: Pool): Promise<void> {
     const result = await pool.query(`select count(*)::int as n from public.${quoteIdentifier(table)}`);
     if (Number(result.rows[0]?.n ?? 0) !== 0) nonEmpty.push(table);
   }
-  assert.deepEqual(nonEmpty, [CONFIG_TABLE], "only the reviewed migration-owned config table may contain a row");
+  assert.deepEqual(nonEmpty, [REGISTRATION_CONFIG_TABLE, CONFIG_TABLE], "only the two reviewed migration-owned config tables may contain rows");
   const configRows = (await pool.query(`select id, months from public.${quoteIdentifier(CONFIG_TABLE)} order by id`)).rows;
   assert.deepEqual(configRows.map((row) => ({ id: String(row.id), months: Number(row.months) })), [{ id: "global", months: 2 }], "migration-owned config singleton must match the reviewed default");
+  const registrationRows = (await pool.query(`select id, registration_frozen, bootstrap_completed_at from public.${quoteIdentifier(REGISTRATION_CONFIG_TABLE)} order by id`)).rows;
+  assert.deepEqual(registrationRows, [{ id: "global", registration_frozen: false, bootstrap_completed_at: null }], "registration-control singleton must match the reviewed safe default");
 }
 
 async function main(): Promise<void> {
