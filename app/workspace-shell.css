@@ -721,7 +721,7 @@ button.workspace-action-pending {
   padding: 0.5rem 0.65rem;
 }
 
-.workspace-account-popover .workspace-toggle-switch {
+.workspace-toggle-switch {
   align-items: center;
   background: #e5e7eb;
   border: 1px solid #cbd5e1;
@@ -736,7 +736,7 @@ button.workspace-action-pending {
   width: 2.6rem;
 }
 
-.workspace-account-popover .workspace-toggle-switch[aria-checked="true"] {
+.workspace-toggle-switch[aria-checked="true"] {
   background: var(--foreground);
   border-color: var(--foreground);
   justify-content: flex-end;
