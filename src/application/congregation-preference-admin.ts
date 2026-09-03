@@ -42,8 +42,16 @@ export class PostgresCongregationPreferenceAdminService {
          from app_users u
          join app_user_roles aur on aur.user_id = u.id and aur.role = 'congregation_member'
          join preference_profiles pp on pp.user_id = u.id and pp.category = 'congregation_member'
-         join reference_song_preferences rsp on rsp.profile_id = pp.id and rsp.score > 0
-         join reference_catalog_songs rcs on rcs.id = rsp.reference_song_id and rcs.language = $1
+         left join reference_song_preferences rsp
+           on rsp.profile_id = pp.id
+          and rsp.score > 0
+          and exists (
+            select 1
+              from reference_catalog_songs selected_song
+             where selected_song.id = rsp.reference_song_id
+               and selected_song.language = $1
+          )
+         left join reference_catalog_songs rcs on rcs.id = rsp.reference_song_id
         where u.id like 'congregation-voter:%'
           and u.active = true
           and not exists (
@@ -53,16 +61,12 @@ export class PostgresCongregationPreferenceAdminService {
           and not exists (
             select 1 from protected_account_actor_links links where links.app_user_id = u.id
           )
-        order by lower(u.display_name), rcs.canonical_number, lower(rcs.title)`,
+        order by lower(u.display_name), rcs.canonical_number nulls last, lower(rcs.title) nulls last`,
       [language],
     );
 
     const byProfile = new Map<string, CongregationPreferenceAdminVoter>();
     for (const row of result.rows) {
-      const score = Number(row.score);
-      if (score !== 1) {
-        throw new CongregationPreferenceAdminError("conflict", "Congregation preference contains an invalid non-zero score.");
-      }
       const profileId = String(row.profile_id);
       let voter = byProfile.get(profileId);
       if (!voter) {
@@ -73,6 +77,12 @@ export class PostgresCongregationPreferenceAdminService {
           songs: [],
         };
         byProfile.set(profileId, voter);
+      }
+
+      if (row.reference_song_id === null || row.reference_song_id === undefined) continue;
+      const score = Number(row.score);
+      if (score !== 1) {
+        throw new CongregationPreferenceAdminError("conflict", "Congregation preference contains an invalid non-zero score.");
       }
       voter.songs.push({
         referenceSongId: String(row.reference_song_id),
