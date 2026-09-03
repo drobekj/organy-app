@@ -74,7 +74,7 @@ assert.match(component, /experience === "demo"[\s\S]*?!section\.standardOnly/);
 
 const client = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 assert.match(client, /const presentationRole = isDemoExperience \? demoPresentationRole : selectedRole/);
-assert.match(client, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRolePanel=/);
+assert.match(client, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRole=\{isDemoExperience \? demoPresentationRole : undefined\}[\s\S]*?onDemoRoleChange=/);
 
 const css = readFileSync("app/workspace-shell.css", "utf8");
 assert.match(css, /\.guide-role-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(14rem, 1fr\)\);/);
