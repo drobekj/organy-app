@@ -27,7 +27,8 @@ assert.match(languageFilter, /<option value="czech">czech<\/option>/);
 assert.match(languageFilter, /<option value="polish">polish<\/option>/);
 assert.match(languageFilter, /<option value="mixed">mixed<\/option>/);
 assert.match(adminPage, /className="planning-context-header preference-admin-context-header"/);
-assert.match(adminPage, /className="planning-melody-protection-slot preference-language-slot"/);\nassert.match(css, /\.preference-language-panel \{[\s\S]*?height: 100%;[\s\S]*?width: 100%;/);
+assert.match(adminPage, /className="planning-melody-protection-slot preference-language-slot"/);
+assert.match(css, /\.preference-language-panel \{[\s\S]*?height: 100%;[\s\S]*?width: 100%;/);
 
 assert.match(adminPage, /<h1>Manage Preferences<\/h1>/);
 assert.match(adminPage, /Current positive preferences and Admin-set zero preferences are listed\./);
