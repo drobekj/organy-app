@@ -1513,8 +1513,10 @@ Save the correction and mark those plans for revision?`);
         {isDemoExperience && (
           <>
             <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
-              <strong>Demo mode</strong>
-              <span>Changes are temporary and are never saved. But at least, you can set your song preferences <a href="https://organy-app.vercel.app/congregation-preferences" target="_blank" rel="noopener noreferrer">here</a>.</span>
+              <div className="demo-mode-banner-message">
+                <strong>Demo mode</strong>
+                <span>Changes are temporary and are never saved. But at least, you can set your song preferences <a href="https://organy-app.vercel.app/congregation-preferences?entry=1" target="_blank" rel="noopener noreferrer">here</a>.</span>
+              </div>
               <DemoResetButton />
             </aside>
             {workspace !== "guide" && <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} />}
