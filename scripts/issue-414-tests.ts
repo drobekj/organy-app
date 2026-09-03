@@ -30,9 +30,9 @@ assert.match(workspace, /experience === "demo"[\s\S]*?filter\(\(section\) => !se
 assert.match(workspace, /\["admin", "priest", "organist"\]/);
 assert.match(workspace, /guideEnvironmentCopy\[experience\]/);
 assert.match(workspace, /section\.experience\?\.\[experience\]/);
-assert.match(workspace, /experience === "demo" \? \([\s\S]*?demoRolePanel[\s\S]*?: \([\s\S]*?guide-account-context/);
+assert.match(workspace, /experience === "demo" && demoRole && onDemoRoleChange \? \([\s\S]*?guide-role-context-panel[\s\S]*?: \([\s\S]*?guide-account-context/);
 
-assert.match(planning, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRolePanel=/);
+assert.match(planning, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRole=\{isDemoExperience \? demoPresentationRole : undefined\}[\s\S]*?onDemoRoleChange=/);
 assert.match(controlHints, /role === "admin" \|\| role === "priest" \|\| role === "organist"/);
 assert.match(controlHints, /Demo Catalog is read-only/);
 assert.equal((whatsapp.match(/data-guide-hint="planning\.whatsapp"/g) ?? []).length, 3);
