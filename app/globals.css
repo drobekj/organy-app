@@ -1593,8 +1593,24 @@ textarea {
 }
 
 .preference-song-label {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.preference-song-state {
+  background: #f3f4f6;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.4rem;
+  white-space: nowrap;
 }
 
 .preference-song-actions {
