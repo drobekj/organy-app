@@ -1514,7 +1514,7 @@ Save the correction and mark those plans for revision?`);
           <>
             <aside className="demo-mode-banner" role="status" aria-label="Demo mode">
               <strong>Demo mode</strong>
-              <span>Changes are temporary and are never saved.</span>
+              <span>Changes are temporary and are never saved. But at least, you can set your song preferences <a href="https://organy-app.vercel.app/congregation-preferences" target="_blank" rel="noopener noreferrer">here</a>.</span>
               <DemoResetButton />
             </aside>
             {workspace !== "guide" && <DemoRoleSimulator role={demoPresentationRole} onChange={changeDemoPresentationRole} />}
