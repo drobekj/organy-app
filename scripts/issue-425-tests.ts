@@ -52,7 +52,7 @@ for (const phrase of [
   "mixed Admin language lists visible Czech and Polish preferences together",
   "Admin-zero preference can still be explicitly removed",
 ]) {
-  assert.ok(phase3130.includes(phrase), \`Phase 31.30 DB acceptance must retain: \${phrase}\`);
+  assert.ok(phase3130.includes(phrase), "Phase 31.30 DB acceptance must retain: " + phrase);
 }
 
 console.log("Issue 425 Demo entry and Admin-zero corrective acceptance passed.");
