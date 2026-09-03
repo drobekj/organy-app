@@ -9,6 +9,7 @@ import {
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 import { ConfirmSubmitButton } from "../accounts/confirm-submit-button";
 import { PreferenceLanguageFilter } from "./preference-language-filter";
+import { PreferenceSongMenuBehavior } from "./preference-song-menu-behavior";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -42,23 +43,21 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
     <main className="shell">
       <section className="card planning-form preference-admin-card" aria-label="Congregation preference administration">
         <div className="app-header">
-          <div>
-            <h1>Manage Preferences</h1>
-            <p className="field-help">Current positive preferences and Admin-set zero preferences are listed. Ordinary voter-set zero preferences stay hidden.</p>
-          </div>
+          <div><h1>Manage Preferences</h1></div>
           <a href="/">Back to planning</a>
         </div>
 
-        <div className="preference-admin-toolbar">
-          <PreferenceLanguageFilter language={language} />
-        </div>
+        <p className="field-help">Current positive preferences and Admin-set zero preferences are listed. Ordinary voter-set zero preferences stay hidden.</p>
 
-        {message && (
-          <div className="preference-admin-feedback">
-            <p className="saved-summary" role="status">{message}</p>
+        <div className="planning-context-header preference-admin-context-header">
+          <div className="planning-context-info preference-admin-feedback" aria-label="Preference administration status">
+            {message && <p className="saved-summary" role="status">{message}</p>}
+            {error && <p className="auth-error" role="alert">{error}</p>}
           </div>
-        )}
-        {error && <p className="auth-error" role="alert">{error}</p>}
+          <div className="planning-melody-protection-slot preference-language-slot" aria-label="Language reserved area">
+            <PreferenceLanguageFilter language={language} />
+          </div>
+        </div>
 
         <section className="preference-admin-list" aria-label="Congregation nickname preferences">
           {voters.length === 0 && (
@@ -70,7 +69,8 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
               <strong className="preference-admin-nickname">{voter.nickname}</strong>
 
               {voter.songs.length > 0 ? (
-                <details className="preference-song-menu">
+                <details className="preference-song-menu" id={`preference-song-menu-${voter.profileId}`}>
+                  <PreferenceSongMenuBehavior menuId={`preference-song-menu-${voter.profileId}`} />
                   <summary>
                     <span>Songs</span>
                     <span className="preference-song-count">{voter.songs.length}</span>
