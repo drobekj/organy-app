@@ -37,8 +37,6 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
   const voters = await new PostgresCongregationPreferenceAdminService(authPool).list(requestHeaders, language);
   const message = first(params.message);
   const error = first(params.error);
-  const undoProfileId = first(params.undoProfileId);
-  const undoSongId = first(params.undoSongId);
 
   return (
     <main className="shell">
@@ -46,7 +44,7 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
         <div className="app-header">
           <div>
             <h1>Manage Preferences</h1>
-            <p className="field-help">Only current non-zero congregation preferences are listed.</p>
+            <p className="field-help">Current positive preferences and Admin-set zero preferences are listed. Ordinary voter-set zero preferences stay hidden.</p>
           </div>
           <a href="/">Back to planning</a>
         </div>
@@ -58,23 +56,13 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
         {message && (
           <div className="preference-admin-feedback">
             <p className="saved-summary" role="status">{message}</p>
-            {undoProfileId && undoSongId && (
-              <form action="/api/admin/congregation-preferences" method="post">
-                <input type="hidden" name="action" value="setScore" />
-                <input type="hidden" name="profileId" value={undoProfileId} />
-                <input type="hidden" name="referenceSongId" value={undoSongId} />
-                <input type="hidden" name="score" value="1" />
-                <input type="hidden" name="language" value={language} />
-                <button type="submit">Undo to 1</button>
-              </form>
-            )}
           </div>
         )}
         {error && <p className="auth-error" role="alert">{error}</p>}
 
         <section className="preference-admin-list" aria-label="Congregation nickname preferences">
           {voters.length === 0 && (
-            <p className="field-help">No non-zero {language} congregation preferences.</p>
+            <p className="field-help">No visible {language} congregation preferences.</p>
           )}
 
           {voters.map((voter) => (
@@ -92,15 +80,17 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
                       <div className="preference-song-item" key={song.referenceSongId}>
                         <span className="preference-song-label">
                           <strong>{song.displayNumber}</strong> · {song.title}
+                          {language === "mixed" && <span className="field-help"> ({song.language})</span>}
+                          {song.adminZero && <span className="preference-song-state">Admin 0</span>}
                         </span>
                         <div className="preference-song-actions">
                           <form action="/api/admin/congregation-preferences" method="post">
                             <input type="hidden" name="action" value="setScore" />
                             <input type="hidden" name="profileId" value={voter.profileId} />
                             <input type="hidden" name="referenceSongId" value={song.referenceSongId} />
-                            <input type="hidden" name="score" value="0" />
+                            <input type="hidden" name="score" value={song.adminZero ? "1" : "0"} />
                             <input type="hidden" name="language" value={language} />
-                            <button type="submit">Set 0</button>
+                            <button type="submit">{song.adminZero ? "Undo to 1" : "Set 0"}</button>
                           </form>
                           <form action="/api/admin/congregation-preferences" method="post">
                             <input type="hidden" name="action" value="removePreference" />
@@ -135,7 +125,7 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
 }
 
 function normalizeLanguage(value: string | undefined): CongregationPreferenceAdminLanguage {
-  return value === "polish" ? "polish" : "czech";
+  return value === "polish" ? "polish" : value === "mixed" ? "mixed" : "czech";
 }
 
 function first(value: string | string[] | undefined): string | undefined {
