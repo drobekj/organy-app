@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
   const isForm = request.headers.get("content-type")?.includes("application/x-www-form-urlencoded")
     || request.headers.get("content-type")?.includes("multipart/form-data");
 
+  let language: CongregationPreferenceAdminLanguage = "czech";
   try {
     if (!isForm) {
       return problem("Form data is required.", 400);
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     const form = await request.formData();
     const action = String(form.get("action") ?? "");
-    const language = normalizeLanguage(form.get("language"));
+    language = normalizeLanguage(form.get("language"));
     const target = new URL("/admin/preferences", request.url);
     target.searchParams.set("language", language);
 
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     return problem("Unsupported congregation preference administration action.", 400);
   } catch (error) {
     const target = new URL("/admin/preferences", request.url);
-    target.searchParams.set("language", normalizeLanguageSafe((await request.clone().formData().catch(() => undefined))?.get("language")));
+    target.searchParams.set("language", language);
     target.searchParams.set("error", errorMessage(error));
     return NextResponse.redirect(target, 303);
   }
@@ -69,10 +70,6 @@ function normalizeLanguage(value: FormDataEntryValue | null): CongregationPrefer
     throw new CongregationPreferenceAdminError("invalidInput", "Language must be czech or polish.");
   }
   return language;
-}
-
-function normalizeLanguageSafe(value: FormDataEntryValue | null | undefined): CongregationPreferenceAdminLanguage {
-  return value === "polish" ? "polish" : "czech";
 }
 
 function errorMessage(error: unknown) {
