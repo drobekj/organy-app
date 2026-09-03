@@ -4,8 +4,9 @@ import { useEffect } from "react";
 
 export function PreferenceSongMenuBehavior({ menuId }: { menuId: string }) {
   useEffect(() => {
-    const menu = document.getElementById(menuId);
-    if (!(menu instanceof HTMLDetailsElement)) return;
+    const candidate = document.getElementById(menuId);
+    if (!(candidate instanceof HTMLDetailsElement)) return;
+    const menu: HTMLDetailsElement = candidate;
 
     const trigger = menu.querySelector("summary");
 
