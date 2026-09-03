@@ -44,6 +44,8 @@ assert.match(page, /className="congregation-entry-divider"/);
 
 assert.doesNotMatch(service, /identityForNickname|createHash\("sha256"\)\.update\(nickname/);
 assert.match(service, /userId = `congregation-voter:\$\{identityId\}`/);
+assert.match(service, /value\.trim\(\)\.normalize\("NFC"\)/);
+assert.match(service, /toLocaleLowerCase\("cs-CZ"\)\.normalize\("NFC"\)/);
 assert.match(service, /const token = `cvs_\$\{randomBytes\(32\)/);
 assert.match(service, /token_hash = \$1 and expires_at > \$2/);
 assert.match(service, /CONFIRMATION_TTL_MS = 24 \* 60 \* 60 \* 1000/);
