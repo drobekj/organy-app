@@ -81,38 +81,42 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
             <article className="preference-admin-row" key={voter.profileId}>
               <strong className="preference-admin-nickname">{voter.nickname}</strong>
 
-              <details className="preference-song-menu">
-                <summary>
-                  <span>Songs</span>
-                  <span className="preference-song-count">{voter.songs.length}</span>
-                </summary>
-                <div className="preference-song-popover">
-                  {voter.songs.map((song) => (
-                    <div className="preference-song-item" key={song.referenceSongId}>
-                      <span className="preference-song-label">
-                        <strong>{song.displayNumber}</strong> · {song.title}
-                      </span>
-                      <div className="preference-song-actions">
-                        <form action="/api/admin/congregation-preferences" method="post">
-                          <input type="hidden" name="action" value="setScore" />
-                          <input type="hidden" name="profileId" value={voter.profileId} />
-                          <input type="hidden" name="referenceSongId" value={song.referenceSongId} />
-                          <input type="hidden" name="score" value="0" />
-                          <input type="hidden" name="language" value={language} />
-                          <button type="submit">Set 0</button>
-                        </form>
-                        <form action="/api/admin/congregation-preferences" method="post">
-                          <input type="hidden" name="action" value="removePreference" />
-                          <input type="hidden" name="profileId" value={voter.profileId} />
-                          <input type="hidden" name="referenceSongId" value={song.referenceSongId} />
-                          <input type="hidden" name="language" value={language} />
-                          <button type="submit">Remove</button>
-                        </form>
+              {voter.songs.length > 0 ? (
+                <details className="preference-song-menu">
+                  <summary>
+                    <span>Songs</span>
+                    <span className="preference-song-count">{voter.songs.length}</span>
+                  </summary>
+                  <div className="preference-song-popover">
+                    {voter.songs.map((song) => (
+                      <div className="preference-song-item" key={song.referenceSongId}>
+                        <span className="preference-song-label">
+                          <strong>{song.displayNumber}</strong> · {song.title}
+                        </span>
+                        <div className="preference-song-actions">
+                          <form action="/api/admin/congregation-preferences" method="post">
+                            <input type="hidden" name="action" value="setScore" />
+                            <input type="hidden" name="profileId" value={voter.profileId} />
+                            <input type="hidden" name="referenceSongId" value={song.referenceSongId} />
+                            <input type="hidden" name="score" value="0" />
+                            <input type="hidden" name="language" value={language} />
+                            <button type="submit">Set 0</button>
+                          </form>
+                          <form action="/api/admin/congregation-preferences" method="post">
+                            <input type="hidden" name="action" value="removePreference" />
+                            <input type="hidden" name="profileId" value={voter.profileId} />
+                            <input type="hidden" name="referenceSongId" value={song.referenceSongId} />
+                            <input type="hidden" name="language" value={language} />
+                            <button type="submit">Remove</button>
+                          </form>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </details>
+                    ))}
+                  </div>
+                </details>
+              ) : (
+                <span className="preference-song-empty">Songs <span className="preference-song-count">0</span></span>
+              )}
 
               <form action="/api/admin/congregation-preferences" method="post" className="preference-delete-nickname">
                 <input type="hidden" name="action" value="deleteNickname" />
