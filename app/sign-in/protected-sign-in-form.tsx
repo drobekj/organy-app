@@ -46,7 +46,7 @@ export function ProtectedSignInForm() {
         />
         {error && <p role="alert" className="auth-error">{error}</p>}
         <button type="submit" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</button>
-        <a href="/congregation-preferences">Congregation preferences</a>
+        <a href="/congregation-preferences?entry=1">Congregation preferences</a>
       </form>
     </main>
   );
