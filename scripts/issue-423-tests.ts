@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 const page = readFileSync("app/congregation-preferences/page.tsx", "utf8");
 const workspace = readFileSync("app/congregation-preferences/congregation-preference-workspace.tsx", "utf8");
+const signIn = readFileSync("app/sign-in/protected-sign-in-form.tsx", "utf8");
 const route = readFileSync("app/api/congregation-preferences/route.ts", "utf8");
 const voter = readFileSync("src/application/congregation-preference-voter.ts", "utf8");
 const catalog = readFileSync("src/application/postgres-reference-catalog.ts", "utf8");
@@ -15,6 +16,22 @@ assert.match(page, /catalog\.listAll\("all"\)/);
 assert.match(page, /service\.listOwnReferencePreferences\(token\)/);
 assert.match(page, /<CongregationPreferenceWorkspace records=\{records\} preferences=\{preferences\} \/>/);
 assert.doesNotMatch(page, /pageSize|Showing .* matching songs|detail-panel|Set 0|Set 1|songHref/);
+
+// Final entry/language corrections: fresh workspace defaults Czech and base Sign In never reuses a voter cookie implicitly.
+assert.match(workspace, /useState<CongregationLanguage>\("czech"\)/);
+assert.doesNotMatch(workspace, /useState<CongregationLanguage>\("mixed"\)/);
+assert.match(signIn, /href="\/congregation-preferences\?entry=1">Congregation preferences<\/a>/);
+assert.match(page, /if \(first\(params\.entry\) === "1"\) return nicknameEntry\(\);[\s\S]*?const cookieStore = await cookies\(\);/);
+
+// Active nickname workspace exposes Change nickname only; Staff sign in remains on nickname-entry.
+const workspaceHeaderStart = page.indexOf('<div className="app-header">');
+const workspaceHeaderEnd = page.indexOf('</div>\n\n        <p className="field-help">', workspaceHeaderStart);
+const workspaceHeader = page.slice(workspaceHeaderStart, workspaceHeaderEnd);
+assert.match(workspaceHeader, />Change nickname<\/button>/);
+assert.doesNotMatch(workspaceHeader, /Staff sign in/);
+const nicknameEntryStart = page.indexOf("function nicknameEntry");
+const nicknameEntryBody = page.slice(nicknameEntryStart);
+assert.match(nicknameEntryBody, /href="\/sign-in">Staff sign in<\/a>/);
 
 // Standalone Language panel uses the same Melody Protection visual contract.
 assert.match(workspace, /className="melody-protection-panel congregation-language-panel"/);
