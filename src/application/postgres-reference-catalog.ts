@@ -51,7 +51,7 @@ export class PostgresReferenceCatalogProvider {
   async listAll(language: ReferenceCatalogQuery["language"] = "all"): Promise<ReferenceCatalogRecord[]> {
     const values: unknown[] = [];
     const where = language && language !== "all"
-      ? (values.push(language), `WHERE language = ${values.length}`)
+      ? (values.push(language), "WHERE language = $" + values.length)
       : "";
     const rows = (await this.pool.query(
       `SELECT id, language, canonical_number, title, source_url
