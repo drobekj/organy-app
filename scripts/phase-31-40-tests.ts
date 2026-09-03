@@ -100,6 +100,10 @@ const configuredIssues = validateProductionRuntimeConfig({
   DATABASE_URL: "postgres://placeholder",
   BETTER_AUTH_SECRET: "phase-31-40-safe-test-secret-0123456789",
   BETTER_AUTH_URL: "https://production-alias.example",
+  RESEND_API_KEY: "re_phase_31_40_safe_test_key",
+  CONGREGATION_EMAIL_FROM: "Organy App <preferences@production-alias.example>",
+  CONGREGATION_BASE_URL: "https://production-alias.example",
+  CONGREGATION_SECURITY_SECRET: "phase-31-40-congregation-secret-0123456789",
 });
 assert.equal(configuredIssues.length, 0, "complete HTTPS production runtime shape must remain valid");
 

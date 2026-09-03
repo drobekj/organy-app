@@ -1,10 +1,13 @@
-name: Phase 31.32 Production runtime preflight acceptance
+name: Stable congregation voter identity acceptance
 
 on:
   pull_request:
+    branches:
+      - main
   push:
     branches:
-      - codex/phase-31-32-production-runtime-preflight
+      - main
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -20,37 +23,44 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U organy_app -d organy_app"
-          --health-interval 10s
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 20
+
     env:
-      ORGANY_RUNTIME: db
       DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
-      BETTER_AUTH_SECRET: phase-31-32-ci-secret-randomized-baseline-0123456789
+      ORGANY_RUNTIME: db
+      BETTER_AUTH_SECRET: issue-431-ci-better-auth-secret-0123456789
       BETTER_AUTH_URL: http://localhost:3000
       RESEND_API_KEY: re_ci_safe_placeholder
       CONGREGATION_EMAIL_FROM: Organy App <preferences@example.invalid>
       CONGREGATION_BASE_URL: http://localhost:3000
-      CONGREGATION_SECURITY_SECRET: ci-congregation-security-secret-0123456789
+      CONGREGATION_SECURITY_SECRET: issue-431-ci-congregation-secret-0123456789
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund --loglevel=error
-      - name: Production runtime preflight
-        run: npx tsx scripts/production-preflight.ts
-      - name: Phase 31.32 configuration acceptance
-        run: npx tsx scripts/phase-31-32-tests.ts
+
       - name: Database migration
         run: npm run db:migrate
+
+      - name: Static voter contract
+        run: npm run test:issue-431
+
+      - name: Stable voter database acceptance
+        run: npm run test:issue-431:db
+
       - name: Typecheck
         run: npm run typecheck
-      - name: Complete tests
-        run: npm test
+
       - name: Production build
         run: npm run build

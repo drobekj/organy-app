@@ -19,8 +19,8 @@ assert.match(css, /\.demo-reset-button \{[\s\S]*?justify-self: end;[\s\S]*?white
 // Demo CTA always renders the nickname-entry view even when the browser still has a voter cookie.
 assert.match(planning, /https:\/\/organy-app\.vercel\.app\/congregation-preferences\?entry=1/);
 const paramsIndex = voterPage.indexOf("const params = await searchParams;");
-const freshEntryIndex = voterPage.indexOf('if (first(params.entry) === "1") return nicknameEntry();');
-const cookieIndex = voterPage.indexOf("const cookieStore = await cookies();");
+const freshEntryIndex = voterPage.indexOf('if (first(params.entry) === "1") return entryPanel(params);');
+const cookieIndex = voterPage.indexOf("const token = (await cookies()).get(CONTEXT_COOKIE)?.value;");
 assert.ok(
   paramsIndex >= 0 && freshEntryIndex > paramsIndex && cookieIndex > freshEntryIndex,
   "forced fresh entry must be resolved before reading the existing voter cookie",

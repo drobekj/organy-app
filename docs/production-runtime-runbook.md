@@ -22,6 +22,10 @@ The operator must provide all of the following outside the repository:
 - `DATABASE_URL` — production PostgreSQL connection string used by the running application
 - `BETTER_AUTH_SECRET` — a non-placeholder secret with at least 32 characters
 - `BETTER_AUTH_URL` — the externally meaningful absolute application/auth URL
+- `RESEND_API_KEY` — API credential used only for congregation confirmation/recovery delivery
+- `CONGREGATION_EMAIL_FROM` — sender on a verified Resend domain
+- `CONGREGATION_BASE_URL` — canonical public origin, equal to `BETTER_AUTH_URL`
+- `CONGREGATION_SECURITY_SECRET` — independent random HMAC/session secret with at least 32 characters
 
 For the selected Neon target, keep a separate `DATABASE_URL_UNPOOLED` for migrations and operator backup/recovery work. That direct credential is not the ordinary application-runtime URL.
 
@@ -144,7 +148,7 @@ Until separately accepted release automation exists, release order is:
 6. run `npm run db:migrate` and require success;
 7. allow only migrations compatible with the currently live application revision until a stronger rollback/release mechanism exists;
 8. **explicitly deploy the exact reviewed revision to Vercel Production** through the Vercel CLI/API/operator integration;
-9. verify protected sign-in and the separate congregation nickname flow through the stable HTTPS `vercel.app` production alias.
+9. verify protected sign-in and the stable congregation registration, confirmation, recovery, legacy-claim and voting flows through the stable HTTPS `vercel.app` production alias.
 
 Catalog seed/sync commands, demo seed commands, acceptance fixtures, password reset, backup/restore, and auth bootstrap are not part of normal production deployment.
 

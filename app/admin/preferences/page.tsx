@@ -35,7 +35,11 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
 
   const params = await searchParams;
   const language = normalizeLanguage(first(params.language));
-  const voters = await new PostgresCongregationPreferenceAdminService(authPool).list(requestHeaders, language);
+  const service = new PostgresCongregationPreferenceAdminService(authPool);
+  const [voters, registration] = await Promise.all([
+    service.list(requestHeaders, language),
+    service.registrationOverview(requestHeaders),
+  ]);
   const message = first(params.message);
   const error = first(params.error);
 
@@ -48,6 +52,36 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
         </div>
 
         <p className="field-help">Current positive preferences and Admin-set zero preferences are listed. Ordinary voter-set zero preferences stay hidden.</p>
+
+        <section className="registration-admin-panel" aria-label="Congregation registration status">
+          <div>
+            <strong>Registration</strong>
+            <span>Bootstrap {registration.bootstrapUsed}/{registration.bootstrapLimit}</span>
+            <span>Current ISO week {registration.weeklyUsed}/{registration.weeklyLimit}</span>
+            <span>Pending {registration.pendingCount} · Active {registration.activeCount} · Legacy unverified {registration.legacyUnverifiedCount}</span>
+            <span>Suspicious rate-limit buckets (24 h) {registration.suspiciousBuckets24h}</span>
+          </div>
+          <form action="/api/admin/congregation-preferences" method="post">
+            <input type="hidden" name="action" value="setRegistrationFrozen" />
+            <input type="hidden" name="frozen" value={registration.frozen ? "false" : "true"} />
+            <input type="hidden" name="language" value={language} />
+            <button type="submit">{registration.frozen ? "Resume registration" : "Emergency freeze"}</button>
+          </form>
+          <details>
+            <summary>Recent registration states</summary>
+            <div className="registration-admin-recent">
+              {registration.recent.map((item) => (
+                <span key={item.accountId}>{item.createdAt.toISOString()} · {item.nickname} · {item.status}</span>
+              ))}
+            </div>
+          </details>
+          <form className="registration-admin-note" action="/api/admin/congregation-preferences" method="post">
+            <input type="hidden" name="action" value="recordSuspiciousRegistrationActivity" />
+            <input type="hidden" name="language" value={language} />
+            <label>Record suspicious activity<input name="note" maxLength={500} required placeholder="Brief observation; do not enter email addresses" /></label>
+            <button type="submit">Record</button>
+          </form>
+        </section>
 
         <div className="planning-context-header preference-admin-context-header">
           <div className="planning-context-info preference-admin-feedback" aria-label="Preference administration status">

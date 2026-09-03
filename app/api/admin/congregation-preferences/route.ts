@@ -51,6 +51,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.redirect(target, 303);
     }
 
+    if (action === "setRegistrationFrozen") {
+      const frozen = String(form.get("frozen")) === "true";
+      const result = await service.setRegistrationFrozen(request.headers, frozen);
+      target.searchParams.set("message", result.frozen ? "Congregation registration frozen." : "Congregation registration resumed.");
+      return NextResponse.redirect(target, 303);
+    }
+
+    if (action === "recordSuspiciousRegistrationActivity") {
+      await service.recordSuspiciousRegistrationActivity(request.headers, form.get("note"));
+      target.searchParams.set("message", "Suspicious registration activity recorded in Audit History.");
+      return NextResponse.redirect(target, 303);
+    }
+
     return problem("Unsupported congregation preference administration action.", 400);
   } catch (error) {
     const target = new URL("/admin/preferences", request.url);

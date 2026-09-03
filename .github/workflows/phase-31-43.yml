@@ -29,6 +29,10 @@ jobs:
       DATABASE_URL_UNPOOLED: postgres://organy_app:organy_app@127.0.0.1:5432/organy_phase_31_43
       BETTER_AUTH_SECRET: phase-31-43-ci-secret-randomized-baseline-0123456789
       BETTER_AUTH_URL: http://localhost:3000
+      RESEND_API_KEY: re_ci_safe_placeholder
+      CONGREGATION_EMAIL_FROM: Organy App <preferences@example.invalid>
+      CONGREGATION_BASE_URL: http://localhost:3000
+      CONGREGATION_SECURITY_SECRET: ci-congregation-security-secret-0123456789
       PHASE_31_43_ARCHIVE: _phase3143_contract_repo/data/handoff/phase-31-43-data-contract/church-organy-data-contract-definitive.zip
     steps:
       - name: Checkout implementation

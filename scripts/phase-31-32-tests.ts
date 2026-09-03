@@ -18,6 +18,10 @@ const validEnv: RuntimeEnvironment = {
   DATABASE_URL: "postgres://organy_app:organy_app@localhost:5432/organy_app",
   BETTER_AUTH_SECRET: VALID_SECRET,
   BETTER_AUTH_URL: "https://organy.example.test",
+  RESEND_API_KEY: "re_phase_31_32_safe_test_key",
+  CONGREGATION_EMAIL_FROM: "Organy App <preferences@organy.example.test>",
+  CONGREGATION_BASE_URL: "https://organy.example.test",
+  CONGREGATION_SECURITY_SECRET: "phase-31-32-congregation-secret-0123456789",
 };
 
 function issues(overrides: RuntimeEnvironment): ReturnType<typeof validateProductionRuntimeConfig> {
@@ -29,9 +33,9 @@ function hasIssue(result: ReturnType<typeof validateProductionRuntimeConfig>, ke
 }
 
 assert.deepEqual(validateProductionRuntimeConfig(validEnv), []);
-assert.deepEqual(validateProductionRuntimeConfig({ ...validEnv, BETTER_AUTH_URL: "http://localhost:3000" }), []);
-assert.deepEqual(validateProductionRuntimeConfig({ ...validEnv, BETTER_AUTH_URL: "http://127.0.0.1:3000" }), []);
-assert.deepEqual(validateProductionRuntimeConfig({ ...validEnv, BETTER_AUTH_URL: "http://[::1]:3000" }), []);
+assert.deepEqual(validateProductionRuntimeConfig({ ...validEnv, BETTER_AUTH_URL: "http://localhost:3000", CONGREGATION_BASE_URL: "http://localhost:3000" }), []);
+assert.deepEqual(validateProductionRuntimeConfig({ ...validEnv, BETTER_AUTH_URL: "http://127.0.0.1:3000", CONGREGATION_BASE_URL: "http://127.0.0.1:3000" }), []);
+assert.deepEqual(validateProductionRuntimeConfig({ ...validEnv, BETTER_AUTH_URL: "http://[::1]:3000", CONGREGATION_BASE_URL: "http://[::1]:3000" }), []);
 
 assert.ok(hasIssue(issues({ ORGANY_RUNTIME: "memory" }), "ORGANY_RUNTIME"));
 assert.ok(hasIssue(issues({ DATABASE_URL: "" }), "DATABASE_URL"));
@@ -44,6 +48,11 @@ assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "" }), "BETTER_AUTH_URL"));
 assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "not-a-url" }), "BETTER_AUTH_URL"));
 assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "http://organy.example.test" }), "BETTER_AUTH_URL"));
 assert.ok(hasIssue(issues({ BETTER_AUTH_URL: "ftp://organy.example.test" }), "BETTER_AUTH_URL"));
+assert.ok(hasIssue(issues({ RESEND_API_KEY: "" }), "RESEND_API_KEY"));
+assert.ok(hasIssue(issues({ CONGREGATION_EMAIL_FROM: "invalid" }), "CONGREGATION_EMAIL_FROM"));
+assert.ok(hasIssue(issues({ CONGREGATION_BASE_URL: "http://organy.example.test" }), "CONGREGATION_BASE_URL"));
+assert.ok(hasIssue(issues({ CONGREGATION_BASE_URL: "https://other.example.test" }), "CONGREGATION_BASE_URL"));
+assert.ok(hasIssue(issues({ CONGREGATION_SECURITY_SECRET: "short" }), "CONGREGATION_SECURITY_SECRET"));
 
 assert.equal(resolveApplicationRuntimeMode(validEnv, "production"), "db");
 assert.throws(
@@ -69,6 +78,10 @@ const redactionIssues = validateProductionRuntimeConfig({
   DATABASE_URL: SENSITIVE_DATABASE,
   BETTER_AUTH_SECRET: SENSITIVE_SECRET,
   BETTER_AUTH_URL: "http://public.example.test",
+  RESEND_API_KEY: "re_sensitive",
+  CONGREGATION_EMAIL_FROM: "Organy App <preferences@public.example.test>",
+  CONGREGATION_BASE_URL: "http://public.example.test",
+  CONGREGATION_SECURITY_SECRET: SENSITIVE_SECRET,
 });
 const formatted = formatProductionRuntimeIssues(redactionIssues).join("\n");
 assert.ok(!formatted.includes(SENSITIVE_SECRET));
@@ -76,15 +89,14 @@ assert.ok(!formatted.includes(SENSITIVE_DATABASE));
 assert.ok(!formatted.includes("private-password"));
 
 const envExample = readFileSync(".env.example", "utf8");
-for (const key of ["ORGANY_RUNTIME", "DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL"]) {
+for (const key of ["ORGANY_RUNTIME", "DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "RESEND_API_KEY", "CONGREGATION_EMAIL_FROM", "CONGREGATION_BASE_URL", "CONGREGATION_SECURITY_SECRET"]) {
   assert.match(envExample, new RegExp(`^${key}=`, "m"));
 }
 for (const forbidden of ["Phase31Admin!2026", "Phase31Priest!2026", "Phase31Organist!2026", "Phase31InactiveReset!2026", "ORGANY_BOOTSTRAP_ADMIN_PASSWORD", "ORGANY_RECOVERY_PASSWORD"]) {
   assert.ok(!envExample.includes(forbidden), `.env.example must not contain ${forbidden}`);
 }
 
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-const pass = spawnSync(npx, ["tsx", "scripts/production-preflight.ts"], {
+const pass = spawnSync(process.execPath, ["--import", "tsx", "scripts/production-preflight.ts"], {
   encoding: "utf8",
   env: {
     ...process.env,
@@ -92,6 +104,10 @@ const pass = spawnSync(npx, ["tsx", "scripts/production-preflight.ts"], {
     DATABASE_URL: SENSITIVE_DATABASE,
     BETTER_AUTH_SECRET: SENSITIVE_SECRET,
     BETTER_AUTH_URL: "https://organy.example.test",
+    RESEND_API_KEY: "re_phase_31_32_safe_test_key",
+    CONGREGATION_EMAIL_FROM: "Organy App <preferences@organy.example.test>",
+    CONGREGATION_BASE_URL: "https://organy.example.test",
+    CONGREGATION_SECURITY_SECRET: "phase-31-32-congregation-secret-0123456789",
   },
 });
 assert.equal(pass.status, 0, pass.stderr);
@@ -105,8 +121,12 @@ Object.assign(failEnv, {
   ORGANY_RUNTIME: "db",
   DATABASE_URL: SENSITIVE_DATABASE,
   BETTER_AUTH_SECRET: SENSITIVE_SECRET,
+  RESEND_API_KEY: "re_phase_31_32_safe_test_key",
+  CONGREGATION_EMAIL_FROM: "Organy App <preferences@organy.example.test>",
+  CONGREGATION_BASE_URL: "https://organy.example.test",
+  CONGREGATION_SECURITY_SECRET: "phase-31-32-congregation-secret-0123456789",
 });
-const fail = spawnSync(npx, ["tsx", "scripts/production-preflight.ts"], { encoding: "utf8", env: failEnv });
+const fail = spawnSync(process.execPath, ["--import", "tsx", "scripts/production-preflight.ts"], { encoding: "utf8", env: failEnv });
 assert.notEqual(fail.status, 0);
 assert.match(fail.stderr, /BETTER_AUTH_URL/);
 assert.ok(!(fail.stdout + fail.stderr).includes(SENSITIVE_SECRET));

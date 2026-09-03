@@ -8,6 +8,10 @@
     {
       "path": "/api/maintenance/audit-retention",
       "schedule": "0 3 1 * *"
+    },
+    {
+      "path": "/api/maintenance/congregation-registration",
+      "schedule": "15 2 * * *"
     }
   ]
 }

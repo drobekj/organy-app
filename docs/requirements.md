@@ -196,6 +196,20 @@ Each requirement uses:
   - Candidate preference filtering uses the total summed score and threshold `x`.
 - **Related decisions:** DEC-2026-07-06-07
 
+### REQ-014 — Stable congregation voter identity
+
+- **Status:** Accepted
+- **Rationale:** A nickname must remain a changeable display identifier rather than the owner key for a person's saved votes.
+- **Acceptance criteria:**
+  - Nickname sign-in never creates a voter.
+  - New voters activate only after email confirmation and retain a stable random Actor/profile identity independent of nickname and email.
+  - Nickname and email comparisons are case-insensitive; email normalization does not apply provider-specific dot or plus rewriting.
+  - Existing nickname voters and every saved preference are preserved and can be claimed only from their current voter session.
+  - Confirmation links are single-use and expire after 24 hours; opaque voter sessions expire server-side after 30 days.
+  - Bootstrap and weekly activation quotas, durable abuse limits, Admin freeze/observability, and 30-day pending cleanup are enforced server-side.
+  - The voter identity cannot authorize any protected staff operation.
+- **Detailed contract:** `docs/congregation-voter-identity.md`
+
 ## Non-Functional Requirements
 
 No non-functional requirements are accepted yet.

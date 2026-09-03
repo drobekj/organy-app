@@ -77,7 +77,15 @@ async function main() {
     assert.equal((await adminPost(jsonRequest("POST", { action: "resetPassword", appUserId: resetActorId, password: "short" }, adminCookie))).status, 400, "malformed replacement password is rejected");
     assert.equal((await adminPost(jsonRequest("POST", { action: "resetPassword", appUserId: unlinkedActorId, password: replacementPassword }, adminCookie))).status, 404, "unlinked Actor is rejected");
 
-    const voter = await new PostgresCongregationPreferenceService(db).enterNickname("Phase31 Password Reset Forbidden");
+    await db.query(`insert into app_users (id, display_name, active) values ('congregation-voter:phase31-password-reset','Phase31 Password Reset Forbidden',true);
+      insert into app_user_roles (user_id, role) values ('congregation-voter:phase31-password-reset','congregation_member');
+      insert into preference_profiles (id,user_id,category) values ('congregation-pref:phase31-password-reset','congregation-voter:phase31-password-reset','congregation_member');
+      insert into congregation_voter_accounts (id,user_id,nickname,nickname_normalized,email,email_normalized,status,is_new_registration,confirmed_at)
+      values ('congregation-account:phase31-password-reset','congregation-voter:phase31-password-reset','Phase31 Password Reset Forbidden','phase31 password reset forbidden','phase31-password-reset@example.invalid','phase31-password-reset@example.invalid','active',true,now());`);
+    const voterSignIn = await new PostgresCongregationPreferenceService(db).signIn("Phase31 Password Reset Forbidden");
+    assert.equal(voterSignIn.kind, "signedIn");
+    if (voterSignIn.kind !== "signedIn") throw new Error("Acceptance voter sign-in failed.");
+    const voter = voterSignIn.session;
     nicknameActorId = voter.context.userId;
     const nicknameCookie = `organy_congregation_voter=${encodeURIComponent(voter.token)}`;
     assert.equal((await adminPost(jsonRequest("POST", { action: "resetPassword", appUserId: resetActorId, password: replacementPassword }, nicknameCookie))).status, 401, "nickname voter is not reset authority");

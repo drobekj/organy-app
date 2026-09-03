@@ -1364,6 +1364,103 @@ textarea {
 
 .auth-error { color: #a40000; }
 
+.congregation-entry-card {
+  width: min(34rem, 100%);
+}
+
+.congregation-entry-sign-in,
+.congregation-entry-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.congregation-entry-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  display: inline-grid;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.55rem;
+  padding: 0.6rem 0.9rem;
+  text-align: center;
+  text-decoration: none;
+  width: 11rem;
+}
+
+.congregation-entry-sign-in .congregation-entry-button {
+  justify-self: start;
+}
+
+.congregation-entry-divider {
+  border-top: 1px solid var(--border);
+  height: 0;
+  width: 100%;
+}
+
+.congregation-entry-options {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.congregation-entry-option {
+  align-items: center;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: 11rem minmax(0, 1fr);
+}
+
+.congregation-entry-option span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.congregation-form-actions {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, 11rem);
+}
+
+.congregation-entry-notice {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.congregation-entry-notice p,
+.congregation-entry-notice form {
+  margin: 0;
+}
+
+.congregation-legacy-claim {
+  align-items: center;
+  background: #fffbeb;
+  border: 1px solid #e5c96a;
+  border-radius: 0.75rem;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.7rem 0.85rem;
+}
+
+@media (max-width: 520px) {
+  .congregation-entry-option {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .congregation-entry-button,
+  .congregation-entry-sign-in .congregation-entry-button {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .congregation-form-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .protected-account-controls {
   display: flex;
   align-items: center;
@@ -1623,6 +1720,46 @@ textarea {
 .preference-admin-list {
   display: grid;
   gap: 0.55rem;
+}
+
+.registration-admin-panel {
+  align-items: start;
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.8rem;
+}
+
+.registration-admin-panel > div,
+.registration-admin-recent {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.registration-admin-note {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(16rem, 1fr) auto;
+}
+
+.registration-admin-note label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.registration-admin-panel details {
+  grid-column: 1 / -1;
+}
+
+.registration-admin-recent {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.5rem;
 }
 
 .preference-admin-row {

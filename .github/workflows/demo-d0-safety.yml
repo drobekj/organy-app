@@ -32,6 +32,10 @@ jobs:
       ORGANY_RUNTIME: db
       BETTER_AUTH_SECRET: demo-safety-ci-secret-long-enough-for-protected-runtime-acceptance
       BETTER_AUTH_URL: http://127.0.0.1:3000
+      RESEND_API_KEY: re_ci_safe_placeholder
+      CONGREGATION_EMAIL_FROM: Organy App <preferences@example.invalid>
+      CONGREGATION_BASE_URL: http://127.0.0.1:3000
+      CONGREGATION_SECURITY_SECRET: ci-congregation-security-secret-0123456789
       ORGANY_BOOTSTRAP_ADMIN_PASSWORD: DemoD0Admin!2026
       ORGANY_BOOTSTRAP_PRIEST_PASSWORD: DemoD0Priest!2026
       ORGANY_BOOTSTRAP_ORGANIST_PASSWORD: DemoD0Organist!2026
