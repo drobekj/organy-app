@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { POST as congregationPost } from "../app/api/congregation-preferences/route";
 import { POST as interactionPost } from "../app/api/interaction/route";
 import { PostgresCongregationPreferenceService } from "../src/application/congregation-preference-voter";
+import { PostgresReferenceCatalogProvider } from "../src/application/postgres-reference-catalog";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
 
 function requiredEnv(name: string): string {
@@ -14,6 +15,8 @@ function requiredEnv(name: string): string {
 
 const databaseUrl = requiredEnv("DATABASE_URL");
 const referenceSongId = "czech:999999";
+const polishReferenceSongId = "polish:999998";
+const phaseReferenceSongIds = [referenceSongId, polishReferenceSongId];
 const createdVoterIds = new Set<string>();
 
 function formRequest(fields: Record<string, string>, cookie?: string) {
@@ -25,6 +28,17 @@ function formRequest(fields: Record<string, string>, cookie?: string) {
       ...(cookie ? { cookie } : {}),
     },
     body,
+  });
+}
+
+function congregationJsonRequest(body: unknown, cookie?: string) {
+  return new NextRequest("http://localhost/api/congregation-preferences", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(cookie ? { cookie } : {}),
+    },
+    body: JSON.stringify(body),
   });
 }
 
@@ -60,10 +74,19 @@ async function main() {
     await seedDemoInteractionKnowledge(db);
     await db.query(
       `insert into reference_catalog_songs (id, language, canonical_number, source_id, title, source_url)
-       values ($1, 'czech', 999999, 'phase-31-29-acceptance', 'Phase 31.29 acceptance song', null)
+       values
+         ($1, 'czech', 999999, 'phase-31-29-acceptance-cz', 'Phase 31.29 acceptance Czech song', 'https://example.invalid/czech'),
+         ($2, 'polish', 999998, 'phase-31-29-acceptance-pl', 'Phase 31.29 acceptance Polish song', 'https://example.invalid/polish')
        on conflict (id) do nothing`,
-      [referenceSongId],
+      phaseReferenceSongIds,
     );
+
+    const catalog = new PostgresReferenceCatalogProvider(db);
+    const allCatalog = await catalog.listAll("all");
+    assert.ok(allCatalog.some((record) => record.id === referenceSongId && record.sourceUrl === "https://example.invalid/czech"));
+    assert.ok(allCatalog.some((record) => record.id === polishReferenceSongId && record.language === "polish"));
+    assert.ok((await catalog.listAll("czech")).every((record) => record.language === "czech"));
+    assert.ok((await catalog.listAll("polish")).every((record) => record.language === "polish"));
 
     const authCountsBefore = await authCounts(db);
 
@@ -121,8 +144,33 @@ async function main() {
     }, cookieA));
     assert.equal(saveA.status, 303, "client-supplied foreign identity fields are not authorization authority");
     assert.equal((await service.getOwnReferencePreference(tokenA, referenceSongId)).score, 1);
+    assert.deepEqual(
+      (await service.listOwnReferencePreferences(tokenA)).filter((entry) => phaseReferenceSongIds.includes(entry.referenceSongId)),
+      [{ referenceSongId, score: 1 }],
+      "voter workspace can load the complete existing own-preference set",
+    );
     assert.equal((await service.getOwnReferencePreference(tokenB, referenceSongId)).score, null, "voter A cannot mutate voter B through the own-preference boundary");
     assert.deepEqual((await db.query("select role from app_user_roles where user_id = $1 order by role", [contextA.userId])).rows.map((row) => row.role), ["congregation_member"], "nickname flow cannot grant protected roles");
+
+    const jsonOff = await congregationPost(congregationJsonRequest({
+      action: "saveOwnPreference",
+      referenceSongId,
+      score: 0,
+      userId: contextB.userId,
+      role: "admin",
+    }, cookieA));
+    assert.equal(jsonOff.status, 200, "toggle JSON save returns an in-place response");
+    assert.deepEqual((await jsonOff.json()).preference, { referenceSongId, score: 0 });
+    assert.equal((await service.getOwnReferencePreference(tokenA, referenceSongId)).score, 0);
+    assert.equal((await service.getOwnReferencePreference(tokenB, referenceSongId)).score, null, "JSON toggle cannot mutate another nickname");
+
+    const jsonOn = await congregationPost(congregationJsonRequest({
+      action: "saveOwnPreference",
+      referenceSongId,
+      score: 1,
+    }, cookieA));
+    assert.equal(jsonOn.status, 200);
+    assert.deepEqual((await jsonOn.json()).preference, { referenceSongId, score: 1 });
 
     const saveB = await congregationPost(formRequest({ action: "saveOwnPreference", referenceSongId, score: "0" }, cookieB));
     assert.equal(saveB.status, 303);
@@ -144,7 +192,10 @@ async function main() {
     console.log("Phase 31.29 nickname-only congregation preference voter acceptance: PASS");
   } finally {
     if (createdVoterIds.size > 0) await db.query("delete from app_users where id = any($1::text[])", [[...createdVoterIds]]).catch(() => undefined);
-    await db.query("delete from reference_catalog_songs where id = $1 and source_id = 'phase-31-29-acceptance'", [referenceSongId]).catch(() => undefined);
+    await db.query(
+      "delete from reference_catalog_songs where id = any($1::text[]) and source_id like 'phase-31-29-acceptance-%'",
+      [phaseReferenceSongIds],
+    ).catch(() => undefined);
     await db.end();
   }
 }

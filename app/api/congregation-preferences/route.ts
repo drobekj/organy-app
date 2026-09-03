@@ -9,6 +9,30 @@ export async function POST(request: NextRequest) {
   if (process.env.ORGANY_RUNTIME !== "db") return problem("Congregation preference DB runtime is not enabled.", 400);
   if (!process.env.DATABASE_URL) return problem("DATABASE_URL is required for congregation preferences.", 500);
 
+  const pool = getAppDbPool();
+  const service = new PostgresCongregationPreferenceService(pool);
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      const body = await request.json() as { action?: unknown; referenceSongId?: unknown; score?: unknown };
+      if (body.action !== "saveOwnPreference") return problem("Unsupported congregation preference action.", 400);
+      const preference = await service.saveOwnReferencePreference(
+        request.cookies.get(congregationVoterCookie)?.value,
+        body.referenceSongId,
+        body.score,
+      );
+      return NextResponse.json({
+        preference: {
+          referenceSongId: preference.referenceSongId,
+          score: preference.score,
+        },
+      });
+    } catch (error) {
+      return serviceProblem(error);
+    }
+  }
+
   const form = await request.formData().catch(() => undefined);
   if (!form) return problem("Form data is required.", 400);
   const action = String(form.get("action") ?? "") as FormAction;
@@ -19,9 +43,7 @@ export async function POST(request: NextRequest) {
     return response;
   }
 
-  const pool = getAppDbPool();
   try {
-    const service = new PostgresCongregationPreferenceService(pool);
     if (action === "enterNickname") {
       const session = await service.enterNickname(form.get("nickname"));
       const response = NextResponse.redirect(new URL("/congregation-preferences", request.url), 303);
@@ -47,12 +69,16 @@ export async function POST(request: NextRequest) {
 
     return problem("Unsupported congregation preference action.", 400);
   } catch (error) {
-    if (error instanceof CongregationVoterError) {
-      const status = error.code === "invalidInput" ? 400 : error.code === "unauthenticated" ? 401 : error.code === "notFound" ? 404 : 403;
-      return problem(error.message, status);
-    }
-    return problem(error instanceof Error ? error.message : "Congregation preference request failed.", 500);
+    return serviceProblem(error);
   }
+}
+
+function serviceProblem(error: unknown) {
+  if (error instanceof CongregationVoterError) {
+    const status = error.code === "invalidInput" ? 400 : error.code === "unauthenticated" ? 401 : error.code === "notFound" ? 404 : 403;
+    return problem(error.message, status);
+  }
+  return problem(error instanceof Error ? error.message : "Congregation preference request failed.", 500);
 }
 
 function problem(message: string, status: number) {
