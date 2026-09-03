@@ -1478,6 +1478,117 @@ textarea {
   width: min(100%, 78rem);
 }
 
+.congregation-preference-workspace {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.congregation-language-row {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.congregation-language-panel {
+  height: 4.75rem;
+  min-width: 12rem;
+  width: calc(33.333333% + 0.066667rem + 1.333333px);
+}
+
+.congregation-find-song-panel {
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.congregation-song-lookup {
+  min-width: 0;
+}
+
+.congregation-song-lookup input {
+  width: 100%;
+}
+
+.congregation-preference-error {
+  margin: 0;
+}
+
+.congregation-song-scroll {
+  --congregation-song-row-height: 2.4rem;
+  direction: rtl;
+  display: grid;
+  height: min(calc(var(--congregation-song-row-height) * 20), 72vh);
+  max-height: calc(var(--congregation-song-row-height) * 20);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-left: 0.35rem;
+  scrollbar-gutter: stable;
+}
+
+.congregation-song-scroll > * {
+  direction: ltr;
+}
+
+.congregation-song-row {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: var(--congregation-song-row-height);
+  padding: 0.25rem 0.35rem;
+  scroll-margin-block: 0.35rem;
+}
+
+.congregation-song-row:last-child {
+  border-bottom: 0;
+}
+
+.congregation-song-row-selected {
+  background: #fffbeb;
+}
+
+.congregation-song-row-active {
+  border-radius: 0.55rem;
+  outline: 3px solid #84adff;
+  outline-offset: -3px;
+}
+
+.congregation-song-main {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  min-width: 0;
+}
+
+.congregation-song-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.congregation-song-source {
+  color: #175cd3;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.congregation-song-source:hover,
+.congregation-song-source:focus-visible {
+  text-decoration: underline;
+}
+
+.congregation-preference-toggle {
+  align-self: center;
+  justify-self: end;
+}
+
+
 .preference-admin-context-header {
   width: 100%;
 }
@@ -1632,6 +1743,19 @@ textarea {
 }
 
 @media (max-width: 720px) {
+  .congregation-language-panel {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .congregation-song-scroll {
+    height: min(calc(var(--congregation-song-row-height) * 20), 65vh);
+  }
+
+  .congregation-song-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .preference-admin-row {
     align-items: stretch;
     grid-template-columns: 1fr;
