@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import type { DemoPresentationRole } from "../src/demo/d4-presentation-role";
 import type { PlanningRole } from "../src/planning-lifecycle";
+import { DemoRoleSimulator } from "./demo-role-simulator";
 import {
   GUIDE_LANGUAGE_CHANGED_EVENT,
   GUIDE_LANGUAGE_STORAGE_KEY,
   guideAccountContext,
-  guidePracticalContext,
   guideEnvironmentCopy,
+  guidePracticalContext,
+  guidePreviewRoleContext,
+  guideRoleContextShared,
   guideSections,
   guideUi,
   type GuideExperience,
@@ -24,7 +28,14 @@ function roleLabel(role: GuideRole, language: GuideLanguage): string {
   return text(guideUi[role], language);
 }
 
-export function GuideWorkspace({ activeRole, experience, demoRolePanel }: { activeRole: PlanningRole; experience: GuideExperience; demoRolePanel?: ReactNode }) {
+type GuideWorkspaceProps = {
+  activeRole: PlanningRole;
+  experience: GuideExperience;
+  demoRole?: DemoPresentationRole;
+  onDemoRoleChange?: (role: DemoPresentationRole) => void;
+};
+
+export function GuideWorkspace({ activeRole, experience, demoRole, onDemoRoleChange }: GuideWorkspaceProps) {
   const [language, setLanguage] = useState<GuideLanguage>("en");
 
   useEffect(() => {
@@ -48,12 +59,20 @@ export function GuideWorkspace({ activeRole, experience, demoRolePanel }: { acti
         <div>
           <h2 id="guide-workspace-title">{text(guideUi.title, language)}</h2>
           <p>{text(guideUi.intro, language)}</p>
-          <p className="guide-environment">
-            <strong>{text(guideUi.environment, language)} · {text(guideUi[experience], language)}:</strong>{" "}
-            {text(guideEnvironmentCopy[experience], language)}
-          </p>
-          <p className="guide-practical-context">{text(guidePracticalContext, language)}</p>
+
+          <div className="guide-meta-block">
+            <strong>{text(guideUi.shared, language)}</strong>
+            <p>{text(guidePracticalContext, language)}</p>
+          </div>
+
+          <div className="guide-meta-divider" aria-hidden="true" />
+
+          <div className="guide-meta-block guide-environment">
+            <strong>{text(guideUi.environment, language)} · {text(guideUi[experience], language)}:</strong>
+            <p>{text(guideEnvironmentCopy[experience], language)}</p>
+          </div>
         </div>
+
         <div className="guide-language" role="group" aria-label={text(guideUi.language, language)}>
           <span>{text(guideUi.language, language)}</span>
           <button
@@ -75,17 +94,45 @@ export function GuideWorkspace({ activeRole, experience, demoRolePanel }: { acti
         </div>
       </header>
 
-      {experience === "demo" ? (
-        demoRolePanel
+      {experience === "demo" && demoRole && onDemoRoleChange ? (
+        <section className="demo-role-simulator guide-role-context-panel" aria-label={text(guidePreviewRoleContext.title, language)}>
+          <div className="demo-role-simulator-heading">
+            <strong>{text(guidePreviewRoleContext.title, language)}</strong>
+            <span>{text(guidePreviewRoleContext.summary, language)}</span>
+          </div>
+
+          <div className="guide-meta-block">
+            <strong>{text(guideUi.shared, language)}</strong>
+            <p>{text(guideRoleContextShared, language)}</p>
+          </div>
+
+          <div className="guide-meta-divider" aria-hidden="true" />
+
+          <div className="guide-meta-block guide-role-environment">
+            <strong>{text(guideUi.demo, language)}</strong>
+            <DemoRoleSimulator role={demoRole} onChange={onDemoRoleChange} embedded />
+          </div>
+        </section>
       ) : (
-        <section className="demo-role-simulator guide-account-context" aria-label={text(guideAccountContext.title, language)}>
+        <section className="demo-role-simulator guide-role-context-panel guide-account-context" aria-label={text(guideAccountContext.title, language)}>
           <div className="demo-role-simulator-heading">
             <strong>{text(guideAccountContext.title, language)}</strong>
             <span>{text(guideAccountContext.summary, language)}</span>
           </div>
-          <ul className="guide-context-list">
-            {guideAccountContext.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
-          </ul>
+
+          <div className="guide-meta-block">
+            <strong>{text(guideUi.shared, language)}</strong>
+            <p>{text(guideRoleContextShared, language)}</p>
+          </div>
+
+          <div className="guide-meta-divider" aria-hidden="true" />
+
+          <div className="guide-meta-block guide-role-environment">
+            <strong>{text(guideUi.standard, language)}</strong>
+            <ul className="guide-context-list">
+              {guideAccountContext.bullets.map((bullet, index) => <li key={index}>{text(bullet, language)}</li>)}
+            </ul>
+          </div>
         </section>
       )}
 

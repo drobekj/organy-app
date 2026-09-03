@@ -9,18 +9,14 @@ import {
 export function DemoRoleSimulator({
   role,
   onChange,
-  guideContext = false,
+  embedded = false,
 }: {
   role: DemoPresentationRole;
   onChange: (role: DemoPresentationRole) => void;
-  guideContext?: boolean;
+  embedded?: boolean;
 }) {
-  return (
-    <section className="demo-role-simulator" aria-label="Demo role simulator">
-      <div className="demo-role-simulator-heading">
-        <strong>Preview role</strong>
-        <span>Presentation only · no sign-in or permissions are granted.</span>
-      </div>
+  const controls = (
+    <>
       <div className="demo-role-options" role="group" aria-label="Preview role">
         {DEMO_PRESENTATION_ROLES.map((candidate) => (
           <button
@@ -36,8 +32,21 @@ export function DemoRoleSimulator({
       <p className="demo-role-summary" role="status">
         <strong>{DEMO_PRESENTATION_ROLE_COPY[role].label}:</strong>{" "}
         {DEMO_PRESENTATION_ROLE_COPY[role].summary}
-        {guideContext && <> Role-specific Guide blocks follow this preview role.</>}
       </p>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="demo-role-simulator-embedded">{controls}</div>;
+  }
+
+  return (
+    <section className="demo-role-simulator" aria-label="Demo role simulator">
+      <div className="demo-role-simulator-heading">
+        <strong>Preview role</strong>
+        <span>Presentation only · no sign-in or permissions are granted.</span>
+      </div>
+      {controls}
     </section>
   );
 }
