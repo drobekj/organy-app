@@ -14,11 +14,13 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return configurationMessage("DATABASE_URL is required for congregation preferences.");
 
+  const params = await searchParams;
+  if (first(params.entry) === "1") return nicknameEntry();
+
   const cookieStore = await cookies();
   const token = cookieStore.get(CONTEXT_COOKIE)?.value;
   if (!token) return nicknameEntry();
 
-  const params = await searchParams;
   const search = first(params.q) ?? "";
   const selectedId = first(params.song);
   const saved = first(params.saved) === "1";

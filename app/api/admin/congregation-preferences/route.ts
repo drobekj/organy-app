@@ -33,10 +33,6 @@ export async function POST(request: NextRequest) {
       const score = Number(form.get("score"));
       const result = await service.setPreferenceScore(request.headers, { profileId, referenceSongId, score });
       target.searchParams.set("message", `Preference for ${result.nickname} set to ${result.score}.`);
-      if (result.score === 0 && result.beforeScore === 1) {
-        target.searchParams.set("undoProfileId", result.profileId);
-        target.searchParams.set("undoSongId", result.referenceSongId);
-      }
       return NextResponse.redirect(target, 303);
     }
 
@@ -66,8 +62,8 @@ export async function POST(request: NextRequest) {
 
 function normalizeLanguage(value: FormDataEntryValue | null): CongregationPreferenceAdminLanguage {
   const language = String(value ?? "czech");
-  if (language !== "czech" && language !== "polish") {
-    throw new CongregationPreferenceAdminError("invalidInput", "Language must be czech or polish.");
+  if (language !== "czech" && language !== "polish" && language !== "mixed") {
+    throw new CongregationPreferenceAdminError("invalidInput", "Language must be czech, polish or mixed.");
   }
   return language;
 }

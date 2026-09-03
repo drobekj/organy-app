@@ -345,7 +345,7 @@ export const guideSections: GuideSection[] = [
     roles: {
       admin: [
         {
-          en: "The protected Admin Role menu exposes Manage Accounts, Manage Preferences, Audit History and Verify DB. Manage Preferences administers congregation nickname votes; Verify DB creates a local offline copy for inspection.",
+          en: "The protected Admin Role menu exposes Manage Accounts, Manage Preferences, Audit History and Verify DB. Manage Preferences can filter Czech, Polish or mixed congregation votes; Admin-set zero keeps the song visible with Undo to 1, while ordinary voter-set zero remains hidden.",
           cz: "Protected Admin Role menu zpřístupňuje Manage Accounts, Manage Preferences, Audit History a Verify DB. Manage Preferences spravuje hlasy congregation nickname profilů; Verify DB vytváří lokální offline kopii pro kontrolu.",
         },
       ],

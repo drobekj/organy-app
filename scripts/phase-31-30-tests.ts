@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { Pool } from "pg";
 import { GET as adminGet, POST as adminPost } from "../app/api/protected-accounts/route";
 import { ProtectedActorError, resolveProtectedActor } from "../src/application/protected-actor";
+import { PostgresCongregationPreferenceAdminService } from "../src/application/congregation-preference-admin";
 import { PostgresCongregationPreferenceService } from "../src/application/congregation-preference-voter";
 import { seedDemoInteractionKnowledge } from "../src/application/interaction-seed";
 import { auth } from "../src/auth/server";
@@ -16,6 +17,7 @@ const organistPassword = requiredEnv("ORGANY_BOOTSTRAP_ORGANIST_PASSWORD");
 const staffPassword = "Phase31Staff!2026";
 const selfAdminPassword = "Phase31SelfAdmin!2026";
 const testActorIds = ["phase31-staff-user", "phase31-self-admin-user"];
+const adminPreferenceSongIds = ["czech:987654", "polish:987654", "czech:987655"];
 let nicknameActorId: string | undefined;
 
 async function signIn(username: string, password: string): Promise<Response> { return auth.api.signInUsername({ body: { username, password }, asResponse: true }); }
@@ -63,11 +65,81 @@ async function main() {
     assert.deepEqual((await db.query("select role from app_user_roles where user_id='demo-admin-user' order by role")).rows.map((row) => row.role), adminRolesBeforeUnauthorized, "unauthorized mutations leave admin roles unchanged");
     assert.equal((await db.query("select active from app_users where id='demo-admin-user'")).rows[0].active, true, "unauthorized mutation cannot deactivate admin");
 
-    const voter = await new PostgresCongregationPreferenceService(db).enterNickname("Phase31 Account Admin Forbidden");
+    const voterService = new PostgresCongregationPreferenceService(db);
+    const voter = await voterService.enterNickname("Phase31 Account Admin Forbidden");
     nicknameActorId = voter.context.userId;
     const nicknameCookie = `organy_congregation_voter=${encodeURIComponent(voter.token)}`;
     assert.equal((await adminGet(jsonRequest("GET", undefined, nicknameCookie))).status, 401, "nickname voter cookie is not protected admin authority");
     assert.equal((await adminPost(jsonRequest("POST", { action: "updateRoles", appUserId: "demo-admin-user", roles: ["priest"], actor: { role: "admin" } }, nicknameCookie))).status, 401, "nickname voter cannot mutate protected Accounts");
+
+    await db.query(
+      `insert into reference_catalog_songs (id, language, canonical_number, source_id, title, source_url)
+       values
+         ($1, 'czech', 987654, 'phase-31-30-admin-pref-cz', 'Admin preference Czech', null),
+         ($2, 'polish', 987654, 'phase-31-30-admin-pref-pl', 'Admin preference Polish', null),
+         ($3, 'czech', 987655, 'phase-31-30-voter-zero', 'Voter zero hidden', null)
+       on conflict (id) do nothing`,
+      adminPreferenceSongIds,
+    );
+    await voterService.saveOwnReferencePreference(voter.token, adminPreferenceSongIds[0], 1);
+    await voterService.saveOwnReferencePreference(voter.token, adminPreferenceSongIds[1], 1);
+    await voterService.saveOwnReferencePreference(voter.token, adminPreferenceSongIds[2], 0);
+
+    const preferenceAdmin = new PostgresCongregationPreferenceAdminService(db);
+    const adminHeaders = new Headers({ cookie: adminCookie });
+    const czechBeforeAdminZero = (await preferenceAdmin.list(adminHeaders, "czech")).find((row) => row.profileId === voter.context.profileId);
+    assert.ok(czechBeforeAdminZero);
+    assert.deepEqual(
+      czechBeforeAdminZero.songs.map((song) => [song.referenceSongId, song.score, song.adminZero]),
+      [[adminPreferenceSongIds[0], 1, false]],
+      "ordinary voter-set zero remains invisible to Admin",
+    );
+
+    await preferenceAdmin.setPreferenceScore(adminHeaders, {
+      profileId: voter.context.profileId,
+      referenceSongId: adminPreferenceSongIds[0],
+      score: 0,
+    });
+    const czechAfterAdminZero = (await preferenceAdmin.list(adminHeaders, "czech")).find((row) => row.profileId === voter.context.profileId);
+    assert.ok(czechAfterAdminZero);
+    assert.deepEqual(
+      czechAfterAdminZero.songs.map((song) => [song.referenceSongId, song.score, song.adminZero]),
+      [[adminPreferenceSongIds[0], 0, true]],
+      "Admin-set zero remains visible and is distinguished from ordinary zero",
+    );
+
+    const mixedPreferences = (await preferenceAdmin.list(adminHeaders, "mixed")).find((row) => row.profileId === voter.context.profileId);
+    assert.ok(mixedPreferences);
+    assert.deepEqual(
+      mixedPreferences.songs.map((song) => [song.referenceSongId, song.language, song.score, song.adminZero]),
+      [
+        [adminPreferenceSongIds[0], "czech", 0, true],
+        [adminPreferenceSongIds[1], "polish", 1, false],
+      ],
+      "mixed Admin language lists visible Czech and Polish preferences together",
+    );
+
+    await preferenceAdmin.setPreferenceScore(adminHeaders, {
+      profileId: voter.context.profileId,
+      referenceSongId: adminPreferenceSongIds[0],
+      score: 1,
+    });
+    const restored = (await preferenceAdmin.list(adminHeaders, "czech")).find((row) => row.profileId === voter.context.profileId);
+    assert.ok(restored);
+    assert.deepEqual(restored.songs.map((song) => [song.referenceSongId, song.score, song.adminZero]), [[adminPreferenceSongIds[0], 1, false]]);
+
+    await preferenceAdmin.setPreferenceScore(adminHeaders, {
+      profileId: voter.context.profileId,
+      referenceSongId: adminPreferenceSongIds[0],
+      score: 0,
+    });
+    await preferenceAdmin.removePreference(adminHeaders, {
+      profileId: voter.context.profileId,
+      referenceSongId: adminPreferenceSongIds[0],
+    });
+    const afterAdminZeroRemove = (await preferenceAdmin.list(adminHeaders, "czech")).find((row) => row.profileId === voter.context.profileId);
+    assert.ok(afterAdminZeroRemove);
+    assert.equal(afterAdminZeroRemove.songs.length, 0, "Admin-zero preference can still be explicitly removed");
 
     const initialListResponse = await adminGet(jsonRequest("GET", undefined, adminCookie)); assert.equal(initialListResponse.status, 200);
     const initialList = await initialListResponse.json() as { accounts: Record<string, unknown>[]; eligibleActors: { appUserId: string }[] };
@@ -116,6 +188,7 @@ async function main() {
     await db.query("delete from auth_users where id in (select auth_user_id from protected_account_actor_links where app_user_id = any($1::text[]))", [testActorIds]).catch(() => undefined);
     await db.query("delete from app_users where id = any($1::text[])", [testActorIds]).catch(() => undefined);
     if (nicknameActorId) await db.query("delete from app_users where id=$1", [nicknameActorId]).catch(() => undefined);
+    await db.query("delete from reference_catalog_songs where id = any($1::text[])", [adminPreferenceSongIds]).catch(() => undefined);
     await db.end();
   }
 }
