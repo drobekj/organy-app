@@ -13,7 +13,7 @@ export function CongregationPreferenceWorkspace({
   records: ReferenceCatalogRecord[];
   preferences: CongregationOwnPreferenceEntry[];
 }) {
-  const [language, setLanguage] = useState<CongregationLanguage>("mixed");
+  const [language, setLanguage] = useState<CongregationLanguage>("czech");
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState<string>();
   const [scores, setScores] = useState<Record<string, 0 | 1>>(() =>
@@ -138,9 +138,9 @@ export function CongregationPreferenceWorkspace({
               value={language}
               onChange={(event) => setLanguage(event.target.value as CongregationLanguage)}
             >
-              <option value="mixed">Mixed</option>
               <option value="czech">Czech</option>
               <option value="polish">Polish</option>
+              <option value="mixed">Mixed</option>
             </select>
           </label>
         </fieldset>
