@@ -2,14 +2,15 @@ import type { Pool, PoolClient } from "pg";
 import { appendAuditEvent, humanAuditActor } from "./audit-history";
 import { ProtectedActorError, resolveProtectedUser } from "./protected-actor";
 
-export type CongregationPreferenceAdminLanguage = "czech" | "polish";
+export type CongregationPreferenceAdminLanguage = "czech" | "polish" | "mixed";
 
 export type CongregationPreferenceAdminSong = {
   referenceSongId: string;
   displayNumber: string;
   title: string;
-  language: CongregationPreferenceAdminLanguage;
-  score: 1;
+  language: "czech" | "polish";
+  score: 0 | 1;
+  adminZero: boolean;
 };
 
 export type CongregationPreferenceAdminVoter = {
@@ -37,21 +38,43 @@ export class PostgresCongregationPreferenceAdminService {
     validateLanguage(language);
     const result = await this.pool.query(
       `select u.id user_id, u.display_name nickname, pp.id profile_id,
-              rsp.reference_song_id, rsp.score,
-              rcs.language, rcs.canonical_number, rcs.title
+              visible.reference_song_id, visible.score,
+              visible.language, visible.canonical_number, visible.title,
+              visible.admin_zero
          from app_users u
          join app_user_roles aur on aur.user_id = u.id and aur.role = 'congregation_member'
          join preference_profiles pp on pp.user_id = u.id and pp.category = 'congregation_member'
-         left join reference_song_preferences rsp
-           on rsp.profile_id = pp.id
-          and rsp.score > 0
-          and exists (
-            select 1
-              from reference_catalog_songs selected_song
-             where selected_song.id = rsp.reference_song_id
-               and selected_song.language = $1
-          )
-         left join reference_catalog_songs rcs on rcs.id = rsp.reference_song_id
+         left join lateral (
+           select rsp.reference_song_id, rsp.score,
+                  rcs.language, rcs.canonical_number, rcs.title,
+                  (
+                    rsp.score = 0
+                    and latest.action = 'preference.congregation.admin.set'
+                    and latest.after_state ->> 'score' = '0'
+                  ) as admin_zero
+             from reference_song_preferences rsp
+             join reference_catalog_songs rcs on rcs.id = rsp.reference_song_id
+             left join lateral (
+               select ae.action, ae.after_state
+                 from audit_events ae
+                where ae.object_kind = 'referencePreference'
+                  and ae.object_ref = pp.id || ':' || rsp.reference_song_id
+                  and ae.action in ('preference.congregation.admin.set', 'preference.reference.save')
+                order by ae.occurred_at desc, ae.id desc
+                limit 1
+             ) latest on true
+            where rsp.profile_id = pp.id
+              and ($1 = 'mixed' or rcs.language::text = $1)
+              and (
+                rsp.score > 0
+                or (
+                  rsp.score = 0
+                  and latest.action = 'preference.congregation.admin.set'
+                  and latest.after_state ->> 'score' = '0'
+                )
+              )
+            order by rcs.language, rcs.canonical_number, lower(rcs.title)
+         ) visible on true
         where u.id like 'congregation-voter:%'
           and u.active = true
           and not exists (
@@ -61,7 +84,8 @@ export class PostgresCongregationPreferenceAdminService {
           and not exists (
             select 1 from protected_account_actor_links links where links.app_user_id = u.id
           )
-        order by lower(u.display_name), rcs.canonical_number nulls last, lower(rcs.title) nulls last`,
+        order by lower(u.display_name), visible.language nulls last,
+                 visible.canonical_number nulls last, lower(visible.title) nulls last`,
       [language],
     );
 
@@ -81,15 +105,20 @@ export class PostgresCongregationPreferenceAdminService {
 
       if (row.reference_song_id === null || row.reference_song_id === undefined) continue;
       const score = Number(row.score);
-      if (score !== 1) {
-        throw new CongregationPreferenceAdminError("conflict", "Congregation preference contains an invalid non-zero score.");
+      const adminZero = Boolean(row.admin_zero);
+      if (score !== 0 && score !== 1) {
+        throw new CongregationPreferenceAdminError("conflict", "Congregation preference contains an invalid score.");
+      }
+      if (score === 0 && !adminZero) {
+        throw new CongregationPreferenceAdminError("conflict", "A voter-set zero preference must not be exposed to Admin.");
       }
       voter.songs.push({
         referenceSongId: String(row.reference_song_id),
         displayNumber: String(row.canonical_number),
         title: String(row.title),
-        language: String(row.language) as CongregationPreferenceAdminLanguage,
-        score: 1,
+        language: String(row.language) as "czech" | "polish",
+        score,
+        adminZero,
       });
     }
     return [...byProfile.values()];
@@ -159,8 +188,8 @@ export class PostgresCongregationPreferenceAdminService {
       await serializeAdminMutation(client);
       const target = await this.requirePreferenceTarget(client, profileId, referenceSongId, true);
       const beforeScore = Number(target.score);
-      if (beforeScore !== 1) {
-        throw new CongregationPreferenceAdminError("conflict", "Only a non-zero congregation preference can be removed here.");
+      if (beforeScore !== 1 && !(beforeScore === 0 && target.adminZero)) {
+        throw new CongregationPreferenceAdminError("conflict", "Only a visible congregation preference can be removed here.");
       }
       await client.query(
         "delete from reference_song_preferences where profile_id = $1 and reference_song_id = $2",
@@ -261,12 +290,26 @@ export class PostgresCongregationPreferenceAdminService {
   ) {
     const result = await client.query(
       `select pp.id profile_id, u.id user_id, u.display_name nickname,
-              rsp.score, rcs.language, rcs.canonical_number, rcs.title
+              rsp.score, rcs.language, rcs.canonical_number, rcs.title,
+              (
+                rsp.score = 0
+                and latest.action = 'preference.congregation.admin.set'
+                and latest.after_state ->> 'score' = '0'
+              ) as admin_zero
          from preference_profiles pp
          join app_users u on u.id = pp.user_id
          join reference_catalog_songs rcs on rcs.id = $2
          left join reference_song_preferences rsp
            on rsp.profile_id = pp.id and rsp.reference_song_id = rcs.id
+         left join lateral (
+           select ae.action, ae.after_state
+             from audit_events ae
+            where ae.object_kind = 'referencePreference'
+              and ae.object_ref = pp.id || ':' || rcs.id
+              and ae.action in ('preference.congregation.admin.set', 'preference.reference.save')
+            order by ae.occurred_at desc, ae.id desc
+            limit 1
+         ) latest on true
         where pp.id = $1
           and pp.category = 'congregation_member'
           and u.id like 'congregation-voter:%'
@@ -296,6 +339,7 @@ export class PostgresCongregationPreferenceAdminService {
       userId: String(result.rows[0].user_id),
       nickname: String(result.rows[0].nickname),
       score: result.rows[0].score === null ? null : Number(result.rows[0].score),
+      adminZero: Boolean(result.rows[0].admin_zero),
     };
   }
 
@@ -332,8 +376,8 @@ export class PostgresCongregationPreferenceAdminService {
 }
 
 function validateLanguage(value: string): asserts value is CongregationPreferenceAdminLanguage {
-  if (value !== "czech" && value !== "polish") {
-    throw new CongregationPreferenceAdminError("invalidInput", "Language must be czech or polish.");
+  if (value !== "czech" && value !== "polish" && value !== "mixed") {
+    throw new CongregationPreferenceAdminError("invalidInput", "Language must be czech, polish or mixed.");
   }
 }
 
