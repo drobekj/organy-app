@@ -1475,8 +1475,9 @@ textarea {
 
 .preference-language-panel {
   flex: 0 0 auto;
-  height: auto;
-  width: 11rem;
+  height: 4.75rem;
+  min-width: 12rem;
+  width: calc(33.333333% + 0.066667rem + 1.333333px);
 }
 
 .preference-admin-feedback {
@@ -1543,6 +1544,12 @@ textarea {
 .preference-song-count {
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.preference-song-empty {
+  color: var(--muted);
+  display: inline-flex;
+  gap: 0.45rem;
 }
 
 .preference-song-popover {
