@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const route = readFileSync("app/congregation-preferences/page.tsx", "utf8");
-const standard = readFileSync("app/congregation-preferences/standard-page.tsx", "utf8");
-const demoPage = readFileSync("app/congregation-preferences/demo-page.tsx", "utf8");
-const demoWorkspace = readFileSync("app/congregation-preferences/demo-congregation-preference-workspace.tsx", "utf8");
+const productionPage = readFileSync("app/congregation-preferences/page.tsx", "utf8");
+const proxy = readFileSync("proxy.ts", "utf8");
+const demoPage = readFileSync("app/demo-congregation-preferences/page.tsx", "utf8");
+const demoWorkspace = readFileSync("app/demo-congregation-preferences/demo-congregation-preference-workspace.tsx", "utf8");
 
-assert.match(route, /resolveApplicationExperience\(\) === "demo"/);
-assert.match(route, /StandardCongregationPreferencesPage/);
-assert.match(standard, /PostgresCongregationPreferenceService/);
-assert.match(standard, /process\.env\.ORGANY_RUNTIME !== "db"/);
+assert.match(productionPage, /PostgresCongregationPreferenceService/);
+assert.match(productionPage, /process\.env\.ORGANY_RUNTIME !== "db"/);
+assert.match(productionPage, /action="\/api\/congregation-preferences" method="post"/);
+assert.doesNotMatch(productionPage, /PresbyterDemo|demo-congregation-preferences/);
+
+assert.match(proxy, /ORGANY_EXPERIENCE !== "demo"/);
+assert.match(proxy, /destination\.pathname = "\/demo-congregation-preferences"/);
+assert.match(proxy, /matcher: "\/congregation-preferences"/);
 
 assert.match(demoPage, /REFERENCE_DEMO_NICKNAME = "PresbyterDemo"/);
 assert.match(demoPage, /method="get"/);
