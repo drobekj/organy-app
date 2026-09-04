@@ -55,6 +55,8 @@ assert.match(service, /BOOTSTRAP_REGISTRATION_LIMIT = 50/);
 assert.match(service, /WEEKLY_REGISTRATION_LIMIT = 10/);
 assert.doesNotMatch(route, /enterNickname/);
 assert.match(route, /preferenceService\.signIn/);
+assert.match(route, /return problem\("Congregation preference request failed\.\", 500\)/);
+assert.doesNotMatch(route, /error instanceof Error \? error\.message/);
 assert.match(confirmRoute, /confirmRegistration/);
 
 assert.match(mailer, /https:\/\/api\.resend\.com\/emails/);
@@ -75,6 +77,7 @@ for (const table of [
 }
 assert.match(migration, /'legacy_unverified'/);
 assert.match(migration, /u\.id,[\s\S]*?u\.display_name/);
+assert.match(migration, /lower\(normalize\(btrim\(u\.display_name\), NFC\)\)/);
 assert.doesNotMatch(migration, /delete from "?(?:app_users|preference_profiles|reference_song_preferences)"?/i);
 
 for (const key of ["RESEND_API_KEY", "CONGREGATION_EMAIL_FROM", "CONGREGATION_BASE_URL", "CONGREGATION_SECURITY_SECRET"]) {
