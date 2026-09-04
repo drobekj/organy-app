@@ -50,10 +50,10 @@ BEGIN
   END IF;
 
   IF EXISTS (
-    SELECT lower(btrim(u.display_name))
+    SELECT lower(normalize(btrim(u.display_name), NFC))
       FROM "app_users" u
      WHERE u.id LIKE 'congregation-voter:%'
-     GROUP BY lower(btrim(u.display_name))
+     GROUP BY lower(normalize(btrim(u.display_name), NFC))
     HAVING count(*) > 1
   ) THEN
     RAISE EXCEPTION 'Case-insensitive legacy congregation nickname collision; migration requires explicit resolution';
@@ -66,7 +66,7 @@ SELECT
   'congregation-account:legacy:' || substring(u.id from length('congregation-voter:') + 1),
   u.id,
   u.display_name,
-  lower(btrim(u.display_name)),
+  lower(normalize(btrim(u.display_name), NFC)),
   'legacy_unverified',
   false,
   u.created_at,
