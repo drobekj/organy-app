@@ -66,7 +66,15 @@ async function main() {
     assert.equal((await db.query("select active from app_users where id='demo-admin-user'")).rows[0].active, true, "unauthorized mutation cannot deactivate admin");
 
     const voterService = new PostgresCongregationPreferenceService(db);
-    const voter = await voterService.enterNickname("Phase31 Account Admin Forbidden");
+    await db.query(`insert into app_users (id, display_name, active) values ('congregation-voter:phase31-account-admin','Phase31 Account Admin Forbidden',true);
+      insert into app_user_roles (user_id, role) values ('congregation-voter:phase31-account-admin','congregation_member');
+      insert into preference_profiles (id,user_id,category) values ('congregation-pref:phase31-account-admin','congregation-voter:phase31-account-admin','congregation_member');
+      insert into congregation_voter_accounts (id,user_id,nickname,nickname_normalized,email,email_normalized,status,is_new_registration,confirmed_at)
+      values ('congregation-account:phase31-account-admin','congregation-voter:phase31-account-admin','Phase31 Account Admin Forbidden','phase31 account admin forbidden','phase31-account-admin@example.invalid','phase31-account-admin@example.invalid','active',true,now());`);
+    const voterSignIn = await voterService.signIn("Phase31 Account Admin Forbidden");
+    assert.equal(voterSignIn.kind, "signedIn");
+    if (voterSignIn.kind !== "signedIn") throw new Error("Acceptance voter sign-in failed.");
+    const voter = voterSignIn.session;
     nicknameActorId = voter.context.userId;
     const nicknameCookie = `organy_congregation_voter=${encodeURIComponent(voter.token)}`;
     assert.equal((await adminGet(jsonRequest("GET", undefined, nicknameCookie))).status, 401, "nickname voter cookie is not protected admin authority");

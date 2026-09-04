@@ -27,6 +27,10 @@ jobs:
       DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
       BETTER_AUTH_SECRET: phase-31-28-ci-secret-long-enough-for-deterministic-acceptance
       BETTER_AUTH_URL: http://localhost:3000
+      RESEND_API_KEY: re_ci_safe_placeholder
+      CONGREGATION_EMAIL_FROM: Organy App <preferences@example.invalid>
+      CONGREGATION_BASE_URL: http://localhost:3000
+      CONGREGATION_SECURITY_SECRET: ci-congregation-security-secret-0123456789
       ORGANY_RUNTIME: db
     steps:
       - name: Checkout

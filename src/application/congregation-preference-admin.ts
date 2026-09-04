@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { appendAuditEvent, humanAuditActor } from "./audit-history";
 import { ProtectedActorError, resolveProtectedUser } from "./protected-actor";
@@ -18,6 +19,20 @@ export type CongregationPreferenceAdminVoter = {
   profileId: string;
   nickname: string;
   songs: CongregationPreferenceAdminSong[];
+};
+
+export type CongregationRegistrationAdminOverview = {
+  frozen: boolean;
+  bootstrapUsed: number;
+  bootstrapLimit: 50;
+  bootstrapCompletedAt: Date | null;
+  weeklyUsed: number;
+  weeklyLimit: 10;
+  pendingCount: number;
+  activeCount: number;
+  legacyUnverifiedCount: number;
+  suspiciousBuckets24h: number;
+  recent: { accountId: string; nickname: string; status: string; createdAt: Date; confirmedAt: Date | null }[];
 };
 
 export class CongregationPreferenceAdminError extends Error {
@@ -122,6 +137,89 @@ export class PostgresCongregationPreferenceAdminService {
       });
     }
     return [...byProfile.values()];
+  }
+
+  async registrationOverview(headers: Headers): Promise<CongregationRegistrationAdminOverview> {
+    await this.requireAdmin(headers);
+    const [control, counts, weekly, suspicious, recent] = await Promise.all([
+      this.pool.query("select registration_frozen, bootstrap_completed_at from congregation_registration_control where id = 'global'"),
+      this.pool.query(`select
+        count(*) filter (where status = 'active' and is_new_registration)::integer bootstrap_used,
+        count(*) filter (where status = 'pending')::integer pending_count,
+        count(*) filter (where status = 'active')::integer active_count,
+        count(*) filter (where status = 'legacy_unverified')::integer legacy_count
+        from congregation_voter_accounts`),
+      this.pool.query(`select count(*)::integer count from congregation_voter_accounts a
+        cross join congregation_registration_control c
+        where a.status = 'active' and a.is_new_registration = true
+          and c.id = 'global' and c.bootstrap_completed_at is not null
+          and a.confirmed_at > c.bootstrap_completed_at
+          and date_trunc('week', a.confirmed_at at time zone 'Europe/Prague') =
+              date_trunc('week', now() at time zone 'Europe/Prague')`),
+      this.pool.query("select count(*)::integer count from congregation_rate_limit_buckets where bucket_start >= now() - interval '24 hours' and request_count > 5"),
+      this.pool.query("select id, nickname, status, created_at, confirmed_at from congregation_voter_accounts order by created_at desc limit 20"),
+    ]);
+    const state = control.rows[0];
+    const count = counts.rows[0];
+    return {
+      frozen: Boolean(state?.registration_frozen),
+      bootstrapUsed: Math.min(50, Number(count?.bootstrap_used ?? 0)),
+      bootstrapLimit: 50,
+      bootstrapCompletedAt: state?.bootstrap_completed_at ? new Date(String(state.bootstrap_completed_at)) : null,
+      weeklyUsed: Number(weekly.rows[0]?.count ?? 0),
+      weeklyLimit: 10,
+      pendingCount: Number(count?.pending_count ?? 0),
+      activeCount: Number(count?.active_count ?? 0),
+      legacyUnverifiedCount: Number(count?.legacy_count ?? 0),
+      suspiciousBuckets24h: Number(suspicious.rows[0]?.count ?? 0),
+      recent: recent.rows.map((row) => ({
+        accountId: String(row.id), nickname: String(row.nickname), status: String(row.status),
+        createdAt: new Date(String(row.created_at)), confirmedAt: row.confirmed_at ? new Date(String(row.confirmed_at)) : null,
+      })),
+    };
+  }
+
+  async setRegistrationFrozen(headers: Headers, frozen: boolean) {
+    const admin = await this.requireAdmin(headers);
+    if (typeof frozen !== "boolean") throw new CongregationPreferenceAdminError("invalidInput", "A valid registration freeze state is required.");
+    const client = await this.pool.connect();
+    try {
+      await client.query("begin");
+      const before = await client.query("select registration_frozen from congregation_registration_control where id = 'global' for update");
+      if (!before.rows[0]) throw new CongregationPreferenceAdminError("conflict", "Registration control is missing.");
+      const previous = Boolean(before.rows[0].registration_frozen);
+      if (previous !== frozen) {
+        await client.query("update congregation_registration_control set registration_frozen = $1, updated_at = now() where id = 'global'", [frozen]);
+        await appendAuditEvent(client, {
+          actor: humanAuditActor({ userId: admin.id, displayName: admin.displayName, role: "admin", ...(admin.personId ? { personId: admin.personId } : {}) }),
+          action: "congregation.registration.freeze", objectKind: "congregationRegistrationControl", objectRef: "global",
+          beforeState: { frozen: previous }, afterState: { frozen },
+        });
+      }
+      await client.query("commit");
+      return { frozen };
+    } catch (error) {
+      await client.query("rollback").catch(() => undefined);
+      throw normalizeError(error);
+    } finally { client.release(); }
+  }
+
+  async recordSuspiciousRegistrationActivity(headers: Headers, rawNote: unknown) {
+    const admin = await this.requireAdmin(headers);
+    const note = typeof rawNote === "string" ? rawNote.trim() : "";
+    if (!note || note.length > 500) {
+      throw new CongregationPreferenceAdminError("invalidInput", "Suspicious activity note must contain 1 to 500 characters.");
+    }
+    const reference = `registration-suspicion:${randomUUID()}`;
+    await appendAuditEvent(this.pool, {
+      actor: humanAuditActor({ userId: admin.id, displayName: admin.displayName, role: "admin", ...(admin.personId ? { personId: admin.personId } : {}) }),
+      action: "congregation.registration.suspicious-activity",
+      objectKind: "congregationRegistrationSecurity",
+      objectRef: reference,
+      beforeState: null,
+      afterState: { note },
+    });
+    return { reference };
   }
 
   async setPreferenceScore(

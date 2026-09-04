@@ -3,6 +3,10 @@ export const PRODUCTION_RUNTIME_KEYS = [
   "DATABASE_URL",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+  "RESEND_API_KEY",
+  "CONGREGATION_EMAIL_FROM",
+  "CONGREGATION_BASE_URL",
+  "CONGREGATION_SECURITY_SECRET",
 ] as const;
 
 export type ProductionRuntimeKey = typeof PRODUCTION_RUNTIME_KEYS[number];
@@ -40,10 +44,11 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
   }
 
   const authUrlText = read(env, "BETTER_AUTH_URL");
+  let authUrl: URL | undefined;
   if (!authUrlText) {
     issues.push({ key: "BETTER_AUTH_URL", reason: "is required and must not be blank" });
   } else {
-    const authUrl = parseAbsoluteUrl(authUrlText);
+    authUrl = parseAbsoluteUrl(authUrlText);
     if (!authUrl) {
       issues.push({ key: "BETTER_AUTH_URL", reason: "must be a valid absolute http(s) URL" });
     } else if (authUrl.protocol !== "https:" && authUrl.protocol !== "http:") {
@@ -51,6 +56,33 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
     } else if (authUrl.protocol === "http:" && !isLoopbackHostname(authUrl.hostname)) {
       issues.push({ key: "BETTER_AUTH_URL", reason: "public/non-loopback URLs must use https" });
     }
+  }
+
+  if (!read(env, "RESEND_API_KEY")) issues.push({ key: "RESEND_API_KEY", reason: "is required and must not be blank" });
+
+  const sender = read(env, "CONGREGATION_EMAIL_FROM");
+  const senderAddress = sender.match(/<([^<>]+)>$/)?.[1] ?? sender;
+  if (!sender || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(senderAddress)) {
+    issues.push({ key: "CONGREGATION_EMAIL_FROM", reason: "must contain a valid sender email address" });
+  }
+
+  const congregationUrlText = read(env, "CONGREGATION_BASE_URL");
+  const congregationUrl = congregationUrlText ? parseAbsoluteUrl(congregationUrlText) : undefined;
+  if (!congregationUrl) {
+    issues.push({ key: "CONGREGATION_BASE_URL", reason: "must be a valid absolute http(s) URL" });
+  } else if (congregationUrl.protocol !== "https:" && !(congregationUrl.protocol === "http:" && isLoopbackHostname(congregationUrl.hostname))) {
+    issues.push({ key: "CONGREGATION_BASE_URL", reason: "must use https, except loopback local acceptance may use http" });
+  } else if (authUrl && congregationUrl.origin !== authUrl.origin) {
+    issues.push({ key: "CONGREGATION_BASE_URL", reason: "must use the same canonical origin as BETTER_AUTH_URL" });
+  }
+
+  const congregationSecret = read(env, "CONGREGATION_SECURITY_SECRET");
+  if (!congregationSecret) {
+    issues.push({ key: "CONGREGATION_SECURITY_SECRET", reason: "is required and must not be blank" });
+  } else if (congregationSecret.length < 32) {
+    issues.push({ key: "CONGREGATION_SECURITY_SECRET", reason: "must contain at least 32 characters" });
+  } else if (isKnownPlaceholderSecret(congregationSecret)) {
+    issues.push({ key: "CONGREGATION_SECURITY_SECRET", reason: "must not use a known placeholder value" });
   }
 
   return issues;

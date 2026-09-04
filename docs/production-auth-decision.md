@@ -1,5 +1,7 @@
 # Production Authentication Decision
 
+> Update (Issue #431): the nickname-only congregation identity described below has been superseded by the stable, email-confirmed voter model in `docs/congregation-voter-identity.md`. Protected staff authentication remains authoritative here.
+
 Authority: Phase 31.27 Contract Gate #166; `docs/auth-account-role-model.md`; REQ-012; backlog RP-001/RP-002; current Next.js + Drizzle + PostgreSQL implementation direction; user correction on 2026-08-12.
 
 ## Decision

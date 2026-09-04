@@ -171,6 +171,32 @@ async function main() {
     assert.equal(signedOutError.code, "unauthenticated");
     assert.equal(Number((await db.query("select count(*)::int n from auth_sessions")).rows[0].n), 0, "sign-out must leave no acceptance session");
 
+    const congregationSongId = String((await db.query(
+      "select id from reference_catalog_songs where language='czech' order by canonical_number limit 1",
+    )).rows[0]?.id ?? "");
+    assert.ok(congregationSongId, "acceptance Reference catalog must contain a Czech song");
+    await db.query(`
+      insert into app_users (id,display_name,active)
+        values ('congregation-voter:phase-31-41-legacy','Acceptance Legacy Voter',true);
+      insert into app_user_roles (user_id,role)
+        values ('congregation-voter:phase-31-41-legacy','congregation_member');
+      insert into preference_profiles (id,user_id,category)
+        values ('congregation-pref:phase-31-41-legacy','congregation-voter:phase-31-41-legacy','congregation_member');
+      insert into congregation_voter_accounts (id,user_id,nickname,nickname_normalized,status,is_new_registration)
+        values ('congregation-account:phase-31-41-legacy','congregation-voter:phase-31-41-legacy','Acceptance Legacy Voter','acceptance legacy voter','legacy_unverified',false);
+    `);
+    await db.query(
+      "insert into reference_song_preferences (profile_id,reference_song_id,score) values ('congregation-pref:phase-31-41-legacy',$1,1)",
+      [congregationSongId],
+    );
+    const congregationBefore = (await db.query(`
+      select a.user_id, a.status, p.id profile_id, rsp.reference_song_id, rsp.score
+        from congregation_voter_accounts a
+        join preference_profiles p on p.user_id=a.user_id and p.category='congregation_member'
+        join reference_song_preferences rsp on rsp.profile_id=p.id
+       where a.id='congregation-account:phase-31-41-legacy'
+    `)).rows[0];
+
     bootstrap([], organistEnv);
     bootstrap(["--apply"], organistEnv);
     const organist = (await db.query(`
@@ -186,6 +212,19 @@ async function main() {
     assert.equal(organist.person_display_name, "Acceptance Organist Person");
     assert.equal(organist.priest, false);
     assert.equal(organist.organist, true);
+
+    const congregationAfter = (await db.query(`
+      select a.user_id, a.status, p.id profile_id, rsp.reference_song_id, rsp.score
+        from congregation_voter_accounts a
+        join preference_profiles p on p.user_id=a.user_id and p.category='congregation_member'
+        join reference_song_preferences rsp on rsp.profile_id=p.id
+       where a.id='congregation-account:phase-31-41-legacy'
+    `)).rows[0];
+    assert.deepEqual(
+      congregationAfter,
+      congregationBefore,
+      "protected identity bootstrap must preserve the exact congregation voter identity/profile/preference state",
+    );
 
     const missingExplicitIdentity = spawnSync(npx, ["tsx", bootstrapScript], {
       env: {
@@ -219,12 +258,12 @@ async function main() {
     assert.equal(Number(reference.thematic_sections), 71);
     assert.equal(Number(reference.thematic_ranges), 71);
     assert.equal(Number(reference.config_ok), 1);
-    assert.equal(Number(reference.preferences), 0);
+    assert.equal(Number(reference.preferences), 1, "reviewed congregation preference profile remains intact");
     assert.equal(Number(reference.repertoire), 0);
     assert.equal(Number(reference.services), 0);
 
     console.log("Phase 31.41 protected Production identity bootstrap acceptance: PASS");
-    console.log("Explicit dry-run/apply, idempotent password preservation, Person linkage, sign-in/sign-out, and Production data isolation verified.");
+    console.log("Explicit dry-run/apply, idempotent password preservation, Person linkage, sign-in/sign-out, congregation coexistence, and Production data isolation verified.");
   } finally {
     await db.end();
     await authPool.end().catch(() => undefined);

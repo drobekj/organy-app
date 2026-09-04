@@ -5,7 +5,7 @@ import * as schema from "../src/db/schema";
 
 const APPLY_FLAG = "--apply";
 const DIRECT_URL_KEY = "DATABASE_URL_UNPOOLED";
-const MIGRATION_OWNED_CONFIG_TABLE = "melody_non_repetition_config";
+const MIGRATION_OWNED_CONFIG_TABLES = ["congregation_registration_control", "melody_non_repetition_config"].sort();
 
 const SAFE_FAILURES = new Set([
   `${DIRECT_URL_KEY} is required for the first production migration.`,
@@ -104,9 +104,15 @@ async function nonEmptyPublicTables(pool: Pool): Promise<string[]> {
 
 async function assertReviewedMigrationOwnedConfig(pool: Pool): Promise<void> {
   const rows = (await pool.query(
-    `select id, months from public.${quoteIdentifier(MIGRATION_OWNED_CONFIG_TABLE)} order by id`,
+    `select id, months from public.${quoteIdentifier("melody_non_repetition_config")} order by id`,
   )).rows as Array<{ id: string; months: number }>;
   if (rows.length !== 1 || rows[0]?.id !== "global" || Number(rows[0]?.months) !== 2) {
+    throw new Error("Reviewed migration-owned configuration singleton is missing or has unexpected contents.");
+  }
+  const registrationRows = (await pool.query(
+    `select id, registration_frozen, bootstrap_completed_at from public.${quoteIdentifier("congregation_registration_control")} order by id`,
+  )).rows as Array<{ id: string; registration_frozen: boolean; bootstrap_completed_at: Date | null }>;
+  if (registrationRows.length !== 1 || registrationRows[0]?.id !== "global" || Boolean(registrationRows[0]?.registration_frozen) || registrationRows[0]?.bootstrap_completed_at !== null) {
     throw new Error("Reviewed migration-owned configuration singleton is missing or has unexpected contents.");
   }
 }
@@ -148,13 +154,13 @@ async function main(): Promise<void> {
     }
 
     const nonEmpty = await nonEmptyPublicTables(pool);
-    if (nonEmpty.length !== 1 || nonEmpty[0] !== MIGRATION_OWNED_CONFIG_TABLE) {
+    if (JSON.stringify(nonEmpty) !== JSON.stringify(MIGRATION_OWNED_CONFIG_TABLES)) {
       throw new Error("Schema migration unexpectedly created application rows outside the reviewed migration-owned configuration singleton.");
     }
     await assertReviewedMigrationOwnedConfig(pool);
 
     console.log("First production schema migration: PASS");
-    console.log("Reviewed Drizzle schema applied through the direct/unpooled connection; only the reviewed migration-owned configuration singleton contains a row.");
+    console.log("Reviewed Drizzle schema applied through the direct/unpooled connection; only the two reviewed migration-owned configuration singletons contain rows.");
   } catch (error) {
     console.error(apply ? "First production schema migration: FAIL" : "First production schema migration preflight: FAIL");
     console.error(safeFailure(error));

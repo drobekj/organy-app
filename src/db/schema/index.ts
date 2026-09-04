@@ -234,6 +234,7 @@ export const completedServiceRows = pgTable(
 
 export const preferenceProfileCategory = pgEnum("preference_profile_category", ["priest", "organist", "congregation_member"]);
 export const userRole = pgEnum("user_role", ["priest", "organist", "admin", "congregation_member"]);
+export const congregationVoterStatus = pgEnum("congregation_voter_status", ["pending", "active", "legacy_unverified"]);
 
 export const appUsers = pgTable("app_users", {
   id: text("id").primaryKey(),
@@ -329,6 +330,78 @@ export const preferenceProfiles = pgTable("preference_profiles", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({ oneProfilePerUser: uniqueIndex("preference_profiles_user_id_idx").on(table.userId) }));
+
+export const congregationVoterAccounts = pgTable("congregation_voter_accounts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => appUsers.id, { onDelete: "cascade" }),
+  nickname: text("nickname").notNull(),
+  nicknameNormalized: text("nickname_normalized").notNull(),
+  email: text("email"),
+  emailNormalized: text("email_normalized"),
+  status: congregationVoterStatus("status").notNull(),
+  isNewRegistration: boolean("is_new_registration").notNull().default(true),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  oneAccountPerUser: uniqueIndex("congregation_voter_accounts_user_idx").on(table.userId),
+  nicknameUnique: uniqueIndex("congregation_voter_accounts_nickname_normalized_idx").on(table.nicknameNormalized),
+  emailUnique: uniqueIndex("congregation_voter_accounts_email_normalized_idx").on(table.emailNormalized),
+  validState: check("congregation_voter_accounts_state_valid", sql`(
+    (${table.status} = 'pending' and ${table.userId} is null and ${table.email} is not null and ${table.emailNormalized} is not null and ${table.confirmedAt} is null)
+    or
+    (${table.status} = 'active' and ${table.userId} is not null and ${table.email} is not null and ${table.emailNormalized} is not null and ${table.confirmedAt} is not null)
+    or
+    (${table.status} = 'legacy_unverified' and ${table.userId} is not null and ${table.confirmedAt} is null and ((${table.email} is null and ${table.emailNormalized} is null) or (${table.email} is not null and ${table.emailNormalized} is not null)))
+  )`),
+  nicknameNotEmpty: check("congregation_voter_accounts_nickname_not_empty", sql`btrim(${table.nickname}) <> '' and btrim(${table.nicknameNormalized}) <> ''`),
+  emailPair: check("congregation_voter_accounts_email_pair", sql`(${table.email} is null) = (${table.emailNormalized} is null)`),
+}));
+
+export const congregationConfirmationTokens = pgTable("congregation_confirmation_tokens", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull().references(() => congregationVoterAccounts.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  invalidatedAt: timestamp("invalidated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex("congregation_confirmation_tokens_hash_idx").on(table.tokenHash),
+  accountIndex: index("congregation_confirmation_tokens_account_idx").on(table.accountId),
+  oneTerminalState: check("congregation_confirmation_tokens_terminal_state", sql`not (${table.usedAt} is not null and ${table.invalidatedAt} is not null)`),
+}));
+
+export const congregationVoterSessions = pgTable("congregation_voter_sessions", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull().references(() => congregationVoterAccounts.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex("congregation_voter_sessions_hash_idx").on(table.tokenHash),
+  accountIndex: index("congregation_voter_sessions_account_idx").on(table.accountId),
+}));
+
+export const congregationRateLimitBuckets = pgTable("congregation_rate_limit_buckets", {
+  id: text("id").primaryKey(),
+  action: text("action").notNull(),
+  scope: text("scope").notNull(),
+  keyHash: text("key_hash").notNull(),
+  bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
+  requestCount: integer("request_count").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  bucketUnique: uniqueIndex("congregation_rate_limit_bucket_idx").on(table.action, table.scope, table.keyHash, table.bucketStart),
+  positiveCount: check("congregation_rate_limit_request_count_positive", sql`${table.requestCount} > 0`),
+}));
+
+export const congregationRegistrationControl = pgTable("congregation_registration_control", {
+  id: text("id").primaryKey(),
+  registrationFrozen: boolean("registration_frozen").notNull().default(false),
+  bootstrapCompletedAt: timestamp("bootstrap_completed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ singleton: check("congregation_registration_control_singleton", sql`${table.id} = 'global'`) }));
 
 export const melodyEquivalenceClasses = pgTable("melody_equivalence_classes", {
   id: text("id").primaryKey(),

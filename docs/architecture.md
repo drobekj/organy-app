@@ -207,6 +207,7 @@ Boundaries:
 - UI hiding is not sufficient authorization enforcement.
 - Permissions for state-changing actions must be enforced in application/domain behavior, not only by hiding UI controls.
 - Phase 31.27 selects two production access levels: protected admin/priest/organist Accounts use admin-provisioned username/password authentication with PostgreSQL/Drizzle-backed sessions and no public privileged signup; congregation members use nickname-only preference-voter Actors with no login Account or password. Physical auth schema, login/account-admin UI, password-recovery mechanics, nickname UI details, deployment secrets, and security operations remain later implementation concerns.
+- Issue #431 supersedes the nickname-derived congregation identity: voters now have stable random Actor/profile identity, confirmed email ownership, hashed opaque sessions, and an explicit legacy-claim path that preserves existing IDs and preferences. See `docs/congregation-voter-identity.md`. Protected staff authentication remains separate and unchanged.
 
 ## History Module
 

@@ -54,7 +54,10 @@ async function main() {
     assert.equal(successAfterState?.mode, "apply");
 
     const vercel = JSON.parse(await readFile("vercel.json", "utf8")) as { crons?: Array<{ path: string; schedule: string }> };
-    assert.deepEqual(vercel.crons, [{ path: "/api/maintenance/audit-retention", schedule: "0 3 1 * *" }]);
+    assert.deepEqual(vercel.crons, [
+      { path: "/api/maintenance/audit-retention", schedule: "0 3 1 * *" },
+      { path: "/api/maintenance/congregation-registration", schedule: "15 2 * * *" },
+    ]);
 
     const route = await readFile("app/api/maintenance/audit-retention/route.ts", "utf8");
     assert.match(route, /CRON_SECRET/);

@@ -29,6 +29,10 @@ jobs:
       DATABASE_URL_UNPOOLED: postgres://organy_app:organy_app@127.0.0.1:5432/organy_first_migration
       BETTER_AUTH_SECRET: phase-31-38-ci-secret-randomized-baseline-0123456789
       BETTER_AUTH_URL: http://localhost:3000
+      RESEND_API_KEY: re_ci_safe_placeholder
+      CONGREGATION_EMAIL_FROM: Organy App <preferences@example.invalid>
+      CONGREGATION_BASE_URL: http://localhost:3000
+      CONGREGATION_SECURITY_SECRET: ci-congregation-security-secret-0123456789
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -32,6 +32,10 @@ jobs:
       ORGANY_RUNTIME: db
       BETTER_AUTH_SECRET: demo-safety-ci-secret-long-enough-for-protected-runtime-acceptance
       BETTER_AUTH_URL: http://127.0.0.1:3000
+      RESEND_API_KEY: re_ci_safe_placeholder
+      CONGREGATION_EMAIL_FROM: Organy App <preferences@example.invalid>
+      CONGREGATION_BASE_URL: http://127.0.0.1:3000
+      CONGREGATION_SECURITY_SECRET: ci-congregation-security-secret-0123456789
       ORGANY_BOOTSTRAP_ADMIN_PASSWORD: DemoD0Admin!2026
       ORGANY_BOOTSTRAP_PRIEST_PASSWORD: DemoD0Priest!2026
       ORGANY_BOOTSTRAP_ORGANIST_PASSWORD: DemoD0Organist!2026
@@ -128,13 +132,13 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .next
-          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run build
+          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             -u RESEND_API_KEY             -u CONGREGATION_EMAIL_FROM             -u CONGREGATION_BASE_URL             -u CONGREGATION_SECURITY_SECRET             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run build
 
       - name: Stage D1 public Demo boot without secrets
         shell: bash
         run: |
           set -euo pipefail
-          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run start -- --hostname 127.0.0.1 --port 3100 > d1-next.log 2>&1 &
+          env             -u DATABASE_URL             -u DATABASE_URL_UNPOOLED             -u POSTGRES_URL             -u POSTGRES_PRISMA_URL             -u BETTER_AUTH_SECRET             -u BETTER_AUTH_URL             -u CRON_SECRET             -u NEON_API_KEY             -u RESEND_API_KEY             -u CONGREGATION_EMAIL_FROM             -u CONGREGATION_BASE_URL             -u CONGREGATION_SECURITY_SECRET             ORGANY_EXPERIENCE=demo             ORGANY_RUNTIME=memory             npm run start -- --hostname 127.0.0.1 --port 3100 > d1-next.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
 

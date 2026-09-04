@@ -1,5 +1,7 @@
 # Authentication, Account, Actor, and Role Model
 
+> Update (Issue #431): congregation voters now use the stable, email-confirmed identity and opaque-session model in `docs/congregation-voter-identity.md`. The older nickname-only passages below remain historical provenance, not the current voter-identity contract.
+
 ## 1. Purpose
 
 This document defines the logical authentication, account, actor, voter-identity, and role model for the app, records the production access direction corrected in Phase 31.27, records the protected staff implementation completed in Phase 31.28, the nickname-only congregation preference implementation completed in Phase 31.29, the admin protected Account/RoleAssignment management completed in Phase 31.30, the protected credential reset/recovery boundary implemented in Phase 31.31, the minimal production runtime configuration/preflight boundary implemented in Phase 31.32, and the PostgreSQL logical backup/restore recovery baseline implemented in Phase 31.33.
