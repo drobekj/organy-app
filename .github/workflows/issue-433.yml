@@ -1,0 +1,39 @@
+name: Demo congregation reference voter acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      ORGANY_EXPERIENCE: demo
+      ORGANY_RUNTIME: memory
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+
+      - name: Issue 433 reference voter contract
+        run: npx tsx scripts/issue-433-tests.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Demo build without Production secrets
+        run: npm run build
