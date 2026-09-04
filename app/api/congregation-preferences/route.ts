@@ -138,7 +138,7 @@ function serviceProblem(error: unknown) {
     const status = error.code === "invalidInput" ? 400 : error.code === "unauthenticated" ? 401 : error.code === "notFound" ? 404 : error.code === "rateLimited" ? 429 : 403;
     return problem(error.message, status);
   }
-  return problem(error instanceof Error ? error.message : "Congregation preference request failed.", 500);
+  return problem("Congregation preference request failed.", 500);
 }
 
 function problem(message: string, status: number) {
