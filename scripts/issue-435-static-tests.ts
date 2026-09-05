@@ -57,10 +57,13 @@ const temporarySource = readFileSync("src/application/temporary-congregation-vot
 
 assert.match(routeSource, /startTemporaryVoting/);
 assert.match(routeSource, /Registration and nickname actions are disabled during temporary browser voting/);
+assert.match(routeSource, /requireTemporaryVoter/);
+assert.match(routeSource, /congregation-account:temporary:/);
 assert.match(routeSource, /TEMPORARY_VOTER_SESSION_TTL_SECONDS/);
 assert.match(confirmSource, /isTemporaryCongregationVoterMode\(\)/);
 assert.match(pageSource, /Start voting/);
 assert.match(pageSource, /no registration, nickname or email is required/i);
+assert.match(pageSource, /TEMPORARY_ACCOUNT_PREFIX/);
 assert.match(pageSource, /temporaryMode \? "Congregation Preferences" : voter\.nickname/);
 assert.doesNotMatch(temporarySource, /RESEND_API_KEY|CONGREGATION_EMAIL_FROM|CONGREGATION_SECURITY_SECRET/);
 
