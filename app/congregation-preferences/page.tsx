@@ -14,8 +14,8 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return configurationMessage("DATABASE_URL is required for congregation preferences.");
   const params = await searchParams;
-  if (first(params.entry) === "1") return entryPanel(params);
   const temporaryMode = isTemporaryCongregationVoterMode();
+  if (!temporaryMode && first(params.entry) === "1") return entryPanel(params);
 
   const token = (await cookies()).get(CONTEXT_COOKIE)?.value;
   if (!token) return temporaryMode ? temporaryEntryPanel() : entryPanel(params);
@@ -82,7 +82,7 @@ function temporaryEntryPanel(expired = false) {
           <input type="hidden" name="action" value="startTemporaryVoting" />
           <button className="congregation-entry-button" type="submit">Start voting</button>
         </form>
-        <div className="congregation-entry-divider" aria-hidden="true" />
+        <div className="congregation-entry-divider" aria-hidden="true"></div>
         <div className="congregation-entry-options">
           <EntryOption href="/sign-in" label="Staff sign in" help="if you are a priest, organist or admin" />
         </div>
@@ -109,7 +109,7 @@ function entryPanel(params: Record<string, string | string[] | undefined>) {
           <button className="congregation-entry-button" type="submit">Sign in</button>
         </form>
         <Notice code={notice} nickname={nickname} />
-        <div className="congregation-entry-divider" aria-hidden="true" />
+        <div className="congregation-entry-divider" aria-hidden="true"></div>
         <div className="congregation-entry-options">
           <EntryOption href="/congregation-preferences?entry=1&view=register" label="Register" help="if you haven't registered yet" />
           <EntryOption href="/congregation-preferences?entry=1&view=recover" label="Recover nickname" help="if you forgot your nickname" />
