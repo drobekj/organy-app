@@ -77,7 +77,7 @@ function temporaryEntryPanel(expired = false) {
         <h1>Congregation Preferences</h1>
         <p className="field-help">Vote for your favorite songs to be considered.</p>
         <p className="field-help">Temporary test mode: no registration, nickname or email is required. Your votes remain linked to this browser.</p>
-        {expired && <p role="status" className="auth-error">This browser&apos;s previous test voter session has expired. Start a new test voter to continue.</p>}
+        {expired && <p role="alert" className="auth-error">This browser&apos;s previous test voter session has expired. Start a new test voter to continue.</p>}
         <form className="congregation-entry-sign-in" action="/api/congregation-preferences" method="post">
           <input type="hidden" name="action" value="startTemporaryVoting" />
           <button className="congregation-entry-button" type="submit">Start voting</button>
