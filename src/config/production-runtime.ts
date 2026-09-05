@@ -1,12 +1,20 @@
-export const PRODUCTION_RUNTIME_KEYS = [
+export const PRODUCTION_CORE_RUNTIME_KEYS = [
   "ORGANY_RUNTIME",
   "DATABASE_URL",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+] as const;
+
+export const CONGREGATION_EMAIL_RUNTIME_KEYS = [
   "RESEND_API_KEY",
   "CONGREGATION_EMAIL_FROM",
   "CONGREGATION_BASE_URL",
   "CONGREGATION_SECURITY_SECRET",
+] as const;
+
+export const PRODUCTION_RUNTIME_KEYS = [
+  ...PRODUCTION_CORE_RUNTIME_KEYS,
+  ...CONGREGATION_EMAIL_RUNTIME_KEYS,
 ] as const;
 
 export type ProductionRuntimeKey = typeof PRODUCTION_RUNTIME_KEYS[number];
@@ -23,7 +31,7 @@ export class ProductionRuntimeConfigError extends Error {
   }
 }
 
-export function validateProductionRuntimeConfig(env: RuntimeEnvironment): ProductionRuntimeIssue[] {
+export function validateProductionCoreRuntimeConfig(env: RuntimeEnvironment): ProductionRuntimeIssue[] {
   const issues: ProductionRuntimeIssue[] = [];
 
   if (read(env, "ORGANY_RUNTIME") !== "db") {
@@ -44,11 +52,10 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
   }
 
   const authUrlText = read(env, "BETTER_AUTH_URL");
-  let authUrl: URL | undefined;
   if (!authUrlText) {
     issues.push({ key: "BETTER_AUTH_URL", reason: "is required and must not be blank" });
   } else {
-    authUrl = parseAbsoluteUrl(authUrlText);
+    const authUrl = parseAbsoluteUrl(authUrlText);
     if (!authUrl) {
       issues.push({ key: "BETTER_AUTH_URL", reason: "must be a valid absolute http(s) URL" });
     } else if (authUrl.protocol !== "https:" && authUrl.protocol !== "http:") {
@@ -58,7 +65,15 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
     }
   }
 
-  if (!read(env, "RESEND_API_KEY")) issues.push({ key: "RESEND_API_KEY", reason: "is required and must not be blank" });
+  return issues;
+}
+
+export function validateCongregationEmailRuntimeConfig(env: RuntimeEnvironment): ProductionRuntimeIssue[] {
+  const issues: ProductionRuntimeIssue[] = [];
+
+  if (!read(env, "RESEND_API_KEY")) {
+    issues.push({ key: "RESEND_API_KEY", reason: "is required and must not be blank" });
+  }
 
   const sender = read(env, "CONGREGATION_EMAIL_FROM");
   const senderAddress = sender.match(/<([^<>]+)>$/)?.[1] ?? sender;
@@ -72,8 +87,12 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
     issues.push({ key: "CONGREGATION_BASE_URL", reason: "must be a valid absolute http(s) URL" });
   } else if (congregationUrl.protocol !== "https:" && !(congregationUrl.protocol === "http:" && isLoopbackHostname(congregationUrl.hostname))) {
     issues.push({ key: "CONGREGATION_BASE_URL", reason: "must use https, except loopback local acceptance may use http" });
-  } else if (authUrl && congregationUrl.origin !== authUrl.origin) {
-    issues.push({ key: "CONGREGATION_BASE_URL", reason: "must use the same canonical origin as BETTER_AUTH_URL" });
+  } else {
+    const authUrlText = read(env, "BETTER_AUTH_URL");
+    const authUrl = authUrlText ? parseAbsoluteUrl(authUrlText) : undefined;
+    if (authUrl && congregationUrl.origin !== authUrl.origin) {
+      issues.push({ key: "CONGREGATION_BASE_URL", reason: "must use the same canonical origin as BETTER_AUTH_URL" });
+    }
   }
 
   const congregationSecret = read(env, "CONGREGATION_SECURITY_SECRET");
@@ -88,6 +107,23 @@ export function validateProductionRuntimeConfig(env: RuntimeEnvironment): Produc
   return issues;
 }
 
+export function validateProductionRuntimeConfig(env: RuntimeEnvironment): ProductionRuntimeIssue[] {
+  return [
+    ...validateProductionCoreRuntimeConfig(env),
+    ...validateCongregationEmailRuntimeConfig(env),
+  ];
+}
+
+export function assertProductionCoreRuntimeConfig(env: RuntimeEnvironment = process.env): void {
+  const issues = validateProductionCoreRuntimeConfig(env);
+  if (issues.length > 0) throw new ProductionRuntimeConfigError(issues);
+}
+
+export function assertCongregationEmailRuntimeConfig(env: RuntimeEnvironment = process.env): void {
+  const issues = validateCongregationEmailRuntimeConfig(env);
+  if (issues.length > 0) throw new ProductionRuntimeConfigError(issues);
+}
+
 export function assertProductionRuntimeConfig(env: RuntimeEnvironment = process.env): void {
   const issues = validateProductionRuntimeConfig(env);
   if (issues.length > 0) throw new ProductionRuntimeConfigError(issues);
@@ -98,7 +134,7 @@ export function resolveApplicationRuntimeMode(
   nodeEnv: string | undefined = process.env.NODE_ENV,
 ): ApplicationRuntimeMode {
   if (nodeEnv === "production") {
-    assertProductionRuntimeConfig(env);
+    assertProductionCoreRuntimeConfig(env);
     return "db";
   }
   return read(env, "ORGANY_RUNTIME") === "db" ? "db" : "memory";
