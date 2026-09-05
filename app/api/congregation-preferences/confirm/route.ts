@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAppDbPool } from "../../../../src/db/app-pool";
 import { CongregationVoterError } from "../../../../src/application/congregation-preference-voter";
+import { isTemporaryCongregationVoterMode } from "../../../../src/application/congregation-voter-mode";
 import { createRuntimeCongregationPreferenceService } from "../../../../src/application/congregation-voter-runtime";
 
 const congregationVoterCookie = "organy_congregation_voter";
 
 export async function GET(request: NextRequest) {
+  if (isTemporaryCongregationVoterMode()) {
+    return NextResponse.redirect(new URL("/congregation-preferences", request.url), 303);
+  }
   if (process.env.ORGANY_RUNTIME !== "db" || !process.env.DATABASE_URL) return redirectNotice(request, "requestFailed");
   try {
     const result = await createRuntimeCongregationPreferenceService(getAppDbPool()).confirmRegistration(

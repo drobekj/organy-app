@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAppDbPool } from "../../../src/db/app-pool";
 import { CongregationVoterError, PostgresCongregationPreferenceService } from "../../../src/application/congregation-preference-voter";
+import { isTemporaryCongregationVoterMode } from "../../../src/application/congregation-voter-mode";
 import { createRuntimeCongregationPreferenceService } from "../../../src/application/congregation-voter-runtime";
+import {
+  createTemporaryCongregationVoterSession,
+  TEMPORARY_VOTER_SESSION_TTL_SECONDS,
+} from "../../../src/application/temporary-congregation-voter";
 
 const congregationVoterCookie = "organy_congregation_voter";
-type FormAction = "signIn" | "register" | "resendConfirmation" | "recoverNickname" | "saveOwnPreference" | "clearNickname";
+const temporaryAccountPrefix = "congregation-account:temporary:";
+type FormAction = "startTemporaryVoting" | "signIn" | "register" | "resendConfirmation" | "recoverNickname" | "saveOwnPreference" | "clearNickname";
 
 export async function POST(request: NextRequest) {
   if (process.env.ORGANY_RUNTIME !== "db") return problem("Congregation preference DB runtime is not enabled.", 400);
@@ -17,8 +23,10 @@ export async function POST(request: NextRequest) {
     try {
       const body = await request.json() as { action?: unknown; referenceSongId?: unknown; score?: unknown };
       if (body.action !== "saveOwnPreference") return problem("Unsupported congregation preference action.", 400);
+      const token = request.cookies.get(congregationVoterCookie)?.value;
+      if (isTemporaryCongregationVoterMode()) await requireTemporaryVoter(preferenceService, token);
       const preference = await preferenceService.saveOwnReferencePreference(
-        request.cookies.get(congregationVoterCookie)?.value,
+        token,
         body.referenceSongId,
         body.score,
       );
@@ -31,14 +39,40 @@ export async function POST(request: NextRequest) {
   const form = await request.formData().catch(() => undefined);
   if (!form) return problem("Form data is required.", 400);
   const action = String(form.get("action") ?? "") as FormAction;
-  if (action === "clearNickname") {
-    await preferenceService.clearSession(request.cookies.get(congregationVoterCookie)?.value);
-    const response = entryRedirect(request);
-    response.cookies.delete(congregationVoterCookie);
-    return response;
-  }
 
   try {
+    if (action === "saveOwnPreference") {
+      const scoreText = String(form.get("score") ?? "");
+      const score = scoreText === "0" ? 0 : scoreText === "1" ? 1 : Number.NaN;
+      const songId = String(form.get("referenceSongId") ?? "");
+      const token = request.cookies.get(congregationVoterCookie)?.value;
+      if (isTemporaryCongregationVoterMode()) await requireTemporaryVoter(preferenceService, token);
+      await preferenceService.saveOwnReferencePreference(token, songId, score);
+      const target = new URL("/congregation-preferences", request.url);
+      target.searchParams.set("song", songId);
+      target.searchParams.set("saved", "1");
+      return NextResponse.redirect(target, 303);
+    }
+
+    if (isTemporaryCongregationVoterMode()) {
+      if (action !== "startTemporaryVoting") {
+        return problem("Registration and nickname actions are disabled during temporary browser voting.", 403);
+      }
+      const session = await createTemporaryCongregationVoterSession(pool);
+      return signedInRedirect(request, session.token, TEMPORARY_VOTER_SESSION_TTL_SECONDS);
+    }
+
+    if (action === "startTemporaryVoting") {
+      return problem("Temporary browser voting is not enabled.", 403);
+    }
+
+    if (action === "clearNickname") {
+      await preferenceService.clearSession(request.cookies.get(congregationVoterCookie)?.value);
+      const response = entryRedirect(request);
+      response.cookies.delete(congregationVoterCookie);
+      return response;
+    }
+
     if (action === "signIn") {
       const result = await preferenceService.signIn(form.get("nickname"));
       if (result.kind === "signedIn") return signedInRedirect(request, result.session.token);
@@ -76,16 +110,6 @@ export async function POST(request: NextRequest) {
       return noticeRedirect(request, result.kind === "sent" ? "recoverySent" : "recoveryMissing", { view: "recover" });
     }
 
-    if (action === "saveOwnPreference") {
-      const scoreText = String(form.get("score") ?? "");
-      const score = scoreText === "0" ? 0 : scoreText === "1" ? 1 : Number.NaN;
-      const songId = String(form.get("referenceSongId") ?? "");
-      await preferenceService.saveOwnReferencePreference(request.cookies.get(congregationVoterCookie)?.value, songId, score);
-      const target = new URL("/congregation-preferences", request.url);
-      target.searchParams.set("song", songId);
-      target.searchParams.set("saved", "1");
-      return NextResponse.redirect(target, 303);
-    }
     return problem("Unsupported congregation preference action.", 400);
   } catch (error) {
     if (error instanceof CongregationVoterError) {
@@ -96,13 +120,21 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function signedInRedirect(request: NextRequest, token: string) {
+async function requireTemporaryVoter(service: PostgresCongregationPreferenceService, token: unknown): Promise<void> {
+  const context = await service.resolveContext(token);
+  if (!context.accountId.startsWith(temporaryAccountPrefix)) {
+    throw new CongregationVoterError("permissionDenied", "Temporary browser voter session is required.");
+  }
+}
+
+function signedInRedirect(request: NextRequest, token: string, maxAgeSeconds?: number) {
   const response = NextResponse.redirect(new URL("/congregation-preferences", request.url), 303);
   response.cookies.set(congregationVoterCookie, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
+    ...(maxAgeSeconds ? { maxAge: maxAgeSeconds } : {}),
   });
   return response;
 }
