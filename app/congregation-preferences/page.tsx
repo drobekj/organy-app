@@ -14,8 +14,8 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return configurationMessage("DATABASE_URL is required for congregation preferences.");
   const params = await searchParams;
+  if (first(params.entry) === "1") return entryPanel(params);
   const temporaryMode = isTemporaryCongregationVoterMode();
-  if (!temporaryMode && first(params.entry) === "1") return entryPanel(params);
 
   const token = (await cookies()).get(CONTEXT_COOKIE)?.value;
   if (!token) return temporaryMode ? temporaryEntryPanel() : entryPanel(params);
@@ -92,6 +92,7 @@ function temporaryEntryPanel(expired = false) {
 }
 
 function entryPanel(params: Record<string, string | string[] | undefined>) {
+  if (isTemporaryCongregationVoterMode()) return temporaryEntryPanel();
   const view = first(params.view);
   const nickname = first(params.nickname) ?? "";
   const notice = first(params.notice);
