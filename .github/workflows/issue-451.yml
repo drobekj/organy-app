@@ -1,0 +1,26 @@
+name: User menu nested-control regression acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "app/workspace-shell.css"
+      - "app/guide-hints-setting.tsx"
+      - "app/protected-account-controls.tsx"
+      - "scripts/issue-451-tests.ts"
+      - ".github/workflows/issue-451.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - run: npx tsx scripts/issue-451-tests.ts
+      - run: npm run typecheck
