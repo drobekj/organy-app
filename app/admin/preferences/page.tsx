@@ -6,6 +6,7 @@ import {
   PostgresCongregationPreferenceAdminService,
   type CongregationPreferenceAdminLanguage,
 } from "../../../src/application/congregation-preference-admin";
+import { congregationAdminVoterLabel } from "../../../src/application/congregation-voter-admin-label";
 import { ProtectedActorError, resolveProtectedUser } from "../../../src/application/protected-actor";
 import { ConfirmSubmitButton } from "../accounts/confirm-submit-button";
 import { PreferenceLanguageFilter } from "./preference-language-filter";
@@ -71,7 +72,7 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
             <summary>Recent registration states</summary>
             <div className="registration-admin-recent">
               {registration.recent.map((item) => (
-                <span key={item.accountId}>{item.createdAt.toISOString()} · {item.nickname} · {item.status}</span>
+                <span key={item.accountId}>{item.createdAt.toISOString()} · {congregationAdminVoterLabel(item.accountId, item.nickname)} · {item.status}</span>
               ))}
             </div>
           </details>
@@ -100,7 +101,7 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
 
           {voters.map((voter) => (
             <article className="preference-admin-row" key={voter.profileId}>
-              <strong className="preference-admin-nickname">{voter.nickname}</strong>
+              <strong className="preference-admin-nickname">{congregationAdminVoterLabel(voter.userId, voter.nickname)}</strong>
 
               {voter.songs.length > 0 ? (
                 <details className="preference-song-menu" id={`preference-song-menu-${voter.profileId}`}>
@@ -146,7 +147,7 @@ export default async function CongregationPreferencesAdminPage({ searchParams }:
                 <input type="hidden" name="action" value="deleteNickname" />
                 <input type="hidden" name="userId" value={voter.userId} />
                 <input type="hidden" name="language" value={language} />
-                <ConfirmSubmitButton message={`Delete nickname ${voter.nickname} and all of its congregation preferences?`}>
+                <ConfirmSubmitButton message={`Delete nickname ${congregationAdminVoterLabel(voter.userId, voter.nickname)} and all of its congregation preferences?`}>
                   Delete nickname
                 </ConfirmSubmitButton>
               </form>
