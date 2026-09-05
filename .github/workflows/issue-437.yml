@@ -1,0 +1,23 @@
+name: Temporary voter Admin label acceptance
+
+on:
+  pull_request:
+    paths:
+      - "app/admin/preferences/page.tsx"
+      - "src/application/congregation-voter-admin-label.ts"
+      - "scripts/issue-437-tests.ts"
+      - ".github/workflows/issue-437.yml"
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - run: npm run typecheck
+      - run: npx tsx scripts/issue-437-tests.ts
