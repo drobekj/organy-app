@@ -134,7 +134,7 @@
 }
 
 .workspace-account-popover a,
-.workspace-account-popover button {
+.workspace-account-popover button:not(.workspace-toggle-switch) {
   border-radius: 0.55rem;
   display: block;
   font-size: 0.86rem;
@@ -718,7 +718,12 @@ button.workspace-action-pending {
   gap: 1rem;
   justify-content: space-between;
   min-height: 2.2rem;
+  min-width: 0;
   padding: 0.5rem 0.65rem;
+}
+
+.workspace-guide-hints-setting > span {
+  white-space: nowrap;
 }
 
 .workspace-toggle-switch {
