@@ -4,7 +4,7 @@ import { CongregationVoterError, PostgresCongregationPreferenceService } from ".
 import { isTemporaryCongregationVoterMode } from "../../../src/application/congregation-voter-mode";
 import { createRuntimeCongregationPreferenceService } from "../../../src/application/congregation-voter-runtime";
 import {
-  createTemporaryCongregationVoterSession,
+  getOrCreateTemporaryCongregationVoterSession,
   TEMPORARY_VOTER_SESSION_TTL_SECONDS,
 } from "../../../src/application/temporary-congregation-voter";
 
@@ -58,8 +58,10 @@ export async function POST(request: NextRequest) {
       if (action !== "startTemporaryVoting") {
         return problem("Registration and nickname actions are disabled during temporary browser voting.", 403);
       }
-      const session = await createTemporaryCongregationVoterSession(pool);
-      return signedInRedirect(request, session.token, TEMPORARY_VOTER_SESSION_TTL_SECONDS);
+      const existingToken = request.cookies.get(congregationVoterCookie)?.value;
+      const resolution = await getOrCreateTemporaryCongregationVoterSession(pool, existingToken);
+      if (!resolution.created) return votingRedirect(request);
+      return signedInRedirect(request, resolution.session.token, TEMPORARY_VOTER_SESSION_TTL_SECONDS);
     }
 
     if (action === "startTemporaryVoting") {
@@ -127,8 +129,12 @@ async function requireTemporaryVoter(service: PostgresCongregationPreferenceServ
   }
 }
 
+function votingRedirect(request: NextRequest) {
+  return NextResponse.redirect(new URL("/congregation-preferences", request.url), 303);
+}
+
 function signedInRedirect(request: NextRequest, token: string, maxAgeSeconds?: number) {
-  const response = NextResponse.redirect(new URL("/congregation-preferences", request.url), 303);
+  const response = votingRedirect(request);
   response.cookies.set(congregationVoterCookie, token, {
     httpOnly: true,
     sameSite: "lax",
