@@ -8,9 +8,60 @@ export type TemporaryCongregationVoterSession = {
   expiresAt: Date;
 };
 
+export type TemporaryCongregationVoterSessionResolution = {
+  session: TemporaryCongregationVoterSession;
+  created: boolean;
+};
+
 type TemporaryVoterOptions = {
   now?: () => Date;
 };
+
+const temporaryAccountPrefix = "congregation-account:temporary:";
+const temporarySessionTokenPattern = /^cvs_[A-Za-z0-9_-]{40,}$/;
+
+/**
+ * Reuses the browser's existing temporary voter session whenever it is still
+ * valid. A new temporary identity is created only when the browser does not
+ * present a valid temporary session token.
+ */
+export async function getOrCreateTemporaryCongregationVoterSession(
+  pool: Pool,
+  existingToken: unknown,
+  options: TemporaryVoterOptions = {},
+): Promise<TemporaryCongregationVoterSessionResolution> {
+  const now = options.now?.() ?? new Date();
+
+  if (typeof existingToken === "string" && temporarySessionTokenPattern.test(existingToken)) {
+    const existing = await pool.query(
+      `select s.expires_at
+         from congregation_voter_sessions s
+         join congregation_voter_accounts a on a.id = s.account_id
+        where s.token_hash = $1
+          and s.expires_at > $2
+          and a.id like $3
+          and a.status = 'legacy_unverified'
+          and a.is_new_registration = false
+        limit 1`,
+      [hashToken(existingToken), now, `${temporaryAccountPrefix}%`],
+    );
+
+    if (existing.rows[0]) {
+      return {
+        session: {
+          token: existingToken,
+          expiresAt: new Date(existing.rows[0].expires_at),
+        },
+        created: false,
+      };
+    }
+  }
+
+  return {
+    session: await createTemporaryCongregationVoterSession(pool, { now: () => now }),
+    created: true,
+  };
+}
 
 /**
  * Creates a disposable browser-bound congregation voter using the same app-user,
