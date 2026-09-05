@@ -1,0 +1,42 @@
+name: Protected auth runtime separation acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+
+      - name: Protected auth / congregation email runtime separation
+        run: npx tsx scripts/issue-439-tests.ts
+
+      - name: Production runtime preflight regression
+        run: npx tsx scripts/phase-31-32-tests.ts
+
+      - name: Temporary voter static regression
+        run: npx tsx scripts/issue-435-static-tests.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build

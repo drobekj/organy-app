@@ -5,7 +5,7 @@ import { APIError } from "better-auth/api";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../db/schema";
 import { getAppDbPool } from "../db/app-pool";
-import { assertProductionRuntimeConfig } from "../config/production-runtime";
+import { assertProductionCoreRuntimeConfig } from "../config/production-runtime";
 
 // Build/test module construction may use this inert local fallback. Protected runtime access
 // always passes through assertProtectedAuthConfigured() before Better Auth session work.
@@ -16,7 +16,7 @@ const authDb = drizzle(authPool, { schema });
 
 export function assertProtectedAuthConfigured(): void {
   if (process.env.NODE_ENV === "production") {
-    assertProductionRuntimeConfig(process.env);
+    assertProductionCoreRuntimeConfig(process.env);
     return;
   }
   if (!process.env.DATABASE_URL?.trim()) throw new Error("DATABASE_URL is required for protected DB authentication.");
