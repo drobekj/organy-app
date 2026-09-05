@@ -6,6 +6,7 @@ import { PostgresReferenceCatalogProvider } from "../../src/application/postgres
 import { CongregationPreferenceWorkspace } from "./congregation-preference-workspace";
 
 const CONTEXT_COOKIE = "organy_congregation_voter";
+const TEMPORARY_ACCOUNT_PREFIX = "congregation-account:temporary:";
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function CongregationPreferencesPage({ searchParams }: PageProps) {
@@ -29,6 +30,8 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
     }
     throw error;
   }
+  if (temporaryMode && !voter.accountId.startsWith(TEMPORARY_ACCOUNT_PREFIX)) return temporaryEntryPanel();
+
   const catalog = new PostgresReferenceCatalogProvider(pool);
   const [records, preferences] = await Promise.all([catalog.listAll("all"), service.listOwnReferencePreferences(token)]);
 
