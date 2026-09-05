@@ -47,10 +47,12 @@ export async function getOrCreateTemporaryCongregationVoterSession(
     );
 
     if (existing.rows[0]) {
+      const rawExpiresAt = existing.rows[0].expires_at;
+      const expiresAt = rawExpiresAt instanceof Date ? rawExpiresAt : new Date(String(rawExpiresAt));
       return {
         session: {
           token: existingToken,
-          expiresAt: new Date(existing.rows[0].expires_at),
+          expiresAt,
         },
         created: false,
       };
