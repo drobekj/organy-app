@@ -11,17 +11,19 @@ const globals = readFileSync("app/globals.css", "utf8");
 const shell = readFileSync("app/workspace-shell.css", "utf8");
 const stableVoterDb = readFileSync("scripts/issue-431-tests.ts", "utf8");
 
+// Final entry/language corrections: fresh workspace defaults Czech. Registered-email entry=1
+// remains an explicit fresh entry, while temporary browser voting must resume a valid cookie.
+assert.match(workspace, /useState<CongregationLanguage>\("czech"\)/);
+assert.doesNotMatch(workspace, /useState<CongregationLanguage>\("mixed"\)/);
+assert.match(signIn, /href="\/congregation-preferences\?entry=1">Congregation preferences<\/a>/);
+assert.match(page, /const temporaryMode = isTemporaryCongregationVoterMode\(\);[\s\S]*?if \(!temporaryMode && first\(params\.entry\) === "1"\) return entryPanel\(params\);[\s\S]*?const token = \(await cookies\(\)\)/);
+assert.doesNotMatch(page, /if \(first\(params\.entry\) === "1"\) return entryPanel\(params\);/);
+
 // Server renders the full authoritative catalog + entire own preference set.
 assert.match(page, /catalog\.listAll\("all"\)/);
 assert.match(page, /service\.listOwnReferencePreferences\(token\)/);
 assert.match(page, /<CongregationPreferenceWorkspace records=\{records\} preferences=\{preferences\} \/>/);
 assert.doesNotMatch(page, /pageSize|Showing .* matching songs|detail-panel|Set 0|Set 1|songHref/);
-
-// Final entry/language corrections: fresh workspace defaults Czech and base Sign In never reuses a voter cookie implicitly.
-assert.match(workspace, /useState<CongregationLanguage>\("czech"\)/);
-assert.doesNotMatch(workspace, /useState<CongregationLanguage>\("mixed"\)/);
-assert.match(signIn, /href="\/congregation-preferences\?entry=1">Congregation preferences<\/a>/);
-assert.match(page, /if \(first\(params\.entry\) === "1"\) return entryPanel\(params\);[\s\S]*?const token = \(await cookies\(\)\)/);
 
 // Active nickname workspace exposes Change nickname only; Staff sign in remains on nickname-entry.
 const workspaceHeaderStart = page.indexOf('<div className="app-header">');
