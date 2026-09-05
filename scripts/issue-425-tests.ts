@@ -16,14 +16,24 @@ assert.match(css, /\.demo-mode-banner \{[\s\S]*?display: grid;[\s\S]*?grid-templ
 assert.match(css, /\.demo-mode-banner-message \{[\s\S]*?flex-wrap: wrap;[\s\S]*?min-width: 0;/);
 assert.match(css, /\.demo-reset-button \{[\s\S]*?justify-self: end;[\s\S]*?white-space: nowrap;/);
 
-// Demo CTA always renders the nickname-entry view even when the browser still has a voter cookie.
+// Demo CTA keeps the explicit entry URL. Registered-email mode still treats entry=1 as a
+// fresh entry, while temporary browser mode must resume a valid browser voter cookie.
 assert.match(planning, /https:\/\/organy-app\.vercel\.app\/congregation-preferences\?entry=1/);
 const paramsIndex = voterPage.indexOf("const params = await searchParams;");
-const freshEntryIndex = voterPage.indexOf('if (first(params.entry) === "1") return entryPanel(params);');
+const temporaryModeIndex = voterPage.indexOf("const temporaryMode = isTemporaryCongregationVoterMode();");
+const registeredFreshEntryIndex = voterPage.indexOf('if (!temporaryMode && first(params.entry) === "1") return entryPanel(params);');
 const cookieIndex = voterPage.indexOf("const token = (await cookies()).get(CONTEXT_COOKIE)?.value;");
 assert.ok(
-  paramsIndex >= 0 && freshEntryIndex > paramsIndex && cookieIndex > freshEntryIndex,
-  "forced fresh entry must be resolved before reading the existing voter cookie",
+  paramsIndex >= 0
+    && temporaryModeIndex > paramsIndex
+    && registeredFreshEntryIndex > temporaryModeIndex
+    && cookieIndex > registeredFreshEntryIndex,
+  "entry=1 must bypass the cookie only outside temporary browser-voter mode",
+);
+assert.doesNotMatch(
+  voterPage,
+  /if \(first\(params\.entry\) === "1"\) return entryPanel\(params\);/,
+  "temporary browser mode must never unconditionally bypass the existing voter cookie",
 );
 
 // Admin language contract includes mixed.
