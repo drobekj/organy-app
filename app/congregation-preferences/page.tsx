@@ -147,7 +147,7 @@ function recoveryPanel(notice: string | undefined) {
           <label>Email<input name="email" type="email" required autoFocus autoComplete="email" /></label>
           <div className="congregation-form-actions">
             <a className="congregation-entry-button" href="/congregation-preferences?entry=1">Cancel</a>
-            <button className="congregation-entry-button" type="submit">Recover</button>
+            <button className="congregation-entry-button" type="submit">Recover nickname</button>
           </div>
         </form>
         <Notice code={notice} nickname="" />
