@@ -9,6 +9,7 @@ import {
 } from "../../../src/application/temporary-congregation-voter";
 
 const congregationVoterCookie = "organy_congregation_voter";
+const temporaryAccountPrefix = "congregation-account:temporary:";
 type FormAction = "startTemporaryVoting" | "signIn" | "register" | "resendConfirmation" | "recoverNickname" | "saveOwnPreference" | "clearNickname";
 
 export async function POST(request: NextRequest) {
@@ -22,8 +23,10 @@ export async function POST(request: NextRequest) {
     try {
       const body = await request.json() as { action?: unknown; referenceSongId?: unknown; score?: unknown };
       if (body.action !== "saveOwnPreference") return problem("Unsupported congregation preference action.", 400);
+      const token = request.cookies.get(congregationVoterCookie)?.value;
+      if (isTemporaryCongregationVoterMode()) await requireTemporaryVoter(preferenceService, token);
       const preference = await preferenceService.saveOwnReferencePreference(
-        request.cookies.get(congregationVoterCookie)?.value,
+        token,
         body.referenceSongId,
         body.score,
       );
@@ -42,7 +45,9 @@ export async function POST(request: NextRequest) {
       const scoreText = String(form.get("score") ?? "");
       const score = scoreText === "0" ? 0 : scoreText === "1" ? 1 : Number.NaN;
       const songId = String(form.get("referenceSongId") ?? "");
-      await preferenceService.saveOwnReferencePreference(request.cookies.get(congregationVoterCookie)?.value, songId, score);
+      const token = request.cookies.get(congregationVoterCookie)?.value;
+      if (isTemporaryCongregationVoterMode()) await requireTemporaryVoter(preferenceService, token);
+      await preferenceService.saveOwnReferencePreference(token, songId, score);
       const target = new URL("/congregation-preferences", request.url);
       target.searchParams.set("song", songId);
       target.searchParams.set("saved", "1");
@@ -112,6 +117,13 @@ export async function POST(request: NextRequest) {
       return noticeRedirect(request, noticeForError(error), view ? { view } : undefined);
     }
     return serviceProblem(error);
+  }
+}
+
+async function requireTemporaryVoter(service: PostgresCongregationPreferenceService, token: unknown): Promise<void> {
+  const context = await service.resolveContext(token);
+  if (!context.accountId.startsWith(temporaryAccountPrefix)) {
+    throw new CongregationVoterError("permissionDenied", "Temporary browser voter session is required.");
   }
 }
 
