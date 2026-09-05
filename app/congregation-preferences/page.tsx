@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { getAppDbPool } from "../../src/db/app-pool";
 import { CongregationVoterError, PostgresCongregationPreferenceService } from "../../src/application/congregation-preference-voter";
+import { isTemporaryCongregationVoterMode } from "../../src/application/congregation-voter-mode";
 import { PostgresReferenceCatalogProvider } from "../../src/application/postgres-reference-catalog";
 import { CongregationPreferenceWorkspace } from "./congregation-preference-workspace";
 
@@ -12,17 +13,20 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) return configurationMessage("DATABASE_URL is required for congregation preferences.");
   const params = await searchParams;
-  if (first(params.entry) === "1") return entryPanel(params);
+  const temporaryMode = isTemporaryCongregationVoterMode();
+  if (!temporaryMode && first(params.entry) === "1") return entryPanel(params);
 
   const token = (await cookies()).get(CONTEXT_COOKIE)?.value;
-  if (!token) return entryPanel(params);
+  if (!token) return temporaryMode ? temporaryEntryPanel() : entryPanel(params);
   const pool = getAppDbPool(databaseUrl);
   const service = new PostgresCongregationPreferenceService(pool);
   let voter;
   try {
     voter = await service.resolveContext(token);
   } catch (error) {
-    if (error instanceof CongregationVoterError && error.code === "unauthenticated") return entryPanel({ ...params, notice: "sessionExpired" });
+    if (error instanceof CongregationVoterError && error.code === "unauthenticated") {
+      return temporaryMode ? temporaryEntryPanel(true) : entryPanel({ ...params, notice: "sessionExpired" });
+    }
     throw error;
   }
   const catalog = new PostgresReferenceCatalogProvider(pool);
@@ -32,16 +36,23 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
     <main className="shell">
       <section className="card planning-form congregation-preferences-card" aria-label="Congregation preference voting">
         <div className="app-header">
-          <div><p className="eyebrow">Congregation preference</p><h1>{voter.nickname}</h1></div>
-          <div className="form-actions">
-            <form action="/api/congregation-preferences" method="post">
-              <input type="hidden" name="action" value="clearNickname" />
-              <button type="submit">Change nickname</button>
-            </form>
+          <div>
+            <p className="eyebrow">Congregation preference</p>
+            <h1>{temporaryMode ? "Congregation Preferences" : voter.nickname}</h1>
           </div>
+          {!temporaryMode && (
+            <div className="form-actions">
+              <form action="/api/congregation-preferences" method="post">
+                <input type="hidden" name="action" value="clearNickname" />
+                <button type="submit">Change nickname</button>
+              </form>
+            </div>
+          )}
         </div>
 
-        {voter.status === "legacy_unverified" ? (
+        {temporaryMode ? (
+          <p className="field-help">Temporary test mode: your preferences are linked only to this browser. No registration or email is required.</p>
+        ) : voter.status === "legacy_unverified" ? (
           <aside className="congregation-legacy-claim" role="status">
             <span>This existing nickname is not yet protected by a verified email.</span>
             <a href={`/congregation-preferences?entry=1&view=register&claim=1&nickname=${encodeURIComponent(voter.nickname)}`}>Verify email</a>
@@ -51,6 +62,27 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
         )}
 
         <CongregationPreferenceWorkspace records={records} preferences={preferences} />
+      </section>
+    </main>
+  );
+}
+
+function temporaryEntryPanel(expired = false) {
+  return (
+    <main className="auth-shell">
+      <section className="auth-card congregation-entry-card" aria-label="Congregation Preferences temporary voting">
+        <h1>Congregation Preferences</h1>
+        <p className="field-help">Vote for your favorite songs to be considered.</p>
+        <p className="field-help">Temporary test mode: no registration, nickname or email is required. Your votes remain linked to this browser.</p>
+        {expired && <p role="status" className="auth-error">This browser&apos;s previous test voter session has expired. Start a new test voter to continue.</p>}
+        <form className="congregation-entry-sign-in" action="/api/congregation-preferences" method="post">
+          <input type="hidden" name="action" value="startTemporaryVoting" />
+          <button className="congregation-entry-button" type="submit">Start voting</button>
+        </form>
+        <div className="congregation-entry-divider" aria-hidden="true" />
+        <div className="congregation-entry-options">
+          <EntryOption href="/sign-in" label="Staff sign in" help="if you are a priest, organist or admin" />
+        </div>
       </section>
     </main>
   );
@@ -115,7 +147,7 @@ function recoveryPanel(notice: string | undefined) {
           <label>Email<input name="email" type="email" required autoFocus autoComplete="email" /></label>
           <div className="congregation-form-actions">
             <a className="congregation-entry-button" href="/congregation-preferences?entry=1">Cancel</a>
-            <button className="congregation-entry-button" type="submit">Recover nickname</button>
+            <button className="congregation-entry-button" type="submit">Recover</button>
           </div>
         </form>
         <Notice code={notice} nickname="" />
