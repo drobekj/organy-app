@@ -50,6 +50,7 @@ async function main() {
   const voterRuntimeSource = readFileSync("src/application/congregation-voter-runtime.ts", "utf8");
   assert.match(voterRuntimeSource, /assertCongregationEmailRuntimeConfig\(process\.env\)/);
 
+  const mutableEnv = process.env as Record<string, string | undefined>;
   const previous = new Map<string, string | undefined>();
   for (const key of [
     "NODE_ENV",
@@ -62,27 +63,27 @@ async function main() {
     "CONGREGATION_BASE_URL",
     "CONGREGATION_SECURITY_SECRET",
   ]) {
-    previous.set(key, process.env[key]);
+    previous.set(key, mutableEnv[key]);
   }
 
   try {
-    process.env.NODE_ENV = "production";
+    mutableEnv.NODE_ENV = "production";
     for (const [key, value] of Object.entries(coreEnv)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
+      if (value === undefined) delete mutableEnv[key];
+      else mutableEnv[key] = value;
     }
-    delete process.env.RESEND_API_KEY;
-    delete process.env.CONGREGATION_EMAIL_FROM;
-    delete process.env.CONGREGATION_BASE_URL;
-    delete process.env.CONGREGATION_SECURITY_SECRET;
+    delete mutableEnv.RESEND_API_KEY;
+    delete mutableEnv.CONGREGATION_EMAIL_FROM;
+    delete mutableEnv.CONGREGATION_BASE_URL;
+    delete mutableEnv.CONGREGATION_SECURITY_SECRET;
 
     const { assertProtectedAuthConfigured, authPool } = await import("../src/auth/server");
     assert.doesNotThrow(() => assertProtectedAuthConfigured());
     await authPool.end();
   } finally {
     for (const [key, value] of previous) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
+      if (value === undefined) delete mutableEnv[key];
+      else mutableEnv[key] = value;
     }
   }
 
