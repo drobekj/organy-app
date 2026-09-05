@@ -53,13 +53,13 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
           )}
         </div>
 
-        {temporaryMode ? (
-          <p className="field-help">Temporary test mode: your preferences are linked only to this browser. No registration or email is required.</p>
-        ) : voter.status === "legacy_unverified" ? (
+        {voter.status === "legacy_unverified" && !temporaryMode ? (
           <aside className="congregation-legacy-claim" role="status">
             <span>This existing nickname is not yet protected by a verified email.</span>
             <a href={`/congregation-preferences?entry=1&view=register&claim=1&nickname=${encodeURIComponent(voter.nickname)}`}>Verify email</a>
           </aside>
+        ) : temporaryMode ? (
+          <p className="field-help">Temporary test mode: your preferences are linked only to this browser. No registration or email is required.</p>
         ) : (
           <p className="field-help">Your preferences are linked to your stable voter profile.</p>
         )}
