@@ -1,0 +1,99 @@
+name: Monthly encrypted PostgreSQL backup
+
+on:
+  schedule:
+    - cron: "17 3 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: organy-production-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: >-
+      github.repository == 'drobekj/organy-app' &&
+      github.ref == 'refs/heads/main' &&
+      vars.ORGANY_MONTHLY_BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production-backup
+    env:
+      DATABASE_URL_UNPOOLED: ${{ secrets.ORGANY_BACKUP_DATABASE_URL_UNPOOLED }}
+      ORGANY_BACKUP_RECIPIENT: ${{ secrets.ORGANY_BACKUP_RECIPIENT }}
+      ORGANY_BACKUP_SOURCE_KIND: production
+      ORGANY_PG_TOOL_MODE: path
+      ORGANY_BACKUP_OUTPUT_DIR: ${{ runner.temp }}/organy-encrypted-backup
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install existing operator dependencies and PostgreSQL tools
+        run: |
+          npm ci --no-audit --no-fund --loglevel=error
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16 age
+      - name: Create encrypted archive
+        run: |
+          mkdir -m 700 "$ORGANY_BACKUP_OUTPUT_DIR"
+          bash scripts/issue-453-encrypted-backup.sh create
+      - name: Publish encrypted archive only
+        uses: actions/upload-artifact@v4
+        with:
+          name: organy-encrypted-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/organy-encrypted-backup/*.tar.age
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Remove runner backup material
+        if: always()
+        run: |
+          rm -rf -- "$ORGANY_BACKUP_OUTPUT_DIR"
+
+  rehearsal:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: organy_app
+          POSTGRES_PASSWORD: organy_app
+          POSTGRES_DB: organy_app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U organy_app -d organy_app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://organy_app:organy_app@127.0.0.1:5432/organy_app
+      ORGANY_RUNTIME: db
+      BETTER_AUTH_SECRET: issue-453-ci-secret-0123456789
+      BETTER_AUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: |
+          npm ci --no-audit --no-fund --loglevel=error
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16 age
+      - run: npm run db:migrate
+      - run: node scripts/issue-453-tests.mjs
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
