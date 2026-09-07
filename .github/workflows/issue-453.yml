@@ -12,6 +12,12 @@ on:
   schedule:
     - cron: "17 3 1 * *"
   workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: "I authorize the reviewed Production backup (read-only source)."
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,7 +31,9 @@ jobs:
     if: >-
       github.repository == 'drobekj/organy-app' &&
       github.ref == 'refs/heads/main' &&
-      vars.ORGANY_MONTHLY_BACKUP_ENABLED == 'true'
+      ((github.event_name == 'workflow_dispatch' && inputs.confirm_production == true &&
+        (vars.ORGANY_MONTHLY_BACKUP_MODE == 'manual' || vars.ORGANY_MONTHLY_BACKUP_MODE == 'scheduled')) ||
+       (github.event_name == 'schedule' && vars.ORGANY_MONTHLY_BACKUP_MODE == 'scheduled'))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production-backup
@@ -34,6 +42,7 @@ jobs:
       ORGANY_BACKUP_RECIPIENT: ${{ secrets.ORGANY_BACKUP_RECIPIENT }}
       ORGANY_BACKUP_SOURCE_KIND: production
       ORGANY_PG_TOOL_MODE: path
+      ORGANY_BACKUP_MAX_BYTES: '104857600'
     steps:
       - uses: actions/checkout@v4
         with:
