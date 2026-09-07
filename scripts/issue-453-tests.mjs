@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readdir, readFile, writeFile, appendFile, rm, copyFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, writeFile, rm, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Pool } from 'pg';
@@ -45,8 +45,7 @@ function wrapper(mode, additions = {}) {
   return run('bash', ['scripts/issue-453-encrypted-backup.sh', mode], additions);
 }
 function expectedFailure(mode, additions = {}) {
-  const result = wrapper(mode, additions);
-  assert.notEqual(result.status, 0, 'Expected a fail-closed rejection.');
+  assert.notEqual(wrapper(mode, additions).status, 0, 'Expected a fail-closed rejection.');
 }
 async function countFixture(url) {
   const pool = new Pool({ connectionString: url });
@@ -79,6 +78,8 @@ try {
   } finally { await sourcePool.end(); }
   assert.equal(await countFixture(source), 1);
 
+  expectedFailure('create', { ...createEnv, ORGANY_BACKUP_MAX_BYTES: '1' });
+  assert.deepEqual(await readdir(published), [], 'Oversized backups must not be published.');
   checked('bash', ['scripts/issue-453-encrypted-backup.sh', 'create'], createEnv);
   const files = await readdir(published);
   assert.equal(files.length, 1);
@@ -94,8 +95,9 @@ try {
   checked('age-keygen', ['-o', wrongKey]);
   expectedFailure('unpack', { ...unpackEnv, ORGANY_BACKUP_IDENTITY_FILE: wrongKey });
   const corrupt = join(root, 'corrupt.tar.age');
-  await copyFile(encrypted, corrupt);
-  await appendFile(corrupt, Buffer.from('tamper'));
+  const ciphertext = await readFile(encrypted);
+  ciphertext[ciphertext.length - 1] ^= 1;
+  await writeFile(corrupt, ciphertext);
   expectedFailure('unpack', { ...unpackEnv, ORGANY_ENCRYPTED_BACKUP_FILE: corrupt });
   assert.rejects(readdir(unpacked));
 
@@ -103,8 +105,7 @@ try {
   assert.deepEqual((await readdir(unpacked)).sort(), ['backup.dump', 'backup.dump.sha256']);
   const backupFile = join(unpacked, 'backup.dump');
   const restoreEnv = { ORGANY_BACKUP_FILE: backupFile, ORGANY_RESTORE_DATABASE_URL: source };
-  const sameSource = run('npx', ['--no-install', 'tsx', 'scripts/postgres-restore.ts'], restoreEnv);
-  assert.notEqual(sameSource.status, 0);
+  assert.notEqual(run('npx', ['--no-install', 'tsx', 'scripts/postgres-restore.ts'], restoreEnv).status, 0);
   assert.equal(await countFixture(source), 1);
 
   const adminPool = new Pool({ connectionString: admin.toString() });
@@ -117,8 +118,7 @@ try {
   assert.equal(await countFixture(source), 1);
   assert.notEqual(run('npx', ['--no-install', 'tsx', 'scripts/postgres-restore.ts'], isolatedEnv).status, 0);
 
-  // Only ciphertext was published. The private identity never entered the repository.
-  assert.deepEqual(await readdir(published), files);
+  assert.deepEqual(await readdir(published), files, 'Only ciphertext may remain in publication storage.');
   console.log('Issue 453 encrypted backup, integrity and isolated restore acceptance: PASS');
 } finally {
   if (targetCreated) {
