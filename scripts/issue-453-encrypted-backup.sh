@@ -3,14 +3,14 @@ set -Eeuo pipefail
 umask 077
 
 # Operator-only wrapper around the existing Phase 31.33 backup and verifier.
-# No private recovery key is needed or accepted for backup creation.
+# The private recovery identity is never needed or accepted for backup creation.
 mode="${1:-}"
 work=""
 created_output=""
 succeeded=0
 cleanup() {
-  if [[ -n "$work" && -d "$work" ]]; then rm -rf -- "$work"; fi
-  if [[ "$succeeded" != 1 && -n "$created_output" && -d "$created_output" ]]; then rm -rf -- "$created_output"; fi
+  if [[ -n "$work" && -d "$work" ]]; then rm -rf -- "$work" || true; fi
+  if [[ "$succeeded" != 1 && -n "$created_output" && -d "$created_output" ]]; then rm -rf -- "$created_output" || true; fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -19,7 +19,7 @@ fail() { printf 'Encrypted PostgreSQL backup: FAIL — %s\n' "$1" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || fail "$1 is required"; }
 require() { [[ -n "${!1:-}" ]] || fail "$1 is required"; }
 
-# This preflight has no database connection and prints no credential values.
+# No database connection is made during preflight; credential values are never printed.
 validate_source() {
   require DATABASE_URL_UNPOOLED
   require ORGANY_BACKUP_SOURCE_KIND
@@ -52,8 +52,9 @@ case "$mode" in
     # Validate recipient and all configuration before connecting to the database.
     age -r "$ORGANY_BACKUP_RECIPIENT" -o /dev/null </dev/null 2>/dev/null || fail 'The age recipient is invalid'
     [[ -d "$ORGANY_BACKUP_OUTPUT_DIR" ]] || fail 'The encrypted output directory must already exist'
-    # Keep the temporary directory on the publication filesystem so linking is atomic.
-    work="$(mktemp -d "$ORGANY_BACKUP_OUTPUT_DIR/.organy-453.XXXXXXXX")"
+    max_bytes="${ORGANY_BACKUP_MAX_BYTES:-104857600}"
+    [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || fail 'ORGANY_BACKUP_MAX_BYTES must be a positive integer'
+    work="$(mktemp -d "${ORGANY_BACKUP_WORK_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}/organy-453.XXXXXXXX")"
     export ORGANY_PG_TOOL_MODE=path
     export DATABASE_URL="$DATABASE_URL_UNPOOLED"
     export ORGANY_BACKUP_FILE="$work/backup.dump"
@@ -63,9 +64,11 @@ case "$mode" in
     output="$ORGANY_BACKUP_OUTPUT_DIR/organy-$stamp.tar.age"
     [[ ! -e "$output" && ! -L "$output" ]] || fail 'Encrypted output already exists'
     tar -C "$work" -cf - backup.dump backup.dump.sha256 | age -r "$ORGANY_BACKUP_RECIPIENT" -o "$work/encrypted.age" || fail 'Encryption failed'
+    bytes="$(wc -c < "$work/encrypted.age")"
+    [[ "$bytes" -gt 0 && "$bytes" -le "$max_bytes" ]] || fail 'Encrypted archive exceeds the configured size limit'
     # A hard link publishes atomically without replacing an existing archive.
+    # If the output is on another filesystem, publication fails closed.
     ln -- "$work/encrypted.age" "$output" || fail 'Encrypted publication failed'
-    [[ -s "$output" ]] || fail 'Encrypted output is missing or empty'
     succeeded=1
     printf 'Encrypted PostgreSQL backup: PASS\nEncrypted artifact: %s\n' "$output"
     ;;
@@ -81,6 +84,8 @@ case "$mode" in
     age -d -i "$ORGANY_BACKUP_IDENTITY_FILE" -o "$work/bundle.tar" "$ORGANY_ENCRYPTED_BACKUP_FILE" 2>/dev/null || fail 'Decryption/authentication failed'
     members="$(tar -tf "$work/bundle.tar")" || fail 'Invalid backup bundle'
     [[ "$members" == $'backup.dump\nbackup.dump.sha256' ]] || fail 'Unexpected backup bundle members'
+    types="$(tar -tvf "$work/bundle.tar" | cut -c1)" || fail 'Invalid backup bundle types'
+    [[ "$types" == $'-\n-' ]] || fail 'Backup bundle must contain regular files only'
     tar -xf "$work/bundle.tar" -C "$work" --no-same-owner --no-same-permissions || fail 'Backup extraction failed'
     export ORGANY_BACKUP_FILE="$work/backup.dump"
     npx --no-install tsx scripts/postgres-backup-verify.ts || fail 'Decrypted backup integrity failed'
