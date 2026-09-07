@@ -1,6 +1,14 @@
 name: Monthly encrypted PostgreSQL backup
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/issue-453-encrypted-backup.sh
+      - scripts/issue-453-tests.mjs
+      - .github/workflows/issue-453.yml
+      - docs/issue-453-monthly-backup.md
   schedule:
     - cron: "17 3 1 * *"
   workflow_dispatch:
@@ -9,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: organy-production-database-backup
+  group: organy-production-database-backup-${{ github.event_name == 'pull_request' && github.run_id || 'production' }}
   cancel-in-progress: false
 
 jobs:
@@ -26,7 +34,6 @@ jobs:
       ORGANY_BACKUP_RECIPIENT: ${{ secrets.ORGANY_BACKUP_RECIPIENT }}
       ORGANY_BACKUP_SOURCE_KIND: production
       ORGANY_PG_TOOL_MODE: path
-      ORGANY_BACKUP_OUTPUT_DIR: ${{ runner.temp }}/organy-encrypted-backup
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +48,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-16 age
       - name: Create encrypted archive
+        env:
+          ORGANY_BACKUP_OUTPUT_DIR: ${{ runner.temp }}/organy-encrypted-backup
         run: |
           mkdir -m 700 "$ORGANY_BACKUP_OUTPUT_DIR"
           bash scripts/issue-453-encrypted-backup.sh create
@@ -54,6 +63,8 @@ jobs:
           compression-level: 0
       - name: Remove runner backup material
         if: always()
+        env:
+          ORGANY_BACKUP_OUTPUT_DIR: ${{ runner.temp }}/organy-encrypted-backup
         run: |
           rm -rf -- "$ORGANY_BACKUP_OUTPUT_DIR"
 
