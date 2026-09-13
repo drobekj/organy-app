@@ -21,6 +21,11 @@ export type NonRepetitionPeriodPanelProps = {
 
 type PanelFeedback = { kind: "idle" | "loading" | "saved" | "error"; message?: string };
 
+export function canEditSelectedOrganistMelodyProtection(actor: ActorIdentity, selectedOrganistPersonId?: string): boolean {
+  if (actor.role !== "organist") return true;
+  return Boolean(actor.personId && selectedOrganistPersonId && actor.personId === selectedOrganistPersonId);
+}
+
 export function NonRepetitionPeriodPanel({
   runtimeMode,
   actor,
@@ -31,21 +36,23 @@ export function NonRepetitionPeriodPanel({
   onMinimumLoaded,
   onSaved,
 }: NonRepetitionPeriodPanelProps) {
-  const [minimumMonths, setMinimumMonths] = useState(actor.role === "organist" ? 2 : selectedOrganistPersonId ? 2 : 0);
-  const [ownMonths, setOwnMonths] = useState(2);
+  const [minimumMonths, setMinimumMonths] = useState(selectedOrganistPersonId ? 2 : 0);
   const [feedback, setFeedback] = useState<PanelFeedback>({ kind: "loading" });
+  const canEditSelectedOrganist = canEditSelectedOrganistMelodyProtection(actor, selectedOrganistPersonId);
 
   useEffect(() => {
     if (actor.role !== "priest" && actor.role !== "organist" && actor.role !== "admin") return;
     let active = true;
     setFeedback({ kind: "loading" });
     const read = runtimeMode === "db"
-      ? actor.role === "organist"
-        ? callMelodyProtectionApi("getOwnMelodyProtection", {}, actor)
-        : callMelodyProtectionApi("getOrganistMelodyProtection", selectedOrganistPersonId ? { organistPersonId: selectedOrganistPersonId } : {}, actor)
+      ? callMelodyProtectionApi(
+          "getOrganistMelodyProtection",
+          selectedOrganistPersonId ? { organistPersonId: selectedOrganistPersonId } : {},
+          actor,
+        )
       : Promise.resolve({
           success: true,
-          value: { months: actor.role === "organist" ? 2 : selectedOrganistPersonId ? 2 : 0 },
+          value: { months: selectedOrganistPersonId ? 2 : 0 },
         } as MelodyWindowResult);
 
     void read.then((result) => {
@@ -56,19 +63,30 @@ export function NonRepetitionPeriodPanel({
       }
       const months = result.value.months;
       setMinimumMonths(months);
-      if (actor.role === "organist") setOwnMonths(months);
-      if (actor.role === "priest" || actor.role === "admin") onMinimumLoaded?.(months);
+      onMinimumLoaded?.(months);
       setFeedback({ kind: "idle" });
+      // A selected-organist change can finish after the first candidate request.
+      // Force dependent candidate/conflict state to be rebuilt from this resolved value.
+      onSaved?.(months);
     }).catch((error: unknown) => {
       if (active) setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Melody Protection could not be loaded." });
     });
     return () => { active = false; };
   }, [runtimeMode, actor.userId, actor.role, actor.personId, selectedOrganistPersonId]);
 
+  useEffect(() => {
+    if (actor.role !== "organist" || feedback.kind === "loading" || feedback.kind === "error") return;
+    if (effectiveMonths === minimumMonths) return;
+    // For an organist, the effective Planning value follows the Service Context organist,
+    // not the signed-in organist. This also repairs a later stale/max update from another read.
+    onEffectiveChange(minimumMonths);
+    onSaved?.(minimumMonths);
+  }, [actor.role, effectiveMonths, minimumMonths, feedback.kind, onEffectiveChange, onSaved]);
+
   if (actor.role !== "priest" && actor.role !== "organist" && actor.role !== "admin") return null;
 
   const value = actor.role === "organist"
-    ? ownMonths
+    ? minimumMonths
     : actor.role === "admin"
       ? effectiveMonths
       : Math.max(effectiveMonths, minimumMonths);
@@ -89,6 +107,7 @@ export function NonRepetitionPeriodPanel({
       return;
     }
 
+    if (!canEditSelectedOrganist) return;
     setFeedback({ kind: "loading" });
     const result = runtimeMode === "db"
       ? await callMelodyProtectionApi("setOwnMelodyProtection", { months }, actor)
@@ -97,9 +116,8 @@ export function NonRepetitionPeriodPanel({
       setFeedback({ kind: "error", message: result.error.message });
       return;
     }
-    setOwnMonths(result.value.months);
     setMinimumMonths(result.value.months);
-    if (selectedOrganistPersonId === actor.personId) onEffectiveChange(result.value.months);
+    onEffectiveChange(result.value.months);
     setFeedback({ kind: "saved" });
     onSaved?.(result.value.months);
   }
@@ -114,7 +132,7 @@ export function NonRepetitionPeriodPanel({
           aria-label="Melody Protection period"
           data-guide-hint="planning.melody-protection"
           value={value}
-          disabled={disabled || feedback.kind === "loading"}
+          disabled={disabled || feedback.kind === "loading" || !canEditSelectedOrganist}
           onChange={(event) => void change(Number(event.target.value))}
         >
           {Array.from({ length: 13 }, (_, months) => (
@@ -124,6 +142,9 @@ export function NonRepetitionPeriodPanel({
           ))}
         </select>
       </label>
+      {actor.role === "organist" && selectedOrganistPersonId && !canEditSelectedOrganist && (
+        <span className="field-help">Selected organist&apos;s Melody Protection is read-only.</span>
+      )}
       {feedback.kind === "error" && <p className="inline-error" role="alert">{feedback.message}</p>}
     </fieldset>
   );
