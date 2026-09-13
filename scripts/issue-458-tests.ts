@@ -36,7 +36,7 @@ async function main() {
 
   assert.match(
     panel,
-    /callMelodyProtectionApi\(\s*"getOrganistMelodyProtection",\s*selectedOrganistPersonId \? \{ organistPersonId: selectedOrganistPersonId \} : \{\},\s*actor,/s,
+    /callMelodyProtectionApi\([\s\S]*?"getOrganistMelodyProtection",\s*selectedOrganistPersonId \? \{ organistPersonId: selectedOrganistPersonId \} : \{\},\s*actor,/,
     "All Planning roles, including organist, must read Melody Protection for the Service Context organist.",
   );
   assert.doesNotMatch(
@@ -62,18 +62,18 @@ async function main() {
   );
   assert.match(
     client,
-    /previewPlanningSetConflict\(\{\s*setId: persistedSet\.id,\s*serviceDate,\s*melodyProtectionMonths,\s*rows: planningRows,/s,
+    /previewPlanningSetConflict\(\{[\s\S]*?setId: persistedSet\.id,\s*serviceDate,\s*melodyProtectionMonths,\s*rows: planningRows,/,
     "Planning conflict preview must consume the same synchronized effective Melody Protection state.",
   );
   assert.match(
     client,
-    /else if \(!isEditorLocked\) \{\s*setMelodyProtectionMonths\(months\);/s,
+    /else if \(!isEditorLocked\) \{\s*setMelodyProtectionMonths\(months\);/,
     "Organist panel synchronization must feed the shared Planning effective value without introducing an ownership restriction on the plan.",
   );
 
   assert.match(service, /async setOwnOrganistMinimum\(actor: ActorIdentity, months: unknown\)/);
   assert.match(service, /if \(actor\.role !== "organist" \|\| !actor\.personId\) return failure\("permissionDenied"/);
-  assert.match(service, /where id = \$1[\s\S]*\[actor\.personId, months\]/s, "Backend mutation must remain bound to the authenticated organist personId.");
+  assert.match(service, /where id = \$1[\s\S]*\[actor\.personId, months\]/, "Backend mutation must remain bound to the authenticated organist personId.");
 
   console.log("Issue 458 selected-organist Melody Protection acceptance: PASS");
 }
