@@ -34,11 +34,9 @@ async function main(connectionString: string) {
 
     const completedWorking = await saveWorking(`${marker}-completed`, "2026-01-04", "09:00");
     const finalized = await lifecycle.finalizeWorkingSet({ role: "priest", workingSetId: completedWorking.id });
-    assert.equal(finalized.success, true, "fixture Working plan must finalize");
-    if (!finalized.success) throw new Error(finalized.error.message);
+    if (!finalized.success) throw new Error("fixture Working plan must finalize");
     const completion = await lifecycle.completeFinalSet({ role: "priest", finalSetId: finalized.value.id });
-    assert.equal(completion.success, true, "fixture Final plan must complete");
-    if (!completion.success) throw new Error(completion.error.message);
+    if (!completion.success) throw new Error("fixture Final plan must complete");
     completedRecordId = completion.value.id;
 
     const active = await saveWorking(`${marker}-active`, "2026-10-04", "10:00");
@@ -58,8 +56,7 @@ async function main(connectionString: string) {
     await catalog.upsertPerson({ id: organistId, displayName: "Current Organist", active: true, priest: false, organist: true });
 
     const reordered = await lifecycle.reorderRows({ role: "priest", workingSetId: activePlanId, rowOrder: [0] });
-    assert.equal(reordered.success, true, "ordinary lifecycle mutation must remain valid after catalog rename");
-    if (!reordered.success) throw new Error(reordered.error.message);
+    if (!reordered.success) throw new Error("ordinary lifecycle mutation must remain valid after catalog rename");
 
     const activeRead = await plans.findById(activePlanId);
     assert.ok(activeRead, "active plan must remain readable after catalog rename");
@@ -81,7 +78,7 @@ async function main(connectionString: string) {
        order by note`,
       [`${marker}-active`, `${marker}-completed`],
     );
-    assert.equal(persistedSnapshots.rowCount, 2);
+    assert.equal(persistedSnapshots.rows.length, 2);
     for (const row of persistedSnapshots.rows) {
       assert.equal(row.priest_display_name, "Arnold", `${row.note}: canonical read must not rewrite priest snapshot`);
       assert.equal(row.organist_display_name, "Old Organist", `${row.note}: canonical read must not rewrite organist snapshot`);
@@ -119,8 +116,7 @@ async function main(connectionString: string) {
         rows: [{ note: "Issue 455 person-name regression" }],
       },
     });
-    assert.equal(result.success, true, `fixture Working plan ${note} must save`);
-    if (!result.success) throw new Error(result.error.message);
+    if (!result.success) throw new Error(`fixture Working plan ${note} must save`);
     return result.value;
   }
 }
