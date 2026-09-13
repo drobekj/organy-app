@@ -1906,6 +1906,11 @@ Save the correction and mark those plans for revision?`);
             <>
                 {!isCompletedRecordOpen && !isFinalSetOpen && (
                   <>
+                    {persistedSet?.status === "working" && (
+                      <button type="button" data-guide-hint="planning.lifecycle.leave-final" onClick={() => { void startNewDbDraft(); }}>
+                        Leave Plan
+                      </button>
+                    )}
                     <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={isDemoExperience || !canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save working plan
                     </button>
