@@ -127,7 +127,7 @@ export class DrizzlePlanningSetRepository implements PlanningPlanRepository {
       id: formatPlanningSetId(set.id),
       status: set.status,
       language: context.serviceLanguage,
-      serviceContext: mapContextRecordToServiceContext(context),
+      serviceContext: await resolveCurrentCatalogPersonNames(db, context),
       rows: rows.map(mapRowRecordToPlanningRow),
     };
   }
@@ -238,7 +238,7 @@ export class DrizzlePlanningSetRepository implements PlanningPlanRepository {
       id: formatPlanningSetId(set.id),
       status: set.status,
       language: context.serviceLanguage,
-      serviceContext: mapContextRecordToServiceContext(context),
+      serviceContext: await resolveCurrentCatalogPersonNames(db, context),
       rows: rows.map(mapRowRecordToPlanningRow),
     };
   }
@@ -316,7 +316,7 @@ export class DrizzleFinalSetCompletionRepository implements FinalSetCompletionRe
           id: formatCompletedServiceRecordId(completedService.id),
           sourceFinalSetId: finalSetId,
           set: { status: "final", language: context.serviceLanguage, rows: planningRows },
-          serviceContext: mapContextRecordToServiceContext(context),
+          serviceContext: await resolveCurrentCatalogPersonNames(tx, context),
           completedAt: new Date(completedService.completedAt),
         },
       };
@@ -410,7 +410,7 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
   private async hydrateWithExecutor(db: DrizzleExecutor, row: CompletedServiceRecordRecord): Promise<CompletedServiceRecord> {
     const [context] = (await selectAll(db).from(serviceContexts).where(eq(serviceContexts.id, row.serviceContextId)).limit(1)) as ServiceContextRecord[];
     const rows = (await selectAll(db).from(completedServiceRows).where(eq(completedServiceRows.completedServiceId, row.id)).orderBy(asc(completedServiceRows.position))) as ServiceSetRowRecord[];
-    return { id: formatCompletedServiceRecordId(row.id), sourceFinalSetId: row.serviceSetId ? formatPlanningSetId(row.serviceSetId) : "", set: { status: "final", language: context.serviceLanguage, rows: rows.map(mapRowRecordToPlanningRow) }, serviceContext: mapContextRecordToServiceContext(context), completedAt: new Date(row.completedAt) };
+    return { id: formatCompletedServiceRecordId(row.id), sourceFinalSetId: row.serviceSetId ? formatPlanningSetId(row.serviceSetId) : "", set: { status: "final", language: context.serviceLanguage, rows: rows.map(mapRowRecordToPlanningRow) }, serviceContext: await resolveCurrentCatalogPersonNames(db, context), completedAt: new Date(row.completedAt) };
   }
 
   async update(id: string, serviceContext: ServiceContext, set: PlanningPlan & { status: "final" }, invalidatedPlanIds: PlanningPlanId[] = []): Promise<CompletedServiceRecord> {
@@ -563,6 +563,21 @@ async function replaceCompletedRows(db: DrizzleExecutor, completedServiceId: num
       updatedAt: now,
     })),
   );
+}
+
+async function resolveCurrentCatalogPersonNames(db: DrizzleExecutor, context: ServiceContextRecord): Promise<ServiceContext> {
+  const snapshot = mapContextRecordToServiceContext(context);
+  const catalog = new DrizzleCatalogRepository(db);
+  const [priest, organist] = await Promise.all([
+    context.priestId ? catalog.findPersonById(context.priestId) : undefined,
+    context.organistId ? catalog.findPersonById(context.organistId) : undefined,
+  ]);
+
+  return {
+    ...snapshot,
+    priest: priest ? { id: priest.id, displayName: priest.displayName } : snapshot.priest,
+    organist: organist ? { id: organist.id, displayName: organist.displayName } : snapshot.organist,
+  };
 }
 
 function mapContextRecordToServiceContext(context: ServiceContextRecord): ServiceContext {
