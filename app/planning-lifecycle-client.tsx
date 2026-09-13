@@ -1919,6 +1919,9 @@ Save the correction and mark those plans for revision?`);
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
                   <>
+                    <button type="button" data-guide-hint="planning.lifecycle.leave-final" onClick={() => { void startNewDbDraft(); }}>
+                      Leave Plan
+                    </button>
                     {presentationRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}
                     <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>
                       Store Service
