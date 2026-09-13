@@ -1,0 +1,45 @@
+name: Temporary Issue 456 exact client patch
+
+on:
+  push:
+    branches:
+      - codex/issues-455-456-planning-names-leave-plan
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Apply Issue 456 Leave Plan client patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/issues-455-456-planning-names-leave-plan
+          fetch-depth: 0
+      - name: Apply exact minimal patch and remove temporary workflow
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('app/planning-lifecycle-client.tsx')
+          text = path.read_text(encoding='utf-8')
+          needle = '''                {!isCompletedRecordOpen && isFinalSetOpen && (\n                  <>\n                    {presentationRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}\n                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>'''
+          replacement = '''                {!isCompletedRecordOpen && isFinalSetOpen && (\n                  <>\n                    <button type="button" data-guide-hint="planning.lifecycle.leave-final" onClick={() => { void startNewDbDraft(); }}>\n                      Leave Plan\n                    </button>\n                    {presentationRole === "admin" && <button type="button" data-guide-hint="planning.lifecycle.edit-final" onClick={reopenFinalSet} disabled={isDemoExperience} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>Edit Final Plan</button>}\n                    <button type="button" data-guide-hint="planning.lifecycle.store" onClick={completeFinalSet} disabled={isDemoExperience || !canCompleteSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : completeDateReason || undefined}>'''
+          if 'data-guide-hint="planning.lifecycle.leave-final"' not in text:
+              if text.count(needle) != 1:
+                  raise SystemExit(f'Expected exact Final Plan action block once, found {text.count(needle)}')
+              text = text.replace(needle, replacement, 1)
+              path.write_text(text, encoding='utf-8')
+
+          workflow = Path('.github/workflows/_temporary-issue-456-patch.yml')
+          if workflow.exists():
+              workflow.unlink()
+      - name: Commit exact patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/planning-lifecycle-client.tsx .github/workflows/_temporary-issue-456-patch.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Apply Issue 456 Leave Plan client patch"
+          git push origin HEAD:codex/issues-455-456-planning-names-leave-plan
