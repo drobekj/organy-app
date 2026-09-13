@@ -426,8 +426,9 @@ export class DrizzleCompletedServiceRecordRepository implements CompletedService
         throw new Error(`Completed service record '${id}' was not found.`);
       }
 
+      const contextValues = await mapServiceContextToUpdateValues(tx, existing.serviceContextId, serviceContext);
       await updateTable(tx, serviceContexts)
-        .set({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, updatedAt: now })
+        .set({ ...contextValues, serviceLanguage: set.language, updatedAt: now })
         .where(eq(serviceContexts.id, existing.serviceContextId));
       await updateTable(tx, completedServices).set({ updatedAt: now }).where(eq(completedServices.id, numericId));
       await replaceCompletedRows(tx, numericId, set.rows, now);
@@ -510,8 +511,9 @@ async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningP
     throw new Error(`Planning set '${formatPlanningSetId(id)}' was not found.`);
   }
 
+  const contextValues = await mapServiceContextToUpdateValues(db, existing.serviceContextId, serviceContext);
   await updateTable(db, serviceContexts)
-    .set({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, updatedAt: now })
+    .set({ ...contextValues, serviceLanguage: set.language, updatedAt: now })
     .where(eq(serviceContexts.id, existing.serviceContextId));
 
   await updateTable(db, serviceSets)
@@ -563,6 +565,21 @@ async function replaceCompletedRows(db: DrizzleExecutor, completedServiceId: num
       updatedAt: now,
     })),
   );
+}
+
+async function mapServiceContextToUpdateValues(db: DrizzleExecutor, contextId: number, context: ServiceContext) {
+  const next = mapServiceContextToContextValues(context);
+  const [stored] = (await selectAll(db)
+    .from(serviceContexts)
+    .where(eq(serviceContexts.id, contextId))
+    .limit(1)) as ServiceContextRecord[];
+  if (!stored) return next;
+
+  return {
+    ...next,
+    priestDisplayName: stored.priestId && stored.priestId === next.priestId ? stored.priestDisplayName : next.priestDisplayName,
+    organistDisplayName: stored.organistId && stored.organistId === next.organistId ? stored.organistDisplayName : next.organistDisplayName,
+  };
 }
 
 async function resolveCurrentCatalogPersonNames(db: DrizzleExecutor, context: ServiceContextRecord): Promise<ServiceContext> {

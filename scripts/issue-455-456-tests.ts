@@ -27,6 +27,7 @@ async function main() {
   assert.equal(resetBody.includes("planningLifecycleService."), false, "Leave/new-draft reset must not invoke a persistence lifecycle action.");
 
   assert.match(adapter, /async function resolveCurrentCatalogPersonNames\(/, "DB-backed Planning reads must resolve canonical person names by stable ID.");
+  assert.match(adapter, /async function mapServiceContextToUpdateValues\(/, "Lifecycle writes must preserve stored person-name snapshots while stable IDs are unchanged.");
   assert.match(adapter, /context\.priestId \? catalog\.findPersonById\(context\.priestId\) : undefined/);
   assert.match(adapter, /context\.organistId \? catalog\.findPersonById\(context\.organistId\) : undefined/);
   assert.match(adapter, /priest: priest \? \{ id: priest\.id, displayName: priest\.displayName \} : snapshot\.priest/);

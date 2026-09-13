@@ -57,13 +57,20 @@ async function main(connectionString: string) {
     await catalog.upsertPerson({ id: priestId, displayName: "Emil", active: true, priest: true, organist: false });
     await catalog.upsertPerson({ id: organistId, displayName: "Current Organist", active: true, priest: false, organist: true });
 
+    const reordered = await lifecycle.reorderRows({ role: "priest", workingSetId: activePlanId, rowOrder: [0] });
+    assert.equal(reordered.success, true, "ordinary lifecycle mutation must remain valid after catalog rename");
+    if (!reordered.success) throw new Error(reordered.error.message);
+
     const activeRead = await plans.findById(activePlanId);
     assert.ok(activeRead, "active plan must remain readable after catalog rename");
     assert.deepEqual(activeRead.serviceContext.priest, { id: priestId, displayName: "Emil" });
     assert.deepEqual(activeRead.serviceContext.organist, { id: organistId, displayName: "Current Organist" });
 
+    const completedBeforeUpdate = await completed.findById(completedRecordId);
+    assert.ok(completedBeforeUpdate, "completed record must remain readable after catalog rename");
+    await completed.update(completedRecordId, completedBeforeUpdate.serviceContext, completedBeforeUpdate.set);
     const completedRead = await completed.findById(completedRecordId);
-    assert.ok(completedRead, "completed record must remain readable after catalog rename");
+    assert.ok(completedRead, "completed record must remain readable after a canonical-name round-trip update");
     assert.deepEqual(completedRead.serviceContext.priest, { id: priestId, displayName: "Emil" });
     assert.deepEqual(completedRead.serviceContext.organist, { id: organistId, displayName: "Current Organist" });
 
