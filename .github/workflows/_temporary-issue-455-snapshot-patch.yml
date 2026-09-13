@@ -1,0 +1,81 @@
+name: Temporary Issue 455 snapshot-preservation patch
+
+on:
+  push:
+    branches:
+      - codex/issues-455-456-planning-names-leave-plan
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'Preserve person snapshots across lifecycle writes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/issues-455-456-planning-names-leave-plan
+          fetch-depth: 0
+      - name: Apply exact snapshot-preservation regression patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          adapter_path = Path('src/application/planning-lifecycle/drizzle-repository-adapters.ts')
+          adapter = adapter_path.read_text(encoding='utf-8')
+
+          completed_old = '''      await updateTable(tx, serviceContexts)\n        .set({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, updatedAt: now })\n        .where(eq(serviceContexts.id, existing.serviceContextId));'''
+          completed_new = '''      const contextValues = await mapServiceContextToUpdateValues(tx, existing.serviceContextId, serviceContext);\n      await updateTable(tx, serviceContexts)\n        .set({ ...contextValues, serviceLanguage: set.language, updatedAt: now })\n        .where(eq(serviceContexts.id, existing.serviceContextId));'''
+          if completed_old not in adapter:
+              raise SystemExit('Completed service context update block not found exactly once')
+          adapter = adapter.replace(completed_old, completed_new, 1)
+
+          plan_old = '''  await updateTable(db, serviceContexts)\n    .set({ ...mapServiceContextToContextValues(serviceContext), serviceLanguage: set.language, updatedAt: now })\n    .where(eq(serviceContexts.id, existing.serviceContextId));'''
+          plan_new = '''  const contextValues = await mapServiceContextToUpdateValues(db, existing.serviceContextId, serviceContext);\n  await updateTable(db, serviceContexts)\n    .set({ ...contextValues, serviceLanguage: set.language, updatedAt: now })\n    .where(eq(serviceContexts.id, existing.serviceContextId));'''
+          if plan_old not in adapter:
+              raise SystemExit('Active plan service context update block not found exactly once')
+          adapter = adapter.replace(plan_old, plan_new, 1)
+
+          helper_anchor = '''async function resolveCurrentCatalogPersonNames(db: DrizzleExecutor, context: ServiceContextRecord): Promise<ServiceContext> {'''
+          helper = '''async function mapServiceContextToUpdateValues(db: DrizzleExecutor, contextId: number, context: ServiceContext) {\n  const next = mapServiceContextToContextValues(context);\n  const [stored] = (await selectAll(db)\n    .from(serviceContexts)\n    .where(eq(serviceContexts.id, contextId))\n    .limit(1)) as ServiceContextRecord[];\n  if (!stored) return next;\n\n  return {\n    ...next,\n    priestDisplayName: stored.priestId && stored.priestId === next.priestId ? stored.priestDisplayName : next.priestDisplayName,\n    organistDisplayName: stored.organistId && stored.organistId === next.organistId ? stored.organistDisplayName : next.organistDisplayName,\n  };\n}\n\n'''
+          if helper_anchor not in adapter:
+              raise SystemExit('Canonical person-name helper anchor not found')
+          adapter = adapter.replace(helper_anchor, helper + helper_anchor, 1)
+          adapter_path.write_text(adapter.rstrip() + '\n', encoding='utf-8')
+
+          static_path = Path('scripts/issue-455-456-tests.ts')
+          static = static_path.read_text(encoding='utf-8')
+          static_anchor = '  assert.match(adapter, /async function resolveCurrentCatalogPersonNames\\(/, "DB-backed Planning reads must resolve canonical person names by stable ID.");\n'
+          static_add = static_anchor + '  assert.match(adapter, /async function mapServiceContextToUpdateValues\\(/, "Lifecycle writes must preserve stored person-name snapshots while stable IDs are unchanged.");\n'
+          if static_anchor not in static:
+              raise SystemExit('Static acceptance anchor not found')
+          static = static.replace(static_anchor, static_add, 1)
+          static_path.write_text(static, encoding='utf-8')
+
+          db_path = Path('scripts/issue-455-db-tests.ts')
+          db_test = db_path.read_text(encoding='utf-8')
+          read_anchor = '''    const activeRead = await plans.findById(activePlanId);\n    assert.ok(activeRead, "active plan must remain readable after catalog rename");'''
+          read_replacement = '''    const reordered = await lifecycle.reorderRows({ role: "priest", workingSetId: activePlanId, rowOrder: [0] });\n    assert.equal(reordered.success, true, "ordinary lifecycle mutation must remain valid after catalog rename");\n    if (!reordered.success) throw new Error(reordered.error.message);\n\n    const activeRead = await plans.findById(activePlanId);\n    assert.ok(activeRead, "active plan must remain readable after catalog rename");'''
+          if read_anchor not in db_test:
+              raise SystemExit('Active read regression anchor not found')
+          db_test = db_test.replace(read_anchor, read_replacement, 1)
+
+          completed_anchor = '''    const completedRead = await completed.findById(completedRecordId);\n    assert.ok(completedRead, "completed record must remain readable after catalog rename");\n    assert.deepEqual(completedRead.serviceContext.priest, { id: priestId, displayName: "Emil" });\n    assert.deepEqual(completedRead.serviceContext.organist, { id: organistId, displayName: "Current Organist" });'''
+          completed_replacement = '''    const completedBeforeUpdate = await completed.findById(completedRecordId);\n    assert.ok(completedBeforeUpdate, "completed record must remain readable after catalog rename");\n    await completed.update(completedRecordId, completedBeforeUpdate.serviceContext, completedBeforeUpdate.set);\n    const completedRead = await completed.findById(completedRecordId);\n    assert.ok(completedRead, "completed record must remain readable after a canonical-name round-trip update");\n    assert.deepEqual(completedRead.serviceContext.priest, { id: priestId, displayName: "Emil" });\n    assert.deepEqual(completedRead.serviceContext.organist, { id: organistId, displayName: "Current Organist" });'''
+          if completed_anchor not in db_test:
+              raise SystemExit('Completed read regression anchor not found')
+          db_test = db_test.replace(completed_anchor, completed_replacement, 1)
+          db_path.write_text(db_test, encoding='utf-8')
+
+          workflow = Path('.github/workflows/_temporary-issue-455-snapshot-patch.yml')
+          if workflow.exists():
+              workflow.unlink()
+      - name: Commit exact patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/application/planning-lifecycle/drizzle-repository-adapters.ts scripts/issue-455-456-tests.ts scripts/issue-455-db-tests.ts .github/workflows/_temporary-issue-455-snapshot-patch.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "Preserve person snapshots across lifecycle writes"
+          git push origin HEAD:codex/issues-455-456-planning-names-leave-plan
