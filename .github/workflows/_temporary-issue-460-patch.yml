@@ -1,0 +1,45 @@
+name: Temporary Issue 460 Working Leave Plan patch
+
+on:
+  push:
+    branches:
+      - codex/issue-460-working-leave-plan
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/issue-460-working-leave-plan
+          fetch-depth: 0
+
+      - name: Add Working Plan Leave Plan action
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/planning-lifecycle-client.tsx")
+          text = path.read_text()
+          needle = '''                {!isCompletedRecordOpen && !isFinalSetOpen && (\n                  <>\n                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save"'''
+          replacement = '''                {!isCompletedRecordOpen && !isFinalSetOpen && (\n                  <>\n                    {persistedSet?.status === "working" && (\n                      <button type="button" data-guide-hint="planning.lifecycle.leave-final" onClick={() => { void startNewDbDraft(); }}>\n                        Leave Plan\n                      </button>\n                    )}\n                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save"'''
+          if text.count(needle) != 1:
+              raise SystemExit(f"Expected exactly one Working action insertion point, found {text.count(needle)}")
+          path.write_text(text.replace(needle, replacement, 1))
+
+          workflow = Path(".github/workflows/_temporary-issue-460-patch.yml")
+          workflow.unlink()
+          PY
+
+      - name: Commit exact patch and self-delete helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/planning-lifecycle-client.tsx .github/workflows/_temporary-issue-460-patch.yml
+          git diff --cached --check
+          git commit -m "Add Leave Plan to opened Working Plans"
+          git push origin HEAD:codex/issue-460-working-leave-plan
