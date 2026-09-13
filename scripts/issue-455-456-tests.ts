@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+// Acceptance contract for Issues #455 and #456.
 async function main() {
   const [client, adapter] = await Promise.all([
     readFile("app/planning-lifecycle-client.tsx", "utf8"),
