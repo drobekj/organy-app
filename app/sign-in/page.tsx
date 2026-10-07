@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ProtectedSignInForm } from "./protected-sign-in-form";
 import { ProtectedActorError, resolveProtectedUser } from "../../src/application/protected-actor";
+import { congregationVoterMode } from "../../src/application/congregation-voter-mode";
 import { authPool } from "../../src/auth/server";
 
 export default async function SignInPage() {
@@ -14,7 +15,7 @@ export default async function SignInPage() {
     await resolveProtectedUser(await headers(), authPool);
     redirect("/");
   } catch (error) {
-    if (error instanceof ProtectedActorError && error.code === "unauthenticated") return <ProtectedSignInForm />;
+    if (error instanceof ProtectedActorError && error.code === "unauthenticated") return <ProtectedSignInForm congregationVoterMode={congregationVoterMode()} />;
     if (error instanceof ProtectedActorError) {
       return <main className="auth-shell"><div className="auth-card"><h1>Account unavailable</h1><p>{error.message}</p></div></main>;
     }
