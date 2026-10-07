@@ -55,6 +55,7 @@ async function main(): Promise<void> {
   const routeSource = readFileSync("app/api/congregation-preferences/route.ts", "utf8");
   const confirmSource = readFileSync("app/api/congregation-preferences/confirm/route.ts", "utf8");
   const pageSource = readFileSync("app/congregation-preferences/page.tsx", "utf8");
+  const signInSource = readFileSync("app/sign-in/protected-sign-in-form.tsx", "utf8");
   const temporarySource = readFileSync("src/application/temporary-congregation-voter.ts", "utf8");
 
   assert.match(routeSource, /startTemporaryVoting/);
@@ -63,8 +64,12 @@ async function main(): Promise<void> {
   assert.match(routeSource, /congregation-account:temporary:/);
   assert.match(routeSource, /TEMPORARY_VOTER_SESSION_TTL_SECONDS/);
   assert.match(confirmSource, /isTemporaryCongregationVoterMode\(\)/);
-  assert.match(pageSource, /Start voting/);
-  assert.match(pageSource, /no registration, nickname or email is required/i);
+  assert.match(signInSource, /startTemporaryVoting/);
+  assert.match(signInSource, /Vote for Songs/);
+  assert.match(signInSource, /Vote without signing in\. Your votes stay linked to this browser\./);
+  assert.doesNotMatch(pageSource, /Start voting/);
+  assert.doesNotMatch(pageSource, /temporaryEntryPanel/);
+  assert.match(pageSource, /redirect\("\/sign-in"\)/);
   assert.match(pageSource, /TEMPORARY_ACCOUNT_PREFIX/);
   assert.match(pageSource, /temporaryMode \? "Congregation Preferences" : voter\.nickname/);
   assert.doesNotMatch(temporarySource, /RESEND_API_KEY|CONGREGATION_EMAIL_FROM|CONGREGATION_SECURITY_SECRET/);
