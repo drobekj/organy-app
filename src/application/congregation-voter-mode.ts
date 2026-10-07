@@ -1,8 +1,9 @@
 export type CongregationVoterMode = "temporaryBrowser" | "registeredEmail";
 
 /**
- * Temporary product switch while the congregation decides on the email sender setup.
- * Keep this centralized so the eventual registered-email cutover is one explicit change.
+ * Current product switch: browser-bound congregation voting is active, while the
+ * registered-email implementation remains dormant for a possible later cutover.
+ * Keep this centralized so any future mode change stays explicit.
  */
 export function congregationVoterMode(): CongregationVoterMode {
   return "temporaryBrowser";

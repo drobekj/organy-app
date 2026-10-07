@@ -12,10 +12,13 @@ const shell = readFileSync("app/workspace-shell.css", "utf8");
 const stableVoterDb = readFileSync("scripts/issue-431-tests.ts", "utf8");
 
 // Final entry/language corrections: fresh workspace defaults Czech. Registered-email entry=1
-// remains an explicit fresh entry, while temporary browser voting must resume a valid cookie.
+// remains preserved for a future mode cutover, while temporary browser voting now starts
+// directly from the main sign-in surface and must resume a valid cookie.
 assert.match(workspace, /useState<CongregationLanguage>\("czech"\)/);
 assert.doesNotMatch(workspace, /useState<CongregationLanguage>\("mixed"\)/);
-assert.match(signIn, /href="\/congregation-preferences\?entry=1">Congregation preferences<\/a>/);
+assert.match(signIn, /Vote for Songs/);
+assert.match(signIn, /name="action" value="startTemporaryVoting"/);
+assert.match(signIn, /href="\/congregation-preferences\?entry=1"/);
 assert.match(page, /const temporaryMode = isTemporaryCongregationVoterMode\(\);[\s\S]*?if \(!temporaryMode && first\(params\.entry\) === "1"\) return entryPanel\(params\);[\s\S]*?const token = \(await cookies\(\)\)/);
 assert.doesNotMatch(page, /if \(first\(params\.entry\) === "1"\) return entryPanel\(params\);/);
 
