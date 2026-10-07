@@ -50,6 +50,16 @@ function infoTrigger(target: EventTarget | null): HTMLElement | null {
   return closestElement(target)?.closest<HTMLElement>("[data-guide-hint-trigger]") ?? null;
 }
 
+function insideInfoPopover(target: EventTarget | null): boolean {
+  return Boolean(closestElement(target)?.closest(".guide-hint-popover"));
+}
+
+function interactiveTarget(target: EventTarget | null): boolean {
+  return Boolean(closestElement(target)?.closest(
+    'button, a, input, select, textarea, summary, label, [role="button"], [role="link"], [tabindex]:not([tabindex="-1"])',
+  ));
+}
+
 export function GuideHintLayer({ activeRole, activeWorkspace }: { activeRole: PlanningRole; activeWorkspace: string }) {
   const [enabled, setEnabled] = useState(true);
   const [language, setLanguage] = useState<GuideLanguage>("en");
@@ -153,17 +163,22 @@ export function GuideHintLayer({ activeRole, activeWorkspace }: { activeRole: Pl
 
     function onClick(event: MouseEvent) {
       const trigger = infoTrigger(event.target);
-      if (!trigger) return;
-      const scope = trigger.dataset.guideHintTrigger;
-      if (!scope) return;
-      const keys = guidePanelHintKeys(scope);
-      if (keys.length === 0) return;
-      activeControlRef.current = null;
-      setActive((current) => (
-        current?.mode === "info" && current.triggerScope === scope
-          ? null
-          : { keys, rect: trigger.getBoundingClientRect(), mode: "info", triggerScope: scope }
-      ));
+      if (trigger) {
+        const scope = trigger.dataset.guideHintTrigger;
+        if (!scope) return;
+        const keys = guidePanelHintKeys(scope);
+        if (keys.length === 0) return;
+        activeControlRef.current = null;
+        setActive((current) => (
+          current?.mode === "info" && current.triggerScope === scope
+            ? null
+            : { keys, rect: trigger.getBoundingClientRect(), mode: "info", triggerScope: scope }
+        ));
+        return;
+      }
+
+      if (insideInfoPopover(event.target) || interactiveTarget(event.target)) return;
+      setActive((current) => current?.mode === "info" ? null : current);
     }
 
     document.addEventListener("pointerover", onPointerOver, true);
