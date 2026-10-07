@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getAppDbPool } from "../../src/db/app-pool";
 import { CongregationVoterError, PostgresCongregationPreferenceService } from "../../src/application/congregation-preference-voter";
 import { isTemporaryCongregationVoterMode } from "../../src/application/congregation-voter-mode";
@@ -18,7 +19,10 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   if (!temporaryMode && first(params.entry) === "1") return entryPanel(params);
 
   const token = (await cookies()).get(CONTEXT_COOKIE)?.value;
-  if (!token) return temporaryMode ? temporaryEntryPanel() : entryPanel(params);
+  if (!token) {
+    if (temporaryMode) redirect("/sign-in");
+    return entryPanel(params);
+  }
   const pool = getAppDbPool(databaseUrl);
   const service = new PostgresCongregationPreferenceService(pool);
   let voter;
@@ -26,11 +30,12 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
     voter = await service.resolveContext(token);
   } catch (error) {
     if (error instanceof CongregationVoterError && error.code === "unauthenticated") {
-      return temporaryMode ? temporaryEntryPanel(true) : entryPanel({ ...params, notice: "sessionExpired" });
+      if (temporaryMode) redirect("/sign-in");
+      return entryPanel({ ...params, notice: "sessionExpired" });
     }
     throw error;
   }
-  if (temporaryMode && !voter.accountId.startsWith(TEMPORARY_ACCOUNT_PREFIX)) return temporaryEntryPanel();
+  if (temporaryMode && !voter.accountId.startsWith(TEMPORARY_ACCOUNT_PREFIX)) redirect("/sign-in");
 
   const catalog = new PostgresReferenceCatalogProvider(pool);
   const [records, preferences] = await Promise.all([catalog.listAll("all"), service.listOwnReferencePreferences(token)]);
@@ -58,11 +63,9 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
             <span>This existing nickname is not yet protected by a verified email.</span>
             <a href={`/congregation-preferences?entry=1&view=register&claim=1&nickname=${encodeURIComponent(voter.nickname)}`}>Verify email</a>
           </aside>
-        ) : temporaryMode ? (
-          <p className="field-help">Temporary test mode: your preferences are linked only to this browser. No registration or email is required.</p>
-        ) : (
+        ) : !temporaryMode ? (
           <p className="field-help">Your preferences are linked to your stable voter profile.</p>
-        )}
+        ) : null}
 
         <CongregationPreferenceWorkspace records={records} preferences={preferences} />
       </section>
@@ -70,29 +73,7 @@ export default async function CongregationPreferencesPage({ searchParams }: Page
   );
 }
 
-function temporaryEntryPanel(expired = false) {
-  return (
-    <main className="auth-shell">
-      <section className="auth-card congregation-entry-card" aria-label="Congregation Preferences temporary voting">
-        <h1>Congregation Preferences</h1>
-        <p className="field-help">Vote for your favorite songs to be considered.</p>
-        <p className="field-help">Temporary test mode: no registration, nickname or email is required. Your votes remain linked to this browser.</p>
-        {expired && <p role="alert" className="auth-error">This browser&apos;s previous test voter session has expired. Start a new test voter to continue.</p>}
-        <form className="congregation-entry-sign-in" action="/api/congregation-preferences" method="post">
-          <input type="hidden" name="action" value="startTemporaryVoting" />
-          <button className="congregation-entry-button" type="submit">Start voting</button>
-        </form>
-        <div className="congregation-entry-divider" aria-hidden="true"></div>
-        <div className="congregation-entry-options">
-          <EntryOption href="/sign-in" label="Staff sign in" help="if you are a priest, organist or admin" />
-        </div>
-      </section>
-    </main>
-  );
-}
-
 function entryPanel(params: Record<string, string | string[] | undefined>) {
-  if (isTemporaryCongregationVoterMode()) return temporaryEntryPanel();
   const view = first(params.view);
   const nickname = first(params.nickname) ?? "";
   const notice = first(params.notice);
