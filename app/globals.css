@@ -1364,6 +1364,104 @@ textarea {
 
 .auth-error { color: #a40000; }
 
+.auth-staff-sign-in,
+.auth-vote-entry {
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-entry-action {
+  display: grid;
+  min-width: 0;
+  position: relative;
+}
+
+.auth-entry-primary {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--foreground);
+  display: inline-flex;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.55rem;
+  padding: 0.6rem 0.9rem;
+  text-align: center;
+  text-decoration: none;
+  width: 100%;
+}
+
+.auth-entry-hover-info,
+.auth-entry-mobile-info {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  box-shadow: 0 0.8rem 2rem rgb(15 23 42 / 16%);
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+}
+
+.auth-entry-hover-info {
+  display: none;
+  left: 0;
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  width: 100%;
+  z-index: 30;
+}
+
+.auth-entry-info-button {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .auth-entry-primary:hover ~ .auth-entry-hover-info,
+  .auth-entry-primary:focus-visible ~ .auth-entry-hover-info {
+    display: block;
+  }
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+  .auth-entry-action {
+    align-items: center;
+    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .auth-entry-info-button {
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.35rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    font-size: 0.82rem;
+    height: 1.55rem;
+    justify-content: center;
+    line-height: 1;
+    min-height: 1.55rem;
+    padding: 0;
+    width: 1.55rem;
+  }
+
+  .auth-entry-info-button:focus-visible {
+    outline: 2px solid #84adff;
+    outline-offset: 2px;
+  }
+
+  .auth-entry-hover-info {
+    display: none !important;
+  }
+
+  .auth-entry-mobile-info {
+    grid-column: 1 / -1;
+  }
+}
+
 .congregation-entry-card {
   width: min(34rem, 100%);
 }
