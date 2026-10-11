@@ -30,7 +30,7 @@ export default async function Home() {
       : null;
     return (
       <>
-        <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} initialActiveRole={activeRole} initialWhatsAppPhone={authenticatedUser.whatsappPhone} />
+        <ProtectedAccountControls displayName={authenticatedUser.displayName} roles={authenticatedUser.roles} initialActiveRole={activeRole} />
         {maintenanceIncident && (
           <aside className="maintenance-incident-alert" role="alert">
             <strong>Audit maintenance requires attention.</strong>

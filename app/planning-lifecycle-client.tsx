@@ -36,7 +36,8 @@ import {
 } from "../src/planning-lifecycle/service-context-defaults";
 import { canMutatePlanningEditor, clearLastSavedRecordOnOpen, getDraftPeopleDefaults, type DraftPeopleDefaults } from "../src/planning-lifecycle/ui-session";
 import { formatCompletedRecordSummary, formatPlanningSetSummary, getSafeWorkspace, getWorkspaceAfterComplete, getWorkspaceAfterCompletedUpdate, getWorkspaceAfterDelete, getWorkspaceAfterFinalize, getWorkspaceAfterOpenRecord, getWorkspaceAfterSaveWorking, getWorkspaceAfterStartNewSet, getWorkspaceLabel, groupActivePlanningSets, type PersistedRecordReference, type Workspace } from "../src/planning-lifecycle/workspace";
-import { PostFinalizeWhatsAppHandoff } from "./post-finalize-whatsapp-handoff";
+import { PlanExportPreview } from "./plan-export-preview";
+import type { PlanExportSource } from "../src/planning-lifecycle/plan-export";
 import {
   DbCatalogClient,
   DbInteractionClient,
@@ -171,7 +172,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
   const [persistedSet, setPersistedSet] = useState<PersistedPlanningPlan | null>(null);
-  const [postFinalizePlan, setPostFinalizePlan] = useState<PersistedPlanningPlan | null>(null);
+  const [exportPreviewPlan, setExportPreviewPlan] = useState<PlanExportSource | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [completedInvalidationPreview, setCompletedInvalidationPreview] = useState<CompletedPlanInvalidationPreview | null>(null);
   const completedInvalidationPreviewRequest = useRef(0);
@@ -462,6 +463,30 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     ...(melodyFinalizationReason && !isCompletedRecordOpen && !isFinalSetOpen ? [melodyFinalizationReason] : []),
     ...(completeDateReason ? [`Complete service disabled: ${completeDateReason}`] : []),
   ].filter((message, index, messages) => messages.indexOf(message) === index);
+
+  function currentWorkingExportPlan(): PlanExportSource {
+    return {
+      status: "working",
+      serviceContext: {
+        serviceDate,
+        serviceTime: normalizeServiceTime(serviceTime),
+        language: serviceLanguage,
+        priest: { ...(priestId ? { id: priestId } : {}), displayName: priest },
+        organist: { ...(organistId ? { id: organistId } : {}), displayName: organist },
+        melodyProtectionMonths,
+        ...(serviceNote.trim() ? { note: serviceNote.trim() } : {}),
+        ...(referenceAntiphon ? { referenceAntiphon: { ...referenceAntiphon } } : {}),
+        ...(referenceTopic ? { referenceTopic: { ...referenceTopic } } : {}),
+        ...(candidateAntiphonKey.trim() ? { antiphonKey: candidateAntiphonKey.trim() } : {}),
+        ...(candidateSeasonKey.trim() ? { liturgicalSeasonKey: candidateSeasonKey.trim() } : {}),
+      },
+      rows: planningRows,
+    };
+  }
+
+  function openWorkingExportPreview() {
+    setExportPreviewPlan(currentWorkingExportPlan());
+  }
 
   function completedDraftInput(record: CompletedServiceRecord) {
     return {
@@ -1295,7 +1320,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setServiceError(null);
     setLastSavedRecord({ kind: "active", id: result.value.id });
     setSaveState("finalized");
-    setPostFinalizePlan(result.value);
+    setExportPreviewPlan(result.value);
     const refreshed = await refreshDbSets();
     startNewDraftAfterSuccess(refreshed.draftPeopleDefaults);
     setWorkspace(getWorkspaceAfterFinalize());
@@ -1920,6 +1945,9 @@ Save the correction and mark those plans for revision?`);
                     <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete saved plan
                     </button>
+                    <button type="button" data-guide-hint="planning.lifecycle.export" onClick={openWorkingExportPreview}>
+                      Export preview
+                    </button>
                   </>
                 )}
                 {!isCompletedRecordOpen && isFinalSetOpen && (
@@ -1933,6 +1961,9 @@ Save the correction and mark those plans for revision?`);
                     </button>
                     <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete Saved Plan
+                    </button>
+                    <button type="button" data-guide-hint="planning.lifecycle.export" onClick={() => { if (persistedSet) setExportPreviewPlan(persistedSet); }}>
+                      Export preview
                     </button>
                   </>
                 )}
@@ -1949,11 +1980,10 @@ Save the correction and mark those plans for revision?`);
         </form>
         )}
 
-        {postFinalizePlan && (
-          <PostFinalizeWhatsAppHandoff
-            plan={postFinalizePlan}
-            runtimeMode={runtimeMode}
-            onClose={() => setPostFinalizePlan(null)}
+        {exportPreviewPlan && (
+          <PlanExportPreview
+            plan={exportPreviewPlan}
+            onClose={() => setExportPreviewPlan(null)}
           />
         )}
 

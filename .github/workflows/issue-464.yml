@@ -1,0 +1,42 @@
+name: Plan Export preview acceptance
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --loglevel=error
+
+      - name: Focused Issue 464 acceptance
+        run: npx tsx scripts/issue-464-tests.ts
+
+      - name: Historical plan handoff regression
+        run: npx tsx scripts/issue-310-tests.ts
+
+      - name: Planning UI regression
+        run: npm run test:ui-static
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build

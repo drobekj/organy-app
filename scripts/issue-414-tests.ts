@@ -5,7 +5,7 @@ const guide = readFileSync("app/guide-content.ts", "utf8");
 const workspace = readFileSync("app/guide-workspace.tsx", "utf8");
 const planning = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
 const controlHints = readFileSync("app/guide-control-hints.ts", "utf8");
-const whatsapp = readFileSync("app/post-finalize-whatsapp-handoff.tsx", "utf8");
+const exportPreview = readFileSync("app/plan-export-preview.tsx", "utf8");
 const css = readFileSync("app/workspace-shell.css", "utf8");
 
 assert.match(guide, /export type GuideRole = "admin" \| "priest" \| "organist";/);
@@ -22,8 +22,8 @@ assert.match(guide, /"planning\.melody-protection"[\s\S]*?session-only[\s\S]*?An
 assert.match(guide, /Demo Catalog is read-only and uses synthetic data/);
 assert.match(guide, /preference, repertoire and Melody Edge mutations are not persisted/);
 assert.match(guide, /id: "guide\.development"[\s\S]*?standardOnly: true/);
-assert.match(guide, /export const guideAccountContext = \{[\s\S]*?User & Role[\s\S]*?Sign Role[\s\S]*?Phone Setting[\s\S]*?Role Admin[\s\S]*?Manage Accounts[\s\S]*?Audit History[\s\S]*?Verify DB/);
-assert.match(guide, /"planning\.whatsapp"[\s\S]*?prepared message[\s\S]*?protected account/);
+assert.match(guide, /export const guideAccountContext = \{[\s\S]*?User & Role[\s\S]*?Sign Role[\s\S]*?Guide Hints[\s\S]*?Change Password[\s\S]*?Role Admin[\s\S]*?Manage Accounts[\s\S]*?Audit History[\s\S]*?Verify DB/);
+assert.match(controlHints, /"planning\.lifecycle\.export"[\s\S]*?structured plain text[\s\S]*?communication channel/);
 
 assert.match(workspace, /experience: GuideExperience/);
 assert.match(workspace, /experience === "demo"[\s\S]*?filter\(\(section\) => !section\.standardOnly\)/);
@@ -35,7 +35,7 @@ assert.match(workspace, /experience === "demo" && demoRole && onDemoRoleChange \
 assert.match(planning, /<GuideWorkspace[\s\S]*?activeRole=\{presentationRole\}[\s\S]*?experience=\{isDemoExperience \? "demo" : "standard"\}[\s\S]*?demoRole=\{isDemoExperience \? demoPresentationRole : undefined\}[\s\S]*?onDemoRoleChange=/);
 assert.match(controlHints, /role === "admin" \|\| role === "priest" \|\| role === "organist"/);
 assert.match(controlHints, /Demo Catalog is read-only/);
-assert.equal((whatsapp.match(/data-guide-hint="planning\.whatsapp"/g) ?? []).length, 3);
+assert.match(exportPreview, /aria-label="Copy export text"/);
 assert.match(css, /grid-template-columns: repeat\(auto-fit, minmax\(14rem, 1fr\)\)/);
 assert.match(css, /\.guide-shared,\s*\.guide-experience/);
 

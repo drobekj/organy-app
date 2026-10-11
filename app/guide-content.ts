@@ -62,8 +62,8 @@ export const guideAccountContext = {
   },
   bullets: [
     {
-      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, manage Phone Setting when a WhatsApp phone has been saved, use Change Password or Sign Out. Guide Hints controls automatic hover/focus help; panel i summaries remain available.",
-      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints, spravovat Phone Setting po uložení WhatsApp telefonu a použít Change Password nebo Sign Out. Guide Hints řídí automatickou nápovědu při hover/focus; souhrny přes tlačítko i zůstávají dostupné.",
+      en: "Open User … to choose Sign Role from assigned roles, switch Guide Hints, use Change Password or Sign Out. Guide Hints controls automatic hover/focus help; panel i summaries remain available.",
+      cz: "V User … lze z přiřazených rolí zvolit Sign Role, přepnout Guide Hints a použít Change Password nebo Sign Out. Guide Hints řídí automatickou nápovědu při hover/focus; souhrny přes tlačítko i zůstávají dostupné.",
     },
     {
       en: "Role shows the active role. When Admin is active, Role Admin … opens Manage Accounts, Manage Preferences, Audit History and Verify DB; for other roles it remains a compact role label.",
@@ -146,8 +146,8 @@ export const guideSections: GuideSection[] = [
           cz: "Pro zvoleného Organista je Melody Protection neomezený dočasný session override v rozsahu 0–12 měsíců. Nepřepisuje uložené nastavení Organista.",
         },
         {
-          en: "After Finalize, the optional WhatsApp handoff can open a prepared message. A protected Admin account may save the phone for later use.",
-          cz: "Po Finalize lze volitelně otevřít WhatsApp s připravenou zprávou. Protected Admin account může telefon uložit pro další použití.",
+          en: "Export preview is available for Working and Final plans. After Finalize, the same structured preview opens automatically and can be copied into any communication channel.",
+          cz: "Export preview je dostupný pro Working i Final plány. Po Finalize se stejný strukturovaný náhled otevře automaticky a lze jej zkopírovat do libovolného komunikačního kanálu.",
         },
       ],
       priest: [
@@ -164,8 +164,8 @@ export const guideSections: GuideSection[] = [
           cz: "Melody Protection vychází z vlastního minima zvoleného Organista. Priest jej může pro daný plán zvýšit, ale nemůže zvolit nižší hodnotu; nižší možnosti jsou zakázané. Anonymous Organist má minimum 0 měsíců. Tím se nemění uložené nastavení Organista.",
         },
         {
-          en: "After Finalize, the optional WhatsApp handoff can open a prepared message. Without a saved phone, enter one for this use only or save it to the protected account for next time.",
-          cz: "Po Finalize lze volitelně otevřít WhatsApp s připravenou zprávou. Není-li telefon uložený, lze jej zadat jen pro toto použití nebo uložit do protected account pro příště.",
+          en: "Export preview is available for Working and Final plans. After Finalize, the same structured preview opens automatically and can be copied into any communication channel.",
+          cz: "Export preview je dostupný pro Working i Final plány. Po Finalize se stejný strukturovaný náhled otevře automaticky a lze jej zkopírovat do libovolného komunikačního kanálu.",
         },
       ],
       organist: [
@@ -180,6 +180,10 @@ export const guideSections: GuideSection[] = [
         {
           en: "Owns the persistent Melody Protection setting for the Organist identity. It can be set from 0 to 12 months; when no stored value exists, the default is 2 months.",
           cz: "Vlastní perzistentní nastavení Melody Protection pro identitu Organista. Lze nastavit 0 až 12 měsíců; pokud ještě není uložena žádná hodnota, výchozí jsou 2 měsíce.",
+        },
+        {
+          en: "Export preview is available for opened Working and Final plans even though Organist cannot perform Final lifecycle mutations.",
+          cz: "Export preview je dostupný pro otevřené Working i Final plány, i když Organist nemůže provádět Final lifecycle změny.",
         },
       ],
     },
@@ -428,14 +432,6 @@ export const guideHints = {
         en: "Organist owns the persistent 0–12 month setting. If no value has been stored yet, the default is 2 months.",
         cz: "Organist vlastní perzistentní nastavení 0–12 měsíců. Pokud ještě žádná hodnota uložena není, výchozí jsou 2 měsíce.",
       },
-    },
-  },
-  "planning.whatsapp": {
-    sectionId: "guide.planning",
-    title: { en: "WhatsApp handoff", cz: "Předání do WhatsApp" },
-    copy: {
-      en: "After a successful Finalize, Priest or Admin can optionally open WhatsApp with a prepared message. Without a saved phone, enter one for this use only or save it to the protected account.",
-      cz: "Po úspěšném Finalize může Priest nebo Admin volitelně otevřít WhatsApp s připravenou zprávou. Není-li telefon uložený, lze jej zadat jen pro toto použití nebo uložit do protected account.",
     },
   },
   "plans.records": {

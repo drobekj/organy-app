@@ -18,7 +18,7 @@ assert.equal(guideAccountContext.title.en, "User & Role");
 assert.match(guideRoleContextShared.en, /Role-specific Guide blocks follow the role represented by this panel/);
 
 const accountEnglish = guideAccountContext.bullets.map((item) => item.en).join(" ");
-for (const phrase of ["Sign Role", "Guide Hints", "Phone Setting", "Change Password", "Sign Out", "Role Admin", "Manage Accounts", "Manage Preferences", "Audit History", "Verify DB"]) {
+for (const phrase of ["Sign Role", "Guide Hints", "Change Password", "Sign Out", "Role Admin", "Manage Accounts", "Manage Preferences", "Audit History", "Verify DB"]) {
   assert.ok(accountEnglish.includes(phrase), `Production Guide context must explain ${phrase}.`);
 }
 

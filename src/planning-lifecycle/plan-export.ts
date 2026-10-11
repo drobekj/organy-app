@@ -1,10 +1,13 @@
-import type { PersistedPlanningPlan } from "../application/planning-lifecycle/ports";
-import { whatsAppPhoneDigits } from "../application/whatsapp-phone";
+import type { PlanningPlan, ServiceContext } from "./model";
 
-export function formatFinalPlanWhatsAppMessage(plan: PersistedPlanningPlan): string {
+export type PlanExportSource = Pick<PlanningPlan, "status" | "rows"> & {
+  serviceContext: ServiceContext;
+};
+
+export function formatPlanExportText(plan: PlanExportSource): string {
   const context = plan.serviceContext;
   const lines = [
-    "Final plan",
+    plan.status === "final" ? "Final plan" : "Working plan",
     `Date: ${context.serviceDate}`,
     `Time: ${context.serviceTime}`,
     `Language: ${context.language}`,
@@ -33,8 +36,4 @@ export function formatFinalPlanWhatsAppMessage(plan: PersistedPlanningPlan): str
   }
 
   return lines.join("\n");
-}
-
-export function buildFinalPlanWhatsAppUrl(plan: PersistedPlanningPlan, phoneE164: string): string {
-  return `https://wa.me/${whatsAppPhoneDigits(phoneE164)}?text=${encodeURIComponent(formatFinalPlanWhatsAppMessage(plan))}`;
 }

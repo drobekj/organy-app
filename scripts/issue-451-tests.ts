@@ -46,7 +46,7 @@ assert.match(accountControls, /<GuideHintsSetting \/>/);
 // the full-width action contract and must remain present after narrowing the selector.
 for (const expected of [
   "workspace-sign-role-options",
-  "ProtectedWhatsAppPhoneSetting",
+  "GuideHintsSetting",
   "Change Password",
   "Sign Out",
   "workspace-account-actions",
