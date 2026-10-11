@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { PersistedPlanningSet } from "../src/application/planning-lifecycle/ports";
-import { buildFinalPlanWhatsAppUrl, formatFinalPlanWhatsAppMessage } from "../src/planning-lifecycle/whatsapp-finalization";
+import { formatPlanExportText } from "../src/planning-lifecycle/plan-export";
 
 const planning = readFileSync("app/planning-lifecycle-client.tsx", "utf8");
-const handoff = readFileSync("app/post-finalize-whatsapp-handoff.tsx", "utf8");
+const preview = readFileSync("app/plan-export-preview.tsx", "utf8");
 
 const plan: PersistedPlanningSet = {
   id: "plan-test",
@@ -26,7 +26,7 @@ const plan: PersistedPlanningSet = {
   ],
 };
 
-const message = formatFinalPlanWhatsAppMessage(plan);
+const message = formatPlanExportText(plan);
 assert.match(message, /^Final plan\n/);
 assert.match(message, /Date: 2026-09-06/);
 assert.match(message, /Time: 10:00/);
@@ -39,6 +39,9 @@ assert.match(message, /Note: Parish celebration/);
 assert.match(message, /1\. 123 First hymn — Entrance/);
 assert.match(message, /2\. 456 Second hymn/);
 
+const workingMessage = formatPlanExportText({ ...plan, status: "working" });
+assert.match(workingMessage, /^Working plan\n/);
+
 const minimalPlan: PersistedPlanningSet = {
   ...plan,
   serviceContext: {
@@ -48,27 +51,28 @@ const minimalPlan: PersistedPlanningSet = {
     referenceTopic: undefined,
   },
 };
-const minimalMessage = formatFinalPlanWhatsAppMessage(minimalPlan);
+const minimalMessage = formatPlanExportText(minimalPlan);
 assert.doesNotMatch(minimalMessage, /Antiphon:/);
 assert.doesNotMatch(minimalMessage, /Topic:/);
 assert.doesNotMatch(minimalMessage, /Note:/);
 
-const url = buildFinalPlanWhatsAppUrl(plan, "+420774880971");
-assert.match(url, /^https:\/\/wa\.me\/420774880971\?text=/);
-assert.equal(decodeURIComponent(url.split("?text=")[1] ?? ""), message);
-
 assert.match(planning, />\s*Save working plan\s*<\/button>/);
 assert.match(planning, />\s*Finalize plan\s*<\/button>/);
-assert.match(planning, />\s*Delete saved plan\s*<\/button>/);
-assert.match(planning, /!isCompletedRecordOpen && isFinalSetOpen && \([\s\S]*?>Edit Final Plan<\/button>[\s\S]*?>\s*Store Service\s*<\/button>[\s\S]*?>\s*Delete Saved Plan\s*<\/button>/);
+assert.match(planning, />\s*Delete saved plan\s*<\/button>[\s\S]*?>\s*Export preview\s*<\/button>/);
+assert.match(planning, /!isCompletedRecordOpen && isFinalSetOpen && \([\s\S]*?>Edit Final Plan<\/button>[\s\S]*?>\s*Store Service\s*<\/button>[\s\S]*?>\s*Delete Saved Plan\s*<\/button>[\s\S]*?>\s*Export preview\s*<\/button>/);
 assert.doesNotMatch(planning, />\s*Complete service\s*<\/button>/);
 assert.doesNotMatch(planning, />\s*Reopen for editing\s*<\/button>/);
-assert.doesNotMatch(planning, /type="checkbox"/);
-assert.doesNotMatch(planning, /<button[^>]*>\s*Inform\s*<\/button>/);
 
-assert.match(planning, /if \(!result\.success\) \{[\s\S]*?return;[\s\S]*?setPostFinalizePlan\(result\.value\)/, "WhatsApp offer appears only after successful finalization");
-assert.match(planning, /<PostFinalizeWhatsAppHandoff[\s\S]*?plan=\{postFinalizePlan\}[\s\S]*?runtimeMode=\{runtimeMode\}/);
-assert.match(handoff, /role="dialog"[\s\S]*?>Plan finalized<[\s\S]*?Inform about the finalized plan via WhatsApp\?[\s\S]*?Open WhatsApp[\s\S]*?>Close<\/button>/);
-assert.match(handoff, /href=\{buildFinalPlanWhatsAppUrl\(plan, phone\)\}[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"/);
+assert.match(planning, /function currentWorkingExportPlan\(\): PlanExportSource/);
+assert.match(planning, /setExportPreviewPlan\(currentWorkingExportPlan\(\)\)/);
+assert.match(planning, /setExportPreviewPlan\(result\.value\)/, "Export preview appears only after successful finalization result is available");
+assert.match(planning, /<PlanExportPreview[\s\S]*?plan=\{exportPreviewPlan\}/);
 
-console.log("Issue 310 plan terminology and post-finalization WhatsApp handoff coverage passed.");
+assert.match(preview, /navigator\.clipboard\?\.writeText/);
+assert.match(preview, /document\.execCommand\("copy"\)/);
+assert.match(preview, /aria-label="Copy export text"/);
+assert.match(preview, /event\.key === "Escape"/);
+assert.match(preview, /event\.target === event\.currentTarget/);
+assert.doesNotMatch(planning + preview, /WhatsApp|wa\.me|Phone Setting/);
+
+console.log("Issue 310 evolved plan terminology and export-preview coverage passed.");
