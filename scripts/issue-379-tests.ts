@@ -10,8 +10,8 @@ const css = readFileSync("app/workspace-shell.css", "utf8");
 
 const signRole = controls.indexOf("workspace-sign-role-menu");
 const guideHints = controls.indexOf("<GuideHintsSetting");
-const phone = controls.indexOf("<ProtectedWhatsAppPhoneSetting");
-assert.ok(signRole >= 0 && signRole < guideHints && guideHints < phone, "Guide Hints must sit between Sign Role and Phone Setting.");
+const changePassword = controls.indexOf(">Change Password</button>");
+assert.ok(signRole >= 0 && signRole < guideHints && guideHints < changePassword, "Guide Hints must sit between Sign Role and Change Password.");
 
 assert.match(hintsSetting, /role="switch"/);
 assert.match(hintsSetting, /aria-checked=\{enabled\}/);
