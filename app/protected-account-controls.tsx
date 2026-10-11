@@ -6,7 +6,6 @@ import type { PlanningRole } from "../src/planning-lifecycle";
 import { ACTIVE_ROLE_CHANGED_EVENT, isPlanningRole, serializeActiveRoleCookie } from "../src/application/active-role";
 import { authClient } from "../src/auth/client";
 import { PasswordVisibilityField } from "./password-visibility-field";
-import { ProtectedWhatsAppPhoneSetting } from "./protected-whatsapp-phone-setting";
 import { GuideHintsSetting } from "./guide-hints-setting";
 
 type PendingAccountAction = "signOut" | "changePassword" | null;
@@ -44,7 +43,7 @@ function formatRole(role: PlanningRole): string {
   return `${role.slice(0, 1).toUpperCase()}${role.slice(1)}`;
 }
 
-export function ProtectedAccountControls({ displayName, roles, initialActiveRole, initialWhatsAppPhone }: { displayName: string; roles: string[]; initialActiveRole: PlanningRole; initialWhatsAppPhone?: string }) {
+export function ProtectedAccountControls({ displayName, roles, initialActiveRole }: { displayName: string; roles: string[]; initialActiveRole: PlanningRole }) {
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
   const [editingPassword, setEditingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -351,7 +350,6 @@ export function ProtectedAccountControls({ displayName, roles, initialActiveRole
                 </div>
               </details>
               <GuideHintsSetting />
-              <ProtectedWhatsAppPhoneSetting initialPhone={initialWhatsAppPhone} roles={roles} />
               <button type="button" onClick={() => { setEditingPassword(true); setFeedback(null); }} disabled={pending}>Change Password</button>
               <button type="button" onClick={signOut} disabled={pending} aria-busy={pendingAction === "signOut"}>{pendingAction === "signOut" ? "Signing Out…" : "Sign Out"}</button>
             </>
