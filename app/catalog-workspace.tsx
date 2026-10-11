@@ -12,6 +12,7 @@ import type {
 import type { CatalogPerson } from "../src/application/catalog";
 import type { ServiceAntiphonReference, ServiceLanguage, ServiceTopicReference } from "../src/planning-lifecycle";
 import { candidatesForView, type CandidateViewMode } from "../src/planning-lifecycle/candidate-view";
+import { findCatalogCandidateJumpMatch } from "../src/planning-lifecycle/catalog-candidate-jump";
 import { getCandidateLineViewModel } from "../src/planning-lifecycle/candidate-line";
 import { MelodyClassDetail } from "../src/planning-lifecycle/melody-detail";
 import { ServiceContextReferenceAntiphonField } from "./service-context-reference-antiphon-field";
@@ -69,6 +70,7 @@ export function CatalogWorkspace({
   const [viewMode, setViewMode] = useState<CandidateViewMode>("songs");
   const [candidates, setCandidates] = useState<CandidateQueryResult[]>([]);
   const [selectedDetail, setSelectedDetail] = useState<CandidateQueryResult>();
+  const [candidateJumpQuery, setCandidateJumpQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const [ownPreference, setOwnPreference] = useState<ReferenceOwnPreference>();
@@ -82,9 +84,11 @@ export function CatalogWorkspace({
   const request = useRef(0);
   const preferenceRequest = useRef(0);
   const recommendationRequest = useRef(0);
+  const candidateScrollRef = useRef<HTMLDivElement>(null);
 
   const contextKey = `catalog:${language}:${organistPersonId}:${actor.role}`;
   const visibleCandidates = useMemo(() => candidatesForView(candidates, viewMode), [candidates, viewMode]);
+  const candidateJumpMatch = useMemo(() => findCatalogCandidateJumpMatch(visibleCandidates, candidateJumpQuery), [visibleCandidates, candidateJumpQuery]);
   const selectedOrganist = organists.find((person) => person.id === organistPersonId);
   const recommendationClient = useMemo(
     () => !readOnlyDemo && runtime === "db" ? new DbReferenceAntiphonRecommendationClient({ userId: actor.userId, role: actor.role }) : null,
@@ -134,6 +138,30 @@ export function CatalogWorkspace({
     setSelectedDetail(undefined);
     void reloadCandidates();
   }, [language, organistPersonId, antiphon?.id, topic?.id, availabilityMode, queryCandidates]);
+
+  useEffect(() => {
+    const list = candidateScrollRef.current;
+    if (!list) return;
+
+    if (!candidateJumpQuery.trim()) {
+      list.scrollTop = 0;
+      return;
+    }
+
+    if (!candidateJumpMatch) return;
+    const target = Array.from(list.children).find((child) => (
+      child instanceof HTMLElement && child.dataset.candidateSongId === candidateJumpMatch.songId
+    )) as HTMLElement | undefined;
+    if (!target) return;
+
+    list.scrollTop = Math.max(0, target.offsetTop - list.offsetTop);
+  }, [candidateJumpQuery, candidateJumpMatch?.songId, visibleCandidates]);
+
+  function clearCandidateJump() {
+    setCandidateJumpQuery("");
+    const list = candidateScrollRef.current;
+    if (list) list.scrollTop = 0;
+  }
 
   useEffect(() => {
     const token = ++recommendationRequest.current;
@@ -388,6 +416,23 @@ export function CatalogWorkspace({
             Unavailable
           </button>
         </div>
+        <label className="catalog-candidate-jump" data-guide-hint="catalog.candidates.jump">
+          <span className="sr-only">Jump to Catalog candidate</span>
+          <input
+            type="text"
+            value={candidateJumpQuery}
+            onChange={(event) => setCandidateJumpQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              event.stopPropagation();
+              clearCandidateJump();
+            }}
+            placeholder="Jump by number or title"
+            aria-label="Jump to Catalog candidate by number or title"
+            autoComplete="off"
+          />
+        </label>
         <div className="workspace-nav catalog-view-switch" role="group" aria-label="Catalog candidate view">
           <button type="button" data-guide-hint="catalog.candidates.view" className={viewMode === "songs" ? "active-workspace" : undefined} aria-pressed={viewMode === "songs"} onClick={() => setViewMode("songs")}>Songs</button>
           <button type="button" data-guide-hint="catalog.candidates.view" className={viewMode === "melodies" ? "active-workspace" : undefined} aria-pressed={viewMode === "melodies"} onClick={() => setViewMode("melodies")}>Melodies</button>
@@ -400,10 +445,11 @@ export function CatalogWorkspace({
       {preferenceError && <p className="catalog-candidate-state inline-error" role="alert">Preference unavailable: {preferenceError}</p>}
       {!loading && !error && visibleCandidates.length === 0 && <p className="catalog-candidate-state">No candidates match this Catalog context.</p>}
 
-      {!loading && !error && visibleCandidates.length > 0 && <div className="catalog-candidate-scroll" role="list" aria-label={`${availabilityMode} ${viewMode}`}>
+      {!loading && !error && visibleCandidates.length > 0 && <div ref={candidateScrollRef} className="catalog-candidate-scroll" role="list" aria-label={`${availabilityMode} ${viewMode}`}>
         {visibleCandidates.map((candidate) => <CatalogCandidateRow
           key={candidate.songId}
           candidate={candidate}
+          jumpTarget={candidateJumpMatch?.songId === candidate.songId}
           repertoireAction={repertoireAction}
           repertoireSaving={repertoireSaving}
           onRepertoireAction={(action) => void mutateRepertoire(candidate, action)}
@@ -451,6 +497,7 @@ export function CatalogWorkspace({
 
 function CatalogCandidateRow({
   candidate,
+  jumpTarget,
   repertoireAction,
   repertoireSaving,
   onRepertoireAction,
@@ -458,6 +505,7 @@ function CatalogCandidateRow({
   detail,
 }: {
   candidate: CandidateQueryResult;
+  jumpTarget: boolean;
   repertoireAction?: "Add" | "Remove";
   repertoireSaving: boolean;
   onRepertoireAction: (action: "Add" | "Remove") => void;
@@ -465,7 +513,7 @@ function CatalogCandidateRow({
   detail?: ReactNode;
 }) {
   const view = getCandidateLineViewModel(candidate);
-  return <div className={`candidate-option-row catalog-candidate-row ${view.backgroundClass}`} role="listitem" aria-label={view.accessibleMeaning}>
+  return <div data-candidate-song-id={candidate.songId} className={`candidate-option-row catalog-candidate-row ${view.backgroundClass}${jumpTarget ? " catalog-candidate-jump-target" : ""}`} role="listitem" aria-label={view.accessibleMeaning}>
     <div className="catalog-candidate-summary">
       <span className={`candidate-option-main ${view.contentTextClass}`}>
         <strong>{candidate.number}</strong><span>{candidate.title}</span>

@@ -244,6 +244,14 @@ const controlGuideHints = {
     title: { en: "Available / Unavailable", cz: "Available / Unavailable" },
     copy: { en: "Switches between candidates currently available and songs outside the current repertoire availability.", cz: "Přepíná mezi aktuálně dostupnými kandidáty a písněmi mimo současnou repertoárovou dostupnost." },
   },
+  "catalog.candidates.jump": {
+    sectionId: "guide.catalog",
+    title: { en: "Jump to song", cz: "Přejít na píseň" },
+    copy: {
+      en: "Type a song number or part of its title to scroll the current candidate list to the first match. This does not select or change the song. Escape clears the field and returns to the top of the list.",
+      cz: "Zadejte číslo písně nebo část názvu a seznam kandidátů se přesune na první shodu. Píseň se tím nevybírá ani nemění. Escape pole vymaže a vrátí seznam na začátek.",
+    },
+  },
   "catalog.candidates.view": {
     sectionId: "guide.catalog",
     title: { en: "Songs / Melodies", cz: "Songs / Melodies" },
