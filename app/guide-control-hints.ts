@@ -171,6 +171,14 @@ const controlGuideHints = {
     title: { en: "Delete saved plan", cz: "Smazat uložený plán" },
     copy: { en: "Deletes the currently opened saved plan when your role permits it.", cz: "Smaže právě otevřený uložený plán, pokud to role dovoluje." },
   },
+  "planning.lifecycle.export": {
+    sectionId: "guide.planning",
+    title: { en: "Export preview", cz: "Náhled exportu" },
+    copy: {
+      en: "Shows the current Working or Final plan as structured plain text that you can copy and paste into any communication channel.",
+      cz: "Zobrazí aktuální Working nebo Final plán jako strukturovaný prostý text, který lze zkopírovat a vložit do libovolného komunikačního kanálu.",
+    },
+  },
   "planning.lifecycle.store": {
     sectionId: "guide.planning",
     title: { en: "Store Service", cz: "Uložit bohoslužbu" },
