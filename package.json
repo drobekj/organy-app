@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "generate:fingering": "node scripts/generate-fingering-manifest.mjs",
+    "predev": "node scripts/generate-fingering-manifest.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/generate-fingering-manifest.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import type { CandidateMelodyMember, CandidateQueryResult } from "../application/interaction-contracts";
+import { fingeringLinksForSongId } from "../application/fingering-catalog";
 import { getCandidateLineViewModel } from "./candidate-line";
 import type { ServiceLanguage } from "./model";
 
@@ -268,6 +269,7 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
           const isCurrent = Boolean(props.currentSongId && member.songId === props.currentSongId);
           const rowActivatable = activatable[index];
           const infoOpacity = rowActivatable ? 1 : 0.58;
+          const fingeringLinks = fingeringLinksForSongId(member.songId);
           const unavailableReason = !languageAllowed
             ? `Not selectable in a ${props.serviceLanguage} service.`
             : occupancyReason
@@ -318,6 +320,17 @@ export function MelodyClassDetail(props: MelodyClassDetailProps) {
                       ) : (
                         <span className="field-help melody-score-missing">Score not available</span>
                       )}
+                      {fingeringLinks.map((link) => (
+                        <a
+                          key={link.filename}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={stopRowActivation}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          aria-label={`Open ${link.label.toLowerCase()} for ${member.number} ${member.title}`}
+                        >{link.label}</a>
+                      ))}
                     </div>
                   )}
                 </div>
