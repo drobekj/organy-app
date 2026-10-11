@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { CandidateQueryResult } from "../src/application/interaction-contracts";
+import { fingeringLinksForSongId, parseFingeringFilename } from "../src/application/fingering-catalog";
 import { queryCandidatesFromData, hydrateCandidatesFromData } from "../src/application/interaction-service";
 import { CandidateCombobox } from "../src/planning-lifecycle/candidate-list";
 import { formatPlanningSongField, getPlanningCandidateRowLookupState, planningCandidateRowReducer } from "../src/planning-lifecycle/candidate-flow";
@@ -27,6 +28,28 @@ const available: CandidateQueryResult = {
 };
 const polishCandidate: CandidateQueryResult = { ...available, songId: "polish:38", language: "polish", number: "38", title: "Polish song", aggregatePreferenceScore: 2, repertoire: true, orderKey: "1:38" };
 const occupied: CandidateQueryResult = { ...available, availability: { kind: "occupiedByCurrentRows", rows: [{ rowId: 2, label: "Row 2" }] } };
+
+assert.deepEqual(parseFingeringFilename("EK60A-001_fingering.pdf"), {
+  filename: "EK60A-001_fingering.pdf",
+  catalogId: "60",
+  version: "A",
+  sequence: "001",
+  url: "/fingering/EK60A-001_fingering.pdf",
+});
+assert.deepEqual(
+  fingeringLinksForSongId("czech:60").map(({ label, url }) => ({ label, url })),
+  [
+    { label: "Fingering A-001", url: "/fingering/EK60A-001_fingering.pdf" },
+    { label: "Fingering B-001", url: "/fingering/EK60B-001_fingering.pdf" },
+  ],
+  "versioned fingering PDFs are separate links on the base catalog song",
+);
+assert.deepEqual(
+  fingeringLinksForSongId("czech:709").map(({ label, url }) => ({ label, url })),
+  [{ label: "Fingering", url: "/fingering/EK709-001_fingering.pdf" }],
+  "a single unversioned artifact keeps the compact Fingering label",
+);
+assert.deepEqual(fingeringLinksForSongId("polish:60"), [], "fingering artifacts currently bind only to Czech catalog IDs");
 
 assert.equal(isMemberLanguageAllowed("polish", "czech"), false);
 assert.equal(isMemberLanguageAllowed("polish", "mixed"), true);
@@ -62,6 +85,39 @@ assert.match(candidateDetail, /target="_blank"/);
 assert.match(candidateDetail, /rel="noopener noreferrer"/);
 assert.match(candidateDetail, /Open score for 29 Czech song/);
 assert.match(candidateDetail, /melody-member-meta[\s\S]*?>Score<\/a>[\s\S]*?melody-member-actions/, "available Score occupies the same metadata area as Score not available");
+
+const fingeringCandidate: CandidateQueryResult = {
+  ...available,
+  songId: "czech:60",
+  number: "60",
+  title: "Fingering song",
+  equivalentNumbers: [],
+  melodyClassId: undefined,
+  melodyMembers: undefined,
+  sheetMusicUrl: "https://example.test/60.pdf",
+  orderKey: "0:60",
+};
+const fingeringDetail = renderToStaticMarkup(
+  <MelodyClassDetail
+    mode="candidate"
+    rowLabel="Row 1"
+    candidate={fingeringCandidate}
+    serviceLanguage="czech"
+    eligibilityCandidates={[fingeringCandidate]}
+    loading={false}
+    onBack={() => undefined}
+    onClose={() => undefined}
+    onRetry={() => undefined}
+    onReturnToCandidates={() => undefined}
+  />,
+);
+assert.match(fingeringDetail, /href="\/fingering\/EK60A-001_fingering\.pdf"[^>]*>Fingering A-001<\/a>/);
+assert.match(fingeringDetail, /href="\/fingering\/EK60B-001_fingering\.pdf"[^>]*>Fingering B-001<\/a>/);
+assert.ok(
+  fingeringDetail.indexOf(">Score</a>") < fingeringDetail.indexOf(">Fingering A-001</a>")
+  && fingeringDetail.indexOf(">Fingering A-001</a>") < fingeringDetail.indexOf(">Fingering B-001</a>"),
+  "Fingering links render immediately after Score in deterministic order",
+);
 
 const seasonDetail = renderToStaticMarkup(
   <MelodyClassDetail
