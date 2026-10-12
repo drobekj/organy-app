@@ -49,6 +49,12 @@ export class DemoPlanningLifecycleClient {
     return denyPersistentMutation("planning.saveWorkingSet");
   }
 
+  setWorkingSetReviewed(
+    _input: Parameters<PlanningLifecycleService["setWorkingSetReviewed"]>[0],
+  ): ReturnType<PlanningLifecycleService["setWorkingSetReviewed"]> {
+    return denyPersistentMutation("planning.setWorkingSetReviewed");
+  }
+
   finalizeWorkingSet(
     _input: Parameters<PlanningLifecycleService["finalizeWorkingSet"]>[0],
   ): ReturnType<PlanningLifecycleService["finalizeWorkingSet"]> {

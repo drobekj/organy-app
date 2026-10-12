@@ -33,6 +33,7 @@ type PlanningLifecycleAction =
   | "previewCompletedRecordInvalidation"
   | "previewPlanningSetConflict"
   | "saveWorkingSet"
+  | "setWorkingSetReviewed"
   | "finalizeWorkingSet"
   | "reopenFinalSet"
   | "completeFinalSet"
@@ -279,6 +280,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, value });
     }
 
+    if (action === "setWorkingSetReviewed") {
+      const reviewInput = body.input;
+      if (!isWorkingSetReviewedInput(reviewInput)) return invalidInput("setWorkingSetReviewed requires workingSetId and reviewed.");
+      const result = await db.transaction(async (tx) => {
+        const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
+        const service = createDbBackedPlanningLifecycleService(txDependencies);
+        return service.setWorkingSetReviewed({
+          role: actor.role,
+          organistPersonId: actor.personId,
+          workingSetId: reviewInput.workingSetId,
+          reviewed: reviewInput.reviewed,
+        });
+      });
+      return NextResponse.json(result);
+    }
+
     if (!isRecord(body.input)) return invalidInput("Planning mutation input object is required.");
     if (action === "saveWorkingSet" && (!isRecord(body.input.serviceContext) || !isRecord(body.input.set))) return invalidInput("saveWorkingSet requires serviceContext and set objects.");
 
@@ -394,7 +411,7 @@ function isRecord(value: unknown): value is Record<string, unknown> { return typ
 function invalidInput(message: string) { return NextResponse.json({ error: { code: "invalidInput", message } }, { status: 400 }); }
 
 function isPlanningLifecycleAction(action: string): action is PlanningLifecycleAction {
-  return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "previewPlanningSetConflict", "saveWorkingSet", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
+  return ["getWorkspaceSnapshot", "listPlanningSets", "listCompletedRecords", "loadPlanningSet", "loadCompletedRecord", "previewCompletedRecordInvalidation", "previewPlanningSetConflict", "saveWorkingSet", "setWorkingSetReviewed", "finalizeWorkingSet", "reopenFinalSet", "completeFinalSet", "deletePlanningSet", "updateCompletedRecord", "deleteCompletedRecord"].includes(action);
 }
 
 function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: string; serviceDate: string; melodyProtectionMonths?: number; rows: PlanningPlan["rows"] } {
@@ -409,6 +426,13 @@ function isPlanningSetConflictPreviewInput(input: unknown): input is { setId: st
     ))
     && Array.isArray(input.rows)
     && input.rows.every(isRecord);
+}
+
+function isWorkingSetReviewedInput(input: unknown): input is { workingSetId: string; reviewed: boolean } {
+  return isRecord(input)
+    && typeof input.workingSetId === "string"
+    && input.workingSetId.trim().length > 0
+    && typeof input.reviewed === "boolean";
 }
 
 function isObjectWithRecordId(input: unknown): input is { recordId: string } {

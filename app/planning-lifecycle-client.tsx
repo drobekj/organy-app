@@ -172,6 +172,7 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
   const [saveState, setSaveState] = useState<SaveState>("unsaved");
   const [savedWorkingSet, setSavedWorkingSet] = useState<WorkingSetSnapshot | null>(null);
   const [persistedSet, setPersistedSet] = useState<PersistedPlanningPlan | null>(null);
+  const [reviewSaving, setReviewSaving] = useState(false);
   const [exportPreviewPlan, setExportPreviewPlan] = useState<PlanExportSource | null>(null);
   const [completedRecord, setCompletedRecord] = useState<CompletedServiceRecord | null>(null);
   const [completedInvalidationPreview, setCompletedInvalidationPreview] = useState<CompletedPlanInvalidationPreview | null>(null);
@@ -392,6 +393,11 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
       ? demoPresentationCanPerformPlanningAction(demoPresentationRole, persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet")
       : canPerformPlanningAction(selectedRole, persistedSet?.status === "working" ? "editWorkingSet" : "createWorkingSet")
   );
+  const canToggleWorkingReview = !isDemoExperience
+    && persistedSet?.status === "working"
+    && selectedRole === "organist"
+    && Boolean(activeActor.personId)
+    && persistedSet.serviceContext.organist.id === activeActor.personId;
   const canFinalizeSet = !isCompletedRecordOpen && !isFinalSetOpen && (
     isDemoExperience
       ? demoPresentationCanPerformPlanningAction(demoPresentationRole, "saveFinalSet")
@@ -1234,6 +1240,32 @@ export default function PlanningLifecycleClient({ runtimeMode, authenticatedUser
     setWorkspace(getWorkspaceAfterSaveWorking());
   }
 
+  async function toggleWorkingSetReviewed() {
+    if (!persistedSet || persistedSet.status !== "working" || !canToggleWorkingReview || reviewSaving) return;
+    setReviewSaving(true);
+    const reviewed = !Boolean(persistedSet.organistReviewed);
+    try {
+      const result = await planningLifecycleService.setWorkingSetReviewed({
+        role: selectedRole,
+        organistPersonId: activeActor.personId,
+        ...({ localActorUserId: activeActor.userId } as Record<string, string>),
+        workingSetId: persistedSet.id,
+        reviewed,
+      });
+      if (!result.success) {
+        setServiceError(result.error);
+        setSaveState("errors");
+        return;
+      }
+      setPersistedSet(result.value);
+      setSavedDbSets((current) => current.map((plan) => plan.id === result.value.id ? result.value : plan));
+      setServiceError(null);
+      setSaveState("saved");
+    } finally {
+      setReviewSaving(false);
+    }
+  }
+
   async function finalizeWorkingSet() {
     if (isCompletedRecordOpen || !persistedSet || persistedSet.status !== "working") return;
     if (!hasConcreteFinalPeople) {
@@ -1620,6 +1652,11 @@ Save the correction and mark those plans for revision?`);
               <div className={`status status-${saveState}`} role="status">
                 {saveStateLabel}
               </div>
+              {persistedSet?.status === "working" && persistedSet.organistReviewed && (
+                <div className="status status-reviewed" role="status">
+                  Reviewed by {persistedSet.serviceContext.organist.displayName}
+                </div>
+              )}
               {persistedSet && <p className="saved-summary">Opened {formatPlanningSetSummary(persistedSet)}.</p>}
               {completedRecord && <p className="saved-summary">Opened {formatCompletedRecordSummary(completedRecord)}.</p>}
               {savedWorkingSet && saveState === "saved" && (
@@ -1935,6 +1972,22 @@ Save the correction and mark those plans for revision?`);
                       <button type="button" data-guide-hint="planning.lifecycle.leave-final" onClick={() => { void startNewDbDraft(); }}>
                         Leave Plan
                       </button>
+                    )}
+                    {canToggleWorkingReview && (
+                      <div className="planning-reviewed-setting" data-guide-hint="planning.lifecycle.reviewed">
+                        <span>Reviewed</span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={Boolean(persistedSet?.organistReviewed)}
+                          aria-label="Reviewed"
+                          className="workspace-toggle-switch"
+                          disabled={reviewSaving}
+                          onClick={() => { void toggleWorkingSetReviewed(); }}
+                        >
+                          <span className="workspace-toggle-thumb" aria-hidden="true" />
+                        </button>
+                      </div>
                     )}
                     <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={isDemoExperience || !canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Save working plan

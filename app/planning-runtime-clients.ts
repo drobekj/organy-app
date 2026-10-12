@@ -55,6 +55,10 @@ export class DbPlanningLifecycleClient {
     return callPlanningLifecycleApi("saveWorkingSet", input, actorContextFrom(input));
   }
 
+  async setWorkingSetReviewed(input: Parameters<PlanningLifecycleService["setWorkingSetReviewed"]>[0]) {
+    return callPlanningLifecycleApi("setWorkingSetReviewed", input, actorContextFrom(input));
+  }
+
   async finalizeWorkingSet(input: Parameters<PlanningLifecycleService["finalizeWorkingSet"]>[0]) {
     return callPlanningLifecycleApi("finalizeWorkingSet", input, actorContextFrom(input));
   }

@@ -158,6 +158,7 @@ export const serviceSets = pgTable("service_sets", {
     .notNull()
     .references(() => serviceContexts.id, { onDelete: "cascade" }),
   status: serviceSetStatus("status").notNull().default("working"),
+  organistReviewed: boolean("organist_reviewed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

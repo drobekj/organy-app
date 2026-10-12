@@ -169,6 +169,13 @@
       "when": 1788465600000,
       "tag": "0023_stable_congregation_voters",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791834000000,
+      "tag": "0024_organist_reviewed",
+      "breakpoints": true
     }
   ]
 }

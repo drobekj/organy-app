@@ -358,6 +358,11 @@ h2 {
   color: var(--danger);
 }
 
+.status-reviewed {
+  background: #ecfdf3;
+  color: var(--success);
+}
+
 /* Shared visual contract for true application alerts. */
 [role="alert"] {
   background: #fef3f2;
@@ -462,6 +467,26 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+
+.planning-reviewed-setting {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 0.55rem;
+  min-height: 2.45rem;
+  padding: 0.28rem 0.55rem 0.28rem 0.75rem;
+}
+
+.planning-reviewed-setting > span {
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.planning-reviewed-setting .workspace-toggle-switch {
+  min-height: 1.4rem;
 }
 
 .save-button {

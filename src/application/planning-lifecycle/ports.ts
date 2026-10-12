@@ -13,6 +13,7 @@ export type CompletedServiceConflictState = { conflictingPlanIds: PlanningPlanId
 export type PersistedPlanningPlan = PlanningPlan & {
   id: PlanningPlanId;
   serviceContext: ServiceContext;
+  organistReviewed?: boolean;
   completedAt?: Date;
   needsRevision?: PlanningPlanRevisionState;
   lastChangedBy?: string;
@@ -35,6 +36,7 @@ export interface PlanningPlanRepository {
   findById(id: PlanningPlanId): Promise<PersistedPlanningPlan | undefined>;
   saveWorkingSet(set: PlanningPlan & { status: "working" }, serviceContext: ServiceContext, existingId?: PlanningPlanId): Promise<PersistedPlanningPlan>;
   saveFinalSet(set: PlanningPlan & { status: "final" }, serviceContext: ServiceContext, existingId?: PlanningPlanId): Promise<PersistedPlanningPlan>;
+  setOrganistReviewed(id: PlanningPlanId, reviewed: boolean): Promise<PersistedPlanningPlan | undefined>;
   demoteFinalToWorking(id: PlanningPlanId): Promise<void>;
   deleteById(id: PlanningPlanId): Promise<void>;
 }

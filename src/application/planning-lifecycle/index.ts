@@ -47,5 +47,6 @@ export {
   type ReopenFinalSetInput,
   type ReorderRowsInput,
   type SaveWorkingSetInput,
+  type SetWorkingSetReviewedInput,
   type UpdateCompletedRecordInput,
 } from "./service";
