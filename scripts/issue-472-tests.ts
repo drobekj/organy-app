@@ -39,4 +39,15 @@ assert.doesNotMatch(
   "Reviewed label must not override action-button font size",
 );
 
+assert.match(
+  ui,
+  /className="workspace-toggle-switch"[\s\S]*?<span className="workspace-toggle-thumb" aria-hidden="true" \/>/,
+  "Reviewed must use the same ball-style toggle classes as Guide Hints",
+);
+assert.doesNotMatch(
+  css,
+  /\.planning-reviewed-setting\s+\.workspace-toggle-switch\s*\{/,
+  "Reviewed must not override the shared Guide Hints switch geometry",
+);
+
 console.log("Issue #472 Reviewed/Finalize action-slot acceptance: PASS");
