@@ -55,7 +55,6 @@ async function main() {
     workingSetId: created.id,
     reviewed: true,
   });
-  assert.equal(reviewed.success, true);
   if (!reviewed.success) throw new Error(reviewed.error.message);
   assert.equal(reviewed.value.organistReviewed, true);
 
@@ -65,7 +64,6 @@ async function main() {
     workingSetId: created.id,
     reviewed: false,
   });
-  assert.equal(withdrawn.success, true);
   if (!withdrawn.success) throw new Error(withdrawn.error.message);
   assert.equal(withdrawn.value.organistReviewed, false);
 
