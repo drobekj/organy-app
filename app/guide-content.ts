@@ -182,6 +182,10 @@ export const guideSections: GuideSection[] = [
           cz: "Vlastní perzistentní nastavení Melody Protection pro identitu Organista. Lze nastavit 0 až 12 měsíců; pokud ještě není uložena žádná hodnota, výchozí jsou 2 měsíce.",
         },
         {
+          en: "For a saved Working plan assigned to this Organist, Reviewed can be switched on or off. When on, the plan shows Reviewed by the assigned Organist; any later Working-plan save clears the acknowledgement.",
+          cz: "U uloženého Working plánu přiřazeného tomuto varhaníkovi lze Reviewed zapnout nebo vypnout. V zapnutém stavu plán zobrazuje potvrzení varhaníka; každé další uložení Working plánu potvrzení zruší.",
+        },
+        {
           en: "Export preview is available for opened Working and Final plans even though Organist cannot perform Final lifecycle mutations.",
           cz: "Export preview je dostupný pro otevřené Working i Final plány, i když Organist nemůže provádět Final lifecycle změny.",
         },
