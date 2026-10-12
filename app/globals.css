@@ -485,9 +485,6 @@ button:disabled {
   white-space: nowrap;
 }
 
-.planning-reviewed-setting .workspace-toggle-switch {
-  min-height: 1.4rem;
-}
 
 .save-button {
   background: var(--foreground);
