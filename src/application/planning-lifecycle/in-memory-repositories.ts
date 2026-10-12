@@ -36,9 +36,17 @@ export class InMemoryPlanningSetRepository implements PlanningPlanRepository {
     return this.saveSet(set, serviceContext, existingId);
   }
 
+  async setOrganistReviewed(id: PlanningPlanId, reviewed: boolean): Promise<PersistedPlanningPlan | undefined> {
+    const current = this.sets.get(id);
+    if (!current) return undefined;
+    const updated = { ...current, organistReviewed: reviewed };
+    this.sets.set(id, updated);
+    return clonePersistedPlanningSet(updated);
+  }
+
   async demoteFinalToWorking(id: PlanningPlanId): Promise<void> {
     const current = this.sets.get(id);
-    if (current?.status === "final") this.sets.set(id, { ...current, status: "working" });
+    if (current?.status === "final") this.sets.set(id, { ...current, status: "working", organistReviewed: false });
   }
 
   async deleteById(id: PlanningPlanId): Promise<void> {
@@ -55,6 +63,7 @@ export class InMemoryPlanningSetRepository implements PlanningPlanRepository {
       ...clonePlanningSet(set),
       id,
       serviceContext: cloneServiceContext(serviceContext),
+      organistReviewed: false,
     };
 
     this.sets.set(id, persistedSet);
