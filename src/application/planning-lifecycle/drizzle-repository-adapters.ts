@@ -45,6 +45,7 @@ type ServiceSetRecord = {
   id: number;
   serviceContextId: number;
   status: "working" | "final";
+  organistReviewed: boolean;
 };
 
 type ServiceContextRecord = {
@@ -129,6 +130,7 @@ export class DrizzlePlanningSetRepository implements PlanningPlanRepository {
       language: context.serviceLanguage,
       serviceContext: await resolveCurrentCatalogPersonNames(db, context),
       rows: rows.map(mapRowRecordToPlanningRow),
+      organistReviewed: Boolean(set.organistReviewed),
     };
   }
 
@@ -148,11 +150,20 @@ export class DrizzlePlanningSetRepository implements PlanningPlanRepository {
     return this.saveSet(set, serviceContext, existingId);
   }
 
+  async setOrganistReviewed(id: PlanningPlanId, reviewed: boolean): Promise<PersistedPlanningPlan | undefined> {
+    const numericId = parsePlanningSetId(id);
+    if (numericId === undefined) return undefined;
+    await updateTable(this.dependencies.db, serviceSets)
+      .set({ organistReviewed: reviewed })
+      .where(eq(serviceSets.id, numericId));
+    return this.findById(id);
+  }
+
   async demoteFinalToWorking(id: PlanningPlanId): Promise<void> {
     const numericId = parsePlanningSetId(id);
     if (numericId === undefined) return;
     await updateTable(this.dependencies.db, serviceSets)
-      .set({ status: "working", updatedAt: new Date() })
+      .set({ status: "working", organistReviewed: false, updatedAt: new Date() })
       .where(eq(serviceSets.id, numericId));
   }
 
@@ -240,6 +251,7 @@ export class DrizzlePlanningSetRepository implements PlanningPlanRepository {
       language: context.serviceLanguage,
       serviceContext: await resolveCurrentCatalogPersonNames(db, context),
       rows: rows.map(mapRowRecordToPlanningRow),
+      organistReviewed: Boolean(set.organistReviewed),
     };
   }
 }
@@ -495,7 +507,7 @@ async function insertNewSet(db: DrizzleExecutor, set: PlanningPlan, serviceConte
     .returning({ id: serviceContexts.id })) as { id: number }[];
 
   const [serviceSet] = (await insertInto(db, serviceSets)
-    .values({ serviceContextId: context.id, status: set.status, createdAt: now, updatedAt: now })
+    .values({ serviceContextId: context.id, status: set.status, organistReviewed: false, createdAt: now, updatedAt: now })
     .returning({ id: serviceSets.id })) as { id: number }[];
 
   return serviceSet.id;
@@ -517,7 +529,7 @@ async function updateExistingSet(db: DrizzleExecutor, id: number, set: PlanningP
     .where(eq(serviceContexts.id, existing.serviceContextId));
 
   await updateTable(db, serviceSets)
-    .set({ status: set.status, updatedAt: now })
+    .set({ status: set.status, organistReviewed: false, updatedAt: now })
     .where(eq(serviceSets.id, id));
 
   return id;
