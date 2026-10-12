@@ -747,13 +747,19 @@ button.workspace-action-pending {
   justify-content: flex-end;
 }
 
-.workspace-toggle-thumb {
+.workspace-toggle-switch::after {
   background: #fff;
   border-radius: 50%;
   box-shadow: 0 1px 2px rgb(15 23 42 / 18%);
+  content: "";
   display: block;
+  flex: 0 0 1.05rem;
   height: 1.05rem;
   width: 1.05rem;
+}
+
+.workspace-toggle-thumb {
+  display: none;
 }
 
 .planning-service-context,
