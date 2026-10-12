@@ -281,15 +281,16 @@ export async function POST(request: Request) {
     }
 
     if (action === "setWorkingSetReviewed") {
-      if (!isWorkingSetReviewedInput(body.input)) return invalidInput("setWorkingSetReviewed requires workingSetId and reviewed.");
+      const reviewInput = body.input;
+      if (!isWorkingSetReviewedInput(reviewInput)) return invalidInput("setWorkingSetReviewed requires workingSetId and reviewed.");
       const result = await db.transaction(async (tx) => {
         const txDependencies: PlanningLifecycleDrizzleAdapterDependencies = { db: tx as unknown as PlanningLifecycleDrizzleAdapterDependencies["db"], schema };
         const service = createDbBackedPlanningLifecycleService(txDependencies);
         return service.setWorkingSetReviewed({
           role: actor.role,
           organistPersonId: actor.personId,
-          workingSetId: body.input.workingSetId,
-          reviewed: body.input.reviewed,
+          workingSetId: reviewInput.workingSetId,
+          reviewed: reviewInput.reviewed,
         });
       });
       return NextResponse.json(result);
