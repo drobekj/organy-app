@@ -480,14 +480,11 @@ button:disabled {
 }
 
 .planning-reviewed-setting > span {
-  font-size: 0.875rem;
+  font: inherit;
   font-weight: 700;
   white-space: nowrap;
 }
 
-.planning-reviewed-setting .workspace-toggle-switch {
-  min-height: 1.4rem;
-}
 
 .save-button {
   background: var(--foreground);
