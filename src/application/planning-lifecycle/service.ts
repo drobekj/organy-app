@@ -69,6 +69,13 @@ export type ReopenFinalSetInput = {
   finalSetId: PlanningPlanId;
 };
 
+export type SetWorkingSetReviewedInput = {
+  role: PlanningRole;
+  organistPersonId?: string;
+  workingSetId: PlanningPlanId;
+  reviewed: boolean;
+};
+
 export type DeletePlanningSetInput = {
   role: PlanningRole;
   setId: PlanningPlanId;
@@ -268,6 +275,28 @@ export class PlanningLifecycleService {
     }
 
     return success(persistedFinalSet);
+  }
+
+  async setWorkingSetReviewed(input: SetWorkingSetReviewedInput): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
+    if (input.role !== "organist" || !input.organistPersonId) {
+      return failure({ code: "permissionDenied", message: "Only the assigned Organist can change Reviewed state." });
+    }
+
+    const workingSet = await this.planningSets.findById(input.workingSetId);
+    if (!workingSet) {
+      return failure({ code: "notFound", message: "Working planning set was not found." });
+    }
+    if (workingSet.status !== "working") {
+      return failure({ code: "invalidStatus", message: "Reviewed state is available only for Working plans." });
+    }
+    if (!workingSet.serviceContext.organist.id || workingSet.serviceContext.organist.id !== input.organistPersonId) {
+      return failure({ code: "permissionDenied", message: "Only the Organist assigned to this Working plan can change Reviewed state." });
+    }
+
+    const updated = await this.planningSets.setOrganistReviewed(input.workingSetId, input.reviewed);
+    return updated
+      ? success(updated)
+      : failure({ code: "notFound", message: "Working planning set was not found." });
   }
 
   async reopenFinalSet(input: ReopenFinalSetInput): Promise<PlanningServiceResult<PersistedPlanningPlan>> {
