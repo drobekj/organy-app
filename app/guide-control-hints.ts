@@ -157,6 +157,14 @@ const controlGuideHints = {
     title: { en: "Save working plan", cz: "Uložit Working plán" },
     copy: { en: "Persists the current plan while keeping it Working.", cz: "Uloží aktuální plán a ponechá jej ve stavu Working." },
   },
+  "planning.lifecycle.reviewed": {
+    sectionId: "guide.planning",
+    title: { en: "Reviewed", cz: "Reviewed" },
+    copy: {
+      en: "For the Organist assigned to this Working plan. Switch on after reviewing the plan; switch off to withdraw the acknowledgement. Any later Working-plan save resets it.",
+      cz: "Pro varhaníka přiřazeného k tomuto Working plánu. Po kontrole plánu zapněte; vypnutím potvrzení odvoláte. Každé další uložení Working plánu stav resetuje.",
+    },
+  },
   "planning.lifecycle.finalize": {
     sectionId: "guide.planning",
     title: { en: "Finalize plan", cz: "Finalizovat plán" },
