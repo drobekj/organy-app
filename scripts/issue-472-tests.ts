@@ -26,14 +26,16 @@ const finalizeIndex = workingActions.indexOf("Finalize plan");
 const deleteIndex = workingActions.indexOf("Delete saved plan");
 assert.ok(saveIndex >= 0 && reviewedIndex > saveIndex && finalizeIndex > reviewedIndex && deleteIndex > finalizeIndex);
 
+const reviewedLabelBlock = css.match(/\.planning-reviewed-setting > span \{([^}]*)\}/)?.[1] ?? "";
 assert.match(
-  css,
-  /\.planning-reviewed-setting > span \{[\s\S]*?font: inherit;[\s\S]*?font-weight: 700;/,
+  reviewedLabelBlock,
+  /font: inherit;/,
   "Reviewed label must inherit the same font sizing/family as action buttons",
 );
+assert.match(reviewedLabelBlock, /font-weight: 700;/);
 assert.doesNotMatch(
-  css,
-  /\.planning-reviewed-setting > span \{[\s\S]*?font-size:/,
+  reviewedLabelBlock,
+  /font-size:/,
   "Reviewed label must not override action-button font size",
 );
 
