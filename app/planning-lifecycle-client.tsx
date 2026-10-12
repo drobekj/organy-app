@@ -1973,7 +1973,10 @@ Save the correction and mark those plans for revision?`);
                         Leave Plan
                       </button>
                     )}
-                    {canToggleWorkingReview && (
+                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={isDemoExperience || !canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
+                      Save working plan
+                    </button>
+                    {canToggleWorkingReview ? (
                       <div className="planning-reviewed-setting" data-guide-hint="planning.lifecycle.reviewed">
                         <span>Reviewed</span>
                         <button
@@ -1988,13 +1991,11 @@ Save the correction and mark those plans for revision?`);
                           <span className="workspace-toggle-thumb" aria-hidden="true" />
                         </button>
                       </div>
-                    )}
-                    <button className="save-button" type="button" data-guide-hint="planning.lifecycle.save" onClick={saveWorkingSet} disabled={isDemoExperience || !canSaveWorkingSet || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
-                      Save working plan
-                    </button>
-                    <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={isDemoExperience || !canFinalizeSet || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
-                      Finalize plan
-                    </button>
+                    ) : canFinalizeSet ? (
+                      <button type="button" data-guide-hint="planning.lifecycle.finalize" onClick={finalizeWorkingSet} disabled={isDemoExperience || !persistedSet || persistedSet.status !== "working" || !hasConcreteFinalPeople || !hasServiceContext || hasValidationErrors || hasInvalidLookupState || hasCandidateAvailabilityBlock || hasMelodyCollisions || hasAntiphonLanguageMismatch} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
+                        Finalize plan
+                      </button>
+                    ) : null}
                     <button type="button" data-guide-hint="planning.lifecycle.delete" onClick={deletePersistedSet} disabled={isDemoExperience || !canDeleteCurrentSet || !persistedSet} title={isDemoExperience ? "Disabled in Demo mode — this action would change stored data." : undefined}>
                       Delete saved plan
                     </button>
