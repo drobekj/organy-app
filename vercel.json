@@ -2,7 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["fra1"],
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": {
+      "main": true,
+      "*": false
+    }
   },
   "crons": [
     {
