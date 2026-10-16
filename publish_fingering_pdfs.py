@@ -876,7 +876,7 @@ def sync(repo: Path, publish: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="R74: Organy public/fingering ↔ GitHub ↔ Vercel, audit + OK")
+    p = argparse.ArgumentParser(description="R74.3: transakční Organy public/fingering ↔ GitHub ↔ Vercel")
     p.add_argument("--publish", action="store_true", help="audit + OK, synchronizace a ověření Vercelu")
     p.add_argument("--setup-hook", action="store_true", help="jednorázové nastavení Vercel Deploy Hooku")
     p.add_argument("--repo", type=Path, help="cesta k organy-app (pro testování)")

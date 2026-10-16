@@ -193,6 +193,44 @@ class MirrorTests(unittest.TestCase):
         self.assertNotIn("transaction", pub.read_state())
         self.assertEqual(pub.read_state()["last_confirmed_sha"], rollback)
 
+    def test_recovery_clears_staged_pdf_after_crash_before_commit(self):
+        wanted = self.put("EK789-001", b"wanted")
+        git("-C", self.repo, "add", "public/fingering/EK789-001_fingering.pdf")
+        pub.write_state({"last_confirmed_sha": self.baseline, "transaction": {
+            "phase": "approved",
+            "baseline_sha": self.baseline,
+            "before_sha": self.baseline,
+        }})
+        with patch.object(pub, "confirm_changes", return_value=False):
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("provádím nový audit", out)
+        self.assertEqual(git("-C", self.repo, "diff", "--cached", "--name-only"), "")
+        self.assertEqual(git("-C", self.repo, "rev-parse", "HEAD"), self.baseline)
+        self.assertEqual(git("--git-dir", self.remote, "rev-parse", "main"), self.baseline)
+        self.assertTrue(wanted.exists())
+        self.assertNotIn("transaction", pub.read_state())
+
+    def test_recovery_discards_unpushed_local_candidate_but_preserves_source(self):
+        wanted = self.put("EK789-001", b"wanted")
+        git("-C", self.repo, "add", "public/fingering/EK789-001_fingering.pdf")
+        git("-C", self.repo, "commit", "-m", "local candidate")
+        candidate = git("-C", self.repo, "rev-parse", "HEAD")
+        pub.write_state({"last_confirmed_sha": self.baseline, "transaction": {
+            "phase": "local_committed",
+            "baseline_sha": self.baseline,
+            "before_sha": self.baseline,
+            "candidate_sha": candidate,
+        }})
+        with patch.object(pub, "confirm_changes", return_value=False):
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("neodeslaný publikační commit byl vrácen", out)
+        self.assertEqual(git("-C", self.repo, "rev-parse", "HEAD"), self.baseline)
+        self.assertEqual(git("--git-dir", self.remote, "rev-parse", "main"), self.baseline)
+        self.assertTrue(wanted.exists())
+        self.assertNotIn("transaction", pub.read_state())
+
     def test_publisher_control_files_do_not_block_legacy_pdf_waiting_on_github(self):
         (self.repo / "PUBLIKOVAT_PRSTOKLADY.cmd").write_text("@echo off\n")
         git("-C", self.repo, "add", "PUBLIKOVAT_PRSTOKLADY.cmd")
