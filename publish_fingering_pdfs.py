@@ -1,4 +1,4 @@
-"""R74 – mirror only organy-app/public/fingering into GitHub/Vercel.
+"""R74.3 – transactional mirror of organy-app/public/fingering into GitHub/Vercel.
 
 Install THIS script in organy-app's root, not in score-fingering-lab.
 No paths, imports, database access or runtime dependencies on score-fingering-lab.
@@ -40,6 +40,29 @@ GIT_AUTHOR = "drobekj"
 GIT_EMAIL = "106076286+drobekj@users.noreply.github.com"
 TIMEOUT_SECONDS = 300
 
+# These files are operational publisher tooling only. They may exist on GitHub
+# ahead of the last verified Vercel SHA without being treated as application
+# runtime changes. Anything else outside public/fingering still fails closed.
+PUBLISHER_CONTROL_PATHS = frozenset({
+    "PUBLIKOVAT_PRSTOKLADY.cmd",
+    "publish_fingering_pdfs.py",
+    "r74_tests/test_publish_mirror.py",
+    "R74_README.md",
+    "R74_SHA256SUMS.txt",
+    "R74_1_README.md",
+    "R74_1_SHA256SUMS.txt",
+    "R74_2_README.md",
+    "R74_2_SHA256SUMS.txt",
+    "R74_3_README.md",
+})
+TRANSACTION_PHASES = frozenset({
+    "approved",
+    "local_committed",
+    "pushed",
+    "rollback_prepared",
+    "rollback_pushed",
+})
+
 
 class PublishError(RuntimeError):
     pass
@@ -65,6 +88,18 @@ def git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     if r.returncode:
         raise PublishError(f"Git {args[0]} selhal: {(r.stderr or r.stdout).strip()}")
     return r.stdout.strip()
+
+
+def git_bytes(repo: Path, *args: str, env: dict[str, str] | None = None) -> bytes:
+    try:
+        r = subprocess.run(["git", "-C", str(repo), *args],
+                           capture_output=True, env=env)
+    except FileNotFoundError as exc:
+        raise PublishError("Git není dostupný v PATH") from exc
+    if r.returncode:
+        detail = (r.stderr or r.stdout).decode("utf-8", errors="replace").strip()
+        raise PublishError(f"Git {args[0]} selhal: {detail}")
+    return r.stdout
 
 
 def git_commit_env() -> dict[str, str]:
@@ -165,6 +200,14 @@ def git_blob_map(repo: Path, pdfs: dict[str, str]) -> dict[str, str]:
     return {p: git(repo, "hash-object", str(repo / p)) for p in pdfs}
 
 
+def tree_pdf_sha256(repo: Path, revision: str) -> dict[str, str]:
+    """SHA-256 of the exact PDF bytes stored in a Git revision."""
+    return {
+        path: hashlib.sha256(git_bytes(repo, "show", f"{revision}:{path}")).hexdigest()
+        for path in tree_pdfs(repo, revision)
+    }
+
+
 def private_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA")
     return (Path(base) / "Prstoklady" if base and sys.platform == "win32"
@@ -227,6 +270,19 @@ def read_state() -> dict:
         d = json.loads(p.read_text(encoding="utf-8"))
         if not isinstance(d, dict) or not COMMIT_SHA.fullmatch(d["last_confirmed_sha"]):
             raise ValueError()
+        transaction = d.get("transaction")
+        if transaction is not None:
+            if not isinstance(transaction, dict):
+                raise ValueError()
+            if transaction.get("phase") not in TRANSACTION_PHASES:
+                raise ValueError()
+            for key in ("baseline_sha", "before_sha"):
+                if not COMMIT_SHA.fullmatch(transaction.get(key, "")):
+                    raise ValueError()
+            for key in ("candidate_sha", "rollback_sha"):
+                value = transaction.get(key)
+                if value is not None and not COMMIT_SHA.fullmatch(value):
+                    raise ValueError()
         return d
     except (ValueError, KeyError, TypeError) as exc:
         raise PublishError("Neplatný deployment state: publikace zastavena") from exc
@@ -236,8 +292,31 @@ def write_state(value: dict) -> None:
     secure_write(state_path(), json.dumps(value, sort_keys=True, indent=2) + "\n")
 
 
+def set_transaction(state: dict, **values: str) -> None:
+    transaction = dict(state.get("transaction") or {})
+    transaction.update(values)
+    state["transaction"] = transaction
+    write_state(state)
+
+
+def clear_transaction(state: dict) -> None:
+    state.pop("transaction", None)
+    # Compatibility cleanup for the pre-R74.3 pending markers.
+    state.pop("pending_sha", None)
+    state.pop("pending_pdfs", None)
+    write_state(state)
+
+
+def is_allowed_pending_path(path: str) -> bool:
+    if path in PUBLISHER_CONTROL_PATHS:
+        return True
+    return (path.startswith(REL_DIR + "/")
+            and path.count("/") == 2
+            and PDF_NAME.fullmatch(Path(path).name) is not None)
+
+
 def verify_baseline(repo: Path, old: str, now: str) -> None:
-    # No unseen application/migration commits may slip through via the hook.
+    """Allow only Fingering PDFs and publisher-control files ahead of production."""
     if git(repo, "merge-base", old, now) != old:
         raise PublishError("Evidovaná produkční revize není předkem main; STOP")
     for line in git(repo, "diff", "--name-status", "--no-renames", old, now).splitlines():
@@ -245,15 +324,18 @@ def verify_baseline(repo: Path, old: str, now: str) -> None:
             status, path = line.split("\t", 1)
         except ValueError as exc:
             raise PublishError("Neobvyklá Git změna od posledního Vercelu") from exc
-        if status not in {"A", "M", "D"} or not path.startswith(REL_DIR + "/") \
-                or path.count("/") != 2 or not PDF_NAME.fullmatch(Path(path).name):
+        if status not in {"A", "M", "D"} or not is_allowed_pending_path(path):
             raise PublishError("Čeká nenasazená změna aplikace mimo Fingering PDF: " + path)
 
 
-def git_synced(repo: Path) -> str:
+def fetch_remote_main(repo: Path) -> str:
     git(repo, "fetch", "--quiet", "origin", "main")
+    return git(repo, "rev-parse", "FETCH_HEAD")
+
+
+def git_synced(repo: Path) -> str:
+    remote = fetch_remote_main(repo)
     here = git(repo, "rev-parse", "HEAD")
-    remote = git(repo, "rev-parse", "FETCH_HEAD")
     if here != remote:
         raise PublishError("Lokální main není totožná s GitHub main; synchronizuj repozitář")
     return here
@@ -263,6 +345,189 @@ def remote_is(repo: Path, sha: str) -> None:
     result = git(repo, "ls-remote", "origin", "refs/heads/main").split()
     if not result or result[0] != sha:
         raise PublishError("GitHub main se změnila v průběhu operace; STOP")
+
+
+def removed_between(repo: Path, before: str, after: str) -> tuple[str, ...]:
+    return tuple(sorted(set(tree_pdfs(repo, before)) - set(tree_pdfs(repo, after))))
+
+
+def deploy_revision(repo: Path, hook: str, sha: str, expected: dict[str, str],
+                    removed: tuple[str, ...], label: str) -> bool:
+    remote_is(repo, sha)
+    job = deploy_hook(hook)
+    print(f"VERCEL {label}: potvrzený požadavek (job {job}), čekám na online stav ...")
+    return wait_for_mirror(repo, sha, expected, removed)
+
+
+def rollback_tree_with_baseline_pdfs(repo: Path, candidate: str, baseline: str) -> str:
+    """Compose candidate's whole tree with only public/fingering restored to baseline."""
+    private_dir().mkdir(parents=True, exist_ok=True)
+    fd, index_name = tempfile.mkstemp(prefix=".fingering-index-", dir=private_dir())
+    os.close(fd)
+    Path(index_name).unlink(missing_ok=True)
+    env = os.environ.copy()
+    env["GIT_INDEX_FILE"] = index_name
+    try:
+        git(repo, "read-tree", candidate, env=env)
+        git(repo, "rm", "-r", "-f", "--cached", "--ignore-unmatch", "--", REL_DIR, env=env)
+        if git(repo, "ls-tree", "-d", baseline, "--", REL_DIR):
+            baseline_tree = git(repo, "rev-parse", f"{baseline}:{REL_DIR}")
+            git(repo, "read-tree", f"--prefix={REL_DIR}/", baseline_tree, env=env)
+        return git(repo, "write-tree", env=env)
+    finally:
+        Path(index_name).unlink(missing_ok=True)
+
+
+def prepare_rollback_commit(repo: Path, state: dict, candidate: str, baseline: str) -> str:
+    transaction = state["transaction"]
+    existing = transaction.get("rollback_sha")
+    if existing:
+        return existing
+    rollback_tree = rollback_tree_with_baseline_pdfs(repo, candidate, baseline)
+    rollback = git(
+        repo, "commit-tree", rollback_tree, "-p", candidate,
+        "-m", "Rollback failed Fingering publication",
+        env=git_commit_env(),
+    )
+    set_transaction(state, phase="rollback_prepared", rollback_sha=rollback)
+    return rollback
+
+
+def push_prepared_rollback(repo: Path, state: dict, candidate: str, rollback: str) -> None:
+    local = git(repo, "rev-parse", "HEAD")
+    if local == candidate:
+        git(repo, "update-ref", "refs/heads/main", rollback, candidate)
+        # Reset only the real index. The working tree remains the local source of truth.
+        git(repo, "reset", "--mixed", rollback)
+    elif local != rollback:
+        raise PublishError("Lokální main se během rollbacku neočekávaně změnila; STOP")
+
+    remote = fetch_remote_main(repo)
+    if remote == candidate:
+        git(repo, "push", "origin", "HEAD:refs/heads/main")
+        remote_is(repo, rollback)
+    elif remote != rollback:
+        raise PublishError("GitHub main se během rollbacku změnila; automatický návrat je zablokován")
+    set_transaction(state, phase="rollback_pushed", rollback_sha=rollback)
+
+
+def finish_rollback(repo: Path, state: dict, hook: str, reason: str) -> int:
+    transaction = state["transaction"]
+    baseline = transaction["baseline_sha"]
+    candidate = transaction["candidate_sha"]
+    rollback = prepare_rollback_commit(repo, state, candidate, baseline)
+    push_prepared_rollback(repo, state, candidate, rollback)
+
+    expected = tree_pdf_sha256(repo, baseline)
+    removed = removed_between(repo, candidate, baseline)
+    print(f"ROLLBACK: {reason}")
+    try:
+        restored = deploy_revision(repo, hook, rollback, expected, removed, "ROLLBACK")
+    except PublishError as exc:
+        print("ROLLBACK: GitHub je vrácen, ale Vercel rollback se nepodařilo spustit.", file=sys.stderr)
+        print("ROLLBACK: příští --publish nejprve zkusí dokončit návrat produkce.", file=sys.stderr)
+        raise PublishError(str(exc)) from exc
+    if not restored:
+        print("ROLLBACK: GitHub je vrácen, ale produkce zatím není ověřená.", file=sys.stderr)
+        print("ROLLBACK: příští --publish nejprve zkusí dokončit návrat produkce.", file=sys.stderr)
+        return 2
+
+    state["last_confirmed_sha"] = rollback
+    clear_transaction(state)
+    print("ROLLBACK HOTOVO: GitHub i Vercel znovu odpovídají poslednímu ověřenému PDF stavu.")
+    print("Lokální public/fingering zůstal beze změny; publikaci lze později zkusit znovu.")
+    return 2
+
+
+def recover_transaction(repo: Path, state: dict, hook: str | None, publish: bool) -> int | None:
+    transaction = state.get("transaction")
+    if not transaction:
+        return None
+    phase = transaction["phase"]
+    baseline = transaction["baseline_sha"]
+    before = transaction["before_sha"]
+    candidate = transaction.get("candidate_sha")
+    rollback = transaction.get("rollback_sha")
+
+    if not publish:
+        print(f"NEDOKONČENÁ TRANSAKCE: {phase}. Spusť --publish pro bezpečné dokončení nebo rollback.")
+        return 2
+    if hook is None:
+        raise PublishError("Chybí Vercel hook pro obnovu transakce")
+
+    remote = fetch_remote_main(repo)
+    local = git(repo, "rev-parse", "HEAD")
+
+    if phase == "approved":
+        if local == before and remote == before:
+            clear_transaction(state)
+            print("RECOVERY: předchozí běh skončil před Git commitem; provádím nový audit.")
+            return None
+        # A crash may occur after commit but before candidate_sha was persisted.
+        if remote == before and git(repo, "rev-parse", f"{local}^") == before:
+            git(repo, "reset", "--mixed", before)
+            clear_transaction(state)
+            print("RECOVERY: lokální neodeslaný commit byl vrácen; provádím nový audit.")
+            return None
+        raise PublishError("Nedokončená transakce ve fázi approved má neočekávaný Git stav")
+
+    if phase == "local_committed":
+        if not candidate:
+            raise PublishError("Nedokončená transakce postrádá candidate_sha")
+        if remote == before and local == candidate:
+            # No remote side effect happened. Re-audit instead of silently pushing after a restart.
+            git(repo, "reset", "--mixed", before)
+            clear_transaction(state)
+            print("RECOVERY: neodeslaný publikační commit byl vrácen; provádím nový audit.")
+            return None
+        if remote == candidate and local == candidate:
+            set_transaction(state, phase="pushed")
+            phase = "pushed"
+        else:
+            raise PublishError("Nedokončená transakce local_committed má neočekávaný Git stav")
+
+    if phase == "pushed":
+        if not candidate:
+            raise PublishError("Nedokončená transakce postrádá candidate_sha")
+        if remote != candidate or local != candidate:
+            raise PublishError("Git se po publikačním pushi změnil; automatická recovery je zablokována")
+        print("RECOVERY: na GitHubu je nedokončená Fingering publikace; zkouším ji dokončit.")
+        expected = tree_pdf_sha256(repo, candidate)
+        removed = removed_between(repo, baseline, candidate)
+        try:
+            if deploy_revision(repo, hook, candidate, expected, removed, "RECOVERY"):
+                state["last_confirmed_sha"] = candidate
+                clear_transaction(state)
+                print("RECOVERY HOTOVO: čekající GitHub stav je ověřený v produkci.")
+                return 0
+            return finish_rollback(repo, state, hook, "Recovery deployment nebyl ověřen.")
+        except PublishError as exc:
+            return finish_rollback(repo, state, hook, f"Recovery deployment selhal: {exc}")
+
+    if phase in {"rollback_prepared", "rollback_pushed"}:
+        if not candidate or not rollback:
+            raise PublishError("Rollback transakce postrádá Git SHA")
+        if phase == "rollback_prepared":
+            push_prepared_rollback(repo, state, candidate, rollback)
+        else:
+            if remote != rollback or local != rollback:
+                raise PublishError("Rollback transakce má neočekávaný Git stav")
+        expected = tree_pdf_sha256(repo, baseline)
+        removed = removed_between(repo, candidate, baseline)
+        print("RECOVERY: dokončuji dříve zahájený rollback produkce.")
+        try:
+            if not deploy_revision(repo, hook, rollback, expected, removed, "ROLLBACK RECOVERY"):
+                print("ROLLBACK RECOVERY: produkce stále není ověřená.", file=sys.stderr)
+                return 2
+        except PublishError as exc:
+            print(f"ROLLBACK RECOVERY: {exc}", file=sys.stderr)
+            return 2
+        state["last_confirmed_sha"] = rollback
+        clear_transaction(state)
+        print("ROLLBACK RECOVERY HOTOVO: GitHub i Vercel jsou znovu konzistentní.")
+        return 2
+
+    raise PublishError("Neznámá fáze publikační transakce")
 
 
 def audit_text(delta: Delta, queued: Delta, unchanged: int, head: str, baseline: str) -> str:
@@ -283,6 +548,7 @@ def audit_text(delta: Delta, queued: Delta, unchanged: int, head: str, baseline:
         lines.extend(["", f"POZOR: bude veřejně odstraněno {len(delta.deleted)} PDF!",
                       "Originální samply ani schválená data projektu Prstoklady se nemění."])
     lines.extend(["", "OK = commit/push změn a spuštění Vercel Production.",
+                  "Při selhání po pushi se automaticky vrátí Fingering PDF na GitHubu i Vercelu.",
                   "ZRUŠIT = žádný commit, push ani deployment."])
     return "\n".join(lines)
 
@@ -425,7 +691,7 @@ def deploy_hook(url: str) -> str:
                 raise PublishError(f"Vercel odmítl požadavek (HTTP {res.status})")
             return str(json.loads(res.read(8192))["job"]["id"])
     except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError) as exc:
-        raise PublishError("Vercel hook není potvrzen; PDF zůstávají na GitHubu, lze zkusit --publish znovu") from exc
+        raise PublishError("Vercel hook není potvrzen") from exc
 
 
 def check_online(path: str, expected: str | None, commit: str) -> bool:
@@ -478,43 +744,70 @@ def verify_committed(repo: Path, expected_blobs: dict[str, str], delta: Delta) -
 def sync(repo: Path, publish: bool) -> int:
     directory = repo_root(repo)
     hook = read_hook() if publish else None
+    state = read_state()
+
+    recovered = recover_transaction(repo, state, hook, publish)
+    if recovered is not None:
+        return recovered
+
     head = git_synced(repo) if publish else git(repo, "rev-parse", "HEAD")
+    # Re-read state because recovery may have cleared a stale transaction.
     state = read_state()
     baseline = state["last_confirmed_sha"]
     verify_baseline(repo, baseline, head)
+
     source = local_pdfs(directory)
     local_blobs = git_blob_map(repo, source)
     head_blobs = tree_pdfs(repo, head)
     baseline_blobs = tree_pdfs(repo, baseline)
     git_delta = file_delta(head_blobs, local_blobs)
     production_delta = file_delta(baseline_blobs, local_blobs)
-    audit = audit_text(production_delta, git_delta, len(local_blobs) - len(production_delta.added) - len(production_delta.updated), head, baseline)
+    audit = audit_text(
+        production_delta,
+        git_delta,
+        len(local_blobs) - len(production_delta.added) - len(production_delta.updated),
+        head,
+        baseline,
+    )
     print(audit)
+
     if not production_delta.total and not git_delta.total:
         print("HOTOVO: public/fingering je totožný s posledním ověřeným publikovaným stavem.")
         return 0
     if not publish:
         print("NÁHLED BEZ ZMĚN. Pro schválení spusť --publish.")
         return 0
-    # A Git ignore rule must not silently drop a locally selected PDF.
+
     for rel in git_delta.added:
-        ignored = subprocess.run(["git", "-C", str(repo), "check-ignore", "-q", "--", rel],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        ignored = subprocess.run(
+            ["git", "-C", str(repo), "check-ignore", "-q", "--", rel],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
         if ignored.returncode == 0:
             raise PublishError("Git ignoruje nové PDF: " + rel)
         if ignored.returncode not in (0, 1):
             raise PublishError("Git check-ignore selhal pro " + rel)
+
     remote_is(repo, head)
     if not confirm_changes(audit):
         print("ZRUŠENO: žádný Git commit/push ani Vercel deployment.")
         return 0
-    # Guard against any last-moment content change after the HUMAN approval.
+
     repo_root(repo)
     remote_is(repo, head)
     if local_pdfs(directory) != source or git_blob_map(repo, source) != local_blobs:
         raise PublishError("PDF se po auditu změnila; nic nebylo publikováno")
     if git(repo, "rev-parse", "HEAD") != head:
         raise PublishError("HEAD se po auditu změnila")
+
+    set_transaction(
+        state,
+        phase="approved",
+        baseline_sha=baseline,
+        before_sha=head,
+    )
+
+    current = head
     if git_delta.total:
         all_paths = list(git_delta.added + git_delta.updated + git_delta.deleted)
         git(repo, "add", "-A", "--", *all_paths)
@@ -522,44 +815,56 @@ def sync(repo: Path, publish: bool) -> int:
         if indexed != set(all_paths):
             raise PublishError("Staging nesouhlasí s auditem. STOP před commitem")
         for path, blob in local_blobs.items():
-            if git(repo, "rev-parse", f":{path}") != blob and path in all_paths:
+            if path in all_paths and git(repo, "rev-parse", f":{path}") != blob:
                 raise PublishError(f"Git filtr změnil obsah {path}; STOP")
         if local_pdfs(directory) != source:
             raise PublishError("PDF se během Git staging změnila; STOP")
+
         summary = f"+{len(git_delta.added)} ~{len(git_delta.updated)} -{len(git_delta.deleted)}"
         git(repo, "commit", "-m", f"Sync Fingering PDF mirror ({summary})", env=git_commit_env())
         verify_committed(repo, local_blobs, git_delta)
         current = git(repo, "rev-parse", "HEAD")
-        git(repo, "push", "origin", "HEAD:refs/heads/main")
+        set_transaction(state, phase="local_committed", candidate_sha=current)
+        try:
+            git(repo, "push", "origin", "HEAD:refs/heads/main")
+        except PublishError as exc:
+            remote = fetch_remote_main(repo)
+            if remote == current:
+                pass
+            elif remote == head:
+                git(repo, "reset", "--mixed", head)
+                clear_transaction(state)
+                raise PublishError("Git push selhal před změnou GitHubu; lokální commit byl bezpečně vrácen") from exc
+            else:
+                raise
+        set_transaction(state, phase="pushed", candidate_sha=current)
         print(f"GITHUB PUSH OK: {current[:7]} ({summary})")
     else:
+        # Legacy/pre-R74.3 case: the exact desired PDFs can already be waiting on GitHub.
         current = head
-        print("GITHUB: všechny soubory už byly odeslány; pokračuji čekajícím deploymentem.")
+        set_transaction(state, phase="pushed", candidate_sha=current)
+        print("GITHUB: všechny Fingering PDF už jsou na main; pokračuji čekajícím deploymentem.")
+
     remote_is(repo, current)
-    if local_pdfs(directory) != source:
-        raise PublishError("Lokální PDF se během commitu/push změnila; deployment zastaven, opakuj --publish")
-    # Persist pending SHA after successful push, including when Vercel fails.
+
     if not production_delta.total:
-        # Git history may have cancelled an earlier undelivered PDF change.
-        # Never claim the new commit SHA is deployed when only the PDF content matches.
-        state.pop("pending_sha", None)
-        state.pop("pending_pdfs", None)
-        write_state(state)
+        clear_transaction(state)
         print("GITHUB: stav PDF se shoduje s již zveřejněným baseline; deployment není potřebný.")
         return 0
-    state["pending_sha"] = current
-    state["pending_pdfs"] = list(production_delta.added + production_delta.updated + production_delta.deleted)
-    write_state(state)
-    job = deploy_hook(hook)
-    print(f"VERCEL: potvrzený požadavek (job {job}), čekám na online stav ...")
-    if not wait_for_mirror(repo, current, source, production_delta.deleted):
-        print("VERCEL: zatím NENÍ ověřen; znovu spusť --publish. PDF na GitHubu zůstávají.")
-        return 2
+
+    expected = tree_pdf_sha256(repo, current)
+    removed = removed_between(repo, baseline, current)
+    try:
+        if not deploy_revision(repo, hook, current, expected, removed, "PUBLISH"):
+            return finish_rollback(repo, state, hook, "Produkční obsah nebyl v časovém limitu ověřen.")
+    except PublishError as exc:
+        return finish_rollback(repo, state, hook, f"Produkční deployment selhal: {exc}")
+
     state["last_confirmed_sha"] = current
-    state.pop("pending_sha", None)
-    state.pop("pending_pdfs", None)
-    write_state(state)
+    clear_transaction(state)
     print("VERCEL: HOTOVO – všechna očekávaná PDF SHA-256 souhlasí; odstraněná vracejí 404/410.")
+    if local_pdfs(directory) != source:
+        print("POZNÁMKA: lokální public/fingering se během deploymentu znovu změnil; novější stav čeká na další publikaci.")
     return 0
 
 
