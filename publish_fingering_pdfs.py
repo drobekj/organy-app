@@ -364,8 +364,7 @@ def deploy_revision(repo: Path, hook: str, sha: str, expected: dict[str, str],
 
 def rollback_tree_with_baseline_pdfs(repo: Path, candidate: str, baseline: str) -> str:
     """Compose candidate's whole tree with only public/fingering restored to baseline."""
-    private_dir().mkdir(parents=True, exist_ok=True)
-    fd, index_name = tempfile.mkstemp(prefix=".fingering-index-", dir=private_dir())
+    fd, index_name = tempfile.mkstemp(prefix=".fingering-index-")
     os.close(fd)
     Path(index_name).unlink(missing_ok=True)
     env = os.environ.copy()
@@ -501,14 +500,15 @@ def recover_transaction(repo: Path, state: dict, hook: str | None, publish: bool
         expected = tree_pdf_sha256(repo, candidate)
         removed = removed_between(repo, baseline, candidate)
         try:
-            if deploy_revision(repo, hook, candidate, expected, removed, "RECOVERY"):
-                state["last_confirmed_sha"] = candidate
-                clear_transaction(state)
-                print("RECOVERY HOTOVO: čekající GitHub stav je ověřený v produkci.")
-                return 0
-            return finish_rollback(repo, state, hook, "Recovery deployment nebyl ověřen.")
+            deployed = deploy_revision(repo, hook, candidate, expected, removed, "RECOVERY")
         except PublishError as exc:
             return finish_rollback(repo, state, hook, f"Recovery deployment selhal: {exc}")
+        if deployed:
+            state["last_confirmed_sha"] = candidate
+            clear_transaction(state)
+            print("RECOVERY HOTOVO: čekající GitHub stav je ověřený v produkci.")
+            return 0
+        return finish_rollback(repo, state, hook, "Recovery deployment nebyl ověřen.")
 
     if phase in {"rollback_prepared", "rollback_pushed"}:
         if not candidate or not rollback:
