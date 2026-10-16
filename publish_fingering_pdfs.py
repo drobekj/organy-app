@@ -140,9 +140,12 @@ def repo_root(repo: Path) -> Path:
             or (hasattr(directory, "is_junction") and directory.is_junction())
             or not directory.is_dir()):
         raise PublishError("Adresář public/fingering není regulérní")
+    return directory
+
+
+def ensure_clean_index(repo: Path) -> None:
     if git(repo, "diff", "--cached", "--no-renames", "--name-only"):
         raise PublishError("Git index obsahuje cizí připravené změny; nic nebylo změněno")
-    return directory
 
 
 def local_pdfs(directory: Path) -> dict[str, str]:
@@ -460,6 +463,9 @@ def recover_transaction(repo: Path, state: dict, hook: str | None, publish: bool
 
     if phase == "approved":
         if local == before and remote == before:
+            # A crash may have left publisher PDF paths staged. Restore only the
+            # real index; --mixed deliberately preserves the local source files.
+            git(repo, "reset", "--mixed", before)
             clear_transaction(state)
             print("RECOVERY: předchozí běh skončil před Git commitem; provádím nový audit.")
             return None
@@ -750,6 +756,7 @@ def sync(repo: Path, publish: bool) -> int:
     if recovered is not None:
         return recovered
 
+    ensure_clean_index(repo)
     head = git_synced(repo) if publish else git(repo, "rev-parse", "HEAD")
     # Re-read state because recovery may have cleared a stale transaction.
     state = read_state()
