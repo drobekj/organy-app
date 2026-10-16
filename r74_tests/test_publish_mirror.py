@@ -139,21 +139,113 @@ class MirrorTests(unittest.TestCase):
         self.assertIn("EK456-001_fingering.pdf", confirm.call_args.args[0])
         self.assertIn("+1  ~0  -1", out)
 
-    def test_hook_failure_keeps_pending_for_retry_without_duplicate_commits(self):
-        self.put("EK789-001")
+    def test_hook_failure_rolls_back_github_and_preserves_local_source(self):
+        wanted = self.put("EK789-001", b"wanted")
         with patch.object(pub, "confirm_changes", return_value=True), \
-             patch.object(pub, "deploy_hook", side_effect=pub.PublishError("network")):
+             patch.object(pub, "deploy_hook", side_effect=[pub.PublishError("network"), "ROLLBACKJOB"]) as hook, \
+             patch.object(pub, "wait_for_mirror", return_value=True) as wait:
+            code, out, err = self.run_sync(True)
+        self.assertEqual(code, 2)
+        self.assertEqual(err, "")
+        self.assertIn("ROLLBACK HOTOVO", out)
+        self.assertEqual(hook.call_count, 2)
+        self.assertEqual(wait.call_count, 1, "candidate hook failed before verification; only rollback is verified")
+        remote = git("--git-dir", self.remote, "rev-parse", "main")
+        self.assertEqual(set(pub.tree_pdfs(self.repo, remote)), set(pub.tree_pdfs(self.repo, self.baseline)))
+        self.assertTrue(wanted.exists(), "rollback must not delete the local source-of-truth PDF")
+        self.assertNotIn("transaction", pub.read_state())
+        self.assertEqual(pub.read_state()["last_confirmed_sha"], remote)
+
+    def test_verification_failure_rolls_back_both_github_and_production(self):
+        wanted = self.put("EK789-001", b"wanted")
+        with patch.object(pub, "confirm_changes", return_value=True), \
+             patch.object(pub, "deploy_hook", side_effect=["PUBLISHJOB", "ROLLBACKJOB"]) as hook, \
+             patch.object(pub, "wait_for_mirror", side_effect=[False, True]) as wait:
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (2, ""))
+        self.assertIn("ROLLBACK HOTOVO", out)
+        self.assertEqual(hook.call_count, 2)
+        self.assertEqual(wait.call_count, 2)
+        remote = git("--git-dir", self.remote, "rev-parse", "main")
+        self.assertEqual(set(pub.tree_pdfs(self.repo, remote)), set(pub.tree_pdfs(self.repo, self.baseline)))
+        self.assertTrue(wanted.exists())
+        self.assertEqual(pub.read_state()["last_confirmed_sha"], remote)
+
+    def test_failed_rollback_is_recovered_before_any_new_publication(self):
+        self.put("EK789-001", b"wanted")
+        with patch.object(pub, "confirm_changes", return_value=True), \
+             patch.object(pub, "deploy_hook", side_effect=["PUBLISHJOB", "ROLLBACKJOB"]), \
+             patch.object(pub, "wait_for_mirror", side_effect=[False, False]):
             code, _, _ = self.run_sync(True)
-        self.assertEqual(code, 1)
-        pushed = git("--git-dir", self.remote, "rev-parse", "main")
-        self.assertEqual(pub.read_state()["pending_sha"], pushed)
-        a, b, c = self.confirmed()
-        with a as confirm, b as hook, c:
-            code, out, _ = self.run_sync(True)
-        self.assertEqual(code, 0)
-        self.assertIn("nyní čeká lokální Git commit:\n  +0  ~0  -0", out)
-        self.assertEqual(git("--git-dir", self.remote, "rev-parse", "main"), pushed)
-        hook.assert_called_once()
+        self.assertEqual(code, 2)
+        state = pub.read_state()
+        self.assertEqual(state["transaction"]["phase"], "rollback_pushed")
+        rollback = state["transaction"]["rollback_sha"]
+        self.assertEqual(git("--git-dir", self.remote, "rev-parse", "main"), rollback)
+
+        with patch.object(pub, "confirm_changes") as confirm, \
+             patch.object(pub, "deploy_hook", return_value="RECOVERYJOB"), \
+             patch.object(pub, "wait_for_mirror", return_value=True):
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (2, ""))
+        self.assertIn("ROLLBACK RECOVERY HOTOVO", out)
+        confirm.assert_not_called()
+        self.assertNotIn("transaction", pub.read_state())
+        self.assertEqual(pub.read_state()["last_confirmed_sha"], rollback)
+
+    def test_recovery_clears_staged_pdf_after_crash_before_commit(self):
+        wanted = self.put("EK789-001", b"wanted")
+        git("-C", self.repo, "add", "public/fingering/EK789-001_fingering.pdf")
+        pub.write_state({"last_confirmed_sha": self.baseline, "transaction": {
+            "phase": "approved",
+            "baseline_sha": self.baseline,
+            "before_sha": self.baseline,
+        }})
+        with patch.object(pub, "confirm_changes", return_value=False):
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("provádím nový audit", out)
+        self.assertEqual(git("-C", self.repo, "diff", "--cached", "--name-only"), "")
+        self.assertEqual(git("-C", self.repo, "rev-parse", "HEAD"), self.baseline)
+        self.assertEqual(git("--git-dir", self.remote, "rev-parse", "main"), self.baseline)
+        self.assertTrue(wanted.exists())
+        self.assertNotIn("transaction", pub.read_state())
+
+    def test_recovery_discards_unpushed_local_candidate_but_preserves_source(self):
+        wanted = self.put("EK789-001", b"wanted")
+        git("-C", self.repo, "add", "public/fingering/EK789-001_fingering.pdf")
+        git("-C", self.repo, "commit", "-m", "local candidate")
+        candidate = git("-C", self.repo, "rev-parse", "HEAD")
+        pub.write_state({"last_confirmed_sha": self.baseline, "transaction": {
+            "phase": "local_committed",
+            "baseline_sha": self.baseline,
+            "before_sha": self.baseline,
+            "candidate_sha": candidate,
+        }})
+        with patch.object(pub, "confirm_changes", return_value=False):
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("neodeslaný publikační commit byl vrácen", out)
+        self.assertEqual(git("-C", self.repo, "rev-parse", "HEAD"), self.baseline)
+        self.assertEqual(git("--git-dir", self.remote, "rev-parse", "main"), self.baseline)
+        self.assertTrue(wanted.exists())
+        self.assertNotIn("transaction", pub.read_state())
+
+    def test_publisher_control_files_do_not_block_legacy_pdf_waiting_on_github(self):
+        (self.repo / "PUBLIKOVAT_PRSTOKLADY.cmd").write_text("@echo off\n")
+        git("-C", self.repo, "add", "PUBLIKOVAT_PRSTOKLADY.cmd")
+        git("-C", self.repo, "commit", "-m", "publisher control")
+        self.put("EK789-001", b"legacy pending")
+        git("-C", self.repo, "add", "public/fingering/EK789-001_fingering.pdf")
+        git("-C", self.repo, "commit", "-m", "legacy pending PDF")
+        git("-C", self.repo, "push", "origin", "main")
+        with patch.object(pub, "confirm_changes", return_value=True), \
+             patch.object(pub, "deploy_hook", return_value="JOB"), \
+             patch.object(pub, "wait_for_mirror", return_value=True):
+            code, out, err = self.run_sync(True)
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("už jsou na main; pokračuji čekajícím deploymentem", out)
+        self.assertEqual(pub.read_state()["last_confirmed_sha"], git("-C", self.repo, "rev-parse", "HEAD"))
 
     def test_block_unrelated_committed_code_since_last_ready(self):
         (self.repo / "README.md").write_text("changed app")
@@ -241,6 +333,30 @@ class MirrorTests(unittest.TestCase):
         hook.assert_not_called()
         self.assertNotIn("pending_sha", pub.read_state())
         self.assertEqual(set(pub.tree_pdfs(self.repo, "HEAD")), set(pub.tree_pdfs(self.repo, self.baseline)))
+
+    def test_rollback_commit_preserves_non_pdf_control_files_and_local_worktree(self):
+        control = self.repo / "publish_fingering_pdfs.py"
+        control.write_text("new publisher")
+        git("-C", self.repo, "add", "publish_fingering_pdfs.py")
+        git("-C", self.repo, "commit", "-m", "control")
+        self.put("EK789-001", b"wanted")
+        git("-C", self.repo, "add", "public/fingering/EK789-001_fingering.pdf")
+        git("-C", self.repo, "commit", "-m", "candidate")
+        candidate = git("-C", self.repo, "rev-parse", "HEAD")
+        git("-C", self.repo, "push", "origin", "main")
+        state = {"last_confirmed_sha": self.baseline, "transaction": {
+            "phase": "pushed",
+            "baseline_sha": self.baseline,
+            "before_sha": self.baseline,
+            "candidate_sha": candidate,
+        }}
+        pub.write_state(state)
+        rollback = pub.prepare_rollback_commit(self.repo, state, candidate, self.baseline)
+        pub.push_prepared_rollback(self.repo, state, candidate, rollback)
+        self.assertEqual(git("-C", self.repo, "show", f"{rollback}:publish_fingering_pdfs.py"), "new publisher")
+        self.assertEqual(set(pub.tree_pdfs(self.repo, rollback)), set(pub.tree_pdfs(self.repo, self.baseline)))
+        self.assertTrue((self.source / "EK789-001_fingering.pdf").exists())
+        self.assertEqual(git("-C", self.repo, "diff", "--cached", "--name-only"), "")
 
     def test_windows_audit_payload_is_scrollable_and_default_cancel(self):
         dummy = subprocess.CompletedProcess([], 2)
