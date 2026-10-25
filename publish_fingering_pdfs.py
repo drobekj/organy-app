@@ -1,4 +1,4 @@
-"""R74.3 – transactional mirror of organy-app/public/fingering into GitHub/Vercel.
+"""R74.4 – transactional mirror of organy-app/public/fingering into GitHub/Vercel.
 
 Install THIS script in organy-app's root, not in score-fingering-lab.
 No paths, imports, database access or runtime dependencies on score-fingering-lab.
@@ -32,8 +32,6 @@ ALLOWED_REMOTES = {
     "git@github.com:drobekj/organy-app",
     "ssh://git@github.com/drobekj/organy-app",
 }
-# R73's verified production baseline, only used if no R73/R74 state exists.
-INITIAL_PRODUCTION_SHA = "d0d88c01d8fa3b27d98d4d0a0979948333ae4767"
 VERCEL_PROJECT_ID = "prj_HaAJloeBq90EcFrMOVVC3kTiJxc0"
 PRODUCTION_URL = "https://organy-app.vercel.app"
 GIT_AUTHOR = "drobekj"
@@ -62,6 +60,11 @@ TRANSACTION_PHASES = frozenset({
     "rollback_prepared",
     "rollback_pushed",
 })
+PUBLISH_COMMIT_PREFIXES = (
+    "Sync Fingering PDF mirror (",
+    "Rollback failed Fingering publication",
+    "Publish approved fingering PDFs:",
+)
 
 
 class PublishError(RuntimeError):
@@ -211,6 +214,71 @@ def tree_pdf_sha256(repo: Path, revision: str) -> dict[str, str]:
     }
 
 
+def known_pdf_paths(repo: Path, head: str) -> tuple[str, ...]:
+    """All valid Fingering PDF paths ever seen on this main ancestry."""
+    paths = set(tree_pdfs(repo, head))
+    history = git(repo, "log", "--format=", "--name-only", head, "--", REL_DIR)
+    for path in history.splitlines():
+        path = path.strip()
+        if (path.startswith(REL_DIR + "/")
+                and path.count("/") == 2
+                and PDF_NAME.fullmatch(Path(path).name)):
+            paths.add(path)
+    return tuple(sorted(paths))
+
+
+def publisher_commit_candidates(repo: Path, head: str) -> tuple[str, ...]:
+    """Newest publisher-created commits on the current ancestry."""
+    result: list[str] = []
+    log = git(repo, "log", "--format=%H%x09%s", head, "--", REL_DIR)
+    for line in log.splitlines():
+        if "\t" not in line:
+            continue
+        sha, subject = line.split("\t", 1)
+        if COMMIT_SHA.fullmatch(sha) and subject.startswith(PUBLISH_COMMIT_PREFIXES):
+            result.append(sha)
+    return tuple(result)
+
+
+def production_matches_revision(repo: Path, revision: str, known_paths: tuple[str, ...]) -> bool:
+    """Byte-exact public mirror check for a historical publisher revision."""
+    expected = tree_pdf_sha256(repo, revision)
+    work = [(path, expected.get(path)) for path in known_paths]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda item: check_online(item[0], item[1], revision), work))
+    return bool(work) and all(results)
+
+
+def recover_missing_state(repo: Path, head: str) -> dict:
+    """Reconstruct lost local state only from a byte-verified live production mirror."""
+    remote = fetch_remote_main(repo)
+    if remote != head:
+        raise PublishError(
+            "Chybí deployment state a lokální main není totožná s GitHub main; "
+            "nejprve synchronizuj repozitář"
+        )
+
+    candidates = publisher_commit_candidates(repo, head)
+    if not candidates:
+        raise PublishError(
+            "Chybí deployment state a v historii nejsou bezpečné kandidáty produkčního baseline; STOP"
+        )
+
+    known = known_pdf_paths(repo, head)
+    print("STATE: chybí deployment baseline; ověřuji skutečný veřejný Fingering mirror ...")
+    for candidate in candidates:
+        if production_matches_revision(repo, candidate, known):
+            state = {"last_confirmed_sha": candidate}
+            write_state(state)
+            print(f"STATE RECOVERY OK: produkční baseline {candidate[:7]} byl ověřen podle veřejných PDF.")
+            return state
+
+    raise PublishError(
+        "Chybí deployment state a žádný historický Fingering publisher commit "
+        "neodpovídá byte-exact veřejné produkci; nic se nebude publikovat"
+    )
+
+
 def private_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA")
     return (Path(base) / "Prstoklady" if base and sys.platform == "win32"
@@ -268,7 +336,7 @@ def read_state() -> dict:
     if p.is_symlink():
         raise PublishError("Symbolický odkaz deployment state")
     if not p.exists():
-        return {"last_confirmed_sha": INITIAL_PRODUCTION_SHA}
+        return {}
     try:
         d = json.loads(p.read_text(encoding="utf-8"))
         if not isinstance(d, dict) or not COMMIT_SHA.fullmatch(d["last_confirmed_sha"]):
@@ -760,6 +828,8 @@ def sync(repo: Path, publish: bool) -> int:
     head = git_synced(repo) if publish else git(repo, "rev-parse", "HEAD")
     # Re-read state because recovery may have cleared a stale transaction.
     state = read_state()
+    if "last_confirmed_sha" not in state:
+        state = recover_missing_state(repo, head)
     baseline = state["last_confirmed_sha"]
     verify_baseline(repo, baseline, head)
 
@@ -876,7 +946,7 @@ def sync(repo: Path, publish: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="R74.3: transakční Organy public/fingering ↔ GitHub ↔ Vercel")
+    p = argparse.ArgumentParser(description="R74.4: transakční Organy public/fingering ↔ GitHub ↔ Vercel")
     p.add_argument("--publish", action="store_true", help="audit + OK, synchronizace a ověření Vercelu")
     p.add_argument("--setup-hook", action="store_true", help="jednorázové nastavení Vercel Deploy Hooku")
     p.add_argument("--repo", type=Path, help="cesta k organy-app (pro testování)")
