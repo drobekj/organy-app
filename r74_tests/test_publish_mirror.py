@@ -52,7 +52,6 @@ class MirrorTests(unittest.TestCase):
         git("-C", self.repo, "push", "-u", "origin", "main")
         self.baseline = git("-C", self.repo, "rev-parse", "HEAD")
         self.patches = [
-            patch.object(pub, "INITIAL_PRODUCTION_SHA", self.baseline),
             patch.object(pub, "hook_path", return_value=self.conf / "vercel_deploy_hook.url"),
             patch.object(pub, "state_path", return_value=self.conf / "fingering_deployment_state.json"),
         ]
@@ -64,6 +63,7 @@ class MirrorTests(unittest.TestCase):
         self.addCleanup(pub.ALLOWED_REMOTES.discard, self.remote_allowed)
         (self.conf / "vercel_deploy_hook.url").write_text(
             f"https://api.vercel.com/v1/integrations/deploy/{pub.VERCEL_PROJECT_ID}/FAKEHOOK", encoding="utf-8")
+        pub.write_state({"last_confirmed_sha": self.baseline})
         # Even a name resembling the Prstoklady project is outside the repo and untouched.
         self.original = root / "score-fingering-lab" / "data" / "samples" / "EK123-001" / "original"
         self.original.mkdir(parents=True)
@@ -246,6 +246,43 @@ class MirrorTests(unittest.TestCase):
         self.assertEqual((code, err), (0, ""))
         self.assertIn("už jsou na main; pokračuji čekajícím deploymentem", out)
         self.assertEqual(pub.read_state()["last_confirmed_sha"], git("-C", self.repo, "rev-parse", "HEAD"))
+
+    def test_missing_state_reconstructs_latest_byte_verified_publisher_baseline(self):
+        # Make the existing baseline recognizable as a publisher-created revision.
+        git("-C", self.repo, "commit", "--amend", "-m", "Sync Fingering PDF mirror (+2 ~0 -0)")
+        recovered_baseline = git("-C", self.repo, "rev-parse", "HEAD")
+        git("-C", self.repo, "push", "--force", "origin", "main")
+        pub.state_path().unlink()
+
+        with patch.object(pub, "production_matches_revision",
+                          side_effect=lambda repo, revision, known: revision == recovered_baseline) as match:
+            code, out, err = self.run_sync(False)
+
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("STATE RECOVERY OK", out)
+        self.assertEqual(pub.read_state()["last_confirmed_sha"], recovered_baseline)
+        match.assert_called()
+
+    def test_missing_state_never_falls_back_to_historical_constant(self):
+        git("-C", self.repo, "commit", "--amend", "-m", "Sync Fingering PDF mirror (+2 ~0 -0)")
+        git("-C", self.repo, "push", "--force", "origin", "main")
+        pub.state_path().unlink()
+
+        with patch.object(pub, "production_matches_revision", return_value=False):
+            code, out, err = self.run_sync(False)
+
+        self.assertEqual(code, 1)
+        self.assertNotIn("PUBLIKACE FINGERING PDF", out)
+        self.assertIn("neodpovídá byte-exact veřejné produkci", err)
+        self.assertFalse(pub.state_path().exists())
+
+    def test_missing_state_rejects_nonpublisher_history_instead_of_guessing(self):
+        pub.state_path().unlink()
+        with patch.object(pub, "production_matches_revision") as match:
+            code, out, err = self.run_sync(False)
+        self.assertEqual(code, 1)
+        self.assertIn("nejsou bezpečné kandidáty", err)
+        match.assert_not_called()
 
     def test_block_unrelated_committed_code_since_last_ready(self):
         (self.repo / "README.md").write_text("changed app")
