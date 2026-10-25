@@ -52,6 +52,7 @@ PUBLISHER_CONTROL_PATHS = frozenset({
     "R74_2_README.md",
     "R74_2_SHA256SUMS.txt",
     "R74_3_README.md",
+    "R74_4_README.md",
 })
 TRANSACTION_PHASES = frozenset({
     "approved",
